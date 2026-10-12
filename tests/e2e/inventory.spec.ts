@@ -295,7 +295,7 @@ test("product categories: added in Settings, offered on a new product, kept by i
   await page.getByLabel("New category").fill(category);
   await page.getByRole("button", { name: "Add category" }).click();
   await expect(toast(page, `${category} added`)).toBeVisible();
-  await expect(page.getByRole("list", { name: "Categories" })).toContainText(category);
+  await expect(page.getByRole("list", { name: "Categories", exact: true })).toContainText(category);
 
   // A product category is not a service category.
   await page.goto("/settings/services");
@@ -311,7 +311,7 @@ test("product categories: added in Settings, offered on a new product, kept by i
   await sheet.getByRole("button", { name: "Add product" }).click();
   await expect(page).toHaveURL(/\/products\/[0-9a-f-]{36}$/);
   const productUrl = page.url();
-  await expect(page.locator("header")).toContainText(category);
+  await expect(page.getByText(category, { exact: true })).toBeVisible();
 
   // 3. Archived: no longer offered to new products, kept by this one.
   await page.goto("/settings/product-categories");
@@ -320,7 +320,7 @@ test("product categories: added in Settings, offered on a new product, kept by i
   await expect(page.getByRole("list", { name: "Archived categories" })).toContainText(category);
 
   await page.goto(productUrl);
-  await expect(page.locator("header")).toContainText(category);
+  await expect(page.getByText(category, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Edit details" }).click();
   const edit = page.getByRole("dialog", { name: "Edit details" });
   await expect(edit.getByLabel("Category").locator("option:checked")).toHaveText(

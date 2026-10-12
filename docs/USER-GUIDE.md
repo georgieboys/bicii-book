@@ -317,6 +317,49 @@ managers.
   applies to reopening a job that used it, D47); a restock never refunds
   money: record a refund too if the customer was paid back.
 
+### Add a product you already stock
+
+- Before you start: Manage inventory (the Cost fields also need View
+  costs). Add the product categories you want first (below); a product can
+  be added without one and filed later with **Edit details**.
+- Steps: **Inventory** → **New product**. Choose **How it is counted**
+  (fixed once the product exists):
+  - **Quantity** for identical items counted together (tubes, pads,
+    chains): **Name**, and if you like **SKU**, **Brand**, **Category**,
+    **Description**, **Sale price**, **Cost** and **Reorder point**
+    ("Listed under Low stock at or below this count"). Press **Add
+    product**, then record what is on the shelf: **Stock** → **Adjust
+    stock**, **Add**, the **Quantity**, the quick reason **Opening stock
+    count**, **Save adjustment** (the next task).
+  - **Unique** for one-of-a-kind items (a complete bike, a used frame):
+    the same fields, then **First unit**: **Location**, **Serial
+    number**, **Condition (shown publicly when published)**, **Unit sale
+    price** and **Unit cost** (both optional: the product's when empty)
+    and **This is a complete bike**. Press **Add product**. More of the
+    same model: **Add unit** on the product.
+- Success looks like: toast "Product added" and the product's page with
+  its P- number (a unique item's unit gets its own U- number).
+- Consigned items (owned by someone else) are not added here: use
+  [Receive a consigned item](#receive-a-consigned-item).
+- If it fails: the sheet names the field to fix beside it. If the unit is
+  refused, the product still exists and its page offers **Add unit**.
+
+### Add product categories
+
+- Before you start: Manage inventory.
+- Steps: **Settings** → **Product categories**. Type the name in **New
+  category** and press **Add category**. **Rename** changes a name in
+  place; **Archive** hides a category from **New product** and **Edit
+  details**, **Unarchive** brings it back.
+- Success looks like: toast "<name> added"; **New product** offers it
+  under **Category**, and a product shows its category beside its SKU.
+  Products filed under an archived category keep it (shown as
+  "(archived)" when you edit them). Nothing is ever deleted.
+- These are separate from the service categories under Settings →
+  Services: the same name can exist in both.
+- If it fails: "Name the category." or a name already used by another
+  active product category.
+
 ### Adjust stock or move it between locations
 
 - Before you start: Adjust stock needs the Adjust stock permission;

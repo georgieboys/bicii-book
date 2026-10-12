@@ -412,6 +412,14 @@ upload itself, below).
   order, then name: `listLocations`' `defaultLocationId`) and "Inactive";
   Add and Edit open a sheet, Active is a switch applied at once. Nothing is
   deleted; a location holding stock cannot be switched off.
+- **Product categories settings** (`/settings/product-categories`, listed
+  in Settings between Services and Locations): the same `CategoriesEditor`
+  as the service categories card, with `kind="product"`, inside a
+  "Categories" card for manage_inventory; a plain list for everyone else.
+  Its own `loading.tsx`. The product page's Edit details keeps an archived
+  category the product is filed under as "<name> (archived)", as the
+  service sheet does, so saving never drops it; New product's Category
+  field says where to add categories while there are none.
 - **Bike stock card**: a bike that is a unique unit shows a "Stock" card on
   its page, "In stock as U-000001 · Available" (`unitStatusLabel`; "Stock
   unit U-… · Sold" once it has left stock) linking to the unit, with the

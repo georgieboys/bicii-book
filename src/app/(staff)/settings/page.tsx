@@ -7,6 +7,7 @@ import {
   ClockIcon,
   PrinterIcon,
   ShareIcon,
+  TagIcon,
   UserIcon,
   UsersIcon,
   WrenchIcon,
@@ -46,6 +47,12 @@ export default async function SettingsPage() {
         ? "Services, prices, categories and the Cult Commons rate"
         : "Services, prices and categories",
       icon: WrenchIcon,
+    },
+    {
+      href: "/settings/product-categories",
+      label: "Product categories",
+      description: "How inventory products are grouped",
+      icon: TagIcon,
     },
     {
       href: "/settings/locations",

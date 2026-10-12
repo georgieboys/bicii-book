@@ -199,6 +199,11 @@ Appointment types → New type. Before real bookings follow
 Existing bookings never move; affected ones are flagged and staff call the
 customers. (`tests/e2e/appointment-settings.spec.ts`.)
 
+**Product categories** (`manage_inventory`). Settings → Product
+categories → New category → Add category; Rename and Archive in place.
+New product and Edit details offer the active ones; a product keeps an
+archived one. (`tests/e2e/inventory.spec.ts`.)
+
 **Stock locations** (`manage_inventory`). Settings → Locations → Add
 location (Name, Sort order). Switch a location off when it holds nothing;
 it is then no longer offered for stock. (`tests/e2e/inventory-publish.spec.ts`.)
@@ -417,6 +422,7 @@ outage would be noticed by a user. There is no incident record location
 | Symptom | User impact | Where to look | First safe diagnostic | Escalation |
 |---|---|---|---|---|
 | "Sign-in is unavailable right now. Try again in a minute." | Nobody can sign in | The Admin's errors `auth.request_code` / `auth.verify_code` with `limit: "admin"`: their `cause` is `no_service_role_key` (`SUPABASE_SERVICE_ROLE_KEY` unset), `rpc_error` with a code (a wrong key gives `42501` or an API-key error; otherwise the `note_sign_in_attempt` RPC or the database failed) or `request_failed`; without `limit: "admin"`, the Auth log (`.devstack/logs/auth.log` locally) | Hosted: check `SUPABASE_SERVICE_ROLE_KEY` in Vercel matches the project's current secret key, then the Supabase status. If `private.sign_in_attempts` is gaining rows, the key works and the failure is Auth's own 500: read the Auth log for the request (`/otp`, status 500). On 2026-10-12 it was `gomail: could not send email`, the SMTP provider refusing an unverified sender domain; locally: `npm run devstack:status` | Engineering |
+| A page (Inventory, a product, Today, Reports) shows "Something went wrong" with a reference | That page is unusable | The Supabase API log for that minute: a 406 on a `reporting` view (`product_stock`, `stock_levels`, `shopify_sync_status`) means the schema is not exposed | Hosted: Supabase dashboard → Data API settings → Exposed schemas must list `reporting` ([RUNBOOK step 4](RUNBOOK.md#hosted-supabase-projects-staging-and-production)); otherwise read the Postgres log for an error at that minute | Engineering |
 | Staff report that no sign-in code arrives | That person cannot sign in | Auth logs for `over_email_send_rate_limit`; the Admin's warnings `auth.request_code`; the SMTP provider's sending log (hosted) | Send a code to the owner's address (hosted: Users → Send magic link; locally: the mail catcher) | Engineering, then the owner (SMTP provider) |
 | "You don't have permission to do that." or a 403 page | One task blocked | The person's permissions in Settings → Staff | Compare with [USER-GUIDE "Roles and limits"](USER-GUIDE.md#roles-and-limits) | Admin |
 | CI `check:types` fails | PR cannot merge cleanly | Job log | `npm run db:types` locally | Engineering |

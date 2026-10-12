@@ -11,37 +11,46 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import type { Category } from "@/lib/domain/services";
+import type { Category, CategoryKind } from "@/lib/domain/services";
 import { newId } from "@/lib/uuid";
 
+const EMPTY: Record<CategoryKind, string> = {
+  service: "No categories yet. Services without one are listed under Other.",
+  product: "No categories yet. Products can be added without one and filed later.",
+};
+
 /**
- * Service categories (manage_inventory): the list, add one, rename one in
- * place, archive and bring back. Categories are never deleted; a service
- * filed under an archived one keeps it.
+ * Service or product categories (manage_inventory): the list, add one,
+ * rename one in place, archive and bring back. Categories are never
+ * deleted; a service or product filed under an archived one keeps it.
  */
-export function CategoriesEditor({ categories }: { categories: Category[] }) {
+export function CategoriesEditor({
+  categories,
+  kind = "service",
+}: {
+  categories: Category[];
+  kind?: CategoryKind;
+}) {
   const active = categories.filter((c) => !c.archived);
   const archived = categories.filter((c) => c.archived);
   return (
     <div className="flex flex-col gap-5">
       {active.length === 0 ? (
-        <p className="text-dust-700">
-          No categories yet. Services without one are listed under Other.
-        </p>
+        <p className="text-dust-700">{EMPTY[kind]}</p>
       ) : (
         <ul aria-label="Categories" className="flex flex-col divide-y divide-hairline">
           {active.map((c) => (
-            <CategoryRow key={c.id} category={c} />
+            <CategoryRow key={c.id} category={c} kind={kind} />
           ))}
         </ul>
       )}
-      <AddCategory />
+      <AddCategory kind={kind} />
       {archived.length > 0 ? (
         <div className="flex flex-col gap-1">
           <h3 className="eyebrow text-dust-500">Archived categories</h3>
           <ul aria-label="Archived categories" className="flex flex-col divide-y divide-hairline">
             {archived.map((c) => (
-              <CategoryRow key={c.id} category={c} />
+              <CategoryRow key={c.id} category={c} kind={kind} />
             ))}
           </ul>
         </div>
@@ -50,7 +59,7 @@ export function CategoriesEditor({ categories }: { categories: Category[] }) {
   );
 }
 
-function CategoryRow({ category }: { category: Category }) {
+function CategoryRow({ category, kind }: { category: Category; kind: CategoryKind }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
@@ -60,7 +69,7 @@ function CategoryRow({ category }: { category: Category }) {
   const rename = (e: FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const result = await updateCategory({ id: category.id, name });
+      const result = await updateCategory({ id: category.id, name, kind });
       if (!result.ok) {
         setError(result.fieldErrors?.name?.[0] ?? result.error);
         return;
@@ -73,7 +82,7 @@ function CategoryRow({ category }: { category: Category }) {
 
   const archive = (next: boolean) =>
     startTransition(async () => {
-      const result = await setCategoryArchived({ id: category.id, archived: next });
+      const result = await setCategoryArchived({ id: category.id, archived: next, kind });
       if (!result.ok) {
         toast({ title: `${category.name} not changed`, description: result.error, tone: "error" });
         return;
@@ -143,7 +152,7 @@ function CategoryRow({ category }: { category: Category }) {
   );
 }
 
-function AddCategory() {
+function AddCategory({ kind }: { kind: CategoryKind }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [id, setId] = useState(newId);
@@ -153,7 +162,7 @@ function AddCategory() {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const result = await createCategory({ id, name });
+      const result = await createCategory({ id, name, kind });
       if (!result.ok) {
         setError(result.fieldErrors?.name?.[0] ?? result.error);
         return;

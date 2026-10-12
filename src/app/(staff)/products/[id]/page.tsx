@@ -182,7 +182,16 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                   active: product.active,
                   trackingType: product.trackingType,
                 }}
-                categories={categories}
+                categories={
+                  // An archived category stays choosable for a product
+                  // already filed under it, so saving keeps it.
+                  product.category && !categories.some((c) => c.id === product.category?.id)
+                    ? [
+                        ...categories,
+                        { id: product.category.id, name: `${product.category.name} (archived)` },
+                      ]
+                    : categories
+                }
                 viewCosts={viewCosts}
               />
             ) : null}

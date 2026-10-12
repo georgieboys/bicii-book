@@ -124,9 +124,16 @@ const categoryName = z
   .min(1, { error: "Name the category." })
   .max(80, { error: "Keep the name under 80 characters." });
 
-/** A new service category. */
+/** Service categories (Settings → Services) or product categories (Settings → Product categories). */
+const categoryKind = z.enum(["service", "product"], { error: "Unknown kind of category." });
+
+/** A new service or product category. */
 export const createCategory = staffAction(
-  z.object({ id: z.uuid({ error: "Open the form again." }), name: categoryName }),
+  z.object({
+    id: z.uuid({ error: "Open the form again." }),
+    name: categoryName,
+    kind: categoryKind,
+  }),
   { name: "categories.create", permission: "manage_inventory" },
   async (input, { supabase }) => {
     const result = await createOneCategory(supabase, input);
@@ -135,9 +142,9 @@ export const createCategory = staffAction(
   },
 );
 
-/** Rename a service category. */
+/** Rename a service or product category. */
 export const updateCategory = staffAction(
-  z.object({ id: z.uuid({ error: "Unknown category." }), name: categoryName }),
+  z.object({ id: z.uuid({ error: "Unknown category." }), name: categoryName, kind: categoryKind }),
   { name: "categories.update", permission: "manage_inventory" },
   async (input, { supabase }) => {
     const result = await renameCategory(supabase, input);
@@ -146,9 +153,13 @@ export const updateCategory = staffAction(
   },
 );
 
-/** Archive or bring back a service category. */
+/** Archive or bring back a service or product category. */
 export const setCategoryArchived = staffAction(
-  z.object({ id: z.uuid({ error: "Unknown category." }), archived: z.boolean() }),
+  z.object({
+    id: z.uuid({ error: "Unknown category." }),
+    archived: z.boolean(),
+    kind: categoryKind,
+  }),
   { name: "categories.set_archived", permission: "manage_inventory" },
   async (input, { supabase }) => {
     const result = await archiveCategory(supabase, input);

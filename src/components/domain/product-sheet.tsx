@@ -355,7 +355,13 @@ function ProductSheetBody({
             <Input name="brand" autoComplete="off" defaultValue={value("brand", product?.brand)} />
           </Field>
         </div>
-        <Field label="Category" error={errors?.categoryId?.[0]}>
+        <Field
+          label="Category"
+          error={errors?.categoryId?.[0]}
+          hint={
+            categories.length === 0 ? "Add categories in Settings → Product categories." : undefined
+          }
+        >
           <Select name="categoryId" defaultValue={value("categoryId", product?.categoryId)}>
             <option value="">No category</option>
             {categories.map((c) => (

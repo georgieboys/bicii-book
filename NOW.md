@@ -1,9 +1,11 @@
 # Current state
 
 Updated: 2026-10-12 SGT by the go-live session (GO-LIVE, see `HANDOVER.md`
-on `handover/go-live`), on `claude/brave-clarke-kfqhgt` from `main` 3c055fa
-(reporting merged, PR #18): the go-live checkpoint. Production is live and
-the owner has signed in. Evidence checked: `git fetch` and `git log`; the
+on `handover/go-live`), on `claude/brave-clarke-kfqhgt` from `main` 7a32010
+(the go-live checkpoint, PR #19). Production is live and the owner is
+testing it. This branch adds Settings → Product categories (the owner
+found no way to create one) and records the Data API fix (Inventory failed
+until the hosted project exposed `reporting`, RUNBOOK step 4). Evidence checked: `git fetch` and `git log`; the
 hosted project read-only (migration history, `public.staff`, Auth's
 sessions, the Auth log); GitHub Actions (`migrate.yml` run 10); the Vercel
 production deployment of `main`. Earlier rows keep the evidence of their
@@ -34,6 +36,9 @@ own phase.
     Before the switch to the test sender, Auth's 500 on `/otp`
     (`gomail: could not send email`, the unverified domain) showed as
     "Sign-in is unavailable right now".
+  - Data API: `reporting` exposed on 2026-10-12, after Inventory failed
+    with a 500 (missed at go-live;
+    [R-003](docs/RISKS.md#r-003--the-devstack-differs-from-hosted-supabase)).
   - Not set: the QR address (`shop_settings.public_site_url`, so nothing
     prints yet), `CRON_SECRET` (the cron route answers 503), the Shopify
     variables, a staging project
@@ -233,6 +238,7 @@ Deployed column keeps each row's state when the row was written.
 | Exceptions and stock reconciliation screens, threshold sheet, Today / Inventory / Reports links, export kinds exceptions, stock and units (Phase 9 step 4: D106–D108; phase closure) | Yes, `feat/p9-reporting` 4da3aa7, f09d72e and the closing commit; local only, not pushed | Locally (database `bicii_dev_wt`): `npm run check` pass (52 s), `npm run check:types` pass (no diff), `BICII_REQUIRE_STACK=1 npm test` 122 files / 1814 tests passed (unit 62 / 802 with the new `reconciliation.test.ts` and `exception-kinds.test.ts` and the extended `report-exports`, `reports` and `today-components` tests; database 60 / 1012 unchanged, Phase 5's `reporting*.test.ts` passing unchanged; 112 s), `npm run build` pass (10 s), `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npm run test:e2e` 176 passed on phone and tablet (19.1 min, no failures, flaky or skipped; `exceptions.spec.ts` 4 tests on each project; `today.spec.ts` unchanged and passing; it reset the database). The first full run had 1 failure (175 passed, 19.8 min): the phone's Today was 15 px wider than the screen (the Activity grid widened by long tagged names), so the zoomed page's tap on "See all" missed; fixed with `grid-cols-1` / `min-w-0` and guarded by a no-side-scroll check. Docs link check 38 files / 765 links / 0 problems; bench re-run on a throwaway clone (DATA-MODEL §14: every period target met; reconciliation 48–90 ms; list 402 ms; counts 259 ms and Today 9.5 s still miss, R-059) | Not deployed |
 | Reporting joins `main` (`feat/p9-reporting` ba1c26c merged onto Shopify's merge with `main`, 1b4aaed; conflicts in 13 files kept both sides; reporting's owner questions renumbered 26–27 because labels and Shopify hold 21–25; R-018, R-043 and R-058 resolved; two tests written for the branch without Phase 10 now assert the merged behaviour) | Yes, `claude/brave-clarke-kfqhgt`, the merge commit with this update | Locally on this merge (database `bicii_dev`): `npm run db:reset` pass (`56|20261006103000`, seed applied; devstack restarted), `npm run db:types` regenerated (the conflict in the generated file resolved by regeneration), `npm run check` pass, `BICII_REQUIRE_STACK=1 npm test` 156 files / 2356 tests passed (156 s, no skips; a first run failed the two assertions written for the branch without Phase 10, now updated, R-058), R-058's named tests (`operational-exceptions`, `reporting`, `reporting-seed`, `shopify-webhooks`) passed, docs link check 41 files / 979 links / 0 problems, the public site's journey 6 (repository `bicii`) 20 passed against this database; E2E in the pull request's CI | Not deployed |
 | Go-live: production (the hosted database loaded, the Admin deployed with its keys, the first admin, Auth email through Resend) | Yes: `main` 3c055fa; no code change; this checkpoint updates NOW, OPERATIONS, RUNBOOK, RISKS (R-001, R-002, R-003, R-035, R-039), ARCHITECTURE, DATA-MODEL and PRODUCT (questions 5, 6, 19 partly answered) | [`migrate.yml` run 10](https://github.com/georgieboys/bicii-book/actions/runs/38210241008) applied 56 files (runs 6–9 stopped at the connection check before `SUPABASE_DB_URL` was set); read-only SQL on the hosted project: 56 migration rows (last `20261006103000`), one active admin, one Auth login with one `otp` session; the owner signed in with an emailed code on 2026-10-12. The first attempt failed with "Sign-in is unavailable": the D72 counter rows were written (the key works) and the Auth log showed `/otp` 500 `gomail: could not send email` (unverified sender domain); Resend's test sender fixed it for the owner | Production since 2026-10-12 |
+| Product categories in Settings (`/settings/product-categories`: add, rename, archive and bring back categories of kind 'product'; the service-category editor and actions take a `kind`; Edit details keeps an archived category; New product's Category hint) | Yes, `claude/brave-clarke-kfqhgt`, the commit with this update; no migration (the table, per-kind unique names and RLS exist since Phases 3 and 4) | Locally: `npm run check` pass; the new `inventory.spec.ts` test and the rest of `inventory.spec.ts` and `workshop-board.spec.ts` (service categories) on phone and iPad, results in the pull request; docs link check | Not deployed |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).

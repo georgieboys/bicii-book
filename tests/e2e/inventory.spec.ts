@@ -277,3 +277,64 @@ test("a mechanic without inventory permissions sees no stock controls or costs, 
   );
   await expect(page.getByText(/Unit cost|Yield/)).toHaveCount(0);
 });
+
+test("product categories: added in Settings, offered on a new product, kept by it after archiving", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const tag = tagFor(testInfo);
+  const category = `Tubes ${tag}`;
+  const name = `Tube ${tag}`;
+
+  await signIn(page, "admin");
+
+  // 1. Added under Settings → Product categories.
+  await page.goto("/settings");
+  await page.getByRole("link", { name: /Product categories/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Product categories");
+  await page.getByLabel("New category").fill(category);
+  await page.getByRole("button", { name: "Add category" }).click();
+  await expect(toast(page, `${category} added`)).toBeVisible();
+  await expect(page.getByRole("list", { name: "Categories" })).toContainText(category);
+
+  // A product category is not a service category.
+  await page.goto("/settings/services");
+  await expect(page.getByText(category)).toHaveCount(0);
+
+  // 2. New product offers it, and the product shows it.
+  await page.goto("/inventory");
+  await page.getByRole("button", { name: "New product" }).first().click();
+  const sheet = page.getByRole("dialog", { name: "New product" });
+  await sheet.getByLabel("Name").fill(name);
+  await sheet.getByLabel("Category").selectOption({ label: category });
+  await sheet.getByLabel("Sale price", { exact: true }).fill("9.00");
+  await sheet.getByRole("button", { name: "Add product" }).click();
+  await expect(page).toHaveURL(/\/products\/[0-9a-f-]{36}$/);
+  const productUrl = page.url();
+  await expect(page.locator("header")).toContainText(category);
+
+  // 3. Archived: no longer offered to new products, kept by this one.
+  await page.goto("/settings/product-categories");
+  await page.getByRole("button", { name: `Archive ${category}` }).click();
+  await expect(toast(page, `${category} archived`)).toBeVisible();
+  await expect(page.getByRole("list", { name: "Archived categories" })).toContainText(category);
+
+  await page.goto(productUrl);
+  await expect(page.locator("header")).toContainText(category);
+  await page.getByRole("button", { name: "Edit details" }).click();
+  const edit = page.getByRole("dialog", { name: "Edit details" });
+  await expect(edit.getByLabel("Category").locator("option:checked")).toHaveText(
+    `${category} (archived)`,
+  );
+  await edit.getByRole("button", { name: "Cancel" }).click();
+  await expect(edit).toBeHidden();
+
+  await page.goto("/inventory");
+  await page.getByRole("button", { name: "New product" }).first().click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "New product" })
+      .getByLabel("Category")
+      .locator("option", { hasText: category }),
+  ).toHaveCount(0);
+});

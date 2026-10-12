@@ -116,7 +116,11 @@ URLs, or customer data in this file.
   2026-10-05. On 2026-10-12 all 56 migrations, including the
   session-revocation migration that needs DELETE on Auth's session tables,
   applied to the hosted project without change, and the owner signed in
-  with a code; the DB tests have not run against a hosted database.
+  with a code; the DB tests have not run against a hosted database. The
+  first real difference was configuration, not code: the hosted Data API
+  exposed only `public` (RUNBOOK step 4 was missed), so Inventory failed
+  with a 500 until `reporting` was added the same day; the devstack's
+  PostgREST and `supabase/config.toml` already list it.
 - Why accepted: real Auth, PostgREST and Storage without Docker or staging
   credentials (ADR-002).
 - Workaround or containment: the meta tests compare the reachable API

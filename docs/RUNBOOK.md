@@ -17,7 +17,12 @@ exercised, per section (as of 2026-10-12):
     (Resend, its test sender until the shop's domain is verified,
     [R-039](RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified));
     the templates, OTP settings, rate limits and URL configuration were
-    not checked against this page. The pre-deploy password reset was not
+    not checked against this page.
+  - Hosted Supabase projects, step 4 (Data API): missed at go-live and
+    set on 2026-10-12 after Inventory failed with a 500 (`reporting` was
+    not exposed, so `product_stock` answered 406 `PGRST106`); exposed
+    schemas are now `public`, `graphql_public` and `reporting`, checked
+    with an anon request to `reporting.public_items` (200). The pre-deploy password reset was not
     needed: the project's only login never had a known password
     ([R-035](RISKS.md#r-035--logins-created-before-email-codes-keep-a-known-password-until-the-pre-deploy-reset)).
   - Rotating keys and passwords, Shopify: never.
@@ -226,7 +231,12 @@ and `bicii-prod`. The owner creates them; agents never see production keys.
    environment (production domain, or the staging alias). Add redirect URLs
    for Vercel previews on staging, e.g. `https://*-<vercel-team>.vercel.app/**`.
 4. Data API: exposed schemas `public` and `reporting` (plus the default
-   `graphql_public`); never `private`. `reporting` is exposed from Phase 4
+   `graphql_public`); never `private`. Without `reporting`, Inventory,
+   product pages, Today and Reports fail with a 500 (the API answers 406
+   `PGRST106`, "Invalid schema: reporting"). Add the schema only: do not
+   run the GRANT statements Supabase's "Using custom schemas" guide shows
+   next to that setting; the migrations already grant exactly what is
+   needed, and those statements would open every object in the schema. `reporting` is exposed from Phase 4
    because `reporting.public_items` is the anonymous surface of the public
    site's QR pages (DATA-MODEL §14, §15), and staff read the stock views
    (`stock_levels`, `product_stock`, `low_stock`) there; the migrations

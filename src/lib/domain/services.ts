@@ -304,23 +304,30 @@ export async function setServiceArchived(
 }
 
 // ---------------------------------------------------------------------------
-// Settings: service categories (RLS: read by staff, written by manage_inventory)
+// Settings: service and product categories (RLS: read by staff, written by
+// manage_inventory). Each kind is its own list: names are unique per kind,
+// and a service or product is filed only under a category of its own kind.
 // ---------------------------------------------------------------------------
 
 export type Category = { id: string; name: string; archived: boolean };
 
+export type CategoryKind = "service" | "product";
+
 const CATEGORY_NOT_FOUND = "That category no longer exists. Refresh and try again.";
 const CATEGORY_FIELDS = { categories_active_name_key: "name", categories_name_check: "name" };
 
-/** Service categories by their order then name; archived ones only when asked for. */
+/** Categories of one kind by their order then name; archived ones only when asked for. */
 export async function listCategories(
   supabase: ServerSupabase,
-  { includeArchived = false }: { includeArchived?: boolean } = {},
+  {
+    includeArchived = false,
+    kind = "service",
+  }: { includeArchived?: boolean; kind?: CategoryKind } = {},
 ): Promise<Category[]> {
   let query = supabase
     .from("categories")
     .select("id, name, archived_at")
-    .eq("kind", "service")
+    .eq("kind", kind)
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
   if (!includeArchived) query = query.is("archived_at", null);
@@ -328,14 +335,14 @@ export async function listCategories(
   return rows.map((r) => ({ id: r.id, name: r.name, archived: r.archived_at !== null }));
 }
 
-/** Adds a service category; the id is the idempotency key. */
+/** Adds a category of one kind; the id is the idempotency key. */
 export async function createCategory(
   supabase: ServerSupabase,
-  input: { id: string; name: string },
+  input: { id: string; name: string; kind: CategoryKind },
 ): Promise<{ id: string }> {
   const { error } = await supabase
     .from("categories")
-    .insert({ id: input.id, kind: "service", name: input.name });
+    .insert({ id: input.id, kind: input.kind, name: input.name });
   if (error) {
     if (error.code === "23505" && constraintOf(error) === "categories_pkey")
       return { id: input.id };
@@ -344,16 +351,16 @@ export async function createCategory(
   return { id: input.id };
 }
 
-/** Renames a service category. Services and job lines refer to it by id. */
+/** Renames a category. Services, products and job lines refer to it by id. */
 export async function updateCategory(
   supabase: ServerSupabase,
-  input: { id: string; name: string },
+  input: { id: string; name: string; kind: CategoryKind },
 ): Promise<null> {
   const { data, error } = await supabase
     .from("categories")
     .update({ name: input.name })
     .eq("id", input.id)
-    .eq("kind", "service")
+    .eq("kind", input.kind)
     .select("id")
     .maybeSingle();
   if (error) rethrowOnField(new DbError(error), CATEGORY_FIELDS);
@@ -362,18 +369,18 @@ export async function updateCategory(
 }
 
 /**
- * Archives a category (hidden from the service form; its services keep it)
- * or brings it back. Categories are never deleted.
+ * Archives a category (hidden from the service or product form; what is
+ * filed under it keeps it) or brings it back. Categories are never deleted.
  */
 export async function setCategoryArchived(
   supabase: ServerSupabase,
-  input: { id: string; archived: boolean },
+  input: { id: string; archived: boolean; kind: CategoryKind },
 ): Promise<null> {
   const { data, error } = await supabase
     .from("categories")
     .update({ archived_at: input.archived ? new Date().toISOString() : null })
     .eq("id", input.id)
-    .eq("kind", "service")
+    .eq("kind", input.kind)
     .select("id")
     .maybeSingle();
   if (error) rethrowOnField(new DbError(error), CATEGORY_FIELDS);

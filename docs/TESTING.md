@@ -1357,6 +1357,16 @@ Shop floor count minus 1 (relative, the database is shared), totals
 $279.00 / cost $3.80 / yield $275.20 / Cult Commons $82.56 / after $192.64,
 and the timeline shows the line and its `stock_consumed` entry.
 
+Product categories (`inventory.spec.ts`, added 2026-10-12, phone and iPad):
+the admin opens Settings → Product categories, adds a tagged category
+(toast "<name> added", listed under Categories) that Settings → Services
+does not show; New product offers it and the new product's header shows
+it; archived (toast "<name> archived", listed under Archived categories),
+the product keeps it (Edit details selects "<name> (archived)") and New
+product no longer offers it. No database test is new: the categories
+table, its per-kind unique name and its RLS are Phase 3's and Phase 4's
+(`workshop-catalog.test.ts`, `inventory-catalog.test.ts`).
+
 Phase 4 Step 4 (`inventory-publish.spec.ts` and `scan.spec.ts`, phone and
 iPad). Publication: the admin creates a tagged counted product with stock
 and a price and makes it internal; Publish is disabled with "Still needed:

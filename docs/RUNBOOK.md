@@ -1,10 +1,26 @@
 # BICII Admin — Runbook
 
 Owner: Abhishek Cherian George. Audience: technical operator. Last
-exercised, per section (as of 2026-10-05):
+exercised, per section (as of 2026-10-12):
 
-- Hosted sections (hosted projects, migrations, first admin, key rotation,
-  Vercel): never; no hosted project exists.
+- Hosted sections, on the production project (there is no staging
+  project, [R-001](RISKS.md#r-001--nothing-is-deployed)):
+  - Applying migrations: 2026-10-12, `migrate.yml` run 10 from GitHub
+    Actions, 56 files; the CLI from a workstation never.
+  - Creating the first admin: 2026-10-12. The login was created through
+    Auth's admin API without a password (the dashboard's step 1
+    equivalent), then step 2's SQL returned one admin row, then the owner
+    signed in with a code.
+  - Vercel environment setup: 2026-10-06 (project linked, deploys `main`)
+    and 2026-10-12 (the service-role key added, production redeployed).
+  - Hosted Supabase projects, step 2 (Auth): only SMTP, 2026-10-12
+    (Resend, its test sender until the shop's domain is verified,
+    [R-039](RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified));
+    the templates, OTP settings, rate limits and URL configuration were
+    not checked against this page. The pre-deploy password reset was not
+    needed: the project's only login never had a known password
+    ([R-035](RISKS.md#r-035--logins-created-before-email-codes-keep-a-known-password-until-the-pre-deploy-reset)).
+  - Rotating keys and passwords, Shopify: never.
 - Local Supabase with Docker (Supabase CLI): never exercised here; the
   build environment has no Docker.
 - The camera scanner on phones and iPads: not exercised (no LAN device

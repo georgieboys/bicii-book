@@ -37,13 +37,14 @@ flowchart LR
   app -. "Admin API (GraphQL)" .-> shopify
   cron["Vercel cron<br/>(vercel.json, not set up)"] -. "bearer" .-> app
   printer["Label printer<br/>(browser print / PDF since Phase 8;<br/>hardware adapter Phase 12)"] --- app
-  auth --> mail["Email (SMTP)<br/>sign-in codes; hosted provider not set up"]
+  auth --> mail["Email (SMTP)<br/>sign-in codes; Resend on production"]
 ```
 
 Dashed lines are planned or not yet connected (the Shopify layer is
-built and tested only against its in-memory fake). Nothing is deployed: there is no
-hosted Supabase project and no Vercel project
-([R-001](RISKS.md#r-001--nothing-is-deployed)). Locally and in CI the
+built and tested only against its in-memory fake). Production runs on
+Vercel (project `bicii-book`, functions in sin1) against one hosted
+Supabase project (Postgres 17) since 2026-10-12; there is no staging
+project ([R-001](RISKS.md#r-001--nothing-is-deployed)). Locally and in CI the
 Supabase services run without Docker on the devstack
 ([ADR-002](decisions/ADR-002-devstack.md)): a local mail catcher on :8025
 (SMTP :2525) that receives Auth's emails, Auth on :9999, PostgREST on
@@ -505,7 +506,7 @@ All records: [decisions/README.md](decisions/README.md).
 | Concurrency | Races are tested on separate connections: `tests/db/workshop-concurrency.test.ts`, `reporting-concurrency`, `staff-concurrency`, `appointment-concurrency`, `consignment-concurrency` (Phase 6 steps 1 and 2 and the review fixes: intake, returns, parts, completions, sales, settlements, refunds and restocks; each case proves the second call waits on a lock), `purchasing-concurrency` (Phase 7: the same receipt key twice, two keys racing for one line, a receipt against a quantity change or a job part, opposite-order receipts, racing preferred links) and the "under concurrency" block of `inventory-ledger.test.ts` (skipped in existing-database mode); all passed in `npm test` on `feat/p7-purchasing` at the Phase 7 integration (102 files, 1517 tests) and again after its review fixes (102 files, 1518 tests), every concurrency file above included | Behaviour under real shop load | First hosted use |
 | Load and latency | Period reports only: `scripts/bench/report-volume.sql` on a year of synthetic data (15,021 jobs, 51,025 work-order lines, 10,004 sale lines, 101,045 movements) measured every report RPC under its target on 2026-10-06 (a month ≤ 93 ms, a year ≤ 451 ms, a line-items page ≤ 35 ms, stock value 15 ms; [DATA-MODEL §14](DATA-MODEL.md#14-reporting-views-schema-reporting)); step 3 added 3,006 unique units: reconciliation 50–88 ms and the exceptions list 390 ms (targets 500), but the exception counts 257 ms (target 150) and `today_dashboard` 8.8 s, almost all Phase 5's `daily_summary` for one day; step 4's re-run moved within the machine's noise (a year's series 522 ms, reconciliation 48–90 ms, list 402 ms, counts 259 ms, Today 9.5 s) ([R-059](RISKS.md#r-059--today-and-the-exception-counts-are-slow-at-a-busy-years-volume)); screens not measured | Single shop, a few staff; hosted latency unknown | Slow screens reported; a report query changes (re-run the bench) |
 | Upload size | 20 MiB per object on both buckets (`file_size_limit` 20971520); photos are scaled to at most 2048 px and re-encoded as JPEG in the browser first (`prepare-photo.ts`) | Hosted Storage limits per plan | Hosted project created |
-| Hosted behaviour | None: everything runs on the devstack | Platform roles, Auth settings and versions may differ | [R-001](RISKS.md#r-001--nothing-is-deployed), [R-003](RISKS.md#r-003--the-devstack-differs-from-hosted-supabase) |
+| Hosted behaviour | Every migration applied to the hosted production project unchanged and the owner signed in with a code (2026-10-12); no test suite has run against a hosted database | Platform roles, Auth settings and versions may differ | [R-001](RISKS.md#r-001--nothing-is-deployed), [R-003](RISKS.md#r-003--the-devstack-differs-from-hosted-supabase) |
 | Labels | Payloads are exactly `{public_site_url}/q/{short_id}` on the print view and in the PDF (`tests/e2e/print-view.spec.ts`, journey 3: ten identical link URIs); the QR decodes to the payload (`tests/unit/printing/label-svg.test.tsx`, ZXing); `reporting.public_items` returns identical rows to anon and to staff (`tests/db/labels.test.ts`) | Output on a real label printer and on iOS AirPrint is untested ([R-075](RISKS.md#r-075--label-output-is-unverified-on-a-real-label-printer-and-on-ios)); print success is confirmed by hand ([R-076](RISKS.md#r-076--print-success-is-confirmed-by-hand)) | First printer purchased, or Phase 12 |
 | Recovery | No backup or restore exercised | Unknown plan tier | [R-002](RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery) |
 
@@ -514,8 +515,8 @@ All records: [decisions/README.md](decisions/README.md).
 - [R-001](RISKS.md#r-001--nothing-is-deployed),
   [R-002](RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery)
   and [R-003](RISKS.md#r-003--the-devstack-differs-from-hosted-supabase):
-  nothing hosted, nothing recoverable yet, and the local platform is a
-  re-creation.
+  production only (no staging), no exercised recovery, and the local
+  platform is a re-creation.
 - [R-009](RISKS.md#r-009--the-seven-pr-stack-is-unmerged-and-the-purchasing-track-forks-from-pr-6):
   the stack is merged; purchasing is integrated with `main` on its branch
   and waits for its PR; email sign-in is integrated on top of it

@@ -1,20 +1,25 @@
 # Administration and service operations
 
 Owner: Abhishek Cherian George ("George", GitHub `abhishekcheriangeorge-ops`).
-Last reviewed against live configuration: not possible; no hosted
-environment exists (2026-10-05). The GitHub repository and its Actions runs
-were checked through the REST API on 2026-10-05.
+Last reviewed against live configuration: 2026-10-12 (the hosted
+Supabase project read-only, the Vercel project, GitHub Actions). The
+GitHub repository and its Actions runs were first checked through the REST
+API on 2026-10-05.
 
-Nothing is deployed ([RISKS R-001](RISKS.md#r-001--nothing-is-deployed)).
-This page therefore says what exists (a local devstack and CI), what does
-not (staging and production), and which procedures wait for them.
+Production is live since 2026-10-12: the Admin on Vercel against one
+hosted Supabase project. There is no staging project
+([RISKS R-001](RISKS.md#r-001--nothing-is-deployed)). This page says what
+exists (production, a local devstack and CI), what does not (staging,
+backups exercised, monitoring), and which procedures wait for them.
 Step-by-step procedures live in [RUNBOOK.md](RUNBOOK.md); setup and
 commands in [ENGINEERING.md](ENGINEERING.md).
 
 ## Start here
 
-- Service or dashboard: none hosted. Code and CI:
-  https://github.com/abhishekcheriangeorge-ops/bicii-book (Actions tab).
+- Service or dashboard: the Admin on Vercel project `bicii-book` (production
+  domain), the hosted Supabase project in the owner's organisation (live
+  since 2026-10-12), Resend for Auth email. Code and CI:
+  https://github.com/georgieboys/bicii-book (Actions tab).
 - Routine administration in the app: [Product administration](#product-administration).
 - Something is broken: on a developer machine, `npm run devstack:status`
   and the logs under `.devstack/logs/` ([Diagnosis](#diagnosis-and-alerts));
@@ -28,15 +33,15 @@ commands in [ENGINEERING.md](ENGINEERING.md).
 
 | Service or account | Purpose | Owner and access | Billing | If it fails |
 |---|---|---|---|---|
-| GitHub repository `abhishekcheriangeorge-ops/bicii-book` (public; 0 issues) | Code, pull requests, CI on GitHub Actions | George (owner account) | Not checked | No CI and no review history |
+| GitHub repository `georgieboys/bicii-book` (public; moved from `abhishekcheriangeorge-ops/bicii-book` on 2026-10-06) | Code, pull requests, CI on GitHub Actions | George (owner account) | Not checked | No CI and no review history |
 | GitHub Actions (`ci.yml`, `e2e.yml`, `migrate.yml`) | `check`, `test (unit + db)`, `build`; Playwright; `db push` to the hosted Supabase project | Same repository. `ci.yml` and `e2e.yml` need no secrets; `migrate.yml` reads the `SUPABASE_DB_URL` Actions secret, set by the owner ([RUNBOOK](RUNBOOK.md#from-github-actions-the-hosted-project)) | Not checked | Changes merge unverified; migrations stop reaching the hosted database |
-| Supabase hosted projects `bicii-staging`, `bicii-prod` | Database, Auth, Storage for previews and production | **Not set up** | n/a | n/a until created |
+| Supabase hosted project (production) | Database, Auth, Storage for the Admin and the public site | Owner's Supabase organisation. Live since 2026-10-12: every migration applied by `migrate.yml` (run 10, 56 files), buckets `media-internal` and `media-public`, the first admin. No staging project: testing happens on production data ([R-001](RISKS.md#r-001--nothing-is-deployed)) | Not checked | Nothing works: the Admin and the public site share it |
 | Vercel project `bicii` (public site) | The public website and, from Phase 11 step 2, customer accounts, booking and item pages against the same Supabase project; no service-role key ([RUNBOOK](RUNBOOK.md#the-public-site-customer-accounts)) | Owner's Vercel team | Not checked | Customers cannot sign in, book or open item pages; staff work is unaffected |
-| Vercel project | Hosting the Admin | **Not set up** | n/a | n/a |
+| Vercel project `bicii-book` | Hosting the Admin at the project's production domain (functions in sin1); deploys `main` to production | Owner's Vercel team. Production has the Supabase URL and anon key, `SUPABASE_SERVICE_ROLE_KEY`, the public site URL, `LOG_LEVEL` and the Server Actions key; no Shopify variables or `CRON_SECRET` yet ([RUNBOOK](RUNBOOK.md#vercel-environment-setup)) | Not checked | Staff cannot work; a failed deployment leaves the previous one serving |
 | Domain, DNS | Admin and public site addresses | None known for the Admin | Unknown | n/a |
-| Email delivery (SMTP) | Auth email: staff sign-in codes (D10) and customers' codes on the public site (Phase 11, D120) | **Not set up**; a custom SMTP provider is required on every hosted project ([RUNBOOK](RUNBOOK.md#hosted-supabase-projects-staging-and-production)) | Unknown | Nobody can sign in ([R-039](RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified)) |
+| Email delivery (SMTP) | Auth email: staff sign-in codes (D10) and customers' codes on the public site (Phase 11, D120) | Resend, set in the hosted project's Auth SMTP settings (2026-10-12). The shop's sending domain is waiting for Resend's verification; until then the sender is Resend's test address, which delivers only to the Resend account's own address, so only the owner receives codes and staff invitations wait ([R-039](RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified)) | Unknown | Nobody can sign in ([R-039](RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified)) |
 | Shopify store and its custom app | Phase 10 integration: online orders and refunds in, product price and stock out | None connected; the custom app's token and webhook secret go into Vercel Production only (`SHOPIFY_ADMIN_TOKEN`, `SHOPIFY_WEBHOOK_SECRET`, `SHOPIFY_SHOP_DOMAIN`; [RUNBOOK](RUNBOOK.md#shopify)). Preview gets no live-store values: Shopify off, or a separate development store with `SHOPIFY_ALLOW_PREVIEW=true` | Unknown | Online orders wait in the queue (Shopify retries refused webhooks); syncs retry ([R-011](RISKS.md#r-011--shopify-is-not-built-and-will-be-fixture-tested-only), [R-047](RISKS.md#r-047--the-live-shopify-adapter-is-unverified-against-a-real-store)) |
-| Vercel cron (`vercel.json`) | Runs due integration jobs every 5 minutes behind `CRON_SECRET` (D87) | Not set up (no Vercel project) | The 5-minute schedule needs a Pro plan: on Hobby a sub-daily cron **fails the deployment**, so Hobby needs a daily schedule in `vercel.json` plus an external 5-minute scheduler ([RUNBOOK](RUNBOOK.md#shopify-the-cron-and-the-queue)); choose the plan before the first deployment | Retries and deferred syncs wait for the next webhook or staff action ([R-049](RISKS.md#r-049--queued-integration-jobs-wait-for-a-trigger)) |
+| Vercel cron (`vercel.json`) | Runs due integration jobs every 5 minutes behind `CRON_SECRET` (D87) | Deployed with the Admin since 2026-10-06 (the team's plan accepted the 5-minute schedule); the route answers 503 `cron_not_configured` until `CRON_SECRET` is set | The 5-minute schedule needs a Pro plan: on Hobby a sub-daily cron **fails the deployment**, so Hobby needs a daily schedule in `vercel.json` plus an external 5-minute scheduler ([RUNBOOK](RUNBOOK.md#shopify-the-cron-and-the-queue)); choose the plan before the first deployment | Retries and deferred syncs wait for the next webhook or staff action ([R-049](RISKS.md#r-049--queued-integration-jobs-wait-for-a-trigger)) |
 | Label printer | Phase 8 and 12 | Models unknown; Phase 8 prints through the browser or a PDF (untested on a real printer, [R-075](RISKS.md#r-075--label-output-is-unverified-on-a-real-label-printer-and-on-ios)). Printing needs `shop_settings.public_site_url` set ([RUNBOOK](RUNBOOK.md#labels-the-qr-address-before-the-first-print)) | Unknown | Nothing prints while the address is unset ([R-012](RISKS.md#r-012--label-printer-hardware-is-unknown), [R-013](RISKS.md#r-013--changing-the-qr-base-leaves-printed-labels-on-the-old-address)) |
 
 Not established: account custody (organisation or personal ownership), a
@@ -60,13 +65,13 @@ describe (planned; never exercised).
 |---|---|---|---|---|
 | Local devstack | http://localhost:3000 (`npm run dev`); E2E serves a production build on :3100 | `bicii_dev` on Postgres 16 at 127.0.0.1:5432 | Supabase Auth :9999, PostgREST :3001, Storage :5000 behind the gateway :54321; public local demo keys; no email; Shopify off, or the in-memory fake with `SHOPIFY_ADAPTER=fake` (E2E sets it) | `npm run devstack:env` writes `.env.local`; shell variables for the scripts ([ENGINEERING.md](ENGINEERING.md#prerequisites-and-access)) |
 | CI (GitHub Actions) | `next build`; `next start` on :3100 for E2E | A `postgres:16` service container per job | The devstack with the local demo keys; no secrets | [`ci.yml`](../.github/workflows/ci.yml): `check`, `test (unit + db)`, `build` on pull requests (opened, synchronize, reopened), pushes to `main` and manual dispatch. [`e2e.yml`](../.github/workflows/e2e.yml): pull requests labelled `e2e`, nightly at 02:23 Singapore time, manual dispatch. [`migrate.yml`](../.github/workflows/migrate.yml): `db push` to the hosted project on manual dispatch and on pushes to `main` that change `supabase/migrations/` |
-| Preview / staging | **Not set up** | `bicii-staging` planned | Planned | [RUNBOOK](RUNBOOK.md#hosted-supabase-projects-staging-and-production) |
-| Production | **Not set up** | `bicii-prod` planned | Planned | [RUNBOOK](RUNBOOK.md#vercel-environment-setup) |
+| Preview / staging | Vercel previews of the Admin (protected); no staging database, so a preview reads the production project with the anon key and cannot sign anyone in (the service-role key is Production only) | `bicii-staging` planned, not created | Planned | [RUNBOOK](RUNBOOK.md#hosted-supabase-projects-staging-and-production) |
+| Production | Vercel `bicii-book`'s production domain, deployed from `main` | The hosted Supabase project (live 2026-10-12) | Supabase Auth (email codes through Resend), Storage, PostgREST; Shopify off | Vercel environment variables and the Supabase dashboard's Auth settings ([RUNBOOK](RUNBOOK.md#vercel-environment-setup)) |
 
-Scheduled workflows and push triggers run from the default branch, and
-`main` is still the initial commit (1594c78, no workflows): on 2026-10-05
-GitHub reported 0 scheduled and 0 push runs. Until the PR stack merges, CI
-runs only on pull requests.
+Scheduled workflows and push triggers run from the default branch, `main`,
+which has carried the workflows since the PR stack merged (on 2026-10-05,
+while `main` was still the initial commit, GitHub reported 0 scheduled and
+0 push runs).
 
 Configuration reference: every variable name, with its exposure and
 purpose, is in [`.env.example`](../.env.example);
@@ -345,8 +350,13 @@ The only data exports are the report CSVs.
 
 ## Technical operation
 
-Each procedure is in RUNBOOK. Last exercised: **never** for every hosted
-procedure (no hosted project exists, 2026-10-05).
+Each procedure is in RUNBOOK. Last exercised on the hosted production
+project: applying migrations (`migrate.yml`, 2026-10-12), creating the
+first admin (2026-10-12), the Vercel environment (2026-10-06 and
+2026-10-12), the Auth SMTP setting (2026-10-12, Resend, with its test
+sender until the shop's domain is verified). Never: key rotation, a
+staging project, the code-only email templates and Auth's rate limits
+(not checked against the RUNBOOK list), any Shopify procedure.
 
 - [Hosted Supabase projects: staging and production](RUNBOOK.md#hosted-supabase-projects-staging-and-production):
   for staff sign-in by emailed code (D10, D70–D72) it covers the custom
@@ -406,7 +416,7 @@ outage would be noticed by a user. There is no incident record location
 
 | Symptom | User impact | Where to look | First safe diagnostic | Escalation |
 |---|---|---|---|---|
-| "Sign-in is unavailable right now. Try again in a minute." | Nobody can sign in | The Admin's errors `auth.request_code` / `auth.verify_code` with `limit: "admin"`: their `cause` is `no_service_role_key` (`SUPABASE_SERVICE_ROLE_KEY` unset), `rpc_error` with a code (a wrong key gives `42501` or an API-key error; otherwise the `note_sign_in_attempt` RPC or the database failed) or `request_failed`; without `limit: "admin"`, the Auth log (`.devstack/logs/auth.log` locally) | Hosted: check `SUPABASE_SERVICE_ROLE_KEY` in Vercel matches the project's current secret key, then the Supabase status; locally: `npm run devstack:status` | Engineering |
+| "Sign-in is unavailable right now. Try again in a minute." | Nobody can sign in | The Admin's errors `auth.request_code` / `auth.verify_code` with `limit: "admin"`: their `cause` is `no_service_role_key` (`SUPABASE_SERVICE_ROLE_KEY` unset), `rpc_error` with a code (a wrong key gives `42501` or an API-key error; otherwise the `note_sign_in_attempt` RPC or the database failed) or `request_failed`; without `limit: "admin"`, the Auth log (`.devstack/logs/auth.log` locally) | Hosted: check `SUPABASE_SERVICE_ROLE_KEY` in Vercel matches the project's current secret key, then the Supabase status. If `private.sign_in_attempts` is gaining rows, the key works and the failure is Auth's own 500: read the Auth log for the request (`/otp`, status 500). On 2026-10-12 it was `gomail: could not send email`, the SMTP provider refusing an unverified sender domain; locally: `npm run devstack:status` | Engineering |
 | Staff report that no sign-in code arrives | That person cannot sign in | Auth logs for `over_email_send_rate_limit`; the Admin's warnings `auth.request_code`; the SMTP provider's sending log (hosted) | Send a code to the owner's address (hosted: Users → Send magic link; locally: the mail catcher) | Engineering, then the owner (SMTP provider) |
 | "You don't have permission to do that." or a 403 page | One task blocked | The person's permissions in Settings → Staff | Compare with [USER-GUIDE "Roles and limits"](USER-GUIDE.md#roles-and-limits) | Admin |
 | CI `check:types` fails | PR cannot merge cleanly | Job log | `npm run db:types` locally | Engineering |

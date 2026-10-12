@@ -1,76 +1,82 @@
 # Current state
 
-Updated: 2026-10-06 21:10 SGT by the go-live session (GO-LIVE, see
-`HANDOVER.md` on `handover/go-live`), on a local branch from
-`claude/brave-clarke-kfqhgt` 1b4aaed (Shopify merged with `main` 680cb9f,
-PR #17): reporting joins. The build session paused for the handover with
-Phase 9 complete on `feat/p9-reporting` (ba1c26c, branched from
-`feat/staff-roles` 5c9fbc7, auto-saved to `wip/feat/p9-reporting`); this
-merge brings it onto labels, Shopify, the migrate workflow and the public
-site's backend. Evidence checked: `git fetch`, `git log`, `git merge-base`
-(5c9fbc7), the build session's status (idle, "work paused for handoff"),
-the hosted project's migration history (read-only); the gate on this
-merge is in the last rows below. Earlier rows keep the evidence of their
+Updated: 2026-10-12 SGT by the go-live session (GO-LIVE, see `HANDOVER.md`
+on `handover/go-live`), on `claude/brave-clarke-kfqhgt` from `main` 3c055fa
+(reporting merged, PR #18): the go-live checkpoint. Production is live and
+the owner has signed in. Evidence checked: `git fetch` and `git log`; the
+hosted project read-only (migration history, `public.staff`, Auth's
+sessions, the Auth log); GitHub Actions (`migrate.yml` run 10); the Vercel
+production deployment of `main`. Earlier rows keep the evidence of their
 own phase.
 
 ## Return in two minutes
 
 - Purpose: the staff Admin for BICII's workshop, over one Supabase backend
   shared with the public site ([PRODUCT.md](docs/PRODUCT.md)).
-- On `main`: phases 0–8 (labels in PR #16, which also closed #12), staff
-  email sign-in, staff roles (PRs #1–#11, #13), the hosted migration
-  workflow (PR #14, `migrate.yml`), the public site's backend (PR #15,
-  Phase 11 step 1) and Phase 10, Shopify (PR #17; built against an
-  in-memory fake; no store connected). This branch adds Phase 9,
-  reporting and reconciliation.
-- Go-live state (2026-10-06): the Vercel project is linked to this
-  repository and deploys `main` to production (functions in sin1); the
-  sign-in page answers 200. The hosted database still has only
-  `20261004000100_foundation`: `migrate.yml` stops at its first step
-  because the `SUPABASE_DB_URL` Actions secret is not set (owner). The
-  Vercel project lacks `SUPABASE_SERVICE_ROLE_KEY` (owner; without it
-  nobody can sign in). The owner's Auth login (george@chaosactive.com,
-  confirmed, no known password) exists on the hosted project; its admin
-  staff row waits for the loaded database.
-- Current objective: merge the build session's work in order (labels and
-  Shopify merged; reporting on this branch; then Shopify's refund-roles
-  follow-up after review) and Phase 11
-  ([PLAN Phase 11](docs/PLAN.md#phase-11--public-site-integration-in-the-bicii-repo),
-  D120–D125, [ADR-023](docs/decisions/ADR-023-public-site.md)). Step 1
-  (this repository) is on `main`; step 2, the screens in repository
-  `bicii`, merges only after the Admin is live on the same database.
-- Next action: the owner sets `SUPABASE_DB_URL` (Actions secret) and
-  `SUPABASE_SERVICE_ROLE_KEY` (Vercel, production); then dispatch
-  `migrate.yml`, run the advisors, give the owner's login its admin staff
-  row and sign in. An admin sets the QR address before the first print
-  ([RUNBOOK](docs/RUNBOOK.md#labels-the-qr-address-before-the-first-print)).
-  `vercel.json`'s 5-minute cron needs a Vercel plan that allows it
-  ([R-049](docs/RISKS.md#r-049--queued-integration-jobs-wait-for-a-trigger),
-  [RUNBOOK](docs/RUNBOOK.md#shopify-the-cron-and-the-queue)); Shopify stays
-  off until the owner connects a store
-  ([RUNBOOK](docs/RUNBOOK.md#shopify)). While the hosted database holds
-  only the foundation no migration needs renaming; once it is loaded,
-  later ones are renamed past everything live (`HANDOVER.md` "Migrations
-  after go-live"). The build session's unreviewed Shopify follow-up
-  (`wip/feat/p10-shopify` 8dbe6c4: managers retry and dismiss Shopify
-  refund jobs and read refund events, D94 over D86) is not proposed yet:
-  it widens who reads Shopify refund events (payloads with payment and
-  line details), which is the owner's call, and it no longer fits as
-  written: with reporting on `main`, `private.exception_visible`
-  keeps `integration_failed` admin-only (D108), so managers would still
-  not see refund jobs on Today. A cherry-pick onto this merge conflicted
-  in DATA-MODEL and PLAN and was dropped; it needs a design pass against
-  D108 and the owner's decision.
-- Phase 9 reporting, step 1 of 4 (database), committed locally on
-  `feat/p9-reporting`, not pushed: `20261006001000_report_periods` and
+- On `main`: phases 0–10 (labels PR #16, Shopify PR #17 built against an
+  in-memory fake with no store connected, reporting PR #18), staff email
+  sign-in, staff roles (PRs #1–#11, #13), the hosted migration workflow
+  (PR #14, `migrate.yml`) and the public site's backend (PR #15, Phase 11
+  step 1).
+- Go-live state (2026-10-12): production is live.
+  - Database: the hosted project holds all 56 migrations (`migrate.yml`
+    run 10, last `20261006103000`); no seed; buckets in place; Postgres 17.
+  - Admin: Vercel project `bicii-book` deploys `main` to production
+    (functions in sin1) with the Supabase URL, anon key and service-role
+    key; production redeployed after the key was added.
+  - First admin: the owner's login (created 2026-10-06 without a password)
+    has its admin staff row; the owner signed in with an emailed code on
+    2026-10-12 and is testing.
+  - Email: Auth sends through Resend. The shop's domain waits for Resend's
+    verification, so the sender is Resend's test address, which reaches
+    only the owner; staff invitations wait for the domain
+    ([R-039](docs/RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified)).
+    Before the switch to the test sender, Auth's 500 on `/otp`
+    (`gomail: could not send email`, the unverified domain) showed as
+    "Sign-in is unavailable right now".
+  - Not set: the QR address (`shop_settings.public_site_url`, so nothing
+    prints yet), `CRON_SECRET` (the cron route answers 503), the Shopify
+    variables, a staging project
+    ([R-001](docs/RISKS.md#r-001--nothing-is-deployed)), an exercised
+    backup ([R-002](docs/RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery)).
+- Current objective: the owner tests the live Admin; then staff and the
+  public site (Phase 11 step 2,
+  [PLAN Phase 11](docs/PLAN.md#phase-11--public-site-integration-in-the-bicii-repo),
+  D120–D125, [ADR-023](docs/decisions/ADR-023-public-site.md)), whose
+  screens wait as a draft pull request in repository `bicii`.
+- Next action:
+  1. Owner: finish Resend's domain verification, set the shop's address as
+     the Auth sender, send a code to a second address, then invite staff
+     from Settings → Staff.
+  2. Admin: set the QR address before the first print
+     ([RUNBOOK](docs/RUNBOOK.md#labels-the-qr-address-before-the-first-print)),
+     the shop hours and appointment types
+     ([RUNBOOK](docs/RUNBOOK.md#appointments-schedule-before-go-live)).
+  3. Before real records: confirm backups and exercise a restore (R-002);
+     decide on a staging project (R-001).
+  4. Public site: the owner decides when customer sign-in opens (a privacy
+     notice and a PDPA contact first; Auth sign-ups are off), then the
+     `bicii` Vercel project gets the Supabase URL, the anon key and the
+     Admin's address, never the service-role key
+     ([RUNBOOK](docs/RUNBOOK.md#the-public-site-customer-accounts)).
+  5. Shopify stays off until the owner connects a store and sets
+     `CRON_SECRET` ([RUNBOOK](docs/RUNBOOK.md#shopify)). The build
+     session's unreviewed refund follow-up (`wip/feat/p10-shopify`
+     8dbe6c4: managers retry and dismiss Shopify refund jobs and read
+     refund events, D94 over D86) is not proposed: it widens who reads
+     refund payloads (payment and line details), the owner's call, and
+     conflicts with D108 (`integration_failed` stays admin-only), so it
+     needs a design pass first.
+  6. Any new migration sorts after `20261006103000`; `migrate.yml` applies
+     it to production on merge.
+- Phase 9 reporting, step 1 of 4 (database), on `main` (PR #18): `20261006001000_report_periods` and
   `20261006001100_report_stock_value` (D100–D105,
   [ADR-022](docs/decisions/ADR-022-reporting.md)): four date bases over
   `reporting.report_lines`, the summary, series, breakdown, line-item,
   activity and by-mechanic RPCs, stock value at last cost; refunds beside
   gross (D102, the build default for owner question 12); risks R-055 and
   R-056; owner question 26.
-- Phase 9 reporting, step 2 of 4 (app), committed locally on
-  `feat/p9-reporting`, not pushed: `/reports` (period and date-basis
+- Phase 9 reporting, step 2 of 4 (app), on `main` (PR #18): `/reports` (period and date-basis
   controls in the URL, figures with cost tiles hidden without View costs,
   refunds beside gross, buckets, the breakdown by seven dimensions, stock
   at last cost now, activity and jobs by mechanic), `/reports/lines` (one
@@ -78,8 +84,7 @@ own phase.
   Route Handler, the CSV export `/reports/export` (R-057: 50,000 rows at
   most, 409 when the counts move); `ComingSoon` placeholders at
   `/reports/exceptions` and `/reports/reconciliation`.
-- Phase 9 reporting, step 3 of 4 (database), committed locally on
-  `feat/p9-reporting`, not pushed: `20261006001200_stock_reconciliation`
+- Phase 9 reporting, step 3 of 4 (database), on `main` (PR #18): `20261006001200_stock_reconciliation`
   (no balance cache, D106: `reporting.unit_ledger_disposition`,
   `unit_reconciliation`, `stock_reconciliation`, the RPCs
   `report_stock_reconciliation` and `report_unit_reconciliation`) and
@@ -93,8 +98,7 @@ own phase.
   reconciles unchanged; no RPC defect was found. Risks R-058 (re-verify at
   the Phase 10 merge) and R-059 (Today slow at a busy year's volume, mostly
   Phase 5's `daily_summary`); owner question 27.
-- Phase 9 reporting, step 4 of 4 (app and closure), committed locally on
-  `feat/p9-reporting`, not pushed: `/reports/exceptions` (grouped,
+- Phase 9 reporting, step 4 of 4 (app and closure), on `main` (PR #18): `/reports/exceptions` (grouped,
   per-caller exceptions, the admin's threshold sheet, Export CSV) and
   `/reports/reconciliation` (Problems only / Everything, a product
   filter, links to the guarded fix); Today's "See all exceptions",
@@ -167,20 +171,27 @@ own phase.
   print success is confirmed by hand
   ([R-076](docs/RISKS.md#r-076--print-success-is-confirmed-by-hand)).
 - Owner questions: 12 (refund netting; D102 is the build default), 18
-  (D70–D72), 19 (SMTP provider), 20 (D92, D93), 21 (the label defaults
+  (D70–D72), 19 (the sender address, after Resend's domain verification), 20 (D92, D93), 21 (the label defaults
   D56–D59), 23–25 (Shopify: D89's tax basis and POS, the defaults
   D80–D88), 26–27 (the reporting defaults D100–D108) and 30 (the
   public-site defaults D120–D125) in
   [PRODUCT.md](docs/PRODUCT.md#open-assumptions-and-owner-questions); the
-  Supabase dashboard checklist in `HANDOVER.md` (SMTP, templates, Auth
-  settings, rate limits, site URL).
-- Main uncertainty: hosted email delivery and Auth settings are unverified
+  Supabase dashboard checklist in `HANDOVER.md` (SMTP done; templates,
+  Auth settings, rate limits, site URL not checked).
+- Main uncertainty: production has no staging in front of it and no
+  exercised restore
+  ([R-001](docs/RISKS.md#r-001--nothing-is-deployed),
+  [R-002](docs/RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery));
+  email reaches only the owner until the domain is verified
   ([R-039](docs/RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified)).
 
 ## What is actually working
 
 CI runs `check`, `test (unit + db)` and `build` in one run per head; e2e is
 a separate, label-triggered run. All listed results are success.
+
+Everything on `main` (3c055fa) is in production since 2026-10-12; the
+Deployed column keeps each row's state when the row was written.
 
 | Capability | Implemented | Verified and how | Deployed |
 |---|---|---|---|
@@ -221,24 +232,26 @@ a separate, label-triggered run. All listed results are success.
 | Stock reconciliation and extended operational exceptions (Phase 9 step 3: D106–D108; reconciliation views and RPCs, the unsettled-consignment threshold, per-kind visibility, sale-line currency_mismatch, the Phase 10 placeholder, bench section 3) | Database only, `feat/p9-reporting`, the step 3 commits after 05c9414; local only, not pushed; screens are step 4 | Locally (database `bicii_dev_wt`): `npm run db:reset` pass (`51\|20261006001300`, seed applied; the seed reconciles unchanged), `npm run db:types` committed, `npm run check` pass, `npm run check:types` pass (no diff), `BICII_REQUIRE_STACK=1 npm test` 120 files / 1788 tests passed (unit 60 / 776 unchanged; database 60 / 1012 with `stock-reconciliation.test.ts` 21 and `operational-exceptions.test.ts` 6; Phase 5's exception tests pass with the six appended column names; 106 s), `npm run build` pass (32 s), `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npm run test:e2e` 168 passed on phone and tablet (17.8 min, no failures, flaky or skipped; it reset the database), docs link check 38 files / 750 links / 0 problems; bench section 3 on a throwaway clone (reconciliation 50–88 ms, exceptions list 390 ms, counts 257 ms and Today 8.8 s missed their 150 ms targets: R-059); the Phase 10 merge order simulated in a scratch database (R-058) | Not deployed |
 | Exceptions and stock reconciliation screens, threshold sheet, Today / Inventory / Reports links, export kinds exceptions, stock and units (Phase 9 step 4: D106–D108; phase closure) | Yes, `feat/p9-reporting` 4da3aa7, f09d72e and the closing commit; local only, not pushed | Locally (database `bicii_dev_wt`): `npm run check` pass (52 s), `npm run check:types` pass (no diff), `BICII_REQUIRE_STACK=1 npm test` 122 files / 1814 tests passed (unit 62 / 802 with the new `reconciliation.test.ts` and `exception-kinds.test.ts` and the extended `report-exports`, `reports` and `today-components` tests; database 60 / 1012 unchanged, Phase 5's `reporting*.test.ts` passing unchanged; 112 s), `npm run build` pass (10 s), `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npm run test:e2e` 176 passed on phone and tablet (19.1 min, no failures, flaky or skipped; `exceptions.spec.ts` 4 tests on each project; `today.spec.ts` unchanged and passing; it reset the database). The first full run had 1 failure (175 passed, 19.8 min): the phone's Today was 15 px wider than the screen (the Activity grid widened by long tagged names), so the zoomed page's tap on "See all" missed; fixed with `grid-cols-1` / `min-w-0` and guarded by a no-side-scroll check. Docs link check 38 files / 765 links / 0 problems; bench re-run on a throwaway clone (DATA-MODEL §14: every period target met; reconciliation 48–90 ms; list 402 ms; counts 259 ms and Today 9.5 s still miss, R-059) | Not deployed |
 | Reporting joins `main` (`feat/p9-reporting` ba1c26c merged onto Shopify's merge with `main`, 1b4aaed; conflicts in 13 files kept both sides; reporting's owner questions renumbered 26–27 because labels and Shopify hold 21–25; R-018, R-043 and R-058 resolved; two tests written for the branch without Phase 10 now assert the merged behaviour) | Yes, `claude/brave-clarke-kfqhgt`, the merge commit with this update | Locally on this merge (database `bicii_dev`): `npm run db:reset` pass (`56|20261006103000`, seed applied; devstack restarted), `npm run db:types` regenerated (the conflict in the generated file resolved by regeneration), `npm run check` pass, `BICII_REQUIRE_STACK=1 npm test` 156 files / 2356 tests passed (156 s, no skips; a first run failed the two assertions written for the branch without Phase 10, now updated, R-058), R-058's named tests (`operational-exceptions`, `reporting`, `reporting-seed`, `shopify-webhooks`) passed, docs link check 41 files / 979 links / 0 problems, the public site's journey 6 (repository `bicii`) 20 passed against this database; E2E in the pull request's CI | Not deployed |
+| Go-live: production (the hosted database loaded, the Admin deployed with its keys, the first admin, Auth email through Resend) | Yes: `main` 3c055fa; no code change; this checkpoint updates NOW, OPERATIONS, RUNBOOK, RISKS (R-001, R-002, R-003, R-035, R-039), ARCHITECTURE, DATA-MODEL and PRODUCT (questions 5, 6, 19 partly answered) | [`migrate.yml` run 10](https://github.com/georgieboys/bicii-book/actions/runs/38210241008) applied 56 files (runs 6–9 stopped at the connection check before `SUPABASE_DB_URL` was set); read-only SQL on the hosted project: 56 migration rows (last `20261006103000`), one active admin, one Auth login with one `otp` session; the owner signed in with an emailed code on 2026-10-12. The first attempt failed with "Sign-in is unavailable": the D72 counter rows were written (the key works) and the Auth log showed `/otp` 500 `gomail: could not send email` (unverified sender domain); Resend's test sender fixed it for the owner | Production since 2026-10-12 |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
 
 ## Work location and continuation
 
-- `main` on origin holds PRs #1–#11 and #13–#16 (through labels) and
-  Shopify (PR #17, merged before this branch is pushed). The local `main`
-  ref is stale; use `origin/main`.
+- `main` on origin holds PRs #1–#11 and #13–#18 (through reporting) and is
+  what production runs. The local `main` ref is stale; use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted
-  from `main` after each merge (PRs #14–#17); this merge is pushed there
-  once PR #17 has merged.
+  from `main` after each merge (PRs #14–#18); this checkpoint is pushed
+  there.
 - The build session's branches, paused for the handover: `feat/p8-labels`
-  (3f09d22) and `wip/feat/p8-labels` (01cb3da), both merged through PR
-  #16; `wip/feat/p10-shopify` (8dbe6c4: 3b5341c, merged through PR #17,
-  plus the unreviewed refund-roles follow-up); `wip/feat/p9-reporting`
-  (ba1c26c, merged here). No `feat/p9-reporting` or `feat/p10-shopify`
-  exists on origin.
+  (3f09d22) and `wip/feat/p8-labels` (01cb3da), merged through PR #16;
+  `wip/feat/p10-shopify` (8dbe6c4: 3b5341c, merged through PR #17, plus
+  the unreviewed refund-roles follow-up); `wip/feat/p9-reporting`
+  (ba1c26c, merged through PR #18). No `feat/p9-reporting` or
+  `feat/p10-shopify` exists on origin.
+- The public site's screens (Phase 11 step 2) are a draft pull request in
+  repository `bicii` (georgieboys/BICII#1), green, waiting for the owner.
 - One devstack on this container serves `bicii_dev`; the build session's
   second worktree (`.wt-env`, `bicii_dev_wt`) is not used.
 - Local-only artifacts (git-ignored): `.env.local`, `.devstack/` (with
@@ -250,8 +263,9 @@ Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
   [R-001](docs/RISKS.md#r-001--nothing-is-deployed),
   [R-002](docs/RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery),
   [R-003](docs/RISKS.md#r-003--the-devstack-differs-from-hosted-supabase).
-  Next in play: loading the hosted database (owner's `SUPABASE_DB_URL`)
-  and the review of Shopify's refund-roles follow-up.
+  Next in play: Resend's domain verification before staff invitations
+  (R-039), backups before real records (R-002), and the owner's decision
+  on Shopify's refund-roles follow-up.
 - Decisions needed: [owner questions](docs/PRODUCT.md#open-assumptions-and-owner-questions);
   Phase 6 adds rows 9 (confirm D44–D55; D54 and D55 came from the review),
   10 (D53: should a price below the agreed amount plus shop charges need
@@ -306,4 +320,7 @@ Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
   customer page do not yet) and
   [R-011](docs/RISKS.md#r-011--shopify-is-not-built-and-will-be-fixture-tested-only)
   (built; still fixture-tested only).
-- Running costs, backups, recovery: none yet ([OPERATIONS.md](docs/OPERATIONS.md)).
+- Running costs, backups, recovery: the Supabase organisation is on Pro
+  and the Vercel plan accepted the 5-minute cron; costs not checked; no
+  restore exercised ([OPERATIONS.md](docs/OPERATIONS.md),
+  [R-002](docs/RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery)).

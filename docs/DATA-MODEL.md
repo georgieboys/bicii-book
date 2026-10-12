@@ -128,9 +128,11 @@ document is corrected.
   database built from the migrations, and the `test` and E2E jobs run
   `npm run db:reset` (migrations, then the seed) before testing
   ([TESTING.md](TESTING.md#ci)).
-- Hosted: `npx supabase@2.119.0 migration list` per
-  [RUNBOOK](RUNBOOK.md#applying-migrations-to-a-hosted-project). Never
-  exercised: no hosted project exists
+- Hosted: `migrate.yml` prints the history before and after each push
+  ([RUNBOOK](RUNBOOK.md#applying-migrations-to-a-hosted-project)). On
+  2026-10-12 run 10 applied all 56 files to the production project, and
+  `supabase_migrations.schema_migrations` there holds 56 rows, the last
+  `20261006103000` (read-only SQL). There is no staging project
   ([R-001](RISKS.md#r-001--nothing-is-deployed)).
 
 **Implementation status on this branch.** Determined by matching each

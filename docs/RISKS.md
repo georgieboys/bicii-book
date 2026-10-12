@@ -21,31 +21,46 @@ URLs, or customer data in this file.
 ## R-001 — Nothing is deployed
 
 - Category: operational gap.
-- Status and owner: open; owner (creates the hosted projects), build agent
-  (procedures).
+- Status and owner: partly resolved 2026-10-12 (production is live; no
+  staging); owner (accounts, a staging project), build agent (procedures).
 - Trigger: any use by real staff or customers.
-- Impact: the app runs only on a developer machine or in CI. The hosted
-  Supabase projects `bicii-staging` and `bicii-prod` named in
+- Impact: the Admin now runs on the Vercel project `bicii-book` against
+  one hosted Supabase project, which holds every migration (56 files,
+  through `20261006103000_public_site`) and the first admin. The
+  `bicii-staging` project named in
   [PLAN §4](PLAN.md#4-environment-and-secrets) and
   [RUNBOOK "Hosted Supabase projects"](RUNBOOK.md#hosted-supabase-projects-staging-and-production)
-  have not been created, and there is no Vercel project. Every hosted
-  procedure in RUNBOOK (project setup, applying migrations, first admin, key
-  rotation, Vercel environment) has never been exercised.
-- Evidence and confidence: high. No hosted Supabase URL, key or project
-  reference exists in the repository or `.env.example`; PLAN §4 says the
-  owner creates the projects. Not checked against the owner's
-  Supabase or Vercel accounts, which this environment cannot access.
-- Workaround or containment: none needed until go-live; all testing runs
-  locally and in CI against the devstack.
-- Next action: owner creates `bicii-staging`; the build agent then follows
-  RUNBOOK step by step against staging and records what differs.
-- Revisit trigger: the first hosted project exists.
-- Last checked: 2026-10-05, repository search and PLAN §4 / RUNBOOK review.
+  was not created, so the owner tests on production data, migrations reach
+  production first, and Vercel previews read production with the anon key
+  (they cannot sign anyone in: the service-role key is Production only).
+  Exercised on production: applying migrations (`migrate.yml`), the first
+  admin, the Vercel environment, the Auth SMTP setting. Never exercised:
+  key rotation, the code-only templates and Auth's rate limits against the
+  RUNBOOK list ([R-039](#r-039--hosted-email-delivery-and-auth-settings-are-unverified)),
+  backups and recovery ([R-002](#r-002--no-backups-monitoring-alerting-or-exercised-recovery)).
+- Evidence and confidence: high. On 2026-10-12, read-only on the hosted
+  project: 56 rows in `supabase_migrations.schema_migrations` (last
+  `20261006103000`), one active admin in `public.staff`, the owner's code
+  sign-in recorded by Auth; `migrate.yml` run 10 on `main` succeeded; the
+  Vercel production deployment of `main` serves the sign-in page. No
+  hosted URL, key or project reference is in the repository.
+- Workaround or containment: test with data that can be deleted, and keep
+  `supabase/seed.sql` off the hosted project (it never runs there:
+  `migrate.yml` has no seed step). A migration added from now on must sort
+  after `20261006103000` (`HANDOVER.md` "Migrations after go-live").
+- Next action: the owner decides whether to create a staging project
+  before staff and customers use production; until then each migration
+  is dry-run by `migrate.yml` before it applies.
+- Revisit trigger: real staff start work on production; a staging project
+  is created.
+- Last checked: 2026-10-12, hosted project (read-only SQL), GitHub Actions,
+  Vercel deployments.
 
 ## R-002 — No backups, monitoring, alerting or exercised recovery
 
 - Category: operational gap.
-- Status and owner: open; owner with the build agent.
+- Status and owner: open, and now in play: production is live since
+  2026-10-12 (R-001); owner with the build agent.
 - Trigger: data loss, a bad migration, or a production error.
 - Impact: there is no backup plan or restore exercise, no uptime or error
   monitoring and no alert recipient. Server errors are logged as pino JSON
@@ -56,14 +71,20 @@ URLs, or customer data in this file.
   A photo deleted by staff (`delete_attachment`) is therefore gone for
   good; only its metadata stays in `attachment_events`.
 - Evidence and confidence: high for absence (no backup, monitoring or
-  error-tracker configuration or dependency in the repository); the hosted
-  plan's backup features are unknown because no hosted project exists.
-- Workaround or containment: none; nothing is deployed (R-001).
-- Next action: before go-live, decide the backup and restore method for the
-  database and for Storage, exercise a restore into a separate project, and
-  name an alert recipient.
-- Revisit trigger: the first hosted production project is planned.
-- Last checked: 2026-10-05, `package.json`, `src/lib/logger.ts`,
+  error-tracker configuration or dependency in the repository). The
+  owner's Supabase organisation is on the Pro plan (read 2026-10-12),
+  whose provider-managed daily database backups Supabase documents; they
+  were not inspected in the dashboard, no restore has been tried, and
+  they do not include Storage objects.
+- Workaround or containment: until real records are entered, the owner's
+  test data can be lost without harm; keep it that way until a restore has
+  been exercised.
+- Next action: before staff enter real records, confirm the daily backups
+  in the Supabase dashboard, decide how Storage is copied, exercise a
+  restore into a separate project, and name an alert recipient.
+- Revisit trigger: real staff start work on production.
+- Last checked: 2026-10-12, the Supabase organisation's plan;
+  2026-10-05, `package.json`, `src/lib/logger.ts`,
   `src/instrumentation.ts`.
 
 ## R-003 — The devstack differs from hosted Supabase
@@ -84,26 +105,30 @@ URLs, or customer data in this file.
     60 seconds, sized limits;
     [R-039](#r-039--hosted-email-delivery-and-auth-settings-are-unverified));
   - the devstack and CI run Postgres 16, `supabase/config.toml` sets
-    `major_version = 17` for the Docker CLI, and the hosted version is
-    unknown;
+    `major_version = 17` for the Docker CLI, and the hosted production
+    project runs Postgres 17 (seen 2026-10-12; every migration applied
+    there unchanged);
   - Auth 2.178.0, PostgREST 12.2.3 and Storage 1.79.31 are pinned, while
     hosted versions are managed by the provider;
   - Realtime and Edge Functions are not used, so their differences do not
     matter today.
 - Evidence and confidence: the settings above read from the files on
-  2026-10-05; the size of any real difference is unknown until a hosted
-  project exists.
+  2026-10-05. On 2026-10-12 all 56 migrations, including the
+  session-revocation migration that needs DELETE on Auth's session tables,
+  applied to the hosted project without change, and the owner signed in
+  with a code; the DB tests have not run against a hosted database.
 - Why accepted: real Auth, PostgREST and Storage without Docker or staging
   credentials (ADR-002).
 - Workaround or containment: the meta tests compare the reachable API
   surface with `tests/fixtures/api-surface.ts`; the Docker CLI path
   (Postgres 17) remains available.
-- Next action: after the first staging push, run the DB tests in
-  existing-database mode against staging only
+- Next action: once a staging project exists (R-001), run the DB tests in
+  existing-database mode against staging only, never production
   ([RUNBOOK](RUNBOOK.md#local-supabase-with-docker-supabase-cli) describes
   the mode) and compare.
 - Revisit trigger: first staging project; a pinned version bump.
-- Last checked: 2026-10-05, `scripts/devstack/config.mjs`,
+- Last checked: 2026-10-12 (hosted Postgres version and migrations);
+  2026-10-05, `scripts/devstack/config.mjs`,
   `scripts/devstack/services.mjs`, `supabase/config.toml`, RUNBOOK.
 
 ## R-004 — Staff sign-in change pending (email OTP)
@@ -1016,20 +1041,26 @@ URLs, or customer data in this file.
   grant stays callable with the public anon key while the Email provider
   is on (codes need it). A login invited before the switch has the
   temporary password its inviter saw, so the inviter could still sign in
-  as that person, which was D11's residual risk. Nothing is hosted yet
-  (R-001), so no such login exists outside developer machines; the local
-  seed's logins already have no usable password.
+  as that person, which was D11's residual risk. The hosted production
+  project went live with codes, and its one login (the owner's) was
+  created on 2026-10-06 through Auth's admin API without a password, which
+  stores the hash of a random secret; the local seed's logins likewise
+  have no usable password.
 - Evidence and confidence: high for the mechanism (`tests/db/stack.smoke.test.ts`
   shows the seeded logins have no usable password; RUNBOOK "Hosted
-  Supabase projects" step 2 holds the reset); the reset SQL itself has not
-  run on a hosted project.
+  Supabase projects" step 2 holds the reset). On 2026-10-12, read-only on
+  the hosted project: one Auth user, one staff row, and its only session
+  signed in by code (`otp`). The reset SQL has not run there: it would
+  only end the owner's code session.
 - Workaround or containment: RUNBOOK's REQUIRED step replaces every staff
   login's password with the hash of a random secret and ends their
   sessions, after SMTP works and before the code release is deployed.
-- Next action: run the step on each hosted project when it exists and
-  record the row count.
-- Revisit trigger: the first hosted project (R-001).
-- Last checked: 2026-10-06, RUNBOOK, `supabase/seed.sql`.
+- Next action: none on production while every login joins by a code
+  invitation. Run the step on any hosted project that gains a login with a
+  password someone saw (a staging copy, a login made in the dashboard with
+  a password), and record the row count.
+- Revisit trigger: a login created with a password on a hosted project.
+- Last checked: 2026-10-12, hosted project (read-only SQL), RUNBOOK.
 
 ## R-036 — Auth's password grant and password change stay reachable
 
@@ -1114,33 +1145,50 @@ URLs, or customer data in this file.
 ## R-039 — Hosted email delivery and Auth settings are unverified
 
 - Category: unverified assumption / operational gap (D10, D70, D71).
-- Status and owner: open; owner (SMTP provider and hosted projects), build
-  agent (procedure).
-- Trigger: the first hosted project; any change of mail provider.
-- Impact: without working email nobody can sign in. The hosted SMTP
-  provider, the code-only templates, OTP length and expiry, the
-  per-address interval, Auth's per-IP limits, sign-ups off and "Secure
-  password change" are described in RUNBOOK but never applied. The
-  session-revocation migration needs DELETE on Auth's session tables and
-  refuses to apply without it, and a project that verifies JWTs locally
-  accepts an access token already issued for up to `jwt_expiry` after
-  deactivation (the guards refuse it). The Docker CLI path
-  (`BICII_MAIL_KIND=mailpit`, Mailpit) was written from Mailpit's API
-  documentation and has never run (no Docker here). Every sign-in also
+- Status and owner: partly resolved 2026-10-12; owner (the Resend domain,
+  the Auth dashboard), build agent (procedure).
+- Trigger: inviting the first staff member; opening customer sign-in on
+  the public site; any change of mail provider or sender.
+- Impact: without working email nobody can sign in. Production's Auth
+  sends through Resend (custom SMTP, set 2026-10-12). The shop's sending
+  domain is waiting for Resend's verification, so the sender is Resend's
+  test address, which delivers only to the Resend account's own address:
+  the owner receives codes, nobody else would, so staff invitations and
+  customer sign-in wait for the domain. With the shop's address as sender
+  before verification, Resend refused every mail (550, domain not
+  verified) and Auth answered `/otp` with 500, which the Admin shows as
+  "Sign-in is unavailable right now"
+  ([OPERATIONS](OPERATIONS.md#diagnosis-and-alerts)). The code-only
+  templates, OTP length and expiry, the per-address interval, Auth's
+  per-IP limits, sign-ups off and "Secure password change" are described
+  in RUNBOOK and were not checked against it on production. A project that
+  verifies JWTs locally accepts an access token already issued for up to
+  `jwt_expiry` after deactivation (the guards refuse it). The Docker CLI
+  path (`BICII_MAIL_KIND=mailpit`, Mailpit) was written from Mailpit's
+  API documentation and has never run (no Docker here). Every sign-in also
   needs `SUPABASE_SERVICE_ROLE_KEY` (the D72 counters run first), so a
   missing or wrong key in Vercel locks everyone out while Auth's own log
   looks healthy; the login actions log the cause (`limit: "admin"`,
-  `cause`), and RUNBOOK's deploy and rotation steps now end with a code
-  sign-in from a fresh browser (2026-10-06 review).
-- Evidence and confidence: high for absence (R-001); the devstack path is
-  covered by `tests/db/stack.smoke.test.ts` and `tests/e2e/auth.spec.ts`
-  through the mail catcher.
-- Workaround or containment: RUNBOOK says to test SMTP with the owner's own
-  address before deploying the code release.
-- Next action: owner chooses an SMTP provider; the build agent follows
-  RUNBOOK step 2 against staging and records what differs.
-- Revisit trigger: R-001.
-- Last checked: 2026-10-06, RUNBOOK.
+  `cause`), and RUNBOOK's deploy and rotation steps end with a code
+  sign-in from a fresh browser.
+- Evidence and confidence: high. On 2026-10-12 the owner signed in to the
+  production Admin with an emailed code (Auth records an `otp` session;
+  `private.sign_in_attempts` gained rows, so the D72 counters ran with the
+  production key); the earlier failure is in the hosted Auth log as
+  `gomail: could not send email` on `/otp`. The session-revocation
+  migration applied on production (its DELETE grant was present). The
+  devstack path is covered by `tests/db/stack.smoke.test.ts` and
+  `tests/e2e/auth.spec.ts` through the mail catcher.
+- Workaround or containment: until the domain is verified only the owner
+  signs in; RUNBOOK says to test with the owner's own address after any
+  SMTP change.
+- Next action: the owner finishes Resend's domain verification and sets
+  the shop's address as the Auth sender; then sends a code to a second
+  address before the first staff invitation, and checks the templates and
+  Auth settings against RUNBOOK "Hosted Supabase projects" step 2.
+- Revisit trigger: the domain is verified; a change of provider or sender.
+- Last checked: 2026-10-12, hosted Auth log and read-only SQL, the owner's
+  sign-in.
 
 ## R-040 — Shopify webhook payloads hold customer personal data until purged by hand
 

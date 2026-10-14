@@ -255,7 +255,9 @@ export function publicationTone(status: PublicationStatus): StockTone {
 /**
  * What a ledger row was, in staff words. A transfer is two rows (out of
  * one location, into the other); a `reversal` written by voiding a part
- * line (it carries the job) is "Returned from job".
+ * line (it carries the job) is "Returned from job"; an `outside_purchase`
+ * (D149a) is the receipt of an indent part bought outside BICII, always
+ * followed by its "Used on job".
  */
 export function movementLabel(
   type: MovementType,
@@ -265,6 +267,9 @@ export function movementLabel(
   switch (type) {
     case "purchase_received":
       return "Received";
+    case "outside_purchase":
+      // D149a: an indent part bought outside BICII, fitted at once.
+      return "Bought outside BICII";
     case "job_consumption":
       return "Used on job";
     case "retail_sale":
@@ -291,7 +296,7 @@ export function movementLabel(
 /** The movement filter chips on /inventory/movements. */
 export const MOVEMENT_FILTERS = {
   all: { label: "All", types: null },
-  jobs: { label: "Jobs", types: ["job_consumption", "reversal"] },
+  jobs: { label: "Jobs", types: ["job_consumption", "reversal", "outside_purchase"] },
   adjustments: { label: "Adjustments", types: ["stock_adjustment", "damaged"] },
   transfers: { label: "Transfers", types: ["transfer"] },
 } as const satisfies Record<string, { label: string; types: readonly MovementType[] | null }>;

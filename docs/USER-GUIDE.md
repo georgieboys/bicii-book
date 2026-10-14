@@ -108,31 +108,47 @@ managers.
   only what is left at the counter. Any other allowed move is under
   **Change status**, with an optional **Note**; picking **Collected**
   there shows the same sentences.
-  - Fit approved indent parts before **Complete**: **Complete** is one
-    tap and does not stop you, and a part that is not fitted is not on
-    the bill (see "Quote and order a part the shop doesn't stock"). When
-    approved items are not fitted, the Collected confirmation names them:
-    "Not on the bill: <part> $2.00, approved and not fitted. To bill it,
-    reopen the job and fit it; otherwise cancel it and refund any deposit
-    in Stripe." When the deposit is more than the job total, it says "That
-    is $2.00 more than the job total, paid for parts that are not on the
-    bill." instead of "take nothing more". (Whether Complete should stop
-    or warn first is waiting for the owner's decision.)
+  - Approved indent items come first (D149b): if the job has approved or
+    ordered indent items, the button reads **Complete…** and opens
+    **Before completing J-…** ("Fit or cancel each approved or ordered
+    item first."), listing each with its status ("Approved", or "Ordered
+    · PO-000012 · Arrived" / "Not arrived yet") and any deposit. Press
+    **Fit** (or **Add to job** for a service; for a part bought elsewhere,
+    see "Quote and order a part the shop doesn't stock", step 6) or
+    **Cancel item…** on each; when none is left the sheet says "All
+    settled." and **Complete job** completes it. An open quote is
+    withdrawn as the job completes; the sheet says so ("Completing the
+    job withdraws the quote sent …: the customer's link will say it was
+    withdrawn, and its item goes back to Proposed."). The same happens on
+    **Ready for collection…**, **Collected…** (then **Mark collected**)
+    and with **Change status**, whose **Note** is kept and saved with the
+    move once the checklist is done (**Back** drops it). A job completed
+    before this rule may still have such items: its checklist says to
+    reopen the job to fit them, or cancel them.
   - Reopen a completed job (or one ready for collection): **Change
     status** → **Reopen job…**, answer "Why are you reopening this job?",
     then **Reopen job**. A unique item sold on the job goes back on hold
     for it. (Reopen is not covered by an E2E spec.)
   - Cancel an open job: **Change status** → **Cancel job…**, answer "Why
-    is this job being cancelled?", then **Cancel job**.
+    is this job being cancelled?", then **Cancel job**. With approved or
+    ordered indent items, **Cancel job…** opens **Before cancelling J-…**
+    ("Cancel each approved or ordered item first. A cancelled job can't
+    keep items waiting."): press **Cancel item…** on each (no Fit: a line
+    would stop the cancel), then **Cancel job…** in that sheet.
 - Success looks like: a toast "J-…: <new status>" and the status in the
   timeline. A completed job says "Completed jobs are locked. Reopen to
   change lines."
 - If it fails: "A job can't move to that status from where it is now."
   "Give a reason for this change." "Void the job's lines before cancelling
-  it. Voiding a part returns it to stock." A collected or cancelled job
-  cannot change: "This job is collected or cancelled and can no longer
-  change." (The one exception: an admin or manager can still cancel an
-  indent item that was never fitted, D149.) Once collected or cancelled,
+  it. Voiding a part returns it to stock." "Fit or cancel the job's
+  approved and ordered items first." (someone approved an item since the
+  page loaded: the page refreshes and the checklist opens); when
+  cancelling, "Cancel the job's approved and ordered items before
+  cancelling it." (the same, but fitting would add a line, which also
+  stops a cancel). A collected or cancelled job cannot change: "This job
+  is collected or cancelled and can no longer change." (The one
+  exception: an admin or manager can still cancel an indent item that
+  was never fitted, D149.) Once collected or cancelled,
   a job with money paid online above its bill shows it under the total:
   "Paid online $120.00 · $120.00 more than the bill".
 
@@ -180,8 +196,9 @@ For a part ordered in for one bike: the customer approves it, per item,
 before it is ordered, and it goes on the job only when it is fitted
 ([ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md)). Until
 then it is not on the bill: not in the job's total, its yield or Cult
-Commons. **Fit every approved item before you press Complete**; a
-completed job locks its lines.
+Commons. A job can't be completed (or made ready, collected or cancelled)
+while an approved or ordered item is neither fitted nor cancelled:
+**Complete…** lists them first (D149b).
 
 - Before you start: the job is open; the part is a product counted by
   quantity (an existing one, or a new one if you manage inventory). The
@@ -268,16 +285,35 @@ completed job locks its lines.
      are not held: don't sell or use them elsewhere. Press **Fit**,
      check the price, then **Fit part**: the part becomes an ordinary line
      on the job at the quoted price and comes out of stock. For an approved
-     service press **Add to job**. A part never ordered in BICII (bought
-     some other way) can be fitted too; the sheet warns "Never ordered in
-     BICII: fitting takes it out of stock at <location>. If it was bought
-     outside BICII, that count may go below zero until the stock is
-     corrected." Staff with View costs also see "This part has no cost
-     yet, so it can't be fitted: its yield can't be worked out. Set its cost
-     on the product's page first." with **Open the product** (anyone else
-     gets "This part has no cost yet…" when they press **Fit part**). Once
-     every approved item is fitted, the memo under the total goes, and
-     the job can be completed.
+     service press **Add to job**. **A part you bought outside BICII**
+     (approved, never ordered here), with View costs or Manage purchasing:
+     press **Fit**, choose **Bought outside BICII** under **Where it comes
+     from**, enter **Cost each** (what the shop paid for one, from the
+     receipt; prefilled with the expected cost given when it was proposed,
+     "Expected when proposed: $28.00."; it becomes the product's cost) and
+     optionally **Bought from** (shop and receipt number, for example "Bike
+     Hub receipt 4471"; not the price), check "Cost 1 × $30.00 = $30.00",
+     then **Record and fit**. BICII records the purchase and fits the part
+     in one step at the default location: the stock count there doesn't
+     change, the job's yield uses that cost, the product's movements show
+     "Bought outside BICII +1" and "Used on job −1", and the timeline says
+     "Bought outside BICII · Bike Hub receipt 4471". Toast: "<part> is on
+     the job (bought outside BICII)." A part on a BICII purchase order is
+     received in Purchasing first, then fitted. Fitting from stock stays:
+     **From stock** takes it out of stock at the default location, which
+     may go below zero (D23); for a part never ordered here the sheet says
+     "Never ordered in BICII. If you bought it outside BICII, choose
+     Bought outside BICII so the stock count stays right and the job uses
+     what you paid." (staff without cost access: "…ask someone with View
+     costs or Manage purchasing to fit it as bought outside, so the stock
+     count stays right."). Staff with View costs see "This part has no
+     cost yet, so it can't be fitted from stock. If you bought it outside
+     BICII, choose Bought outside BICII and enter what you paid; otherwise
+     set its cost on the product's page first." with **Open the product**
+     (anyone else gets "This part has no cost yet…" when they press **Fit
+     part**; with the Bought outside option, the sheet switches to it and
+     asks what you paid). Once every approved item is fitted, the memo
+     under the total goes, and the job can be completed.
   7. Once a deposit is asked, the job shows a **Customer payments** card
      (every staff member sees it): first anything that needs attention, in
      a sentence (for example "$120.00 is held but this job is cancelled.
@@ -303,8 +339,9 @@ completed job locks its lines.
      timeline by themselves. While Stripe is off the card says the
      customer can't pay online and that an admin or manager can order
      without the deposit.
-  8. If the job was completed before an approved item was fitted
-     ([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)):
+  8. If the job was completed before an approved item was fitted (only
+     possible before the D149b rule;
+     [R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)):
      the memo under the total reads "Approved but never fitted: $275.00
      (not billed).", and the item shows **Not fitted** (and **Deposit
      paid** when it was paid for). On a completed job, or one ready for
@@ -354,13 +391,23 @@ completed job locks its lines.
   first; an ordered part stays on its purchase order). On a completed
   job, or one ready for collection, anyone can still cancel an item that
   is not on an open quote; on a collected or cancelled job only an admin
-  or manager can (D149). A quote still open when its job was completed
-  can no longer be answered: the card says so and what to do.
+  or manager can (D149). Completing or cancelling the job withdraws its
+  open quote (its link then says it was withdrawn; D149c); a quote left
+  open on a job completed before that rule can no longer be answered: the
+  card says so and what to do.
 - If it fails:
   - "Only shop-owned products counted by quantity can be ordered for a
     job."
   - "It is on the quote the customer has. Withdraw the quote first."
   - "Only approved items can be ordered or put on the job."
+  - Bought outside BICII: "It is on a purchase order. Receive it in
+    Purchasing, then fit it." "Only a part can be bought outside BICII.
+    Add a service with Add to job." Under **Cost each**: "Enter the cost
+    each.", "Enter the cost each as an amount of 0 or more, like 12.50."
+    or "The cost each is too large." (above $99,999.99). Under **Bought
+    from**: "Keep where you bought it under 100 characters." "You don't
+    have permission to do that." (without View costs or Manage
+    purchasing).
   - Ordering, proposing or fitting on a completed or collected job: "This
     job is completed or closed. Reopen it to change its lines."
   - Withdrawing a quote, or (anyone but an admin or manager) cancelling an

@@ -196,43 +196,20 @@ export function paidOnlineSummary(
   };
 }
 
-/** An approved indent item not on the bill (R-082): its name and quoted total, formatted. */
-export type UnfittedItem = { description: string; total: string };
-
-function listOf(items: readonly string[]): string {
-  if (items.length <= 1) return items.join("");
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
-}
-
 /**
- * The Collected confirmation's sentences, on both paths (the Collected
- * button and Change status), before "Collected is final" (D154, R-082):
- * what was paid online and what to take; and the approved indent items that
- * are not on the bill. When money is paid ahead and such items exist, the
- * paid-ahead money is tied to them instead of "take nothing more".
+ * The Collected confirmation's sentence, on both paths (the Collected
+ * button and Change status), before "Collected is final" (D154): what was
+ * paid online and what to take. Approved indent items never reach it: they
+ * are fitted or cancelled first (D149b, the settle checklist).
  */
-export function collectedNotes(
-  paidOnline: ReturnType<typeof paidOnlineSummary>,
-  unfitted: readonly UnfittedItem[],
-): string[] {
-  const notes: string[] = [];
-  if (paidOnline) {
-    const rest = paidOnline.paidAhead
-      ? unfitted.length > 0
-        ? `That is ${paidOnline.paidAhead} more than the job total, paid for parts that are not on the bill.`
-        : `That is ${paidOnline.paidAhead} more than the job total; take nothing more.`
-      : paidOnline.stillToPay
-        ? `Take only ${paidOnline.stillToPay}.`
-        : "Take only what is left of the job total.";
-    notes.push(`${paidOnline.paid} was paid online. ${rest}`);
-  }
-  if (unfitted.length > 0) {
-    const them = unfitted.length === 1 ? "it" : "them";
-    notes.push(
-      `Not on the bill: ${listOf(unfitted.map((i) => `${i.description} ${i.total}`))}, approved and not fitted. To bill ${them}, reopen the job and fit ${them}; otherwise cancel ${them} and refund any deposit in Stripe.`,
-    );
-  }
-  return notes;
+export function collectedNotes(paidOnline: ReturnType<typeof paidOnlineSummary>): string[] {
+  if (!paidOnline) return [];
+  const rest = paidOnline.paidAhead
+    ? `That is ${paidOnline.paidAhead} more than the job total; take nothing more.`
+    : paidOnline.stillToPay
+      ? `Take only ${paidOnline.stillToPay}.`
+      : "Take only what is left of the job total.";
+  return [`${paidOnline.paid} was paid online. ${rest}`];
 }
 
 /**

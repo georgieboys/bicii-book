@@ -41,6 +41,8 @@ exercised, per section (as of 2026-10-12):
   and journeys 3 and 4 with `window.print` stubbed or the PDF fetched;
   never on a real label printer
   ([R-075](RISKS.md#r-075--label-output-is-unverified-on-a-real-label-printer-and-on-ios)).
+- Indent items on jobs closed before the guard: not run (the migration is
+  not deployed); the query was run on the local devstack only.
 - CI: the `e2e` label exists, and PRs #2–#7 carry it, each with a
   successful `e2e` workflow run (e.g.
   [PR #7 e2e](https://github.com/abhishekcheriangeorge-ops/bicii-book/actions/runs/37276834195/job/111655595521));
@@ -61,6 +63,7 @@ everyday local setup (the Docker-free devstack) see [ENGINEERING.md](ENGINEERING
 - [Appointments: schedule before go-live](#appointments-schedule-before-go-live)
 - [Purchasing: suppliers and reorder points before go-live](#purchasing-suppliers-and-reorder-points-before-go-live)
 - [Labels: the QR address before the first print](#labels-the-qr-address-before-the-first-print)
+- [Indent items on jobs closed before the guard](#indent-items-on-jobs-closed-before-the-guard)
 - [Label printers](#label-printers)
 - [CI](#ci)
 
@@ -653,6 +656,43 @@ has `quote email not sent` with Resend's HTTP status (never the address
 or the link). A 401 or 403 is the key or an unverified domain; a 422 is
 usually `EMAIL_FROM` or the customer's address.
 
+## Indent items on jobs closed before the guard
+
+From `20261014000900_indent_settle_and_outside_purchase` (D149b, D149c) no
+job can be completed, made ready, collected or cancelled while one of its
+indent items is approved or ordered: the screens open a checklist (Fit or
+Cancel item…), and the database refuses the move otherwise
+(`work_order_has_unfitted_requests`). Jobs that changed status before it
+reached the hosted project may still hold such items
+([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)).
+Only those with a paid deposit are flagged (`paid_parts_not_fitted`, below);
+this read-only query lists them all. It is for the owner, run once after
+the migration is applied (Supabase SQL editor on the hosted project, read
+only; it changes nothing):
+
+```sql
+select w.job_number, w.status as job_status, r.status as item_status, count(*) as items
+from public.job_part_requests r
+join public.work_orders w on w.id = r.work_order_id
+where r.status in ('approved', 'ordered')
+  and w.status in ('completed', 'ready_for_collection', 'collected', 'cancelled')
+group by 1, 2, 3
+order by 1;
+```
+
+For each job listed:
+
+- **Completed or ready for collection:** its next move (Ready, Collected)
+  opens the checklist: press **Cancel item…** with a reason, or **Change
+  status** → **Reopen job…**, fit it, and complete again.
+- **Collected or cancelled:** final. An admin or manager opens the job and
+  presses **Cancel** on each item with a reason (D149); refund any deposit
+  in Stripe ([Stripe: resolving problems](#stripe-resolving-problems)).
+
+The same migration withdrew, once, every quote still open on a job that
+was no longer open (D149c(6)); from then on a quote is withdrawn when its
+job leaves the open statuses.
+
 ## Shopify
 
 The integration (Phase 10, decisions D80–D89 in
@@ -1100,9 +1140,12 @@ payment nobody can make), then remove the keys and redeploy.
   on this job"** (`paid_parts_not_fitted`,
   [R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)):
   the job was completed or collected with an approved part never fitted,
-  so the part is not on the bill. If the job is completed or ready for
-  collection and the part was supplied: **Change status** → **Reopen
-  job…**, **Fit** it, then complete again; the issue clears. Otherwise
+  so the part is not on the bill (only a job closed before
+  `20261014000900`'s guard can be in this state:
+  [Indent items on jobs closed before the guard](#indent-items-on-jobs-closed-before-the-guard)).
+  If the job is completed or ready for collection and the part was
+  supplied: **Change status** → **Reopen job…**, **Fit** it, then
+  complete again; the issue clears. Otherwise
   (or once the job is collected or cancelled): an admin or manager
   presses **Cancel** on the item, gives the reason (D149: only they can
   on a collected or cancelled job; the job stays closed), then refunds the

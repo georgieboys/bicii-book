@@ -223,38 +223,20 @@ describe("paid online at the counter (D154)", () => {
   });
 });
 
-describe("the Collected confirmation's sentences (D154, R-082)", () => {
+describe("the Collected confirmation's sentence (D154; D149b)", () => {
   const paid = { paid: "$2.00", stillToPay: "$0.00", paidAhead: "$2.00", moreThanBill: null };
-  const pad = [{ description: "Brake pad", total: "$2.00" }];
 
-  it("keeps the paid-online words when every approved item is on the bill", () => {
-    expect(collectedNotes(paid, [])).toEqual([
+  it("says what was paid online and what to take; nothing when nothing was", () => {
+    expect(collectedNotes(paid)).toEqual([
       "$2.00 was paid online. That is $2.00 more than the job total; take nothing more.",
     ]);
-    expect(collectedNotes({ ...paid, paidAhead: null, stillToPay: "$85.00" }, [])).toEqual([
+    expect(collectedNotes({ ...paid, paidAhead: null, stillToPay: "$85.00" })).toEqual([
       "$2.00 was paid online. Take only $85.00.",
     ]);
-    expect(collectedNotes(null, [])).toEqual([]);
-  });
-
-  it("names approved items not on the bill and ties the paid-ahead money to them", () => {
-    expect(collectedNotes(paid, pad)).toEqual([
-      "$2.00 was paid online. That is $2.00 more than the job total, paid for parts that are not on the bill.",
-      "Not on the bill: Brake pad $2.00, approved and not fitted. To bill it, reopen the job and fit it; otherwise cancel it and refund any deposit in Stripe.",
+    expect(collectedNotes({ ...paid, paidAhead: null, stillToPay: null })).toEqual([
+      "$2.00 was paid online. Take only what is left of the job total.",
     ]);
-    expect(
-      collectedNotes(null, [
-        ...pad,
-        { description: "Fitting", total: "$25.00" },
-        { description: "Cable", total: "$4.00" },
-      ]),
-    ).toEqual([
-      "Not on the bill: Brake pad $2.00, Fitting $25.00 and Cable $4.00, approved and not fitted. To bill them, reopen the job and fit them; otherwise cancel them and refund any deposit in Stripe.",
-    ]);
-    // Still to pay: unchanged wording for the money, the items named after it.
-    expect(collectedNotes({ ...paid, paidAhead: null, stillToPay: "$10.00" }, pad)[0]).toBe(
-      "$2.00 was paid online. Take only $10.00.",
-    );
+    expect(collectedNotes(null)).toEqual([]);
   });
 });
 

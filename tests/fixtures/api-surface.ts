@@ -229,6 +229,9 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.answer_quote(text, jsonb, text)",
   "public.cancel_part_request(uuid, text)",
   "public.fit_part_request(uuid, uuid, uuid)",
+  // D149a: a part bought outside BICII, recorded and fitted in one step;
+  // view_costs or manage_purchasing (the function checks)
+  "public.fit_part_bought_outside(uuid, uuid, money_amount, uuid, text)",
   "public.indent_reservations(uuid)",
   "public.order_part_requests(uuid[], uuid, uuid, boolean, text)",
   "public.part_request_arrivals(uuid)",

@@ -331,9 +331,23 @@ describe("describeEvent", () => {
       detail: "Out of stock",
       tone: "neutral",
     });
-    expect(d({ type: "part_fitted", payload: { description: "Shimano chain" } }).title).toBe(
-      "Fitted Shimano chain",
-    );
+    expect(d({ type: "part_fitted", payload: { description: "Shimano chain" } })).toMatchObject({
+      title: "Fitted Shimano chain",
+      detail: null,
+    });
+    // D149a: bought outside BICII, with where it was bought when given.
+    expect(
+      d({
+        type: "part_fitted",
+        payload: { description: "Shimano chain", bought_outside: true, reference: "Bike Hub 4471" },
+      }).detail,
+    ).toBe("Bought outside BICII · Bike Hub 4471");
+    expect(
+      d({
+        type: "part_fitted",
+        payload: { description: "Shimano chain", bought_outside: true, reference: null },
+      }).detail,
+    ).toBe("Bought outside BICII");
   });
 
   it("customer payments read in the customer's money, with the mismatch and refund details (Phase 14)", () => {

@@ -146,10 +146,16 @@ describe("stock display (Phase 4 screens)", () => {
     expect(movementLabel("transfer", 3)).toBe("Transfer in");
     expect(movementLabel("transfer", -3)).toBe("Transfer out");
     expect(movementLabel("purchase_received", 5)).toBe("Received");
+    // D149a: an indent part bought outside BICII, fitted at once.
+    expect(movementLabel("outside_purchase", 2)).toBe("Bought outside BICII");
   });
 
   it("filters movements by kind", () => {
-    expect(MOVEMENT_FILTERS.jobs.types).toEqual(["job_consumption", "reversal"]);
+    expect(MOVEMENT_FILTERS.jobs.types).toEqual([
+      "job_consumption",
+      "reversal",
+      "outside_purchase",
+    ]);
     expect(MOVEMENT_FILTERS.all.types).toBeNull();
     expect(isMovementFilter("transfers")).toBe(true);
     expect(isMovementFilter("toString")).toBe(false);

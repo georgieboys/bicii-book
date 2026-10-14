@@ -420,6 +420,14 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   checkout_session_conflict: "Online payment couldn't be started. Try again in a minute.",
   deposit_unpaid:
     "The customer hasn't paid the deposit for these parts yet. An admin or manager can order them anyway with a reason.",
+  // Closing indent items (D149a, D149b, D149c): a part bought outside
+  // BICII, and the guard on moves out of the open statuses.
+  part_request_ordered: "It is on a purchase order. Receive it in Purchasing, then fit it.",
+  outside_purchase_part_only:
+    "Only a part can be bought outside BICII. Add a service with Add to job.",
+  outside_purchase_cost_invalid: `Enter a unit cost between ${formatMoney("0")} and ${formatMoney("99999.99")}.`,
+  outside_purchase_reference_too_long: "Keep where you bought it under 100 characters.",
+  work_order_has_unfitted_requests: "Fit or cancel the job's approved and ordered items first.",
 };
 
 /** 23505 unique violations by constraint name. */
@@ -539,6 +547,8 @@ export const UNIQUE_ERRORS: Record<string, string> = {
     "That delivery line has already been recorded.",
   // Indent parts and quotes (Phase 13)
   job_part_requests_line_key: "That item is already on the job.",
+  // D149a: one receipt per bought-outside part.
+  job_part_requests_outside_purchase_key: "That purchase is already recorded for another item.",
   quotes_one_open_per_job: "This job already has an open quote. Withdraw it or send again.",
   // Stripe payments (Phase 14)
   stripe_events_pkey: "That Stripe event has already been recorded.",
@@ -894,6 +904,11 @@ export const CHECK_ERRORS: Record<string, string> = {
   job_part_requests_fitted_has_line: "A fitted item must be on the job.",
   job_part_requests_cancelled_has_reason: "Say why it is cancelled.",
   job_part_requests_cancel_reason_check: "Keep the reason under 500 characters.",
+  // D149a: fit_part_bought_outside checks these first.
+  job_part_requests_outside_purchase_shape:
+    "Only a fitted part can be marked bought outside BICII.",
+  inventory_movements_outside_purchase_shape:
+    "That stock change is not consistent. Refresh and try again.",
   quotes_token_hash_length: "That quote link is not valid.",
   quotes_currency_check: "Use a three-letter currency code.",
   quotes_answered_fields: "An answered quote needs the name of who answered.",

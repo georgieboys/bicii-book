@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { AUTH_USER, LOCATION } from "../fixtures/ids";
-import { sqlTransaction } from "./db";
+import { answerQuoteByLink, sqlTransaction } from "./db";
 import { createJobViaIntake, createProduct, section, signIn, tagFor, toast } from "./helpers";
 import { createSupplier } from "./purchasing-helpers";
 
@@ -16,8 +16,27 @@ import { createSupplier } from "./purchasing-helpers";
  * Waiting on parts); the arrived parts show as reserved on the product page
  * until the admin fits them and the service, which become the job's lines.
  * Until then the Lines card shows them as a memo under the total, never in
- * it (R-082). Every record carries tagFor(testInfo).
+ * it (R-082). Then (D149a, D149b, D149c): Complete opens a checklist of the
+ * approved items, where a part never ordered in BICII is fitted as bought
+ * outside BICII at the cost the admin enters (the stock count does not
+ * change); and Cancel job lists them with Cancel only, naming the open
+ * quote it withdraws. Every record carries tagFor(testInfo).
  */
+
+/** Sends the job's proposed items as a quote and returns the link (shown once). */
+async function sendQuote(page: import("@playwright/test").Page, items: number) {
+  const card = section(page, "Indent parts and quote");
+  await card
+    .getByRole("button", { name: new RegExp(`^Send (quote|again) \\(${items} items?\\)$`) })
+    .click();
+  const quoteSheet = page.getByRole("dialog", { name: "Send quote" });
+  await quoteSheet.getByRole("button", { name: "Create link" }).click();
+  const sent = page.getByRole("dialog", { name: "Quote ready to send" });
+  const link = (await sent.getByLabel("quote link", { exact: true }).textContent())!.trim();
+  await sent.getByRole("button", { name: "Done" }).click();
+  await expect(sent).toBeHidden();
+  return link;
+}
 
 test("indent part: proposed, quoted, answered, ordered, received and fitted", async ({
   page,
@@ -219,4 +238,141 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   await page.goto(product.url);
   await expect(section(page, "Stock")).toBeVisible();
   await expect(page.getByRole("list", { name: "Reserved for jobs" })).toHaveCount(0);
+});
+
+test("Complete settles first: a part bought outside BICII is recorded and fitted, the count unchanged", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(240_000);
+  const tag = tagFor(testInfo);
+  const partName = `Dropper post ${tag}`;
+  await signIn(page, "admin");
+  const product = await createProduct(page, {
+    name: partName,
+    sku: `DP-${tag}`,
+    price: "120.00",
+    cost: "70.00",
+  });
+  const job = await createJobViaIntake(page, { tag, requestedWork: "Dropper post" });
+
+  // Proposed with an expected cost (the admin holds View costs), quoted and approved.
+  const card = section(page, "Indent parts and quote");
+  await card.getByRole("button", { name: "Propose part" }).click();
+  const partSheet = page.getByRole("dialog", { name: "Propose part" });
+  await partSheet.getByRole("combobox", { name: /^Part/ }).fill(tag);
+  await partSheet.getByRole("option", { name: new RegExp(partName) }).click();
+  await partSheet.getByLabel("Expected cost each").fill("28.00");
+  await partSheet.getByRole("button", { name: "Propose part" }).click();
+  await expect(partSheet).toBeHidden();
+  const link = await sendQuote(page, 1);
+  await answerQuoteByLink(link, `Intake ${tag}`);
+  await page.reload();
+  const items = card.getByRole("list", { name: "Proposed items" });
+  await expect(items.getByRole("listitem", { name: partName })).toContainText("Approved");
+
+  // Complete… opens the checklist instead of completing.
+  const header = page.getByRole("main").locator("header").first();
+  await page.getByRole("button", { name: "Start work" }).click();
+  await expect(header).toContainText("In progress");
+  await page.getByRole("button", { name: "Complete…" }).click();
+  const checklist = page.getByRole("dialog", { name: `Before completing ${job.jobNumber}` });
+  await expect(checklist).toContainText("Fit or cancel each approved or ordered item first.");
+  const row = checklist.getByRole("listitem", { name: partName });
+  await expect(row).toContainText(`1 × ${partName} · $120.00`);
+  await expect(checklist.getByRole("button", { name: "Complete job" })).toBeDisabled();
+  await expect(header).toContainText("In progress");
+
+  // Fit → Bought outside BICII, prefilled with the expected cost.
+  await row.getByRole("button", { name: "Fit" }).click();
+  const fitSheet = page.getByRole("dialog", { name: "Fit part" });
+  await fitSheet.getByRole("radio", { name: "Bought outside BICII" }).click();
+  const costEach = fitSheet.getByLabel(/^Cost each/);
+  await expect(costEach).toHaveValue("28.00");
+  await costEach.fill("30.00");
+  await fitSheet.getByLabel(/^Bought from/).fill("Bike Hub receipt 4471");
+  await expect(fitSheet).toContainText("The stock count there doesn't change");
+  await expect(fitSheet).toContainText("Cost 1 × $30.00 = $30.00");
+  await fitSheet.getByRole("button", { name: "Record and fit" }).click();
+  await expect(fitSheet).toBeHidden();
+  await expect(toast(page, `${partName} is on the job (bought outside BICII).`)).toBeVisible();
+
+  // Nothing is left: Complete job.
+  await expect(checklist).toContainText("All settled.");
+  await checklist.getByRole("button", { name: "Complete job" }).click();
+  await expect(checklist).toBeHidden();
+  await expect(header).toContainText("Completed");
+  await expect(section(page, "Lines")).toContainText(partName);
+  await expect(section(page, "Timeline")).toContainText(
+    "Bought outside BICII · Bike Hub receipt 4471",
+  );
+
+  // The product: bought +1 and used −1, so the count is where it was.
+  await page.goto(product.url);
+  const moves = section(page, "Recent movements");
+  await expect(moves.getByRole("listitem", { name: /^Bought outside BICII \+1/ })).toBeVisible();
+  await expect(moves.getByRole("listitem", { name: /^Used on job/ })).toBeVisible();
+  await expect(moves.getByRole("listitem")).toHaveCount(2);
+});
+
+test("Cancel job lists the approved items with Cancel only, and withdraws the open quote", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(240_000);
+  const tag = tagFor(testInfo);
+  await signIn(page, "admin");
+  const job = await createJobViaIntake(page, { tag, requestedWork: "Wheel check" });
+  const card = section(page, "Indent parts and quote");
+  const propose = async (service: string) => {
+    await card.getByRole("button", { name: "Propose service" }).click();
+    const sheet = page.getByRole("dialog", { name: "Propose service" });
+    await sheet.getByRole("combobox", { name: /^Service/ }).fill(service);
+    await sheet.getByRole("option", { name: new RegExp(service) }).click();
+    await sheet.getByRole("button", { name: "Propose service" }).click();
+    await expect(sheet).toBeHidden();
+  };
+  // Wheel True approved on a first quote; Basic Service on a second, open one.
+  await propose("Wheel True");
+  await answerQuoteByLink(await sendQuote(page, 1), `Intake ${tag}`);
+  await page.reload();
+  await propose("Basic Service");
+  await sendQuote(page, 1);
+  await expect(card.getByLabel("Quote status")).toContainText("waiting for the customer");
+
+  await page.getByRole("button", { name: "Change status" }).click();
+  const change = page.getByRole("dialog", { name: "Change status" });
+  await expect(change).toContainText("cancel its approved and ordered indent items");
+  await change.getByRole("button", { name: "Cancel job…" }).click();
+  const checklist = page.getByRole("dialog", { name: `Before cancelling ${job.jobNumber}` });
+  await expect(checklist).toContainText(
+    "Cancel each approved or ordered item first. A cancelled job can't keep items waiting.",
+  );
+  await expect(checklist).toContainText("Cancelling the job withdraws the quote sent");
+  await expect(checklist).toContainText("its item goes back to Proposed.");
+  const row = checklist.getByRole("listitem", { name: "Wheel True" });
+  await expect(row.getByRole("button", { name: "Add to job" })).toHaveCount(0);
+  await expect(checklist.getByRole("button", { name: "Cancel job…" })).toBeDisabled();
+
+  await row.getByRole("button", { name: /^Cancel item/ }).click();
+  const cancelItem = page.getByRole("dialog", { name: "Cancel Wheel True" });
+  await cancelItem.getByLabel(/^Reason/).fill("Customer took the bike elsewhere");
+  await cancelItem.getByRole("button", { name: "Cancel item" }).click();
+  await expect(cancelItem).toBeHidden();
+  await expect(checklist).toContainText("All settled.");
+
+  await checklist.getByRole("button", { name: "Cancel job…" }).click();
+  await checklist
+    .getByLabel(/^Why is this job being cancelled/)
+    .fill("Customer took the bike elsewhere");
+  await page.waitForTimeout(500); // the confirm button ignores presses for 400 ms
+  await checklist.getByRole("button", { name: "Cancel job", exact: true }).click();
+  await expect(toast(page, `${job.jobNumber} cancelled`)).toBeVisible();
+  const header = page.getByRole("main").locator("header").first();
+  await expect(header).toContainText("Cancelled");
+  // D149c(2): the open quote went with the job; its item is proposed again.
+  await expect(card.getByLabel("Quote status")).toHaveText("The last quote was withdrawn.");
+  await expect(
+    card
+      .getByRole("list", { name: "Proposed items" })
+      .getByRole("listitem", { name: "Basic Service" }),
+  ).toContainText("Proposed");
 });

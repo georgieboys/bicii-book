@@ -269,4 +269,52 @@ describe("describeEvent", () => {
     expect(d({ type: "line_added", payload: null }).title).toBe("Added A line");
     expect(d({ type: "checked_in", payload: [1, 2] }).title).toBe("Checked in as a new job");
   });
+
+  it("indent parts and quotes (Phase 13) read as one sentence each, with no price", () => {
+    expect(
+      d({
+        type: "part_requested",
+        payload: { kind: "part", description: "Shimano chain", quantity: 2 },
+      }),
+    ).toEqual({ title: "Proposed 2 × Shimano chain", detail: null, tone: "neutral" });
+    expect(
+      d({
+        type: "part_requested",
+        payload: { kind: "service", description: "Chain Replacement", quantity: 1 },
+      }),
+    ).toEqual({ title: "Proposed Chain Replacement", detail: null, tone: "neutral" });
+    expect(
+      d({ type: "quote_sent", payload: { channel: "whatsapp", items: 2, valid_days: 7 } }),
+    ).toEqual({ title: "Quote sent by WhatsApp (2 items)", detail: null, tone: "info" });
+    expect(
+      d({ type: "quote_answered", payload: { name: "Tan Ah Kow", approved: 1, declined: 1 } }),
+    ).toEqual({
+      title: "Quote answered by Tan Ah Kow: 1 approved, 1 declined",
+      detail: null,
+      tone: "done",
+    });
+    expect(d({ type: "quote_answered", payload: { approved: 0, declined: 2 } }).tone).toBe(
+      "waiting",
+    );
+    expect(
+      d({ type: "part_ordered", payload: { purchase_order: "PO-000006", items: [] } }),
+    ).toEqual({
+      title: "Parts ordered on PO-000006",
+      detail: null,
+      tone: "info",
+    });
+    expect(
+      d({
+        type: "part_request_cancelled",
+        payload: { description: "Shimano chain", reason: "Out of stock" },
+      }),
+    ).toEqual({
+      title: "Cancelled the proposed Shimano chain",
+      detail: "Out of stock",
+      tone: "neutral",
+    });
+    expect(d({ type: "part_fitted", payload: { description: "Shimano chain" } }).title).toBe(
+      "Fitted Shimano chain",
+    );
+  });
 });

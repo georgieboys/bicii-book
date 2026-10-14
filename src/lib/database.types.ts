@@ -1710,6 +1710,206 @@ export type Database = {
           },
         ];
       };
+      job_part_requests: {
+        Row: {
+          cancel_reason: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          created_at: string;
+          created_by: string | null;
+          currency: string;
+          decided_at: string | null;
+          description: string;
+          expected_unit_cost: number | null;
+          fitted_at: string | null;
+          fitted_by: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["part_request_kind"];
+          line_total: number | null;
+          ordered_at: string | null;
+          ordered_by: string | null;
+          product_id: string | null;
+          purchase_order_line_id: string | null;
+          quantity: number;
+          service_id: string | null;
+          status: Database["public"]["Enums"]["part_request_status"];
+          supplier_id: string | null;
+          unit_sale_price: number;
+          updated_at: string;
+          work_order_id: string;
+          work_order_line_item_id: string | null;
+        };
+        Insert: {
+          cancel_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          currency: string;
+          decided_at?: string | null;
+          description: string;
+          expected_unit_cost?: number | null;
+          fitted_at?: string | null;
+          fitted_by?: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["part_request_kind"];
+          line_total?: never;
+          ordered_at?: string | null;
+          ordered_by?: string | null;
+          product_id?: string | null;
+          purchase_order_line_id?: string | null;
+          quantity: number;
+          service_id?: string | null;
+          status?: Database["public"]["Enums"]["part_request_status"];
+          supplier_id?: string | null;
+          unit_sale_price: number;
+          updated_at?: string;
+          work_order_id: string;
+          work_order_line_item_id?: string | null;
+        };
+        Update: {
+          cancel_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          currency?: string;
+          decided_at?: string | null;
+          description?: string;
+          expected_unit_cost?: number | null;
+          fitted_at?: string | null;
+          fitted_by?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["part_request_kind"];
+          line_total?: never;
+          ordered_at?: string | null;
+          ordered_by?: string | null;
+          product_id?: string | null;
+          purchase_order_line_id?: string | null;
+          quantity?: number;
+          service_id?: string | null;
+          status?: Database["public"]["Enums"]["part_request_status"];
+          supplier_id?: string | null;
+          unit_sale_price?: number;
+          updated_at?: string;
+          work_order_id?: string;
+          work_order_line_item_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "job_part_requests_cancelled_by_fkey";
+            columns: ["cancelled_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_fitted_by_fkey";
+            columns: ["fitted_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_ordered_by_fkey";
+            columns: ["ordered_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "product_costs";
+            referencedColumns: ["product_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_purchase_order_line_id_fkey";
+            columns: ["purchase_order_line_id"];
+            isOneToOne: false;
+            referencedRelation: "purchase_order_lines";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_purchase_order_line_id_fkey";
+            columns: ["purchase_order_line_id"];
+            isOneToOne: false;
+            referencedRelation: "purchase_order_lines_staff";
+            referencedColumns: ["purchase_order_line_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_service_id_fkey";
+            columns: ["service_id"];
+            isOneToOne: false;
+            referencedRelation: "services";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_service_id_fkey";
+            columns: ["service_id"];
+            isOneToOne: false;
+            referencedRelation: "services_staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_supplier_id_fkey";
+            columns: ["supplier_id"];
+            isOneToOne: false;
+            referencedRelation: "suppliers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_line_item_id_fkey";
+            columns: ["work_order_line_item_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_line_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_line_item_id_fkey";
+            columns: ["work_order_line_item_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_line_items_staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       label_templates: {
         Row: {
           active: boolean;
@@ -2517,6 +2717,154 @@ export type Database = {
             columns: ["received_by"];
             isOneToOne: false;
             referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      quote_items: {
+        Row: {
+          decision: string | null;
+          description: string;
+          id: string;
+          kind: Database["public"]["Enums"]["part_request_kind"];
+          line_total: number;
+          part_request_id: string;
+          position: number;
+          quantity: number;
+          quote_id: string;
+          unit_sale_price: number;
+        };
+        Insert: {
+          decision?: string | null;
+          description: string;
+          id?: string;
+          kind: Database["public"]["Enums"]["part_request_kind"];
+          line_total: number;
+          part_request_id: string;
+          position: number;
+          quantity: number;
+          quote_id: string;
+          unit_sale_price: number;
+        };
+        Update: {
+          decision?: string | null;
+          description?: string;
+          id?: string;
+          kind?: Database["public"]["Enums"]["part_request_kind"];
+          line_total?: number;
+          part_request_id?: string;
+          position?: number;
+          quantity?: number;
+          quote_id?: string;
+          unit_sale_price?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "quote_items_part_request_id_fkey";
+            columns: ["part_request_id"];
+            isOneToOne: false;
+            referencedRelation: "job_part_requests";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "quote_items_part_request_id_fkey";
+            columns: ["part_request_id"];
+            isOneToOne: false;
+            referencedRelation: "job_part_requests_staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "quote_items_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quotes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      quotes: {
+        Row: {
+          answered_at: string | null;
+          answered_name: string | null;
+          channel: Database["public"]["Enums"]["quote_channel"];
+          currency: string;
+          expires_at: string;
+          id: string;
+          sent_at: string;
+          sent_by: string;
+          status: Database["public"]["Enums"]["quote_status"];
+          token_hash: string;
+          total: number;
+          withdrawn_at: string | null;
+          withdrawn_by: string | null;
+          work_order_id: string;
+        };
+        Insert: {
+          answered_at?: string | null;
+          answered_name?: string | null;
+          channel: Database["public"]["Enums"]["quote_channel"];
+          currency: string;
+          expires_at: string;
+          id: string;
+          sent_at?: string;
+          sent_by: string;
+          status?: Database["public"]["Enums"]["quote_status"];
+          token_hash: string;
+          total: number;
+          withdrawn_at?: string | null;
+          withdrawn_by?: string | null;
+          work_order_id: string;
+        };
+        Update: {
+          answered_at?: string | null;
+          answered_name?: string | null;
+          channel?: Database["public"]["Enums"]["quote_channel"];
+          currency?: string;
+          expires_at?: string;
+          id?: string;
+          sent_at?: string;
+          sent_by?: string;
+          status?: Database["public"]["Enums"]["quote_status"];
+          token_hash?: string;
+          total?: number;
+          withdrawn_at?: string | null;
+          withdrawn_by?: string | null;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "quotes_sent_by_fkey";
+            columns: ["sent_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "quotes_withdrawn_by_fkey";
+            columns: ["withdrawn_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "quotes_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "quotes_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "quotes_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
             referencedColumns: ["id"];
           },
         ];
@@ -3855,6 +4203,46 @@ export type Database = {
         };
         Relationships: [];
       };
+      job_part_requests_staff: {
+        Row: {
+          expected_unit_cost: number | null;
+          id: string | null;
+          kind: Database["public"]["Enums"]["part_request_kind"] | null;
+          supplier_id: string | null;
+          supplier_name: string | null;
+          work_order_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "job_part_requests_supplier_id_fkey";
+            columns: ["supplier_id"];
+            isOneToOne: false;
+            referencedRelation: "suppliers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       product_costs: {
         Row: {
           currency: string | null;
@@ -4360,6 +4748,7 @@ export type Database = {
           on_hand: number;
         }[];
       };
+      answer_quote: { Args: { decisions: Json; name: string; token: string }; Returns: Json };
       appointment_daily: {
         Args: { from_day?: string; to_day?: string };
         Returns: {
@@ -4538,6 +4927,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      cancel_part_request: { Args: { reason: string; request_id: string }; Returns: string };
       cancel_purchase_order: {
         Args: { purchase_order_id: string; reason: string };
         Returns: {
@@ -5051,6 +5441,10 @@ export type Database = {
           yield_total: number;
         }[];
       };
+      fit_part_request: {
+        Args: { line_id: string; location_id?: string; request_id: string };
+        Returns: string;
+      };
       grant_permission: {
         Args: {
           permission: Database["public"]["Enums"]["permission_key"];
@@ -5068,6 +5462,14 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      indent_reservations: {
+        Args: { product_id: string };
+        Returns: {
+          job_number: string;
+          quantity: number;
+          work_order_id: string;
+        }[];
       };
       label_preview: {
         Args: { entity_id: string; kind: Database["public"]["Enums"]["label_kind"] };
@@ -5337,6 +5739,25 @@ export type Database = {
           title: string;
         }[];
       };
+      order_part_requests: {
+        Args: {
+          move_to_waiting?: boolean;
+          purchase_order_id: string;
+          request_ids: string[];
+          supplier_id: string;
+        };
+        Returns: string;
+      };
+      part_request_arrivals: {
+        Args: { work_order_id: string };
+        Returns: {
+          arrived: boolean;
+          location_id: string;
+          po_number: string;
+          purchase_order_id: string;
+          request_id: string;
+        }[];
+      };
       process_shopify_event: {
         Args: { event_id: string };
         Returns: {
@@ -5376,6 +5797,28 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      propose_part: {
+        Args: {
+          expected_unit_cost?: unknown;
+          product_id: string;
+          quantity?: number;
+          request_id: string;
+          supplier_id?: string;
+          unit_sale_price?: unknown;
+          work_order_id: string;
+        };
+        Returns: string;
+      };
+      propose_service: {
+        Args: {
+          quantity?: unknown;
+          request_id: string;
+          service_id: string;
+          unit_sale_price?: unknown;
+          work_order_id: string;
+        };
+        Returns: string;
       };
       public_appointment_types: {
         Args: Record<PropertyKey, never>;
@@ -5422,6 +5865,7 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      quote_by_token: { Args: { token: string }; Returns: Json };
       receive_purchase: {
         Args: {
           idempotency_key: string;
@@ -6102,6 +6546,16 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      send_quote: {
+        Args: {
+          channel: Database["public"]["Enums"]["quote_channel"];
+          quote_id: string;
+          request_ids: string[];
+          valid_days?: number;
+          work_order_id: string;
+        };
+        Returns: string;
       };
       set_approval_flag: {
         Args: { flagged: boolean; note?: string; work_order_id: string };
@@ -6895,6 +7349,7 @@ export type Database = {
         };
       };
       void_line: { Args: { line_id: string; reason: string }; Returns: string };
+      withdraw_quote: { Args: { quote_id: string }; Returns: string };
       work_order_activity_on: {
         Args: { on_day?: string };
         Returns: {
@@ -7052,6 +7507,9 @@ export type Database = {
         | "transfer"
         | "reversal";
       ownership_type: "shop_owned" | "consignment" | "customer_owned";
+      part_request_kind: "part" | "service";
+      part_request_status:
+        "proposed" | "quoted" | "approved" | "declined" | "ordered" | "fitted" | "cancelled";
       permission_key:
         | "view_costs"
         | "manage_inventory"
@@ -7083,6 +7541,8 @@ export type Database = {
         | "cancelled";
       purchase_order_status:
         "draft" | "submitted" | "partially_received" | "received" | "cancelled";
+      quote_channel: "whatsapp" | "email" | "link";
+      quote_status: "open" | "answered" | "withdrawn";
       report_date_basis: "sale" | "check_in" | "completion" | "collection";
       report_dimension:
         "job" | "product" | "category" | "service" | "mechanic" | "ownership" | "channel";
@@ -7128,7 +7588,14 @@ export type Database = {
         | "line_voided"
         | "stock_consumed"
         | "stock_reversed"
-        | "appointment_linked";
+        | "appointment_linked"
+        | "part_requested"
+        | "part_request_cancelled"
+        | "quote_sent"
+        | "quote_withdrawn"
+        | "quote_answered"
+        | "part_ordered"
+        | "part_fitted";
       work_order_note_kind: "note" | "diagnosis";
       work_order_status:
         | "received"
@@ -8042,6 +8509,16 @@ export const Constants = {
         "reversal",
       ],
       ownership_type: ["shop_owned", "consignment", "customer_owned"],
+      part_request_kind: ["part", "service"],
+      part_request_status: [
+        "proposed",
+        "quoted",
+        "approved",
+        "declined",
+        "ordered",
+        "fitted",
+        "cancelled",
+      ],
       permission_key: [
         "view_costs",
         "manage_inventory",
@@ -8075,6 +8552,8 @@ export const Constants = {
         "cancelled",
       ],
       purchase_order_status: ["draft", "submitted", "partially_received", "received", "cancelled"],
+      quote_channel: ["whatsapp", "email", "link"],
+      quote_status: ["open", "answered", "withdrawn"],
       report_date_basis: ["sale", "check_in", "completion", "collection"],
       report_dimension: [
         "job",
@@ -8130,6 +8609,13 @@ export const Constants = {
         "stock_consumed",
         "stock_reversed",
         "appointment_linked",
+        "part_requested",
+        "part_request_cancelled",
+        "quote_sent",
+        "quote_withdrawn",
+        "quote_answered",
+        "part_ordered",
+        "part_fitted",
       ],
       work_order_note_kind: ["note", "diagnosis"],
       work_order_status: [

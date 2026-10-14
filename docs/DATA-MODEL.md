@@ -45,10 +45,10 @@ This section was added by the documentation retrofit (2026-10-05, inspected
 at `c6bf6d0`). The numbered sections below are never renumbered; code and
 migration comments cite them as "DATA-MODEL §n".
 
-**Authority.** The schema source is the 56 files in
+**Authority.** The schema source is the 58 files in
 [supabase/migrations/](../supabase/migrations/), from
 `20261004000100_foundation.sql` to
-`20261006103000_public_site.sql` (Phase 6 added `20261004003300` to
+`20261014000200_indent_parts.sql` (Phase 6 added `20261004003300` to
 `20261004003700`; Phase 8, labels, added `20261004003800_labels.sql` and
 Phase 10, Shopify, `20261004003900_shopify_integration.sql`,
 `20261004004000_shopify_order_processing.sql` and
@@ -79,7 +79,11 @@ otherwise create new objects, D100–D108; Phase 11 step 1 added
 `20261006103000_public_site`, which creates only new objects:
 `claim_my_customer`, `bookable_slots`,
 `private.customer_can_read_media` and the Storage policy
-`media_internal_select_customer`, D120–D125). The labels and Shopify
+`media_internal_select_customer`, D120–D125; Phase 13 step 1 added
+`20261014000100_indent_enum_values` (seven `work_order_event_type`
+values, on their own because a new enum value cannot be used in the
+transaction that adds it) and `20261014000200_indent_parts`, which
+creates only new objects (§5 "Indent parts and quotes"), D140–D147). The labels and Shopify
 migrations sort before the purchasing, sign-in, roles, reporting and
 public-site ones, and no function, view, policy, grant, trigger or type
 that `20261004003800_labels.sql` or `20261004003900` to `20261004004100`
@@ -1083,6 +1087,77 @@ Deviations from this document's earlier draft, each for a reason:
   `cost_pending` (D14, owner to confirm), rather than a nullable cost, so
   the generated arithmetic stays one expression; it is corrected by voiding
   and re-adding it with the cost.
+
+### Indent parts and quotes (Phase 13)
+
+`20261014000200_indent_parts` (D140–D147,
+[ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md)). An
+indent part is ordered for one job: proposed, quoted, answered by the
+customer, ordered, received and fitted. Nothing here changes a line, a
+movement or a total until the fit, which adds an ordinary line through
+`add_inventory_line` or `add_service_line` (D15, D23, D24 unchanged).
+
+```
+job_part_requests
+  id uuid pk                       -- the app's form id (propose replay key)
+  work_order_id uuid fk work_orders
+  kind part_request_kind           -- part | service (fitting labour)
+  product_id uuid null fk products -- part: shop-owned, quantity, active (D62)
+  service_id uuid null fk services -- service
+  description text                 -- the name when proposed (≤ 200)
+  quantity line_quantity           -- part: whole 1–999; service: > 0, ≤ 999
+  unit_sale_price money_amount     -- shown to the customer
+  currency char(3)
+  line_total money_amount generated (round(quantity × price, 2))
+  expected_unit_cost money_amount null  -- D60: no column grant; job_part_requests_staff
+  supplier_id uuid null fk suppliers    -- D60: no column grant; job_part_requests_staff
+  status part_request_status       -- proposed | quoted | approved | declined |
+                                   -- ordered | fitted | cancelled
+  purchase_order_line_id uuid null fk purchase_order_lines  -- set when ordered
+  work_order_line_item_id uuid null unique fk work_order_line_items  -- set when fitted
+  cancel_reason text null          -- required when cancelled (≤ 500)
+  created_by, created_at, updated_at, decided_at,
+  ordered_at, ordered_by, fitted_at, fitted_by, cancelled_at, cancelled_by
+
+quotes
+  id uuid pk                       -- send_quote's form id
+  work_order_id uuid fk work_orders  -- unique where status = 'open' (one open quote per job)
+  token_hash bytea unique          -- SHA-256 of the 43-character link token; never granted
+  status quote_status              -- open | answered | withdrawn (expired is open past expires_at)
+  channel quote_channel            -- whatsapp | email | link (D144)
+  currency char(3), total money_amount   -- snapshot
+  expires_at timestamptz           -- sent_at + 1–30 days (7 by default)
+  sent_by, sent_at, answered_at, answered_name (1–100), withdrawn_at, withdrawn_by
+
+quote_items
+  id uuid pk, quote_id fk quotes, part_request_id fk job_part_requests
+  position smallint                -- order on the page
+  kind, description, quantity, unit_sale_price, line_total  -- snapshot when sent
+  decision text null               -- approved | declined, set once by answer_quote
+```
+
+State changes, all through the RPCs in §16: proposed → quoted
+(`send_quote`; back to proposed when the quote is withdrawn or replaced) →
+approved or declined (`answer_quote`) → ordered (`order_part_requests`,
+parts only) → fitted (`fit_part_request`, from approved or ordered); any
+state but quoted and fitted → cancelled (`cancel_part_request`, with a
+reason). A request has arrived when the receipts on its purchase order
+line cover it, the line's requests first requested first covered
+(`private.part_request_arrival_rows`, D146); arrived, unfitted quantities
+are shown as reserved (`indent_reservations`) but held nowhere
+([R-080](RISKS.md#r-080--arrived-indent-stock-is-not-held-for-its-job)).
+
+The answer sets `work_orders.approval_flag` when anything is approved and
+replaces `approval_note` with "Quote answered online by {name} on {date}:
+{n} of {m} items approved." (the history trigger records it as
+`approval_flagged`). Timeline events: `part_requested`,
+`part_request_cancelled`, `quote_sent`, `quote_withdrawn`,
+`quote_answered`, `part_ordered`, `part_fitted` (payloads carry names,
+quantities, counts and purchase order numbers, never a price or cost;
+`my_work_order_timeline` lists its own types, so customers see none of
+them). Lock order: the job (`private.lock_work_order`) before its requests
+and quotes; `order_part_requests` locks every job in id order, then calls
+the purchasing RPCs, which lock purchase orders and never jobs.
 
 ## 6. Catalog and inventory
 
@@ -2798,6 +2873,9 @@ written out, e.g. `A, M or P(view_costs)`.
 | work_orders | S; C own, not cancelled, via `my_work_orders()` (D17) | RPC `create_work_order` | RPC (`set_work_order_status`, `update_work_order`, `set_approval_flag`; `lead_mechanic_id` by the assignments trigger) | — |
 | work_order_assignments | S | RPC `assign_staff` (S, D22) | RPC `unassign_staff` (closes the row) | — |
 | work_order_events | S; C own job's check-in, customer-status changes and customer-visible photos via `my_work_order_timeline()` (D8, D17) | triggers and `add_work_order_note` only | never | never |
+| job_part_requests | S, except `expected_unit_cost` and `supplier_id` (D60, D147: `job_part_requests_staff`, view_costs or manage_purchasing) | RPC `propose_part`, `propose_service` (S; a cost or supplier needs view_costs or manage_purchasing) | RPC `send_quote`, `answer_quote`, `order_part_requests` (manage_purchasing), `fit_part_request`, `cancel_part_request` | never |
+| quotes | S, except `token_hash` (never granted); anyone holding a link reads one quote's customer view through `quote_by_token` (D143) | RPC `send_quote` (S) | RPC `withdraw_quote` (S), `answer_quote` (anyone with the link, once) | never |
+| quote_items | S | RPC `send_quote` | RPC `answer_quote` (the decision, once) | never |
 | categories | S | P(manage_inventory) (A included) | P(manage_inventory) | — (archive) |
 | services | S, every column except `default_direct_cost`; P(view_costs) everything via `services_staff`; anon/C listing in Phase 11 through a separate projection | RPC `create_service` (P(manage_inventory); a cost needs P(view_costs)) | RPC `update_service`, `set_service_archived` (same) | — (archive) |
 | cult_commons_rates | P(view_costs) | RPC `schedule_cult_commons_rate` (A) | RPC `cancel_cult_commons_rate` (A, future rates only) | never |
@@ -2932,6 +3010,17 @@ and would print the hidden columns (costs) to any caller through PostgREST.
 | `update_work_order(work_order_id, requested_work = null, intake_notes = null, internal_notes = null, completion_notes = null)` → `work_orders` | S | Null keeps, '' clears (requested work cannot be cleared: `requested_work_required`); no-op when unchanged; one `details_changed` event. Any status. |
 | `add_work_order_note(note_id, work_order_id, kind work_order_note_kind, body)` → `work_order_events` | S | Locks the job; replay by `note_id` first (same job → that event; else `note_conflict`); `note_added` / `diagnosis_added` with `{note_id, body}` (1..5000; `note_required`, `note_too_long`). Any status. |
 | `set_approval_flag(work_order_id, flagged, note = null)` → `work_orders` | S | Internal flag (SPEC §7.1); note null keeps the stored one, '' clears it; `work_order_closed`; replay no-op; `approval_flagged` event. |
+| `propose_part(request_id, work_order_id, product_id, quantity int = 1, unit_sale_price = null, expected_unit_cost = null, supplier_id = null)` → uuid | S (cost or supplier: view_costs or manage_purchasing, else 42501) | D140: locks the job; replay by `request_id` (another job, kind or product → `part_request_conflict`); open job; `quantity_invalid` (1–999); `product_archived`, `product_inactive`, `indent_product_invalid` (not shop-owned and quantity-tracked, D62), `currency_mismatch`; price defaults to `private.selling_price` (`part_price_missing`); `supplier_unavailable`; event `part_requested`. No movement, no line |
+| `propose_service(request_id, work_order_id, service_id, quantity line_quantity = 1, unit_sale_price = null)` → uuid | S | D140: as above for a catalogue service (`service_unavailable`); price defaults to the service's |
+| `cancel_part_request(request_id, reason)` → uuid | S | Locks the job; replay: a cancelled request is returned; `work_order_closed`; `part_request_quoted` (withdraw the quote first), `part_request_fitted`; `reason_required`, `reason_too_long`; an ordered part stays on its purchase order; event `part_request_cancelled` |
+| `send_quote(quote_id, work_order_id, request_ids uuid[], channel quote_channel, valid_days int = 7)` → text | S | D141: locks the job; `quote_already_sent` for a known id (the token cannot be shown again); open job; `quote_validity_invalid` (1–30), `quote_items_invalid` (1–50 distinct); withdraws the job's open quote first; `part_request_not_proposed`; returns the 43-character base64url token of 32 random bytes and stores only its SHA-256; items snapshot; requests → quoted; event `quote_sent` |
+| `withdraw_quote(quote_id)` → uuid | S | Locks the job; replay: withdrawn returned; `quote_answered`; items → proposed; event `quote_withdrawn` |
+| `quote_by_token(token)` → jsonb | anon, S, C | D143: null for anything that is not a known token; withdrawn or expired → `{status, job_number}` only; otherwise status, job number, bike, the customer's first name, currency, total, sent, expires, answered at and by, and the items with their decisions. Never costs, notes, staff or contact details |
+| `answer_quote(token, decisions jsonb, name)` → jsonb | anon, S, C | D142: `quote_not_found` (P0002); locks the job, then the quote; `quote_not_open` (answered, withdrawn or the job closed), `quote_expired`, `quote_name_required` (1–100), `quote_answer_incomplete` (exactly one `{item_id, approve boolean}` per item); requests → approved or declined; quote answered; the job's approval flag and note; event `quote_answered`; returns the page's data |
+| `order_part_requests(request_ids uuid[], supplier_id, purchase_order_id, move_to_waiting boolean = true)` → uuid | manage_purchasing | D145: locks the jobs in id order; replay when all are ordered (their purchase order); `order_items_invalid`, `part_request_not_approved` (approved parts only), `supplier_unavailable`; the supplier's newest draft or `create_purchase_order(purchase_order_id, supplier_id)`; each product's line raised through `set_purchase_order_line` (cost: the line's, else the expected cost, else `purchase_cost_defaults`, else 0; a new line notes "For J-…"); requests → ordered and linked; event `part_ordered`; optionally `set_work_order_status(…, 'awaiting_parts')` where allowed |
+| `part_request_arrivals(work_order_id)` → table(request_id, arrived, location_id, purchase_order_id, po_number) | S | D146: the job's ordered and fitted requests; arrived when receipts on the line cover it, first requested first covered; location of the line's latest receipt |
+| `indent_reservations(product_id)` → table(work_order_id, job_number, quantity) | S | D146: arrived, unfitted quantities by job (reserved, not held) |
+| `fit_part_request(request_id, line_id, location_id = null)` → uuid | S | D140, D146: locks the job, then the request; replay by `line_id`; `part_request_fitted`, `part_request_not_approved` (approved, or ordered for a part); open job; a part through `add_inventory_line(line_id, …, quantity, location_id ?? where it arrived, null, quoted price)` (D23, D24), a service through `add_service_line`; request → fitted; event `part_fitted` |
 | `assign_staff(work_order_id, staff_id, role assignment_role = 'additional')` → `work_order_assignments` | S (D22) | Locks the job; `work_order_closed`; P0002 / `staff_inactive`; same role → the active row (no event); other role → close and reopen; a new lead closes the previous lead's row. Trigger syncs `lead_mechanic_id`, writes `assignment_changed`. |
 | `unassign_staff(work_order_id, staff_id)` → `work_order_assignments` | S | Closes the active row and returns it; null when none (no event). `work_order_closed`. |
 | `add_service_line(line_id, work_order_id, service_id, quantity line_quantity = 1, unit_sale_price = null, unit_direct_cost = null, description = null)` → `uuid` | S; a cost needs P(view_costs) (D14) | Locks the job, then `private.insert_service_line`: replay by line id first (same job, type and service → id; else `line_conflict`), then `work_order_locked`, P0002 / `service_unavailable`, snapshots (description, price, cost, `cult_commons_rate_at(now)`), insert. Returns the id only. |

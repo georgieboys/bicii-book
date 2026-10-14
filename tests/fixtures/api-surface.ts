@@ -23,6 +23,10 @@ export const ANON_FUNCTIONS: readonly string[] = [
   "public.bookable_slots(date, date, uuid)",
   "public.public_appointment_types()",
   "public.public_shop_hours()",
+  // Phase 13 (D142, D143): the quote page, for whoever holds a quote link;
+  // the token is checked against its stored SHA-256, nothing else is read
+  "public.answer_quote(text, jsonb, text)",
+  "public.quote_by_token(text)",
 ];
 
 /**
@@ -218,6 +222,21 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.report_unit_reconciliation(boolean, uuid, integer)",
   "public.report_exception_counts()",
   "public.set_consignment_settlement_alert_days(integer)",
+  // Indent parts and quotes (Phase 13, D140-D147): active staff propose,
+  // quote, cancel and fit; ordering needs manage_purchasing; a cost or
+  // supplier on a proposal needs view_costs or manage_purchasing; the quote
+  // page's two functions are callable signed in too
+  "public.answer_quote(text, jsonb, text)",
+  "public.cancel_part_request(uuid, text)",
+  "public.fit_part_request(uuid, uuid, uuid)",
+  "public.indent_reservations(uuid)",
+  "public.order_part_requests(uuid[], uuid, uuid, boolean)",
+  "public.part_request_arrivals(uuid)",
+  "public.propose_part(uuid, uuid, uuid, integer, money_amount, money_amount, uuid)",
+  "public.propose_service(uuid, uuid, uuid, line_quantity, money_amount)",
+  "public.quote_by_token(text)",
+  "public.send_quote(uuid, uuid, uuid[], quote_channel, integer)",
+  "public.withdraw_quote(uuid)",
 ];
 
 /**
@@ -339,6 +358,14 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.suppliers": ["INSERT", "SELECT", "UPDATE"],
   "reporting.product_on_order": ["SELECT"],
   "reporting.purchase_order_progress": ["SELECT"],
+  // Indent parts and quotes (Phase 13): staff read requests (not the
+  // expected cost or supplier columns), quotes (not the token hash) and
+  // quote items; the purchase data only through job_part_requests_staff
+  // (D60, D147); writes only through the RPCs
+  "public.job_part_requests": ["SELECT"],
+  "public.job_part_requests_staff": ["SELECT"],
+  "public.quote_items": ["SELECT"],
+  "public.quotes": ["SELECT"],
 };
 
 /**
@@ -389,4 +416,7 @@ export const DEFINER_VIEWS: readonly string[] = [
   "public.purchase_order_totals_staff",
   "public.purchase_receipt_lines_staff",
   "public.supplier_products_staff",
+  // Indent parts (Phase 13): expected cost and supplier for view_costs or
+  // manage_purchasing only (D60, D147)
+  "public.job_part_requests_staff",
 ];

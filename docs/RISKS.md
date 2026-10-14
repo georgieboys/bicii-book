@@ -2019,8 +2019,9 @@ URLs, or customer data in this file.
 ## R-078 — Whoever holds a quote link can answer it
 
 - Category: security concern (non-exploitable summary; D141–D143).
-- Status and owner: open by design (Phase 13 not built); owner (accepts),
-  build agent (limits).
+- Status and owner: open by design; the database limits are built (Phase
+  13 step 1), the page's rate limit is step 3; owner (accepts), build
+  agent (limits).
 - Trigger: a quote link forwarded, shown in a screenshot or read on a
   shared phone.
 - Impact: the link is the only proof of who answers. Anyone holding it
@@ -2032,10 +2033,15 @@ URLs, or customer data in this file.
   token stored only as a hash, a new link on every send (the old one
   stops working), no contact details on the page, the answer recorded in
   the job timeline for staff to confirm by phone when in doubt.
-- Next action: build the limits in Phase 13 steps 1 and 3; the owner
+- Evidence (2026-10-14, step 1): `tests/db/indent-parts.test.ts` shows
+  the stored hash is exactly the token's SHA-256 and the token is stored
+  nowhere, a second answer is refused, a resent quote's old link is
+  withdrawn, an expired one is refused, and the page's data has no cost or
+  contact field.
+- Next action: rate-limit the quote page per client (step 3); the owner
   confirms the 7-day expiry (PRODUCT question 31).
 - Revisit trigger: a disputed answer; customers asked to sign in.
-- Last checked: 2026-10-14, design.
+- Last checked: 2026-10-14, Phase 13 step 1.
 
 ## R-079 — Email quotes need the Resend domain and API key
 

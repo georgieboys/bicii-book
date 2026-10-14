@@ -1025,6 +1025,37 @@ level down, and the earlier paths still are); the Shopify webhook handler
 test still imports `SlidingWindowLimiter` from `shopify/webhooks.ts`,
 which re-exports it from `src/lib/integrations/limiter.ts`.
 
+Phase 14 step 2, the quote page's deposit and Settings → Customer
+payments: `stripe-checkout.test.ts` (the Checkout flows with the
+in-memory Stripe and scripted RPCs through a stub service client:
+`create` records the new session and redirects to the validated success
+URL, with `bicii-checkout-<payment id>` as the key and the return URLs
+from the configured origin; `check` re-reads an open session and reuses
+its URL with no new session; within the 2-minute margin it expires and
+records the old session, then creates; an expire Stripe answers "not
+open" is followed by a retrieve and a read; a read that says paid, partly
+refunded, refunded or completed returns that instead of a redirect;
+`existing` from the record expires the new session and reuses the
+winner's; `checkout_session_mismatch` expires it and is unavailable;
+`deposit_job_closed` and `paid` from the record expire it too; paid,
+processing and refunded from prepare never call Stripe; prepare's
+refusals map to their sentences and an unknown link to "This link is not
+valid…"; a Stripe failure, Stripe off, no gateway or no service client
+are unavailable, the last three with no RPC; in live mode only
+`https://checkout.stripe.com` is followed (`validateRedirect`, with the
+fake's own rule); three attempts at most; `confirmDepositReturn` never
+creates and reports Stripe's state; `refreshPaymentFromStripe` re-reads
+the session and each listed refund, says whether anything changed, and
+covers `not_found`, `other_mode` and `unavailable`; logs never carry the
+token, a URL or `/quote/`); `quote-page.test.ts` (the `deposit` key
+absent, null and in every status, unknown statuses and percents refused,
+`depositReturn`, and the `quote-pay:` buckets at 10 per client and per
+token); `payments.test.ts` (every payment, refund and event status,
+rejection reason and deposit state has words and a tone where shown;
+every outcome `stripe_events_outcome_check` allows has words; each
+Stripe off reason has a sentence that names no value; the connection and
+percent labels).
+
 ### Database (SPEC §27.2 and §23)
 
 Each invariant from SPEC §23 has at least one test, named after it:

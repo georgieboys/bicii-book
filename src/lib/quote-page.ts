@@ -24,6 +24,22 @@ const quoteItem = z.object({
   decision: z.enum(["approved", "declined"]).nullable(),
 });
 
+/**
+ * The deposit the quote asks (Phase 14 step 2; D151, D158): on_answer
+ * while open (the percent only: no amount is computed outside Postgres),
+ * then due, processing, paid or refunded once answered. Optional, so a
+ * payload from before the deposit migration still parses (null).
+ */
+const deposit = z
+  .object({
+    percent: z.number().int().min(1).max(100),
+    amount: money.nullable(),
+    status: z.enum(["on_answer", "due", "processing", "paid", "refunded"]),
+  })
+  .nullable()
+  .optional()
+  .transform((v) => v ?? null);
+
 /** Withdrawn and expired quotes show only their state and the job (D143). */
 const closedQuote = <S extends "withdrawn" | "expired">(status: S) =>
   z.object({ status: z.literal(status), job_number: z.string() });
@@ -41,6 +57,7 @@ const fullQuote = <S extends "open" | "answered">(status: S) =>
     answered_at: z.string().nullable(),
     answered_name: z.string().nullable(),
     items: z.array(quoteItem),
+    deposit,
   });
 
 export const quoteViewSchema = z.discriminatedUnion("status", [
@@ -53,6 +70,17 @@ export const quoteViewSchema = z.discriminatedUnion("status", [
 export type QuoteView = z.infer<typeof quoteViewSchema>;
 export type OpenOrAnsweredQuote = Extract<QuoteView, { status: "open" | "answered" }>;
 export type QuoteItem = z.infer<typeof quoteItem>;
+export type QuoteDeposit = NonNullable<OpenOrAnsweredQuote["deposit"]>;
+
+/**
+ * Where Stripe sent the customer back to (`?deposit=`): display only,
+ * never proof of payment (D153).
+ */
+export type DepositReturn = "returned" | "cancelled" | null;
+
+export function depositReturn(value: string | string[] | undefined): DepositReturn {
+  return value === "returned" || value === "cancelled" ? value : null;
+}
 
 /** Parses what the RPC returned; null for an unknown token or an unexpected shape. */
 export function parseQuoteView(value: unknown): QuoteView | null {

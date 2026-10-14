@@ -188,12 +188,34 @@ before it is ordered, and it goes on the job only when it is fitted
      the job's approval is ticked with a note of what was approved, and the
      timeline records it. Anyone with the link can answer, so if in doubt
      confirm by phone.
+     When an admin has set a deposit (Settings → **Customer payments**,
+     below), the open quote also says the shop asks for a deposit of N% of
+     the parts they approve (not labour) after they answer. Once they
+     answer, a **Deposit** card shows the amount (N% of the approved
+     parts, worked out by the database when they answered; quotes sent
+     before the deposit was set ask none) and **Pay $… deposit**, which
+     opens Stripe's own payment page (card or PayNow) and brings them back
+     to the quote. Their approval stands whether or not they pay. Back on
+     the page they see "We're confirming your payment with Stripe…" and
+     then "Deposit of $… paid. Thank you."; if they left Stripe without
+     paying, "Payment not finished. Nothing was charged." and the button
+     again. Pressing Pay again reuses the same Stripe payment, so they are
+     never charged twice. Only Stripe's own confirmation marks a deposit
+     paid, never the return to the page. While Stripe is off the card says
+     "The shop will tell you how to pay the deposit." No deposit is asked
+     under S$0.50 (Stripe's minimum) or on a quote in another currency.
   5. **Order approved parts** (Manage purchasing): choose the **Supplier**
      (the one proposed is preset) and press **Add to order**. The parts go
      on that supplier's draft purchase order (a new draft if there is none),
      with the job number in the line's note; submit the order from
      Purchasing as usual. **Move the job to Waiting on parts** is on by
-     default.
+     default. A part whose quote asked a deposit that isn't paid yet is
+     refused: "The customer hasn't paid the deposit for these parts yet.
+     An admin or manager can order them anyway with a reason." (Ordering
+     with a reason from this screen, and the job's Customer payments card,
+     come in the next commit of Phase 14 step 2; with the deposit at 0,
+     the default, nothing is refused.) Fitting is never held up by a
+     deposit.
   6. When the order is received the item shows **Arrived**, and the
      product's page says "2 reserved for jobs" with the job numbers. They
      are not held: don't sell or use them elsewhere. Press **Fit**,
@@ -223,6 +245,12 @@ before it is ordered, and it goes on the job only when it is fitted
     WhatsApp or copy the link." If the email itself fails, the quote is
     still sent: "The email didn't go out. Copy the link and send it another
     way."
+- What the customer may see when paying a deposit: "Online payment isn't
+  available right now. Try again in a few minutes, or contact the shop."
+  (Stripe can't be reached, or isn't set up), "This job is closed. Ask the
+  shop about the deposit.", "The parts this deposit was for were
+  cancelled. Ask the shop.", or "Too many attempts. Wait a few minutes and
+  try again."
 - What the customer may see instead of the quote: "This link is not valid"
   (a cut-off link), "Quote for job J-… replaced" (you sent again or
   withdrew it), "Quote for job J-… expired", "Too many requests" (wait a
@@ -916,6 +944,32 @@ website's account pages go live when the owner switches them on,
   old (D107; 30 by default).
 - If it fails: "Choose between 1 and 365 days" — the number stays in the
   box to correct. Only admins see Change; everyone else sees the number.
+
+### Set the deposit on indent quotes (admins)
+
+- Before you start: Stripe must be on for a deposit above 0 (D157;
+  [RUNBOOK](RUNBOOK.md#stripe-switching-on)). Settings → **Customer
+  payments** says **Live** (or **Test mode** or **Fake Stripe (development
+  and tests only)** off production), or **Off** with the reason in words,
+  naming the setting to fix (never its value).
+- Steps: Settings → **Customer payments** → **Change** beside "No deposit
+  is asked on indent quotes". Enter the percent (0 to 100) and **Save**.
+- Success looks like: a toast "Customers pay N% of the approved indent
+  parts after answering" (or "No deposit is asked on indent quotes" for
+  0). Quotes sent from now on take that percent; quotes already sent keep
+  theirs, and the amount is fixed when the customer answers. The change
+  is kept in the settings history.
+- Also on the page: with Stripe on, the **Webhook endpoint** to paste into
+  Stripe's Dashboard, the API version and the seven events to send;
+  **Recent Stripe deliveries**, the latest 20 deliveries and checks with
+  what each did ("Payment recorded", "Rejected · Signature didn't match",
+  …) and a link to the job.
+- If it fails: "Set up Stripe first: customers can't pay a deposit until
+  it is." while Stripe is off (0 is always allowed, which is how to switch
+  deposits off first, before removing Stripe's keys). "Choose from 0 to
+  100%." for anything else; the number stays in the box to correct. If
+  the page shows "Deposits are asked but Stripe is off", set the deposit
+  to 0 or fix Stripe. Only admins see Customer payments.
 
 ### Invite a colleague
 

@@ -5,6 +5,8 @@ import { z } from "zod";
 import type { ActionResult } from "@/lib/actions";
 import { noteQuoteAttempt } from "@/lib/admin/quote-throttle";
 import { mapDbError } from "@/lib/db-errors";
+import { confirmDepositReturn, startDepositCheckout } from "@/lib/integrations/stripe/checkout";
+import { defaultStripeDeps } from "@/lib/integrations/stripe/deps";
 import { child } from "@/lib/logger";
 import { ANSWER_NAME_MAX, QUOTE_TOKEN, parseQuoteView, type QuoteView } from "@/lib/quote-page";
 import { getCorrelationId } from "@/lib/auth/session";
@@ -15,6 +17,13 @@ import { createAnonClient } from "@/lib/supabase/anon";
  * declined, and their name. Anyone holding the link may answer (D143,
  * R-078), so this runs as anon whoever is signed in, after the quote
  * page's own limit; `answer_quote` answers a quote once.
+ *
+ * Paying its deposit (Phase 14 step 2; D151, D153, D158): Pay deposit and
+ * the check on returning from Stripe run with whoever holds the link,
+ * after the quote page's "pay" limit. They reach the service role only
+ * through src/lib/integrations/stripe/checkout.ts; anon gains no RPC.
+ * Neither ever marks anything paid: only Stripe's data does (D153), and
+ * Next's Server Action origin check is the CSRF guard.
  */
 
 const answerSchema = z.object({
@@ -77,4 +86,71 @@ export async function answerQuoteAction(input: AnswerQuoteInput): Promise<Action
   const view = parseQuoteView(data);
   if (!view) return { ok: false, error: "Something went wrong. Reload the page." };
   return { ok: true, data: view };
+}
+
+const tokenSchema = z.object({
+  token: z.string().regex(QUOTE_TOKEN, { error: "This link is not valid." }),
+});
+
+export type DepositInput = z.input<typeof tokenSchema>;
+
+const LIMITED = "Too many attempts. Wait a few minutes and try again.";
+const UNAVAILABLE =
+  "Online payment isn't available right now. Try again in a few minutes, or contact the shop.";
+
+/** The token, checked and counted; or the failure to return. */
+async function payToken(
+  input: DepositInput,
+): Promise<{ token: string } | { ok: false; error: string }> {
+  const parsed = tokenSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "This link is not valid." };
+  if ((await noteQuoteAttempt("pay", parsed.data.token)) === "limited") {
+    return { ok: false, error: LIMITED };
+  }
+  return { token: parsed.data.token };
+}
+
+/**
+ * Pay deposit: Stripe Checkout's URL to go to (the same open session when
+ * there is one), or null when the deposit is already paid, being
+ * confirmed or refunded (the page refreshes to say so).
+ */
+export async function startDepositCheckoutAction(
+  input: DepositInput,
+): Promise<ActionResult<{ url: string | null }>> {
+  const checked = await payToken(input);
+  if (!("token" in checked)) return checked;
+  const correlationId = await getCorrelationId();
+  const result = await startDepositCheckout(checked.token, defaultStripeDeps(correlationId));
+  child(correlationId).info({ action: "quote.pay", outcome: result.kind }, "action");
+  switch (result.kind) {
+    case "redirect":
+      return { ok: true, data: { url: result.url } };
+    case "paid":
+    case "processing":
+    case "refunded":
+      return { ok: true, data: { url: null } };
+    case "refused":
+      return { ok: false, error: result.message, code: result.reason };
+    case "unavailable":
+      return { ok: false, error: UNAVAILABLE };
+  }
+}
+
+/**
+ * Back from Stripe: one re-read of the open session at Stripe, recorded
+ * as Stripe's word (D159a), so the page shows the deposit as Stripe has it.
+ */
+export async function checkDepositAction(
+  input: DepositInput,
+): Promise<ActionResult<{ state: string | null }>> {
+  const checked = await payToken(input);
+  if (!("token" in checked)) return checked;
+  const correlationId = await getCorrelationId();
+  const { state } = await confirmDepositReturn(checked.token, defaultStripeDeps(correlationId));
+  child(correlationId).info(
+    { action: "quote.check_deposit", outcome: state ?? "unknown" },
+    "action",
+  );
+  return { ok: true, data: { state } };
 }

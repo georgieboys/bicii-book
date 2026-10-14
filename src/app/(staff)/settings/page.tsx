@@ -6,6 +6,7 @@ import {
   ChevronRightIcon,
   ClockIcon,
   PrinterIcon,
+  ReceiptIcon,
   ShareIcon,
   TagIcon,
   UserIcon,
@@ -79,6 +80,12 @@ export default async function SettingsPage() {
             label: "Labels and printers",
             description: "QR address, printers and label sizes",
             icon: PrinterIcon,
+          },
+          {
+            href: "/settings/payments",
+            label: "Customer payments",
+            description: "Stripe and the deposit on indent parts",
+            icon: ReceiptIcon,
           },
         ]
       : []),

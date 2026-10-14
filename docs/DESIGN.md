@@ -291,6 +291,7 @@ upload itself, below).
 | `LabelsCard`, `HeaderPrintLabel` (server, `labels-card.tsx`) | The "Labels" card of a product, unit and bike page over `getLabelContext`, rendering whatever the label state is. Printable: the label as it prints now (default template), "The QR opens" with the database's payload as `CopyText` ("QR URL on the label"), Print label, "What the public sees" (an in-page link to the publication card's `PublicPreviewPanel`, products and units), and the waiting-tone "The price changed since the last printed label ($45.00 → $39.90). Reprint the labels on the shelf." (D58). Not printable: the disabled button with the reason; for the QR address an admin link to Labels and printers (others "Ask an admin…"); a unique product says its labels are its units' and links each U- (D57). Always: "Recent prints" (the last three jobs: status pill, "10 × · printer · who · when", each to `/labels/{id}`) and "All label jobs" (`/labels?q={short id}`). `HeaderPrintLabel` is the header's button and carries the deep-link preset. |
 | `QrAddressForm`, `PrinterList` / `ProfileSheet`, `TemplateList` / `TemplateSheet` (`label-settings.tsx`) | Settings → Labels and printers (admins). `QrAddressForm`: "Change address" reveals the address field, checked with the database's rule (`publicSiteUrlInputSchema`) before **Review the change**, then a confirmation box ("Point new labels at …?": printed labels keep the old address, so keep a redirect there; the environment's address stays accepted by the scanner) with **Back** and **Change the address** (armed after 400 ms). `ProfileSheet`: name; printer type (Browser print / PDF download; Network and Bluetooth disabled until Phase 12), read-only once created; calibration offsets X and Y (`NumberInput` decimal steppers, 0.5 mm, −5 to 5); Active (`Switch`, disabled on the default with why); **Make default** when editing another printer. `TemplateSheet`: a live preview on sample content with the layout's problem under it (`role="status"`, the database's sentence, e.g. the QR does not fit; shown even before a name) and Save disabled while there is one; a field's own problem (no name, a size out of range) sits on that field (`error`, `aria-invalid`) once it was changed or Save was pressed, never on a form not touched yet, and a blocked Save moves focus to the first invalid field; name; kind (create only); width, height, QR size, margin (mm steppers); QR position Left / Right; fields as checkboxes in the canonical order (short ID always on: "Every label shows its short ID."); name lines 1 / 2 / 3; text size; Active; **Make default**. Rows are buttons (≥ 64 px) with Default and Off badges and, for templates, a mini preview. |
 | `SplitToUniqueButton` / `SplitToUniqueSheet` | "Split off as unique item" on a counted product's Stock card, only for staff with adjust_stock and manage_inventory (D28): name (the product's), Take from (active locations holding stock, with counts), serial, "Condition (shown publicly when published)", sale price (the product's to start with) and a required reason (480 characters: the ledger adds "Split to U-…: "). The new product id and unit id are `newId()`s made when the sheet opens; success toasts "Split off as U-…" and opens the new unit. |
+| `DepositPercentControl` (`deposit-percent-control.tsx`) | Settings → Customer payments (admins, D151, D157a), a copy of `AlertDaysControl`: `depositPercentLabel` ("No deposit is asked on indent quotes" or "Customers pay N% of the approved indent parts after answering") with Change; the sheet "Deposit on indent parts" explains it is asked after answering, on approved parts only, and that sent quotes keep theirs; a `NumberInput` 0–100 with the suffix "%" and the hint "0 asks for no deposit. Deposits under S$0.50 aren't asked (Stripe's minimum)." While Stripe is off the sheet says "Stripe is off, so only 0 can be saved." with the reason, the stepper stops at 0 and the Server Action refuses more. |
 | `NewLocationButton`, `EditLocationButton`, `LocationActiveSwitch` (`location-controls.tsx`) | Settings → Locations (manage_inventory): a sheet with name, kind (`Select`: Shop floor, Workshop, Storage, Off-site) and sort order, the new location's `newId()` as its key; the Active `Switch` applies at once with `useOptimistic` and a toast, and a location still holding stock snaps back with the `location_has_stock` error toast. |
 | `CameraPermission` (`camera-permission.tsx`) | The camera's state when there is no picture: Phase 0's messages (checking, allow, allowed, blocked with the iPhone Settings path, unsupported) plus "needs a secure connection" and "would not start", with "Allow camera" / "Try again" where pressing helps. `cameraErrorState` maps getUserMedia errors onto them. |
 | `Scanner` (`scanner.tsx`) | The Scan screen; see "Scanning" below. |
@@ -413,6 +414,21 @@ upload itself, below).
   order, then name: `listLocations`' `defaultLocationId`) and "Inactive";
   Add and Edit open a sheet, Active is a switch applied at once. Nothing is
   deleted; a location holding stock cannot be switched off.
+- **Customer payments settings** (`/settings/payments`, listed in
+  Settings for admins only, after Labels and printers; Phase 14 step 2,
+  D157): admin only with no `loading.tsx`, so the 403 is real. Three
+  cards. **Stripe**: a `StatusPill` with "Live", "Test mode" or "Fake
+  Stripe (development and tests only)" and, when on, the webhook endpoint
+  (monospace, selectable), the pinned API version and the seven event
+  types to subscribe; when off, a danger "Off" pill and the reason as a
+  sentence that names the variable, never its value
+  (`STRIPE_OFF_REASONS`); a danger `role="alert"` box when a deposit is
+  asked while Stripe is off; a link to the runbook. **Deposit on indent
+  parts**: `DepositPercentControl`. **Recent Stripe deliveries**
+  (`#deliveries`, the Exceptions link target): the newest 20 rows, each the
+  event type (monospace), a status pill (Applied done, Needs attention and
+  Rejected danger, others neutral), the time, the outcome or rejection in
+  words, the delivery count above 1, and a link to the job.
 - **Product categories settings** (`/settings/product-categories`, listed
   in Settings between Services and Locations): the same `CategoriesEditor`
   as the service categories card, with `kind="product"`, inside a
@@ -863,6 +879,34 @@ the thank-you status ("Thank you, <name>. You approved 2 of 3 items on
 withdrawn, expired or malformed link is a heading and one sentence saying
 what to do (ask the shop for a new link). No costs, no supplier,
 no contact details, no staff names (D143).
+
+**The deposit** (Phase 14 step 2; D151, D153, D158; ADR-025). The page
+reads `quote_by_token`'s `deposit` key (optional, so an older payload
+parses as none) and never computes an amount. While open, one more
+sentence after the intro: "After you answer, the shop asks for a deposit
+of N% of the parts you approve (not labour), paid online by card or
+PayNow. Your approval stands either way; …" (the payment clause only
+while Stripe is on). Once answered with a deposit, the thank-you status
+ends "The shop orders your parts once the deposit is paid." (due or being
+confirmed) or "Your deposit is paid, so the shop will order your parts.",
+and a **Deposit** card follows it (`deposit-card.tsx`, server): the amount
+in large type, "N% of the parts you approved", then by state:
+
+| State | The card shows |
+|---|---|
+| due, Stripe on | **Pay $… deposit** (`PayDepositButton`: full width, large, pending "Opening Stripe…", stays busy while the browser leaves; an error is one `role="alert"` line), then "Pay securely by card or PayNow with Stripe. You'll come back to this page. Pressing again never charges you twice." |
+| due, Stripe off | "The shop will tell you how to pay the deposit." |
+| due, back from Stripe (`?deposit=returned`) | `ConfirmingPayment`: `role="status"` "Thanks. We're confirming your payment with Stripe…"; one check at Stripe, then a refresh every 5 s, at most 12; then "Stripe hasn't confirmed your payment yet. If you paid, you don't need to pay again; …" and the Pay button again (the same session) |
+| due, Checkout left (`?deposit=cancelled`) | `role="status"` "Payment not finished. Nothing was charged. You can pay the deposit below whenever you're ready.", then the button |
+| processing | "Your payment of $… is being confirmed by Stripe. … You don't need to pay again." |
+| paid | a done-tone **Paid** badge and "Deposit of $… paid. Thank you." |
+| refunded | "Your deposit of $… was refunded. Ask the shop if you have questions." |
+
+The page now links out once: Pay sends the browser to Stripe's hosted
+Checkout (`checkout.stripe.com`, checked before redirecting), which
+returns to the same page. The return's query string only picks the words;
+what is paid is Stripe's data. The page keeps no-referrer, noindex and
+`private, no-store`.
 
 ### Photos and images
 

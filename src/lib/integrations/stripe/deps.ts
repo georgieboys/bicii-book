@@ -16,13 +16,16 @@ import type { StripeGateway } from "./gateway";
  * (the only way they reach the database: the service-role RPCs of
  * DATA-MODEL §16; null without SUPABASE_SERVICE_ROLE_KEY), the gateway
  * (null while Stripe is off), the configuration, a logger bound to the
- * correlation id and the clock.
+ * correlation id, the correlation id itself (stored on each server read's
+ * stripe_events row) and the clock.
  */
 export type StripeDeps = {
   supabase: ServiceSupabase | null;
   gateway: StripeGateway | null;
   config: StripeConfig;
   log: Logger;
+  correlationId: string;
+  /** Epoch milliseconds. */
   now: () => number;
 };
 
@@ -33,6 +36,7 @@ export function defaultStripeDeps(correlationId: string): StripeDeps {
     gateway: getStripeGateway(),
     config: stripeConfig(env),
     log: child(correlationId, { integration: "stripe" }),
+    correlationId,
     now: Date.now,
   };
 }

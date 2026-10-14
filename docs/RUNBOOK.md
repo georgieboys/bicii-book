@@ -935,8 +935,8 @@ prefer the restricted one.
 
 `stripeConfig` (`src/lib/integrations/stripe/client.ts`) checks them in
 this order and names the first problem as the reason Stripe is off
-(Settings → Customer payments shows it from step 2; until then the
-`stripe off` warning in the logs carries it). None of these stops the app:
+(Settings → Customer payments shows it in words, and the `stripe off`
+warning in the logs carries the code). None of these stops the app:
 
 | Reason | Means | Fix |
 |---|---|---|
@@ -961,14 +961,15 @@ fake together with `STRIPE_SECRET_KEY` and when `VERCEL_ENV` is
 
 1. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `ADMIN_ORIGIN` in
    Vercel Production (the keys Sensitive) and redeploy.
-2. Check that Settings → Customer payments says **Live** (step 2; before
-   it, check the logs carry no `stripe off` warning after a request).
+2. Check that Settings → Customer payments says **Live** and shows the
+   webhook endpoint to paste into the Dashboard.
 3. From the Dashboard's endpoint page, send a test delivery: expect it kept
    as rejected `livemode_mismatch` evidence (a test event on a live
    endpoint) or, for a live event of another type, `type_not_handled`.
 4. Do [the go-live rehearsal](#stripe-verify-before-go-live) with test keys
    locally, if not done already.
-5. Raise the deposit to 50% in Settings → Customer payments (D151; step 2).
+5. Raise the deposit to 50% in Settings → Customer payments (D151): its
+   **Change** refuses anything above 0 while Stripe is off.
 
 **Switching off:** set the deposit to 0 first (so no quote asks for a
 payment nobody can make), then remove the keys and redeploy.

@@ -20,10 +20,13 @@ import {
   STRIPE_OFF_REASON_CODES,
   STRIPE_OFF_REASONS,
   STRIPE_REJECTION_LABELS,
+  depositBlockedIds,
   depositPercentLabel,
   paymentStatusLabel,
   stripeConnectionLabel,
+  stripeDashboardHref,
   stripeOutcomeLabel,
+  type DepositState,
 } from "@/lib/payments";
 
 describe("payment labels", () => {
@@ -84,6 +87,35 @@ describe("payment labels", () => {
     expect(depositPercentLabel(50)).toBe(
       "Customers pay 50% of the approved indent parts after answering",
     );
+  });
+});
+
+describe("the ordering gate on screen (D152)", () => {
+  it("blocks the parts whose deposit is set and not paid, like the SQL gate", () => {
+    const ids = ["a", "b", "c", "d", "e"];
+    const states = new Map<string, DepositState>([
+      ["a", "due"],
+      ["b", "paid"],
+      ["c", "refunded"],
+      ["d", "processing"],
+    ]);
+    expect(depositBlockedIds(ids, states)).toEqual(["a", "c", "d"]);
+    expect(depositBlockedIds(ids, new Map())).toEqual([]);
+    expect(depositBlockedIds([], states)).toEqual([]);
+  });
+});
+
+describe("Open in Stripe", () => {
+  it("links a PaymentIntent in the right mode, and nothing else", () => {
+    expect(stripeDashboardHref("pi_3Abc_def", true)).toBe(
+      "https://dashboard.stripe.com/payments/pi_3Abc_def",
+    );
+    expect(stripeDashboardHref("pi_3Abc", false)).toBe(
+      "https://dashboard.stripe.com/test/payments/pi_3Abc",
+    );
+    expect(stripeDashboardHref(null, true)).toBeNull();
+    expect(stripeDashboardHref("cs_test_abc", false)).toBeNull();
+    expect(stripeDashboardHref("pi_../../x", false)).toBeNull();
   });
 });
 

@@ -163,11 +163,13 @@ describe("the exceptions page", () => {
     ]);
   });
 
-  it("orders the sections as the brief lists them, every Phase 5 and Phase 9 kind in one", () => {
-    expect(EXCEPTION_SECTIONS.slice(0, 5).map((s) => s.title)).toEqual([
+  it("orders the sections as the brief lists them, every Phase 5, 9, 10 and 14 kind in one", () => {
+    // Phase 14's customer payments sit with the other integration (D159b).
+    expect(EXCEPTION_SECTIONS.slice(0, 6).map((s) => s.title)).toEqual([
       "Stock below zero",
       "Items in an impossible state",
       "Shopify needs attention",
+      "Customer payments",
       "Lines in another currency",
       "Unsettled consignments",
     ]);
@@ -182,6 +184,8 @@ describe("the exceptions page", () => {
         "unit_state_mismatch",
         "unsettled_consignment",
         "integration_failed",
+        "payment_attention",
+        "stripe_attention",
       ].sort(),
     );
   });

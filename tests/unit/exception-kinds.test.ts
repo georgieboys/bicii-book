@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { groupExceptions } from "@/lib/reconciliation";
 import {
   exceptionCopy,
   exceptionHref,
@@ -43,6 +44,9 @@ const KINDS = [
   "unit_state_mismatch",
   "unsettled_consignment",
   "integration_failed",
+  // Phase 14 (D159b).
+  "payment_attention",
+  "stripe_attention",
 ] as const;
 
 describe("exception kinds (D34, D106–D108)", () => {
@@ -109,5 +113,48 @@ describe("exception kinds (D34, D106–D108)", () => {
     expect(exceptionHref(row({ entityType: "integration_job", entityId: id }))).toBe(
       `/shopify/queue?job=${id}`,
     );
+  });
+
+  it("words customer payment and Stripe exceptions with the database's sentence (Phase 14, D159b)", () => {
+    expect(exceptionLabel("payment_attention")).toBe("Customer payment");
+    expect(exceptionLabel("stripe_attention")).toBe("Stripe needs attention");
+    const message =
+      "SGD 120.00 is held but this job is cancelled. Refund it in Stripe if it is due back.";
+    const payment = row({
+      kind: "payment_attention",
+      entityType: "work_order",
+      entityLabel: "J-000042",
+      subjectLabel: message,
+      issue: "payment_attention",
+    });
+    expect(exceptionCopy("payment_attention", payment)).toEqual({ text: message, tone: "danger" });
+    expect(
+      exceptionCopy("payment_attention", { ...payment, severity: "warning", subjectLabel: null }),
+    ).toEqual({ text: "Check the job's customer payments", tone: "waiting" });
+    expect(
+      exceptionCopy("stripe_attention", row({ kind: "stripe_attention", severity: "warning" })),
+    ).toEqual({ text: "Canyon Grizl", tone: "danger" });
+    expect(
+      exceptionCopy("stripe_attention", row({ kind: "stripe_attention", subjectLabel: null })),
+    ).toEqual({ text: "Check Stripe deliveries in Settings → Customer payments", tone: "danger" });
+  });
+
+  it("opens the job, or Settings' Stripe deliveries for an event with no job (D86)", () => {
+    const id = "c5000000-0000-4000-8000-000000000001";
+    expect(exceptionHref(row({ entityType: "work_order", entityId: id }))).toBe(`/jobs/${id}`);
+    expect(exceptionHref(row({ entityType: "stripe_event", entityId: id }))).toBe(
+      "/settings/payments#deliveries",
+    );
+    const groups = groupExceptions([
+      { kind: "integration_failed" },
+      { kind: "stripe_attention" },
+      { kind: "payment_attention" },
+      { kind: "overdue_job" },
+    ]);
+    expect(groups.map((g) => [g.id, g.title, g.rows.length])).toEqual([
+      ["integration", "Shopify needs attention", 1],
+      ["payments", "Customer payments", 2],
+      ["overdue", "Overdue jobs", 1],
+    ]);
   });
 });

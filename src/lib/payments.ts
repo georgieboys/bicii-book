@@ -42,6 +42,23 @@ export const DEPOSIT_STATE_TONES: Readonly<Record<DepositState, StatusTone>> = {
   none: "neutral",
 };
 
+/**
+ * The approved parts that only an admin or manager may order now, with a
+ * reason (D152): those whose answered quote asked a deposit that is not
+ * paid. Mirrors the gate in public.order_part_requests, which reads the
+ * same public.quote_deposits state; the database enforces it whatever the
+ * screen shows.
+ */
+export function depositBlockedIds(
+  itemIds: readonly string[],
+  depositByRequest: ReadonlyMap<string, DepositState>,
+): string[] {
+  return itemIds.filter((id) => {
+    const state = depositByRequest.get(id);
+    return state !== undefined && state !== "paid";
+  });
+}
+
 /** Settings → Customer payments: what the deposit percent means (D151, D157a). */
 export function depositPercentLabel(percent: number): string {
   return percent === 0
@@ -82,6 +99,21 @@ export const PAYMENT_STATUS_TONES: Readonly<Record<PaymentStatus, StatusTone>> =
   failed: "danger",
   expired: "neutral",
 };
+
+/** A Stripe PaymentIntent id, as config.ts's PAYMENT_INTENT_ID (that module is server-only). */
+const PAYMENT_INTENT_ID = /^pi_[A-Za-z0-9_]{1,250}$/;
+
+/**
+ * The payment in Stripe's Dashboard, for admins and managers ("Open in
+ * Stripe"); null when the id is not a PaymentIntent id.
+ */
+export function stripeDashboardHref(
+  paymentIntentId: string | null,
+  livemode: boolean,
+): string | null {
+  if (!paymentIntentId || !PAYMENT_INTENT_ID.test(paymentIntentId)) return null;
+  return `https://dashboard.stripe.com/${livemode ? "" : "test/"}payments/${paymentIntentId}`;
+}
 
 export const REFUND_STATUS_LABELS: Readonly<Record<StripeRefundStatus, string>> = {
   pending: "Refund pending",

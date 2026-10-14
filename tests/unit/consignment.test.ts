@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canOverrideDeposit,
   canRecordRefund,
   canViewConsignmentMoney,
   canViewSaleCosts,
@@ -374,5 +375,19 @@ describe("paidAtFromDate", () => {
 
   it("rejects a day that is not a date", () => {
     expect(() => paidAtFromDate("not-a-day", "2026-10-05")).toThrow(RangeError);
+  });
+});
+
+describe("ordering an indent part before its deposit is paid (D152, Phase 14)", () => {
+  it("is an active admin or manager, by role (private.can_record_refunds)", () => {
+    expect(canOverrideDeposit(who("admin"))).toBe(true);
+    expect(canOverrideDeposit(who("manager"))).toBe(true);
+  });
+
+  it("is never a mechanic, even with Manage purchasing, nor inactive staff", () => {
+    expect(canOverrideDeposit(who("mechanic"))).toBe(false);
+    expect(canOverrideDeposit(who("mechanic", ["manage_purchasing", "view_costs"]))).toBe(false);
+    expect(canOverrideDeposit(who("admin", [], false))).toBe(false);
+    expect(canOverrideDeposit(who("manager", [], false))).toBe(false);
   });
 });

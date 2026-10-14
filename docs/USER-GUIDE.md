@@ -4,18 +4,18 @@ Audience: BICII staff and mechanics using the Admin on a phone in the
 workshop or an iPad at the counter. Admins: shop settings, staff and
 permissions are in [OPERATIONS.md](OPERATIONS.md#product-administration).
 
-Applies to: `feat/p10-shopify` (2026-10-06): Phase 8 labels and Phase 10
-Shopify, merged with the main line at `a1aebf6` (staff email sign-in,
-purchasing and the three staff roles admin, manager and mechanic); not
-deployed; on a developer machine at http://localhost:3000. Staff sign in
-with an emailed code.
+Applies to: `main` (production since 2026-10-12, through Phase 13's
+indent parts and quotes) plus Phase 14 steps 1 and 2 on
+`claude/brave-clarke-kfqhgt` (2026-10-14: customer deposits through
+Stripe, built against an in-memory Stripe and not deployed; on a developer
+machine at http://localhost:3000). Staff sign in with an emailed code.
 
 Last walkthrough: not walked through by a person. These flows are exercised
 by the E2E specs in `tests/e2e/` (among them `auth`, `workshop`,
 `workshop-board`, `inventory`, `inventory-publish`, `scan`,
 `appointments`, `appointment-settings`, `today`, `customers-bikes`,
 `staff`, `roles`, `consignment`, `consignment-journey`, `sales`,
-`purchasing`, `print-view`, `labels`, `shopify` and `indent`), on an iPhone 13 and
+`purchasing`, `print-view`, `labels`, `shopify`, `indent` and `payments`), on an iPhone 13 and
 an iPad viewport (counts and dates in [NOW.md](../NOW.md)); the latest
 green CI run is
 [PR #7 e2e](https://github.com/abhishekcheriangeorge-ops/bicii-book/actions/runs/37276834195/job/111655595521).
@@ -209,12 +209,19 @@ before it is ordered, and it goes on the job only when it is fitted
      on that supplier's draft purchase order (a new draft if there is none),
      with the job number in the line's note; submit the order from
      Purchasing as usual. **Move the job to Waiting on parts** is on by
-     default. A part whose quote asked a deposit that isn't paid yet is
-     refused: "The customer hasn't paid the deposit for these parts yet.
-     An admin or manager can order them anyway with a reason." (Ordering
-     with a reason from this screen, and the job's Customer payments card,
-     come in the next commit of Phase 14 step 2; with the deposit at 0,
-     the default, nothing is refused.) Fitting is never held up by a
+     default. A part whose quote asked a deposit that isn't paid yet shows
+     **Deposit due** (or **Being confirmed** while Stripe confirms a
+     PayNow payment, or **Deposit refunded**) on its row, and in the sheet
+     it starts unticked as "2 × <part> (deposit not paid)", so **Add to
+     order** never orders it by accident. Only an admin or manager can
+     tick it (D152; **Manage purchasing as extra access does not include
+     it**, and anyone else sees "Parts whose deposit isn't paid can be
+     ordered once the customer pays, or by an admin or manager."). Ticking
+     it shows "The customer hasn't paid the deposit for N of these parts."
+     and **Why order before the deposit is paid?**; type the reason and
+     press **Order without deposit**. The reason is recorded on the job's
+     timeline ("Ordered before the deposit was paid: …"). With the deposit
+     at 0, the default, nothing is held up. Fitting is never held up by a
      deposit.
   6. When the order is received the item shows **Arrived**, and the
      product's page says "2 reserved for jobs" with the job numbers. They
@@ -222,8 +229,32 @@ before it is ordered, and it goes on the job only when it is fitted
      check the price, then **Fit part**: the part becomes an ordinary line
      on the job at the quoted price and comes out of stock. For an approved
      service press **Add to job**.
+  7. Once a deposit is asked, the job shows a **Customer payments** card
+     (every staff member sees it): first anything that needs attention, in
+     a sentence (for example "SGD 120.00 is held but this job is cancelled.
+     Refund it in Stripe if it is due back."); then each deposit ("Deposit
+     on the quote answered …", the amount and percent, and **Deposit
+     due**, **Being confirmed**, **Deposit paid**, **Deposit refunded** or
+     **No longer due**); then each online payment (**Checkout open**,
+     **Paid**, **Partly refunded** "of which $… refunded", **Refunded**,
+     "Refund pending in Stripe"; earlier checkouts that were never
+     finished are counted in one line); then **Paid online** and, on an
+     open job, the job total so far with **Still to pay**, or **Paid
+     ahead** when the deposit is more than the job's lines so far (indent
+     parts join the job total when they're fitted). This is money held
+     against the job, not a sale: it never changes the job's totals or
+     reports. **Check with Stripe** (on a payment Stripe hasn't confirmed,
+     a pending refund or a problem) asks Stripe for its own record and
+     shows what changed ("Stripe confirmed: Paid" or "Nothing new from
+     Stripe."); use it when a customer says they paid but the card still
+     says due. Admins and managers also get **Open in Stripe**. Refunds
+     are made in Stripe's Dashboard (D155) and appear on the card and the
+     timeline by themselves. While Stripe is off the card says the
+     customer can't pay online and that an admin or manager can order
+     without the deposit.
 - Success looks like: toasts "Part proposed. Send a quote when you're
-  ready.", "Added to the supplier's draft order." and "<part> is on the
+  ready.", "Added to the supplier's draft order." (or "Added to the
+  supplier's draft order without the deposit.") and "<part> is on the
   job."; the item badges go Proposed → Waiting for the customer → Approved →
   Ordered → Fitted.
 - Other actions: **Withdraw quote** stops the link working and returns its
@@ -237,6 +268,15 @@ before it is ordered, and it goes on the job only when it is fitted
   - "Only approved items can be ordered or put on the job."
   - "The customer has already answered this quote."
   - "That supplier no longer exists or is archived. Choose another."
+  - Ordering a part whose deposit isn't paid without a reason: "Say why
+    the parts are ordered before the deposit is paid." (or, if the
+    deposit became unpaid while the sheet was open, "The customer hasn't
+    paid the deposit for these parts yet. An admin or manager can order
+    them anyway with a reason.").
+  - Check with Stripe: "Checked a moment ago. Wait a few minutes.",
+    "Stripe can't be reached right now, or it isn't set up. Try again in a
+    few minutes." or "This payment was made in Stripe's other mode (test
+    or live) and can't be checked here."
   - Fitting before the order is received warns: "Its order (PO-…) has not
     been received yet. Fitting it now may take the stock count below
     zero."
@@ -1043,8 +1083,8 @@ shown as a badge on Settings → Your profile and on Settings → Staff:
 
 | Role | What it lets you do |
 |---|---|
-| Admin | Everything: every permission below, **Record refund** on a sale, and the admin-only settings: shop hours, closures, booking capacity, appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
-| Manager | Every permission below except Manage staff, and **Record refund** on a sale (D91, D94). Not the admin-only settings, Labels and printers, or Shopify |
+| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), and the admin-only settings: shop hours, closures, booking capacity, appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
+| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), and ordering an indent part before its deposit is paid, with a reason (D152). Not the admin-only settings, Labels and printers, Shopify or Customer payments |
 | Mechanic | The workshop: what everyone can do (next paragraph). Anything more only as extra access |
 
 Everyone signed in can use customers, bikes, photos, jobs and their lines,
@@ -1058,8 +1098,9 @@ permission on top of their role (D92): for example a mechanic who orders
 parts gets Manage purchasing alone, or a manager who invites colleagues gets
 Manage staff. A mechanic can have any of them; a manager only Manage staff
 (their role already includes the rest); an admin none. Your profile marks
-each one **Extra access**. Extra access never includes **Record refund**,
-which is for admins and managers only. Each permission, whether it comes
+each one **Extra access**. Extra access never includes **Record refund**
+or ordering an indent part before its deposit is paid (D152), which are
+for admins and managers only. Each permission, whether it comes
 from your role or as extra access:
 
 | Permission | What changes for you |

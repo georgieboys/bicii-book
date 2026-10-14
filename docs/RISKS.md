@@ -2182,8 +2182,8 @@ URLs, or customer data in this file.
 ## R-086 — A payment stays pending until Stripe's webhook arrives
 
 - Category: operational gap (D153, D159).
-- Status and owner: accepted by design; partly contained in step 1, the
-  rest in step 2; build agent.
+- Status and owner: accepted by design; contained in steps 1 and 2 (built
+  against the fake); build agent.
 - Trigger: a webhook delivery fails or is delayed, or storing it fails.
 - Impact: a customer who paid sees Stripe's receipt while the job still
   shows the deposit as pending, and ordering waits for it (D152).
@@ -2195,23 +2195,33 @@ URLs, or customer data in this file.
   rolls back and answers 500, so Stripe retries for up to 3 days, and a
   `not_recorded` row is kept as evidence; a server read
   (`record_stripe_read`) applies Stripe's answer the same way.
-- Workaround or containment (step 2, not built yet): the return page
-  makes one verified re-read and then refreshes for 60 s; a Pay click on
-  an open session re-reads it before reusing or replacing it; staff have
-  *Check with Stripe*, which also lists refunds, so a missed refund event
-  is recovered; a `pending_unconfirmed` issue appears 15 minutes after the
-  session expires; a `not_recorded` delivery shows to admins until a
-  retry succeeds; an admin or manager can order with a reason (D152).
+- Workaround or containment (step 2, built): the return page makes one
+  verified re-read and then refreshes for 60 s; a Pay click on an open
+  session re-reads it before reusing or replacing it
+  (`tests/unit/stripe-checkout.test.ts`); staff have *Check with Stripe*
+  on the job's Customer payments card, which re-reads the session and
+  lists its refunds, so a missed refund event is recovered
+  (`refreshPaymentFromStripe`, rate-limited per payment); a
+  `pending_unconfirmed` issue appears 15 minutes after the session
+  expires and a `not_recorded` delivery shows to admins until a retry
+  succeeds (`tests/db/indent-deposits.test.ts`, the views and exceptions);
+  an admin or manager can order with a reason (D152,
+  `tests/e2e/payments.spec.ts` test 2). Evidence on 2026-10-14:
+  `tests/e2e/payments.spec.ts` passes on phone and tablet (a signed
+  webhook marks the deposit paid and the job and the quote page show it;
+  a cancelled Checkout is paid later with the same session; Check with
+  Stripe answers "Nothing new from Stripe." for an open one).
 - Residual: there is no scheduled backstop. A refund event Stripe gives up
   on after 3 days stays missing until someone presses *Check with
   Stripe*, and nothing prompts that for a paid payment; a cron sweep was
   judged not worth sharing the Shopify cron's 60 s budget. A bug that
   makes every apply fail answers 500 and Stripe retries for 3 days
   (Dashboard resend for 15 days, CLI for 30).
-- Next action: build the re-reads and the issues in Phase 14 step 2.
+- Next action: none in the build; at go-live, rehearse a delayed webhook
+  with test keys (RUNBOOK "Stripe: verify before go-live").
 - Revisit trigger: any `not_recorded` row, or a payment pending for more
   than an hour.
-- Last checked: 2026-10-14, Phase 14 step 1 (second commit).
+- Last checked: 2026-10-14, Phase 14 step 2 (third commit).
 
 ## R-087 — Refunds are made by hand in Stripe
 
@@ -2220,14 +2230,26 @@ URLs, or customer data in this file.
 - Trigger: a customer declines after paying a deposit, or the part cannot
   be supplied.
 - Impact: staff refund in the Stripe dashboard; the Admin records it only
-  when Stripe's refund event arrives, and nothing reminds anyone that a
-  deposit on a cancelled request is still held.
-- Evidence and confidence: high; the design.
-- Workaround or containment: Reports list deposits held on open jobs and
-  on cancelled requests (D154).
+  when Stripe's refund event arrives (or *Check with Stripe* reads it).
+- Evidence and confidence: high. Step 2 (pass on 2026-10-14): refunds are
+  recorded per Stripe Refund and dated (`tests/db/stripe-payments.test.ts`);
+  pending refunds are not counted and a failed refund puts the amount
+  back; the live `payment_issues` `paid_job_cancelled`,
+  `paid_parts_cancelled`, `paid_twice` and `refund_failed` reach admins
+  and managers on the job's Customer payments card and as
+  `payment_attention` in Exceptions and Today's count
+  (`tests/db/indent-deposits.test.ts`, `tests/unit/exception-kinds.test.ts`);
+  a partial refund made in Stripe shows on the card and the timeline by
+  itself (`tests/e2e/payments.spec.ts`). Admins and managers get *Open in
+  Stripe* on a payment.
+- Workaround or containment: deposits held on open jobs and on cancelled
+  parts or jobs are surfaced, now by these issues on the job and in
+  Exceptions, and in step 3 by the Reports list (D154).
+- Residual: a deposit on a quote whose approved parts are only *partly*
+  cancelled raises no issue; Stripe keeps its fee on refunds.
 - Next action: a refund action in the Admin if refunds become routine.
 - Revisit trigger: more than a few refunds a month.
-- Last checked: 2026-10-14, design.
+- Last checked: 2026-10-14, Phase 14 step 2 (third commit).
 
 ## R-088 — The quote link is a payment capability that reaches Stripe
 
@@ -2236,9 +2258,8 @@ URLs, or customer data in this file.
   [R-016](#r-016--no-retention-or-deletion-policy-for-customer-personal-data),
   [R-078](#r-078--whoever-holds-a-quote-link-can-answer-it),
   [R-081](#r-081--quote-links-appear-in-request-logs-and-browser-history).
-- Status and owner: accepted for the first build; contained in step 1
-  for what step 1 builds, the rest arrives with step 2's Pay deposit;
-  owner (privacy notice), build agent.
+- Status and owner: accepted for the first build; contained in steps 1
+  and 2 (built against the fake); owner (privacy notice), build agent.
 - Trigger: every Checkout (step 2).
 - Impact: the success and cancel URLs contain the quote token. Stripe
   stores them on the session, so anyone with access to the Stripe
@@ -2255,17 +2276,23 @@ URLs, or customer data in this file.
   metadata and no `customer_email`; BICII's stored copies are an
   allow-listed projection with no customer details and no URLs, admins
   only; the logger redacts URL fields and Stripe modules never log URLs.
-- Workaround or containment (step 2): return URLs are built only from
-  `stripeConfig`'s validated origin, never from the request's Host (to be
-  tested with the Checkout flow); redirects are checked against the
-  `checkout.stripe.com` host; the quote page keeps sending no-referrer,
-  noindex and no-store; Pay is rate-limited per client and per token; an
-  answered quote cannot be re-answered; anon gains no RPC.
+- Workaround or containment (step 2, built): return URLs are built only
+  from `stripeConfig`'s validated origin, never from the request's Host,
+  and a customer is redirected only to the `checkout.stripe.com` host (the
+  fake: this Admin's quote page) (`tests/unit/stripe-checkout.test.ts`);
+  the quote page keeps sending no-referrer, noindex and no-store, the
+  return included (`tests/e2e/payments.spec.ts` checks
+  `?deposit=returned`); Pay is rate-limited per client and per token
+  (`tests/unit/quote-page.test.ts`); an answered quote cannot be
+  re-answered; anon gains no RPC (api-surface fixture unchanged for anon);
+  the E2E's stored webhook payload keeps neither customer details nor the
+  success URL. Staff screens never show a quote token or a Stripe URL
+  other than the Dashboard link for admins and managers.
 - Next action: name Stripe in the privacy notice (PRODUCT question 32)
   and keep Stripe Dashboard users few.
 - Revisit trigger: step 3's balance-link page (consider token-free return
   URLs there).
-- Last checked: 2026-10-14, Phase 14 step 1 (review hardening).
+- Last checked: 2026-10-14, Phase 14 step 2 (third commit).
 
 ## R-089 — What BICII does not record or cannot apply from Stripe
 

@@ -1054,7 +1054,20 @@ token); `payments.test.ts` (every payment, refund and event status,
 rejection reason and deposit state has words and a tone where shown;
 every outcome `stripe_events_outcome_check` allows has words; each
 Stripe off reason has a sentence that names no value; the connection and
-percent labels).
+percent labels; from the third commit `depositBlockedIds`, the SQL gate's
+mirror: due, processing and refunded block, paid and unknown do not, and
+`stripeDashboardHref` in live and test mode and for a non-`pi_` id).
+Step 2's third commit also extends `exception-kinds.test.ts`
+(`payment_attention` "Customer payment" with the database's sentence and
+its tone, `stripe_attention` "Stripe needs attention" always danger, a
+`stripe_event` row linking to Settings → Customer payments' deliveries,
+and the "Customer payments" section after Shopify's in
+`groupExceptions`), `reconciliation.test.ts` (the section order and
+kinds), `workshop-timeline.test.ts` (`part_ordered` with
+`deposit_override`: "Ordered before the deposit was paid: <reason>",
+waiting; a malformed override is ignored) and `consignment.test.ts`
+(`canOverrideDeposit`: active admins and managers only, never a mechanic
+with Manage purchasing, D152).
 
 ### Database (SPEC §27.2 and §23)
 
@@ -1956,6 +1969,58 @@ it as "Reserved for jobs" (the job number, × 2), **Fit** ($240.00) puts it
 on the job and **Add to job** the service: both are then in Lines, and the
 product page no longer lists it as reserved.
 
+Customer payments (`payments.spec.ts`, Phase 14 step 2; D151–D159,
+ADR-025), on a phone and an iPad, against the in-memory Stripe
+(`STRIPE_ADAPTER=fake`, above). Every spec shares the one reset database,
+so the spec sets the deposit back to 0 straight after each quote is sent
+(the quote already holds its 50% snapshot, D158a) and again in
+`afterEach`: `indent.spec.ts` and the rest never see a deposit. Ids carry
+`tagFor(testInfo)` and the project name. Test 1, "deposit: asked, paid
+through Stripe (fake) and a signed webhook, then ordered": the admin opens
+Settings → Customer payments ("Fake Stripe (development and tests only)",
+the `/api/stripe/webhooks` endpoint) and sets 50% (the toast "Customers
+pay 50% of the approved indent parts after answering"); a supplier,
+product (120.00) and job, 2 × the part and Wheel True proposed and quoted;
+the customer, signed out, sees "a deposit of 50% of the parts you
+approve", approves both and gets the Deposit card ($120.00, "50% of the
+parts you approved", **Pay $120.00 deposit**: the part only, not the
+fitting). On the job, Customer payments says Deposit due, the part row
+has the Deposit due badge, and the order sheet lists it unticked as
+"(deposit not paid)" with **Add to order** disabled; ticking it shows
+"Why order before the deposit is paid?" and **Order without deposit**.
+Pay returns at once (the fake's session URL is the success URL) to
+`?deposit=returned` with `Referrer-Policy: no-referrer` and
+`Cache-Control: private, no-store`, showing "We're confirming your payment
+with Stripe…"; SQL shows one pending payment of 12000 cents. A
+`checkout.session.completed` for that session, signed with the fixtures'
+secret (`tests/fixtures/stripe.ts`) and carrying customer details and a
+success URL, is posted twice (200 `duplicate: false`, then `duplicate:
+true`) and once signed with another secret (400 `signature_invalid`); SQL
+shows the payment paid, exactly one `payment_received`, and a stored
+payload without `customer_details`, `success_url` or the email. The
+customer's page then reads "Deposit of $120.00 paid. Thank you." and
+"Your deposit is paid, so the shop will order your parts."; the job shows
+Deposit paid, "Paid online" $120.00 with "Paid ahead", the timeline "Deposit
+of $120.00 paid online", and the order sheet lists the part ticked with
+no callout: **Add to order** orders it with no override on the timeline.
+A signed `refund.updated` (succeeded, 5000) shows "Partly refunded", "of
+which $50.00 refunded" and "$50.00 refunded in Stripe". Test 2, "an admin
+orders before the deposit is paid, with a reason": the sheet's callout
+says "The customer hasn't paid the deposit for 1 of these parts.", **Order
+without deposit** with no reason asks for one, and with "Customer is
+paying at the counter" it orders ("…without the deposit"); the timeline
+shows "Parts ordered on PO-…" with "Ordered before the deposit was paid:
+Customer is paying at the counter", and the deposit is still due. Test 3,
+"a cancelled Checkout can be paid later with the same session":
+`?deposit=cancelled` says "Payment not finished. Nothing was charged.";
+Pay again returns to the same URL and SQL still has the one pending
+payment with the same session; the job shows "Checkout open" and **Check
+with Stripe** toasts "Nothing new from Stripe.". `E2E_REUSE_SERVER=1`
+reuses a server started elsewhere, so `playwright.config.mts`'s Stripe
+variables do not apply to it: start that server with the same
+`STRIPE_ADAPTER`, `STRIPE_WEBHOOK_SECRET` and `ADMIN_ORIGIN`, or
+`payments.spec.ts` fails.
+
 Critical journeys, added with the phases that build them, against the seeded
 database, signed in as the seeded admin and mechanic:
 
@@ -1989,6 +2054,12 @@ database, signed in as the seeded admin and mechanic:
    its fitting → send the quote → the customer approves on the quote page,
    signed out (step 3) → order onto the supplier's draft (job Waiting on
    parts) → receive → fit → both are job lines.
+8. Stripe deposit (`payments.spec.ts` since Phase 14 step 2): the deposit
+   set to 50% → quote → the customer answers and pays through Stripe
+   Checkout (the fake) → a signed webhook marks it paid (a replay changes
+   nothing; a forged signature is refused) → the job shows it paid and
+   paid ahead → the part orders without a reason → a partial refund shows;
+   an admin orders an unpaid part with a reason, on the timeline.
 
 ## Seed data
 
@@ -2128,8 +2199,11 @@ fine).
 Secrets in CI: none. E2E runs against the devstack (real Supabase Auth,
 PostgREST and Storage with the local demo keys), not staging, so it works
 on forks and needs no staging credentials. Stripe likewise never gets a
-key: today nothing in CI or E2E sets `STRIPE_ADAPTER` or any Stripe
-variable, so Stripe is off there (the unit tests inject the fake and the
-fixtures' signing secret directly). Step 2 adds `STRIPE_ADAPTER=fake` and
-the fixtures' signing secret to `playwright.config.mts` for the payments
-E2E; env.ts refuses the fake together with a key.
+key: CI's unit and database jobs set no Stripe variable (the unit tests
+inject the fake and the fixtures' signing secret directly), and
+`playwright.config.mts` gives the E2E server `STRIPE_ADAPTER=fake`, the
+fixtures' signing secret (`whsec_biciiE2eNotARealSecret`, never a real
+value), `ADMIN_ORIGIN` = the E2E base URL and a blank `STRIPE_SECRET_KEY`
+(so a key in `.env.local` never meets the fake: env.ts refuses the fake
+together with a key). Stripe is therefore on, as the fake, in every E2E
+spec; the deposit still ships at 0, so only `payments.spec.ts` sees one.

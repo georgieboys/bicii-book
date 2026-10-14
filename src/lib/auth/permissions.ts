@@ -263,3 +263,13 @@ export function canViewSaleCosts(staff: AccessSubject): boolean {
 export function canRecordRefund(staff: Pick<StaffDTO, "role" | "active">): boolean {
   return staff.active && (staff.role === "admin" || staff.role === "manager");
 }
+
+/**
+ * Ordering an indent part before its deposit is paid, with a reason (D152,
+ * Phase 14): mirrors the gate in public.order_part_requests, which checks
+ * private.can_record_refunds(): an active admin or manager, by role. Manage
+ * purchasing alone is not enough, and no exception grants it.
+ */
+export function canOverrideDeposit(staff: Pick<StaffDTO, "role" | "active">): boolean {
+  return canRecordRefund(staff);
+}

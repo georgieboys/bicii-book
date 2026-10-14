@@ -10,6 +10,7 @@ import {
 } from "./scripts/devstack/config.mjs";
 import { E2E_PUBLIC_SITE_URL } from "./tests/fixtures/public-site";
 import { SHOPIFY_TEST_SECRET, SHOPIFY_TEST_SHOP } from "./tests/fixtures/shopify";
+import { STRIPE_TEST_WEBHOOK_SECRET } from "./tests/fixtures/stripe";
 
 /**
  * End-to-end tests (TESTING.md): Chromium only, an iPhone 13 and an iPad
@@ -75,6 +76,16 @@ export default defineConfig({
       SHOPIFY_WEBHOOK_SECRET: SHOPIFY_TEST_SECRET,
       SHOPIFY_SHOP_DOMAIN: SHOPIFY_TEST_SHOP,
       CRON_SECRET: "bicii-e2e-cron-secret",
+      // Phase 14: the in-memory Stripe (refused in production and with a
+      // key), the fixtures' webhook signing secret (not a real one) and this
+      // server as the Admin's origin, where the fake "returns" customers.
+      // Stripe is therefore on in E2E; the deposit still ships at 0, and
+      // payments.spec.ts restores 0 after each quote it sends.
+      STRIPE_ADAPTER: "fake",
+      // Blank (env.ts reads it as unset), so a key in .env.local never meets the fake.
+      STRIPE_SECRET_KEY: "",
+      STRIPE_WEBHOOK_SECRET: STRIPE_TEST_WEBHOOK_SECRET,
+      ADMIN_ORIGIN: baseURL,
       // The suite signs in hundreds of times from one address, past the
       // Admin's own sign-in limits (PLAN D72), as the devstack raises
       // Auth's. The limits themselves are covered by unit and stack tests.

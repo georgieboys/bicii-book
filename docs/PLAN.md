@@ -1011,13 +1011,16 @@ numeric and equal Stripe's in cents; refunds and partial refunds; nothing
 in job totals or reports' sales changes (D154); the signature, the
 configuration matrix, the adapter's requests and errors, and the route.
 
-**Step 2, deposits.** Migration `20261014000500_indent_deposits.sql`:
-`shop_settings.indent_deposit_percent` (D151, admin; ships at 0, D157),
-the deposit snapshotted on the quote when sent and answered (D158), the
-deposit on the quote page and Checkout after answering, the job's
-Customer payments card and "Deposit due", ordering after the deposit or
-an override with a reason (D152), and "needs attention" issues on the job
-and in Exceptions (D159).
+**Step 2, deposits (built, against the fake).** Migration
+`20261014000500_indent_deposits.sql`: `shop_settings.indent_deposit_percent`
+(D151, admin; ships at 0, D157), the deposit snapshotted on the quote when
+sent and answered (D158), the deposit on the quote page and Checkout after
+answering, Settings → Customer payments, the job's Customer payments card
+with Check with Stripe and "Deposit due", ordering after the deposit or an
+override with a reason (D152; the order sheet starts unpaid parts
+unticked), and "needs attention" issues on the job and in Exceptions
+(D159). Tests: `tests/db/indent-deposits.test.ts`, the unit tests and
+`tests/e2e/payments.spec.ts` (journey 8).
 
 **Step 3, balance links and reporting.** Send a payment link for the
 balance (D156); payments and deposits held in Reports (D154).
@@ -1226,8 +1229,8 @@ only its own range.
 | D147 | INDENT-ACCESS: who does what | Any active staff member proposes and sends quotes on an open job; ordering needs `manage_purchasing`; costs and suppliers need `view_costs` or `manage_purchasing` (D60); customers reach a quote only by its link | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
 | D148 | INDENT-SCOPE: what changes in the brief | SPEC §7.1's offline approval and SPEC §30's exclusion of customer approval and automated messaging are lifted for quotes only; ordinary parts and services are still added straight to jobs with the internal flag | Phase 13 | Owner decision 2026-10-14 | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
 | D150 | PAYMENTS-PROVIDER: how customers pay | Stripe's hosted Checkout (cards and PayNow, SGD); no card data in BICII; secret key and webhook secret server-only (Production live, Preview test or none); one adapter with an in-memory fake for tests | Phase 14 | Owner decision 2026-10-14 (Stripe); rest build default; Preview amended by D157: none until a staging project exists; built in step 1 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
-| D151 | DEPOSIT: the deposit on a quote | 50% of the approved indent parts' total (admin setting `indent_deposit_percent`, 0 for none), rounded to the cent in Postgres, offered through Checkout after the customer answers; the approval stands unpaid, shown as "Deposit due" | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
-| D152 | ORDER-AFTER-DEPOSIT: ordering before the deposit | Only once the deposit is paid, unless an admin or manager orders anyway with a recorded reason | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D151 | DEPOSIT: the deposit on a quote | 50% of the approved indent parts' total (admin setting `indent_deposit_percent`, 0 for none), rounded to the cent in Postgres, offered through Checkout after the customer answers; the approval stands unpaid, shown as "Deposit due" | Phase 14 | Build default; built in step 2 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D152 | ORDER-AFTER-DEPOSIT: ordering before the deposit | Only once the deposit is paid, unless an admin or manager orders anyway with a recorded reason | Phase 14 | Build default; built in step 2 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D153 | PAYMENT-RECORD: how a payment is recorded | A `payments` row created with the Checkout session and changed only by Stripe's verified webhook (signature on the raw body, each event stored once by id, rejected deliveries kept without a body) through a service-role RPC; staff never type one | Phase 14 | Build default; built in step 1 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D154 | PAYMENT-MEANING: what a payment changes | Nothing in recognition, totals, yield or Cult Commons; the job shows paid and balance due (total less paid, net of refunds); reports list payments and deposits held on open jobs apart from sales | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D155 | REFUNDS: how refunds happen | In the Stripe dashboard, recorded from Stripe's refund events; none started in the Admin | Phase 14 | Build default; built in step 1 | [ADR-025](decisions/ADR-025-stripe-payments.md) |

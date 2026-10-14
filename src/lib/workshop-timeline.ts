@@ -237,7 +237,9 @@ export function describeEvent(
       };
     }
     // Phase 13 (D140-D146): indent parts and quotes. Payloads carry names,
-    // quantities, counts and purchase order numbers, never a price or cost.
+    // quantities, counts and purchase order numbers, never a price or cost;
+    // from Phase 14, part_ordered may carry deposit_override (the staff
+    // reason for ordering before the deposit was paid, D152).
     case "part_requested": {
       const what = text(p, "description") ?? (p.kind === "service" ? "a service" : "a part");
       const qty = amount(p, "quantity");
@@ -277,7 +279,14 @@ export function describeEvent(
     }
     case "part_ordered": {
       const po = text(p, "purchase_order");
-      return { title: `Parts ordered${po ? ` on ${po}` : ""}`, detail: null, tone: "info" };
+      // D152: ordered before the deposit was paid, by an admin or manager with a reason.
+      const override = asPayload(p.deposit_override);
+      const reason = text(override, "reason");
+      return {
+        title: `Parts ordered${po ? ` on ${po}` : ""}`,
+        detail: reason ? `Ordered before the deposit was paid: ${reason}` : null,
+        tone: reason ? "waiting" : "info",
+      };
     }
     case "part_fitted":
       return {

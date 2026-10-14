@@ -303,6 +303,24 @@ describe("describeEvent", () => {
       detail: null,
       tone: "info",
     });
+    // D152: ordered before the deposit was paid, with the reason.
+    expect(
+      d({
+        type: "part_ordered",
+        payload: {
+          purchase_order: "PO-000007",
+          items: [],
+          deposit_override: { reason: "Customer is paying at the counter", quote_ids: ["q"] },
+        },
+      }),
+    ).toEqual({
+      title: "Parts ordered on PO-000007",
+      detail: "Ordered before the deposit was paid: Customer is paying at the counter",
+      tone: "waiting",
+    });
+    expect(
+      d({ type: "part_ordered", payload: { purchase_order: "PO-000008", deposit_override: "x" } }),
+    ).toEqual({ title: "Parts ordered on PO-000008", detail: null, tone: "info" });
     expect(
       d({
         type: "part_request_cancelled",

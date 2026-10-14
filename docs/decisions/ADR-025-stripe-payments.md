@@ -49,6 +49,44 @@ is answered.
   is off there: the webhook answers 503 (kept as evidence) and nothing
   else changes.
 
+Status update 2026-10-14 (Phase 14 step 2, built against a fake): D151
+and D152 are built, and D154's job half (the Customer payments card and
+the balance); Reports come with step 3. Status stays proposed until
+question 32 is answered.
+
+- **Snapshot.** `supabase/migrations/20261014000500_indent_deposits.sql`
+  adds `shop_settings.indent_deposit_percent` (ships at 0, D157a; an
+  admin setter with history) and the `quotes_deposit_snapshot` trigger:
+  a quote stores the percent when it is sent and the amount when it is
+  answered (approved part lines only, rounded in Postgres; none under
+  S$0.50 or outside SGD). Either is immutable afterwards.
+- **One definition of a deposit's state.** The security-invoker view
+  `quote_deposits` (due, processing, paid, refunded, none) is read by the
+  gate, `quote_view`, the Checkout RPCs and the screens.
+- **The gate (D152).** `order_part_requests` gains `override_reason`: a
+  part whose deposit is not paid is ordered only by an active admin or
+  manager with a reason, recorded on the `part_ordered` timeline entry as
+  `deposit_override`. Manage purchasing alone is refused; fitting is not
+  gated. On screen the order sheet starts unpaid parts unticked, and only
+  an admin or manager can tick them, with the reason
+  (`src/components/domain/indent-card.tsx`).
+- **Checkout.** The quote page's Deposit card and Pay deposit
+  (`src/lib/integrations/stripe/checkout.ts`), through the service-role
+  RPCs `prepare_deposit_checkout` and `record_deposit_checkout`; anon
+  gains nothing.
+- **Attention, derived live.** `payment_issues` (paid on a cancelled job
+  or cancelled parts, paid twice, amount mismatch, refund failed or not
+  counted, refund over the payment, pending unconfirmed) feeds the job's
+  Customer payments card and the exception kinds `payment_attention`
+  (admins and managers) and `stripe_attention` (admins), shown under
+  "Customer payments" on Exceptions and in Today's count. Check with
+  Stripe re-reads a payment and its refunds on demand (R-086).
+- **Tests.** `tests/db/indent-deposits.test.ts`, the unit tests for the
+  checkout flows, labels, exceptions and timeline, and
+  `tests/e2e/payments.spec.ts` (journey 8: paid by a signed webhook, a
+  replay and a forged delivery, the override with a reason, a partial
+  refund, a cancelled Checkout).
+
 ## Context
 
 Asked whether indent parts should take a deposit, the owner answered on
@@ -70,10 +108,10 @@ S$0.50; to be confirmed on Stripe's own pricing page before go-live).
 | D | Rule (short) | Status | Implemented in |
 |---|---|---|---|
 | D150 | PAYMENTS-PROVIDER: customers pay through Stripe's hosted Checkout (cards and PayNow, SGD). Card details never reach BICII. The secret key and the webhook secret are server-only environment variables (Production: live keys; Preview: test keys or none); every Stripe call goes through one adapter, with an in-memory fake for tests and development, as Shopify's does (D81–D88) | Owner decision 2026-10-14 (Stripe); rest build default | Phase 14 step 1 |
-| D151 | DEPOSIT: a quote that includes indent parts asks for a deposit of 50% of the approved parts' total (an admin setting, `shop_settings.indent_deposit_percent`; 0 asks for none), rounded to the cent in Postgres. After answering, the customer is offered Stripe Checkout for the deposit. The approval stands whether or not they pay; staff see "Deposit due" | Build default | Phase 14 step 2 |
-| D152 | ORDER-AFTER-DEPOSIT: an indent part is ordered (D145) only once its quote's deposit is paid, unless an admin or manager orders it anyway with a reason, which is recorded | Build default | Phase 14 step 2 |
+| D151 | DEPOSIT: a quote that includes indent parts asks for a deposit of 50% of the approved parts' total (an admin setting, `shop_settings.indent_deposit_percent`; 0 asks for none), rounded to the cent in Postgres. After answering, the customer is offered Stripe Checkout for the deposit. The approval stands whether or not they pay; staff see "Deposit due" | Build default | Phase 14 step 2 (built in step 2) |
+| D152 | ORDER-AFTER-DEPOSIT: an indent part is ordered (D145) only once its quote's deposit is paid, unless an admin or manager orders it anyway with a reason, which is recorded | Build default | Phase 14 step 2 (built in step 2) |
 | D153 | PAYMENT-RECORD: a payment (`payments`: job, quote, kind deposit or balance, amount, currency, status pending, paid, failed, expired, refunded or partially refunded, the refunded amount, Stripe's ids, paid at) is created when a Checkout session is started and changes only when Stripe confirms it: the webhook checks Stripe's signature on the raw body, stores every delivery once by event id (rejected ones as evidence without a body, as D88 does) and applies it through a service-role RPC. Staff never type a payment in | Build default | Phase 14 step 1 |
-| D154 | PAYMENT-MEANING: a payment is money held against a job, not revenue: recognition (D3, D30–D34), job totals, yield and Cult Commons do not change. The job shows what was paid and the balance due (job total less paid, net of refunds). Reports list payments and the deposits held on open jobs separately from sales | Build default | Phase 14 steps 2 and 3 |
+| D154 | PAYMENT-MEANING: a payment is money held against a job, not revenue: recognition (D3, D30–D34), job totals, yield and Cult Commons do not change. The job shows what was paid and the balance due (job total less paid, net of refunds). Reports list payments and the deposits held on open jobs separately from sales | Build default | Step 2: the job's Customer payments card and balance (built); Reports in step 3 |
 | D155 | REFUNDS: refunds are made in the Stripe dashboard and recorded from Stripe's refund events; the Admin starts no refund in the first build | Build default | Phase 14 step 1 |
 | D156 | BALANCE-LINK: staff can send a payment link for a job's balance due by WhatsApp or email (the same Checkout, kind balance); paying it does not collect the job | Build default | Phase 14 step 3 |
 | D157 | PAYMENTS-ROLLOUT: the deposit percent ships at 0 in every database and is refused above 0 while Stripe is off. Stripe is on only when every variable is valid for the deployment: never in a Vercel Preview; a key whose mode matches (live only in Production, test only elsewhere); the webhook secret, the service-role key and `ADMIN_ORIGIN` set and well-formed; the fake only outside production. Anything else turns Stripe off with a named reason and never stops the app. Switch off by setting the percent to 0, then removing the keys | Build default, owner to confirm | Phase 14 step 1 (`stripeConfig`); step 2 (the setting) |

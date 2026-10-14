@@ -1822,8 +1822,11 @@ saving without a reason shows the field error and saves nothing;
 marks Recent.
 
 Indent parts (`indent.spec.ts`, Phase 13 step 2; D140–D147, ADR-024), on a
-phone and an iPad: the admin creates a product and a job, proposes 2 of the
-part with its supplier and the seeded Wheel True service (nothing reaches
+phone and an iPad: the admin creates a supplier, a product and a job (its
+own supplier, because ordering adds to the supplier's newest draft, D145,
+and the seeded draft PO-000004 belongs to `purchasing.spec.ts` and
+`today.spec.ts`), proposes 2 of the part from that supplier and the seeded
+Wheel True service (nothing reaches
 the job's lines), sends the quote (the total $275.00; the link is
 `/quote/` plus 43 characters, the message names the job; the card then
 offers **Send again (2 items)**). The customer opens the link in a new,

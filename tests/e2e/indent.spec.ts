@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { AUTH_USER, LOCATION } from "../fixtures/ids";
 import { sqlTransaction } from "./db";
 import { createJobViaIntake, createProduct, section, signIn, tagFor, toast } from "./helpers";
+import { createSupplier } from "./purchasing-helpers";
 
 /**
  * Indent parts and quotes (Phase 13 step 2; PLAN D140-D146, ADR-024), on a
@@ -17,8 +18,6 @@ import { createJobViaIntake, createProduct, section, signIn, tagFor, toast } fro
  * Every record carries tagFor(testInfo).
  */
 
-const VELO_PARTS = "Velo Parts Asia Pte Ltd";
-
 test("indent part: proposed, quoted, answered, ordered, received and fitted", async ({
   page,
   browser,
@@ -26,8 +25,12 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   test.setTimeout(240_000);
   const tag = tagFor(testInfo);
   const partName = `Rohloff hub ${tag}`;
+  // Its own supplier: ordering adds to the supplier's newest draft (D145),
+  // and a seeded supplier's draft belongs to the purchasing specs.
+  const supplierName = `Indent supplier ${tag}`;
 
   await signIn(page, "admin");
+  await createSupplier(page, { name: supplierName });
   const product = await createProduct(page, {
     name: partName,
     sku: `RH-${tag}`,
@@ -45,7 +48,7 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   await partSheet.getByRole("combobox", { name: /^Part/ }).fill(tag);
   await partSheet.getByRole("option", { name: new RegExp(partName) }).click();
   await partSheet.getByLabel("Quantity").fill("2");
-  await partSheet.getByLabel("Supplier").selectOption({ label: VELO_PARTS });
+  await partSheet.getByLabel("Supplier").selectOption({ label: supplierName });
   await partSheet.getByRole("button", { name: "Propose part" }).click();
   await expect(partSheet).toBeHidden();
   await expect(toast(page, /Part proposed/)).toBeVisible();
@@ -99,7 +102,7 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   const quoteItems = customer.getByRole("list", { name: "Quote items" });
   await expect(quoteItems.getByRole("listitem")).toHaveCount(2);
   // Nothing about costs or suppliers reaches the page.
-  await expect(customer.getByRole("main")).not.toContainText(VELO_PARTS);
+  await expect(customer.getByRole("main")).not.toContainText(supplierName);
   await customer.getByRole("button", { name: "Send my answer" }).click();
   const customerMain = customer.getByRole("main");
   await expect(customerMain.getByRole("alert")).toHaveText(

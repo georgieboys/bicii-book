@@ -2015,3 +2015,116 @@ URLs, or customer data in this file.
   does not stop on a red, undocumented commit.
 - Revisit trigger: the Phase 8 pull request.
 - Last checked: 2026-10-05.
+
+## R-078 — Whoever holds a quote link can answer it
+
+- Category: security concern (non-exploitable summary; D141–D143).
+- Status and owner: open by design (Phase 13 not built); owner (accepts),
+  build agent (limits).
+- Trigger: a quote link forwarded, shown in a screenshot or read on a
+  shared phone.
+- Impact: the link is the only proof of who answers. Anyone holding it
+  before it expires can approve or decline the items and type any name,
+  and sees the job number, the bike and the customer's first name.
+- Evidence and confidence: high for the mechanism; it is the design in
+  [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md).
+- Workaround or containment: 7-day expiry, one answer per quote, the
+  token stored only as a hash, a new link on every send (the old one
+  stops working), no contact details on the page, the answer recorded in
+  the job timeline for staff to confirm by phone when in doubt.
+- Next action: build the limits in Phase 13 steps 1 and 3; the owner
+  confirms the 7-day expiry (PRODUCT question 31).
+- Revisit trigger: a disputed answer; customers asked to sign in.
+- Last checked: 2026-10-14, design.
+
+## R-079 — Email quotes need the Resend domain and API key
+
+- Category: operational gap (D144).
+- Status and owner: open; owner (Resend domain, key in Vercel).
+- Trigger: sending a quote by email.
+- Impact: the Admin sends email through Resend's API, which needs the
+  shop's domain verified and `RESEND_API_KEY` and `EMAIL_FROM` set in
+  Vercel. Until then the email button says why it is off and staff use
+  WhatsApp or a copied link. The same domain is pending for Auth codes
+  ([R-039](#r-039--hosted-email-delivery-and-auth-settings-are-unverified)).
+- Evidence and confidence: high; Resend shows the domain as not verified
+  (2026-10-12).
+- Workaround or containment: WhatsApp and the copied link work without it.
+- Next action: owner finishes the domain verification and creates an API
+  key restricted to sending; set both variables (names only) in Vercel
+  Production.
+- Revisit trigger: the domain is verified.
+- Last checked: 2026-10-14.
+
+## R-080 — Arrived indent stock is not held for its job
+
+- Category: design shortcut (D146).
+- Status and owner: accepted for the first build; build agent.
+- Trigger: an indent part is received and, before it is fitted, the same
+  product is sold or added to another job.
+- Impact: receiving adds ordinary stock. The product page and the job show
+  it as reserved for the job, but a sale or another job's Add part can use
+  it, leaving the indent job short when Fit is pressed (Fit still works and
+  may take stock below zero, D23).
+- Evidence and confidence: high; hard reservation would need every sale
+  and part line to respect a reservation in the ledger, which the movement
+  rules (D23, D25) do not have.
+- Workaround or containment: Fit soon after receiving; the reserved count
+  is shown wherever the product's stock is.
+- Next action: revisit if it happens; a reservation would be its own
+  decision.
+- Revisit trigger: a job short of its arrived part.
+- Last checked: 2026-10-14, design.
+
+## R-085 — Stripe keys and the webhook are new hosted secrets
+
+- Category: operational gap / security concern (non-exploitable summary;
+  D150, D153).
+- Status and owner: open (Phase 14 not built); owner (Stripe account and
+  keys), build agent (procedure).
+- Trigger: going live with Stripe; rotating a key; a leaked key.
+- Impact: a secret key can create charges and refunds and read customer
+  payments; a webhook secret proves events come from Stripe. Both live
+  only in Vercel's server environment (Production live, Preview test or
+  none) and never in the public site or the repository.
+- Evidence and confidence: high; the design in
+  [ADR-025](decisions/ADR-025-stripe-payments.md).
+- Workaround or containment: a restricted key with only the permissions
+  Checkout and refunds-reading need; RUNBOOK steps for setting and
+  rotating both, written with Phase 14.
+- Next action: owner creates the Stripe account (Singapore, PayNow on);
+  the build agent writes the RUNBOOK section with step 1.
+- Revisit trigger: Phase 14 step 1.
+- Last checked: 2026-10-14, design.
+
+## R-086 — A payment stays pending until Stripe's webhook arrives
+
+- Category: operational gap (D153).
+- Status and owner: accepted by design; build agent.
+- Trigger: a webhook delivery fails or is delayed (Stripe retries for
+  days).
+- Impact: a customer who paid sees Stripe's receipt while the job still
+  shows the deposit as pending, and ordering waits for it (D152).
+- Evidence and confidence: high for the mechanism.
+- Workaround or containment: the job's Payments card can re-read the
+  session from Stripe (a staff action, through the same RPC); an admin can
+  order with a reason (D152).
+- Next action: build the re-read in Phase 14 step 2.
+- Revisit trigger: a payment pending more than an hour.
+- Last checked: 2026-10-14, design.
+
+## R-087 — Refunds are made by hand in Stripe
+
+- Category: design shortcut (D155).
+- Status and owner: accepted for the first build; owner.
+- Trigger: a customer declines after paying a deposit, or the part cannot
+  be supplied.
+- Impact: staff refund in the Stripe dashboard; the Admin records it only
+  when Stripe's refund event arrives, and nothing reminds anyone that a
+  deposit on a cancelled request is still held.
+- Evidence and confidence: high; the design.
+- Workaround or containment: Reports list deposits held on open jobs and
+  on cancelled requests (D154).
+- Next action: a refund action in the Admin if refunds become routine.
+- Revisit trigger: more than a few refunds a month.
+- Last checked: 2026-10-14, design.

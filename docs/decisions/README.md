@@ -13,10 +13,12 @@ index of the D-numbered rows, with each row's status and record; this
 directory holds the reasoning. Numbers are allocated by track (2026-10-06),
 never "the next free": D43–D59 main line (labels D56–D59), D60–D69
 purchasing (D60–D66 used), D70–D79 staff email sign-in, D80–D89 Shopify,
-D90–D99 staff roles, D100–D119 reporting, D120–D139 public site; records
+D90–D99 staff roles, D100–D119 reporting, D120–D139 public site,
+D140–D149 indent parts and quotes, D150–D159 Stripe payments; records
 ADR-017 labels, ADR-018 purchasing, ADR-019 email sign-in, ADR-020
-Shopify, ADR-021 staff roles, ADR-022 reporting, ADR-023 public site (a
-record lands with its track, so a gap in the numbers here is expected).
+Shopify, ADR-021 staff roles, ADR-022 reporting, ADR-023 public site,
+ADR-024 indent parts and quotes, ADR-025 Stripe payments (a record lands
+with its track, so a gap in the numbers here is expected).
 ADR-001 stays at its original
 path because code and migration comments cite it as "ADR-001".
 
@@ -45,3 +47,5 @@ path because code and migration comments cite it as "ADR-001".
 | [ADR-021](ADR-021-staff-roles.md) | D90–D94 (staff roles admin, manager, mechanic; exceptions on top; role administration; refunds for managers, amending D49 and restating D11) | D90, D91, D94 owner decisions 2026-10-06, built (database, app, staff screens; integration-reviewed); D92 accepted, owner to confirm; D93 owner decision with a build-default part, owner to confirm (owner question 20) | The owner confirms D92/D93; a fourth role; a new permission; a hosted project before this lands |
 | [ADR-023](ADR-023-public-site.md) | D120–D125 (public site: customer sign-in with codes, linking by email, records at the first booking, bookable range, customer photos, the item page) | Accepted: build defaults, owner to confirm (owner question 30); backend built in Phase 11 step 1, screens in step 2 (repository `bicii`) | Phase 10 storefront addresses (D125); reschedule or messaging requested; the owner answers question 30 |
 | [ADR-022](ADR-022-reporting.md) | D100–D105 (period reporting: date bases, restatement, refunds beside gross, mechanic attribution, shop-currency totals, purchases and stock value); D106–D108 (stock reconciliation without a balance cache, the unsettled-consignment alert, per-kind exception visibility) | Accepted: build defaults, owner to confirm (owner questions 26 and 27; D102 is the build default for question 12); database built in Phase 9 steps 1 and 3, screens in steps 2 and 4 (2026-10-06; Phase 9 complete; on `main` with Phase 10 since its merge, R-058 resolved) | The owner answers question 12, 26 or 27; a measured report slowdown (R-059) |
+| [ADR-024](ADR-024-indent-parts-and-customer-quotes.md) | D140–D148 (indent parts, quotes sent by WhatsApp or email, per-item answers on an anonymous page, ordering and fitting; lifts SPEC §7.1 and §30 for quotes) | Proposed 2026-10-14: owner decisions D140 (workflow), D142 (per item), D144 (WhatsApp and email), D148 (scope); others build defaults; not built | PRODUCT question 31; a disputed answer; hard reservation requested |
+| [ADR-025](ADR-025-stripe-payments.md) | D150–D156 (Stripe Checkout, deposits on quotes, payments recorded from verified webhooks, refunds in Stripe, balance links) | Proposed 2026-10-14: owner decision D150 (Stripe); others build defaults; not built | PRODUCT question 32; counter payments or Admin refunds requested |

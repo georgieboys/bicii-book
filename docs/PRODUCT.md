@@ -54,7 +54,11 @@ Admin never replaces the public site.
   sign-on; no customer choice of mechanic; no labour scheduling or time
   clock; no complex bulk-to-unique machinery; no multi-location
   optimisation; no native apps; no hard-coded Bluetooth printing before the
-  printers are known; no marketing CRM or automated messaging.
+  printers are known; no marketing CRM or automated messaging. Changed by
+  the owner on 2026-10-14, not yet built: quotes for indent parts that the
+  customer approves per item from a link sent by WhatsApp or email (Phase
+  13, D140–D148), and customer payments through Stripe, starting with
+  deposits on those quotes (Phase 14, D150–D156).
 
 ## Domain rules
 
@@ -170,6 +174,8 @@ next actions.
 | 26 | Confirm the reporting build defaults D100–D105 ([ADR-022](decisions/ADR-022-reporting.md)): four date bases, restatement without period close, refunds shown separately with no Cult Commons claw-back, lead-mechanic attribution, shop-currency totals, stock valued at last cost (shop-owned only, NULL cost not valued) | They stay in force as built | [R-055](RISKS.md#r-055--past-report-periods-change-after-a-reopen-a-back-dated-sale-or-a-back-dated-receipt), [R-056](RISKS.md#r-056--stock-value-uses-each-products-last-cost-not-the-cost-of-the-units-on-hand), [R-021](RISKS.md#r-021--reports-overstate-net-sales-after-a-refund-or-restock) |
 | 27 | Confirm D106–D108 ([ADR-022](decisions/ADR-022-reporting.md#2026-10-06-stock-reconciliation-and-operational-exceptions-d106d108)): no stock balance cache, unsettled consignments after 30 days (admin-configurable), who sees which exception | They stay in force as built | [R-058](RISKS.md#r-058--phase-9s-exceptions-migration-must-be-re-verified-when-phase-10-merges), [R-059](RISKS.md#r-059--today-and-the-exception-counts-are-slow-at-a-busy-years-volume) |
 | 30 | Confirm the public-site build defaults D120–D125 ([ADR-023](decisions/ADR-023-public-site.md)): customers sign in with emailed codes and anyone may create a login; a login is linked to the one unlinked customer record with its email and two such records link nothing; a record is created only at the first booking; up to 31 days of times per request; customers see their own customer-visible photos; the item page shows published items only, with an Instagram message as the purchase action until Shopify gives items a storefront address. Numbered 30 so that the branches in flight keep 21 to 29 | They stay in force as built | [R-065](RISKS.md#r-065--a-mistyped-customer-email-lets-someone-else-claim-that-record), [R-066](RISKS.md#r-066--anyone-can-create-a-website-login) |
+| 31 | Confirm the indent-parts defaults D141, D143, D145–D147 ([ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md)): a quote link valid 7 days and answered once; the quote page shows the job, bike, first name, items and total only; ordering needs Manage purchasing and can move the job to Waiting on parts; arrived parts are shown as reserved but not held; any staff member may send a quote | Phase 13 is built on these defaults | [R-078](RISKS.md#r-078--whoever-holds-a-quote-link-can-answer-it), [R-080](RISKS.md#r-080--arrived-indent-stock-is-not-held-for-its-job) |
+| 32 | Confirm the Stripe defaults D151–D156 ([ADR-025](decisions/ADR-025-stripe-payments.md)): a 50% deposit on approved indent parts, ordering only after it is paid unless an admin or manager overrides with a reason, refunds made in Stripe's dashboard, deposits not counted as revenue; and create the Stripe account (Singapore, PayNow on) | Phase 14 is built on these defaults against a fake; nothing is charged until keys exist | [R-085](RISKS.md#r-085--stripe-keys-and-the-webhook-are-new-hosted-secrets), [R-087](RISKS.md#r-087--refunds-are-made-by-hand-in-stripe) |
 
 Assumed, not confirmed: one shop, one time zone (Asia/Singapore) and one
 currency (SGD) ([ADR-012](decisions/ADR-012-shop-time-zone-and-currency.md)).

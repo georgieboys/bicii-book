@@ -234,6 +234,55 @@ export function describeEvent(
         ...(isUuid(appointmentId) ? { href: `/appointments/${appointmentId}` } : {}),
       };
     }
+    // Phase 13 (D140-D146): indent parts and quotes. Payloads carry names,
+    // quantities, counts and purchase order numbers, never a price or cost.
+    case "part_requested": {
+      const what = text(p, "description") ?? (p.kind === "service" ? "a service" : "a part");
+      const qty = amount(p, "quantity");
+      return {
+        title: `Proposed ${qty !== null && Number(qty) !== 1 ? `${formatQuantity(qty)} × ` : ""}${what}`,
+        detail: null,
+        tone: "neutral",
+      };
+    }
+    case "part_request_cancelled":
+      return {
+        title: `Cancelled the proposed ${text(p, "description") ?? "item"}`,
+        detail: text(p, "reason"),
+        tone: "neutral",
+      };
+    case "quote_sent": {
+      const items = amount(p, "items");
+      const channel =
+        p.channel === "whatsapp" ? " by WhatsApp" : p.channel === "email" ? " by email" : "";
+      return {
+        title: `Quote sent${channel}${items !== null ? ` (${items} ${Number(items) === 1 ? "item" : "items"})` : ""}`,
+        detail: null,
+        tone: "info",
+      };
+    }
+    case "quote_withdrawn":
+      return { title: "Quote withdrawn", detail: null, tone: "neutral" };
+    case "quote_answered": {
+      const approved = Number(amount(p, "approved") ?? 0);
+      const declined = Number(amount(p, "declined") ?? 0);
+      const name = text(p, "name");
+      return {
+        title: `Quote answered${name ? ` by ${name}` : ""}: ${approved} approved, ${declined} declined`,
+        detail: null,
+        tone: approved > 0 ? "done" : "waiting",
+      };
+    }
+    case "part_ordered": {
+      const po = text(p, "purchase_order");
+      return { title: `Parts ordered${po ? ` on ${po}` : ""}`, detail: null, tone: "info" };
+    }
+    case "part_fitted":
+      return {
+        title: `Fitted ${text(p, "description") ?? "the proposed item"}`,
+        detail: null,
+        tone: "done",
+      };
     default: {
       const unknown: never = event.type;
       return { title: String(unknown), detail: null, tone: "neutral" };

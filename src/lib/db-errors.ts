@@ -383,6 +383,27 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "A recorded delivery can't be changed. Correct the stock with an adjustment.",
   purchase_order_history_append_only: "Purchase order history can't be changed.",
   reorder_nothing_selected: "Choose at least one product to order.",
+  // Indent parts and quotes (Phase 13, D140-D147)
+  part_request_conflict: "That item was already added as something else. Reload and try again.",
+  indent_product_invalid: "Only shop-owned products counted by quantity can be ordered for a job.",
+  price_invalid: "A price cannot be negative.",
+  cost_invalid: "A cost cannot be negative.",
+  supplier_unavailable: "That supplier no longer exists or is archived. Choose another.",
+  part_request_quoted: "It is on the quote the customer has. Withdraw the quote first.",
+  part_request_fitted: "It is already on the job. Void the line instead.",
+  quote_already_sent: "This quote was already sent. Send a new one to get a new link.",
+  quote_validity_invalid: "A quote is valid for 1 to 30 days.",
+  quote_items_invalid: "Choose 1 to 50 different items for the quote.",
+  part_request_not_proposed:
+    "Only items proposed on this job and not on another quote can be sent.",
+  quote_answered: "The customer has already answered this quote.",
+  quote_not_found: "This link is not valid. Ask the shop for a new one.",
+  quote_not_open: "This quote has already been answered or replaced.",
+  quote_expired: "This quote has expired. Ask the shop for a new one.",
+  quote_name_required: "Type your name (up to 100 characters).",
+  quote_answer_incomplete: "Answer every item before sending.",
+  order_items_invalid: "Choose 1 to 50 different parts to order.",
+  part_request_not_approved: "Only approved items can be ordered or put on the job.",
 };
 
 /** 23505 unique violations by constraint name. */
@@ -500,6 +521,9 @@ export const UNIQUE_ERRORS: Record<string, string> = {
   purchase_receipt_lines_pkey: "That delivery line has already been recorded.",
   purchase_receipt_lines_purchase_receipt_id_line_number_key:
     "That delivery line has already been recorded.",
+  // Indent parts and quotes (Phase 13)
+  job_part_requests_line_key: "That item is already on the job.",
+  quotes_one_open_per_job: "This job already has an open quote. Withdraw it or send again.",
 };
 
 /** 23514 check violations by constraint name. */
@@ -834,6 +858,23 @@ export const CHECK_ERRORS: Record<string, string> = {
   purchase_receipt_lines_currency_check: "Use a three-letter currency code.",
   inventory_movements_purchase_received_has_receipt_line:
     "Stock from a supplier is received through its purchase order.",
+  // Indent parts and quotes (Phase 13): the RPCs check these first; the
+  // constraints are the last line of defence.
+  job_part_requests_kind_source: "A proposed item is either a part or a service.",
+  job_part_requests_description_check: "Keep the name under 200 characters.",
+  job_part_requests_quantity_check: "Add between 1 and 999 (whole numbers for parts).",
+  job_part_requests_currency_check: "Use a three-letter currency code.",
+  job_part_requests_service_no_purchase: "A service has no supplier, cost or purchase order.",
+  job_part_requests_ordered_has_line: "An ordered part must be on a purchase order.",
+  job_part_requests_fitted_has_line: "A fitted item must be on the job.",
+  job_part_requests_cancelled_has_reason: "Say why it is cancelled.",
+  job_part_requests_cancel_reason_check: "Keep the reason under 500 characters.",
+  quotes_token_hash_length: "That quote link is not valid.",
+  quotes_currency_check: "Use a three-letter currency code.",
+  quotes_answered_fields: "An answered quote needs the name of who answered.",
+  quotes_withdrawn_fields: "A withdrawn quote needs the time it was withdrawn.",
+  quotes_answered_name_check: "Type your name (up to 100 characters).",
+  quote_items_decision_check: "Approve or decline each item.",
 };
 
 /** Other fixed SQLSTATEs our RPCs raise on purpose. */

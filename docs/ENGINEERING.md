@@ -224,10 +224,11 @@ from the code:
   purchasing and staff email sign-in, `20261006000100`–`20261006000900`
   staff roles, `20261006001000` and up reporting, `20261007…` public site,
   `20261014000100`–`20261014000200` indent parts and quotes (Phase 13) and
-  `20261014000300` and up Stripe payments (Phase 14). Main and the hosted
-  project end at `20261014000500_indent_deposits.sql`
-  (`20261014000600_payment_exception_dedupe.sql` once the recheck merges),
-  so a new file must sort after the newest (hosted migrations are
+  `20261014000300` and up Stripe payments (Phase 14; the indent follow-up
+  of 2026-10-15 took `20261014000700`). Main and the hosted project end at
+  `20261014000600_payment_exception_dedupe.sql` since PR #25
+  (`20261014000700_indent_closed_jobs.sql` once this branch merges), so a
+  new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).
   The latest file on `feat/p9-reporting` is

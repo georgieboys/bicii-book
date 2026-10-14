@@ -5145,6 +5145,7 @@ export type Database = {
         Row: {
           balance_due: number | null;
           currency: string | null;
+          held_over_total: number | null;
           job_total: number | null;
           net_paid_online: number | null;
           paid_ahead: number | null;
@@ -5176,6 +5177,44 @@ export type Database = {
           yield_total: number | null;
         };
         Relationships: [];
+      };
+      work_order_unfitted_requests: {
+        Row: {
+          currency: string | null;
+          item_count: number | null;
+          quoted_total: number | null;
+          work_order_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Functions: {

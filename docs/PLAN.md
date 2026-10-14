@@ -980,6 +980,21 @@ the staff routes: items, total, per-item answers, name, the deposit when
 Phase 14 is on; not indexed, no referrer, rate-limited. Email through
 Resend's API (`RESEND_API_KEY`, `EMAIL_FROM`), off until both are set.
 
+**Follow-up after the owner's live test (2026-10-15, D149,
+[R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)).**
+`20261014000700_indent_closed_jobs`: an admin or manager cancels an
+unfitted request on a collected or cancelled job with a reason (D149),
+one still on a quote left open there included (the cancel withdraws that
+quote); build defaults with it: ordering refuses a job that is not open and withdrawing refuses a closed
+one; `work_order_unfitted_requests` (the memo under the Lines total),
+`payment_issues`' `paid_parts_not_fitted`,
+`work_order_payment_totals.held_over_total` and the quote page's
+`job_closed`. On screen: the memo, "Not fitted" items with what to do on a
+job that is no longer open, both ways to Collected naming them, the Fit
+sheet's warnings (never ordered in BICII; no cost). Pending the owner:
+whether Complete is blocked or only warned while approved items are not
+fitted (not built).
+
 Not in Phase 13: hard reservation of arrived stock
 ([R-080](RISKS.md#r-080--arrived-indent-stock-is-not-held-for-its-job)),
 quotes on the public site, messages other than quotes.
@@ -1228,8 +1243,9 @@ only its own range.
 | D146 | INDENT-FIT: when a part has arrived and how it is fitted | Arrived when receipts on its purchase order line cover it, first requested first covered; Fit adds the part line from the receiving location and marks it fitted; arrived stock shows as reserved for the job but is not held | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
 | D147 | INDENT-ACCESS: who does what | Any active staff member proposes and sends quotes on an open job; ordering needs `manage_purchasing`; costs and suppliers need `view_costs` or `manage_purchasing` (D60); customers reach a quote only by its link | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
 | D148 | INDENT-SCOPE: what changes in the brief | SPEC §7.1's offline approval and SPEC §30's exclusion of customer approval and automated messaging are lifted for quotes only; ordinary parts and services are still added straight to jobs with the internal flag | Phase 13 | Owner decision 2026-10-14 | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D149 | INDENT-CLOSE: an indent request on a collected or cancelled job | An active admin or manager (`private.can_record_refunds()`) may cancel a request that was never fitted on a collected or cancelled job, with a required reason recorded on the timeline (`part_request_cancelled`), so a deposit held for it can be refunded or settled; a request still on a quote left open there (nobody can answer or withdraw it on a closed job) is cancelled the same way, which withdraws that quote first; Fit stays refused on any job that is not open, and collected and cancelled stay final for everything else (D15). Built with it as build defaults (not part of the owner's approval; no change to money, lines, stock or Cult Commons): ordering refuses a job that is not open and withdrawing a quote refuses a closed one; the job page shows approved items not on the bill as a memo (never in the total), a deposit held for them is flagged (`paid_parts_not_fitted`) and a closed job shows what was paid above its bill ([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)). Whether Complete is blocked or only warned while approved items are unfitted is a separate, pending owner decision (not built; it takes a number from D160) | Phase 13 follow-up (`20261014000700_indent_closed_jobs`) | Owner decision 2026-10-15 SGT (approved: the cancel on collected and cancelled jobs); the guards and screens built with it are build defaults, owner to confirm; built on `claude/brave-clarke-kfqhgt`, not deployed | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md#amendment-2026-10-15-d149-indent-close) |
 | D150 | PAYMENTS-PROVIDER: how customers pay | Stripe's hosted Checkout (cards and PayNow, SGD); no card data in BICII; secret key and webhook secret server-only (Production live, Preview test or none); one adapter with an in-memory fake for tests | Phase 14 | Owner decision 2026-10-14 (Stripe); rest build default; Preview amended by D157: none until a staging project exists; built in step 1 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
-| D151 | DEPOSIT: the deposit on a quote | 50% of the approved indent parts' total (admin setting `indent_deposit_percent`, 0 for none), rounded to the cent in Postgres, offered through Checkout after the customer answers; the approval stands unpaid, shown as "Deposit due" | Phase 14 | Build default; built in step 2 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D151 | DEPOSIT: the deposit on a quote | 50% of the approved indent parts' total (admin setting `indent_deposit_percent`, 0 for none), rounded to the cent in Postgres, offered through Checkout after the customer answers; the approval stands unpaid, shown as "Deposit due" | Phase 14 | Build default (50%); built in step 2; owner set 100% in production 2026-10-15 SGT | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D152 | ORDER-AFTER-DEPOSIT: ordering before the deposit | Only once the deposit is paid, unless an admin or manager orders anyway with a recorded reason | Phase 14 | Build default; built in step 2 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D153 | PAYMENT-RECORD: how a payment is recorded | A `payments` row created with the Checkout session and changed only by Stripe's verified webhook (signature on the raw body, each event stored once by id, rejected deliveries kept without a body) through a service-role RPC; staff never type one | Phase 14 | Build default; built in step 1 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D154 | PAYMENT-MEANING: what a payment changes | Nothing in recognition, totals, yield or Cult Commons; the job shows paid and balance due (total less paid, net of refunds); reports list payments and deposits held on open jobs apart from sales | Phase 14 | Build default; built in step 2 (the job's Customer payments card: paid online, still to pay, paid ahead; and under the Lines total and in the Collected confirmation); Reports in step 3 | [ADR-025](decisions/ADR-025-stripe-payments.md) |

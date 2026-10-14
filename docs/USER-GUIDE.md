@@ -6,12 +6,16 @@ permissions are in [OPERATIONS.md](OPERATIONS.md#product-administration).
 
 Applies to: `main` (production since 2026-10-12, through Phase 13's
 indent parts and quotes and, since 2026-10-14, Phase 14 steps 1 and 2:
-customer deposits through Stripe, deployed with the deposit percent at 0,
-so no quote asks for one until an admin raises it), plus the recheck on
-`claude/brave-clarke-kfqhgt` (Exceptions sentences in full, each Stripe
+customer deposits through Stripe, deployed with the deposit percent at 0;
+the owner set it to 100% in production on 2026-10-15 SGT, so every quote
+sent since asks the full price of its approved parts; the build default is
+50%) and the recheck (PR #25: Exceptions sentences in full, each Stripe
 problem listed once, and why *Check with Stripe* could not read
-everything). On a developer machine: http://localhost:3000. Staff sign
-in with an emailed code.
+everything), plus, on `claude/brave-clarke-kfqhgt` and not yet deployed,
+what happens to approved indent items a job is completed without
+([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job),
+D149). On a developer machine: http://localhost:3000. Staff sign in with
+an emailed code.
 
 Last walkthrough: not walked through by a person. These flows are exercised
 by the E2E specs in `tests/e2e/` (among them `auth`, `workshop`,
@@ -102,7 +106,18 @@ managers.
   online. Take only $85.00."), and the same figures are under the job's
   total in **Lines** ("Paid online $60.00 · Still to pay $85.00"): take
   only what is left at the counter. Any other allowed move is under
-  **Change status**, with an optional **Note**.
+  **Change status**, with an optional **Note**; picking **Collected**
+  there shows the same sentences.
+  - Fit approved indent parts before **Complete**: **Complete** is one
+    tap and does not stop you, and a part that is not fitted is not on
+    the bill (see "Quote and order a part the shop doesn't stock"). When
+    approved items are not fitted, the Collected confirmation names them:
+    "Not on the bill: <part> $2.00, approved and not fitted. To bill it,
+    reopen the job and fit it; otherwise cancel it and refund any deposit
+    in Stripe." When the deposit is more than the job total, it says "That
+    is $2.00 more than the job total, paid for parts that are not on the
+    bill." instead of "take nothing more". (Whether Complete should stop
+    or warn first is waiting for the owner's decision.)
   - Reopen a completed job (or one ready for collection): **Change
     status** → **Reopen job…**, answer "Why are you reopening this job?",
     then **Reopen job**. A unique item sold on the job goes back on hold
@@ -116,7 +131,10 @@ managers.
   "Give a reason for this change." "Void the job's lines before cancelling
   it. Voiding a part returns it to stock." A collected or cancelled job
   cannot change: "This job is collected or cancelled and can no longer
-  change."
+  change." (The one exception: an admin or manager can still cancel an
+  indent item that was never fitted, D149.) Once collected or cancelled,
+  a job with money paid online above its bill shows it under the total:
+  "Paid online $120.00 · $120.00 more than the bill".
 
 ### Add services, parts and other lines to a job
 
@@ -160,7 +178,10 @@ managers.
 
 For a part ordered in for one bike: the customer approves it, per item,
 before it is ordered, and it goes on the job only when it is fitted
-([ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md)).
+([ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md)). Until
+then it is not on the bill: not in the job's total, its yield or Cult
+Commons. **Fit every approved item before you press Complete**; a
+completed job locks its lines.
 
 - Before you start: the job is open; the part is a product counted by
   quantity (an existing one, or a new one if you manage inventory). The
@@ -194,10 +215,14 @@ before it is ordered, and it goes on the job only when it is fitted
      answered by <name>" and each item shows **Approved** or **Declined**;
      the job's approval is ticked with a note of what was approved, and the
      timeline records it. Anyone with the link can answer, so if in doubt
-     confirm by phone.
+     confirm by phone. Under the job's total in **Lines** a memo says what
+     is approved but not on the bill yet: "Approved, not on the bill yet: 2
+     items, $275.00. Fit them to bill them." (it is never added to the
+     total).
      When an admin has set a deposit (Settings → **Customer payments**,
-     below), the open quote also says the shop asks for a deposit of N% of
-     the parts they approve (not labour) after they answer. Once they
+     below; the shop's current setting is 100% since 2026-10-15), the open
+     quote also says the shop asks for a deposit of N% of the parts they
+     approve (not labour) after they answer. Once they
      answer, a **Deposit** card shows the amount (N% of the approved
      parts, worked out by the database when they answered; quotes sent
      before the deposit was set ask none) and **Pay $… deposit**, which
@@ -243,7 +268,16 @@ before it is ordered, and it goes on the job only when it is fitted
      are not held: don't sell or use them elsewhere. Press **Fit**,
      check the price, then **Fit part**: the part becomes an ordinary line
      on the job at the quoted price and comes out of stock. For an approved
-     service press **Add to job**.
+     service press **Add to job**. A part never ordered in BICII (bought
+     some other way) can be fitted too; the sheet warns "Never ordered in
+     BICII: fitting takes it out of stock at <location>. If it was bought
+     outside BICII, that count may go below zero until the stock is
+     corrected." Staff with View costs also see "This part has no cost
+     yet, so it can't be fitted: its yield can't be worked out. Set its cost
+     on the product's page first." with **Open the product** (anyone else
+     gets "This part has no cost yet…" when they press **Fit part**). Once
+     every approved item is fitted, the memo under the total goes, and
+     the job can be completed.
   7. Once a deposit is asked, the job shows a **Customer payments** card
      (every staff member sees it): first anything that needs attention, in
      a sentence (for example "$120.00 is held but this job is cancelled.
@@ -269,20 +303,69 @@ before it is ordered, and it goes on the job only when it is fitted
      timeline by themselves. While Stripe is off the card says the
      customer can't pay online and that an admin or manager can order
      without the deposit.
+  8. If the job was completed before an approved item was fitted
+     ([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)):
+     the memo under the total reads "Approved but never fitted: $275.00
+     (not billed).", and the item shows **Not fitted** (and **Deposit
+     paid** when it was paid for). On a completed job, or one ready for
+     collection, it says "Not on the bill: the job was completed before
+     this was fitted. Reopen the job with Change status to fit it, or
+     cancel it.": **Change status** → **Reopen job…**, fit it, then
+     complete again; or **Cancel** it with a reason and refund any deposit
+     in Stripe. A paid deposit for it shows on the Customer payments card
+     and in Exceptions: "$120.00 is held for parts that are not on this
+     job. Reopen the job to fit them, or cancel them and refund in
+     Stripe." When other parts of the same quote were fitted, it names only
+     their share, for example "$120.00 is held; $60.00 of it is for parts
+     that are not on this job. … refund that share in Stripe." Once the
+     job is collected (or cancelled) the item "can no longer be fitted";
+     the problem then reads "$120.00 is held for parts that never went on
+     this job. Cancel them and refund in Stripe, or agree with the customer
+     how it counts.", and the card adds "$120.00 was paid online above
+     this job's bill of $0.00. Refund it in Stripe if it is due back, or
+     agree with the customer how it counts." Only an admin or manager sees
+     **Cancel** there (D149): the sheet says "The job is closed and stays
+     closed; refund any deposit for it in Stripe."; type why in
+     **Reason**, press **Cancel item**, then refund in Stripe; the problem
+     changes to "…every part it was for is cancelled…" and clears when the
+     refund arrives. The job itself stays collected. The customer's quote
+     page stops saying the shop will order the parts and says "Ask the
+     shop about your deposit."
+     An item still on a quote the customer never answered shows **Not
+     answered** once the job is no longer open. On a completed job, or one
+     ready for collection, reopen the job to withdraw the quote or send it
+     again. On a collected or cancelled job an admin or manager presses
+     **Cancel** on it: the sheet says cancelling it withdraws that quote
+     (its link stops working) and its other items go back to **Proposed**;
+     the toast reads "<part> cancelled. The quote was withdrawn." Cancel
+     the other items the same way.
 - Success looks like: toasts "Part proposed. Send a quote when you're
   ready.", "Added to the supplier's draft order." (or "Added to the
   supplier's draft order without the deposit.") and "<part> is on the
   job."; the item badges go Proposed → Waiting for the customer → Approved →
   Ordered → Fitted.
 - Other actions: **Withdraw quote** stops the link working and returns its
-  items to Proposed. **Cancel** on an item asks for a **Reason** (an item on
-  the open quote cannot be cancelled: withdraw the quote first; an ordered
-  part stays on its purchase order).
+  items to Proposed. It is shown only while the job is open: on a
+  completed job, or one ready for collection, reopen it with **Change
+  status** first; once the job is collected or cancelled the quote can't
+  be withdrawn, and an admin or manager cancels its items instead (step
+  8). **Cancel** on an item asks for a **Reason** (an item on the open
+  quote cannot be cancelled while the job is open: withdraw the quote
+  first; an ordered part stays on its purchase order). On a completed
+  job, or one ready for collection, anyone can still cancel an item that
+  is not on an open quote; on a collected or cancelled job only an admin
+  or manager can (D149). A quote still open when its job was completed
+  can no longer be answered: the card says so and what to do.
 - If it fails:
   - "Only shop-owned products counted by quantity can be ordered for a
     job."
   - "It is on the quote the customer has. Withdraw the quote first."
   - "Only approved items can be ordered or put on the job."
+  - Ordering, proposing or fitting on a completed or collected job: "This
+    job is completed or closed. Reopen it to change its lines."
+  - Withdrawing a quote, or (anyone but an admin or manager) cancelling an
+    item, on a collected or cancelled job: "This job is collected or
+    cancelled and can no longer change."
   - "The customer has already answered this quote."
   - "That supplier no longer exists or is archived. Choose another."
   - Ordering a part whose deposit isn't paid without a reason: "Say why
@@ -1021,7 +1104,10 @@ website's account pages go live when the owner switches them on,
   and tests only)** off production), or **Off** with the reason in words,
   naming the setting to fix (never its value).
 - Steps: Settings → **Customer payments** → **Change** beside "No deposit
-  is asked on indent quotes". Enter the percent (0 to 100) and **Save**.
+  is asked on indent quotes" (or "Customers pay N% …"). Enter the percent
+  (0 to 100) and **Save**. The build ships at 0 and suggests 50% (D151);
+  the shop's current production setting is 100%, set by the owner on
+  2026-10-15 SGT.
 - Success looks like: a toast "Customers pay N% of the approved indent
   parts after answering" (or "No deposit is asked on indent quotes" for
   0). Quotes sent from now on take that percent; quotes already sent keep
@@ -1111,8 +1197,8 @@ shown as a badge on Settings → Your profile and on Settings → Staff:
 
 | Role | What it lets you do |
 |---|---|
-| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), and the admin-only settings: shop hours, closures, booking capacity, appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
-| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), and ordering an indent part before its deposit is paid, with a reason (D152). Not the admin-only settings, Labels and printers, Shopify or Customer payments |
+| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
+| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify or Customer payments |
 | Mechanic | The workshop: what everyone can do (next paragraph). Anything more only as extra access |
 
 Everyone signed in can use customers, bikes, photos, jobs and their lines,
@@ -1126,9 +1212,10 @@ permission on top of their role (D92): for example a mechanic who orders
 parts gets Manage purchasing alone, or a manager who invites colleagues gets
 Manage staff. A mechanic can have any of them; a manager only Manage staff
 (their role already includes the rest); an admin none. Your profile marks
-each one **Extra access**. Extra access never includes **Record refund**
-or ordering an indent part before its deposit is paid (D152), which are
-for admins and managers only. Each permission, whether it comes
+each one **Extra access**. Extra access never includes **Record refund**,
+ordering an indent part before its deposit is paid (D152) or cancelling
+an indent item on a collected or cancelled job (D149), which are for
+admins and managers only. Each permission, whether it comes
 from your role or as extra access:
 
 | Permission | What changes for you |

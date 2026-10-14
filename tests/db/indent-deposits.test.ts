@@ -13,6 +13,8 @@
  *   order_part_requests the D152 gate and its override_reason.
  *   payment_issues, work_order_payment_totals  derived live (D159b, D154).
  *   operational exceptions  payment_attention and stripe_attention (D108).
+ *   completed and closed jobs (R-082, D149)  paid_parts_not_fitted,
+ *                       held_over_total and the page's job_closed.
  *
  * Quotes come from tests/db/indent-fixtures.ts (Phase 13's helpers, at the
  * percent withPercent() sets as the owner); deposit payments are created
@@ -48,7 +50,16 @@ import {
   sendQuote,
   setup,
 } from "./indent-fixtures";
-import { ADMIN, MANAGER, MECHANIC1, MECHANIC2, addStock, readAsOwner } from "./inventory-fixtures";
+import {
+  ADMIN,
+  MANAGER,
+  MECHANIC1,
+  MECHANIC2,
+  addStock,
+  completeJob,
+  readAsOwner,
+  reopenJob,
+} from "./inventory-fixtures";
 import { race } from "./lock-race";
 import { grantPurchasing } from "./purchasing-fixtures";
 import { events, failsWith, ownerMode, setStatus, walkTo } from "./workshop-fixtures";
@@ -125,7 +136,12 @@ async function answered(
 async function pageDeposit(tx: pg.Client, token: string) {
   await actAs(tx, ANON);
   const { rows } = await tx.query<{
-    deposit: { percent: number; status: string; parts_ordered?: boolean } | null;
+    deposit: {
+      percent: number;
+      status: string;
+      parts_ordered?: boolean;
+      job_closed?: boolean;
+    } | null;
     amount: string | null;
   }>(
     `select q -> 'deposit' as deposit, q -> 'deposit' ->> 'amount' as amount
@@ -584,6 +600,7 @@ describe("The quote view's deposit key (D143, D158)", () => {
         amount: "120.00",
         status: "due",
         parts_ordered: false,
+        job_closed: false,
       });
 
       // Completed but unpaid (an asynchronous method): processing.
@@ -601,6 +618,7 @@ describe("The quote view's deposit key (D143, D158)", () => {
         amount: "120.00",
         status: "paid",
         parts_ordered: false,
+        job_closed: false,
       });
       await refundDeposit(tx, p, 5000);
       expect((await pageDeposit(tx, q.token))!.status).toBe("paid");
@@ -625,6 +643,7 @@ describe("The quote view's deposit key (D143, D158)", () => {
         amount: "120.00",
         status: "due",
         parts_ordered: true,
+        job_closed: false,
       });
       // Fitted counts as ordered.
       await actAs(tx, ADMIN);
@@ -1327,6 +1346,383 @@ describe("quote_deposits, payment_issues and work_order_payment_totals", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 7b. Completed and closed jobs (R-082, D149)
+// ---------------------------------------------------------------------------
+
+describe("Deposits held for parts never fitted (R-082, D149)", () => {
+  const NOT_ON_JOB =
+    "$120.00 is held for parts that are not on this job. Reopen the job to fit them, or cancel them and refund in Stripe.";
+  const NEVER_WENT_ON =
+    "$120.00 is held for parts that never went on this job. Cancel them and refund in Stripe, or agree with the customer how it counts.";
+
+  /** The payment's issues with their words and severity (read as the owner). */
+  const issueRows = (tx: pg.Client, paymentId: string) =>
+    readAsOwner(tx, async () => {
+      const { rows } = await tx.query<{ issue: string; severity: string; message: string }>(
+        "select issue, severity, message from public.payment_issues where payment_id = $1 order by issue",
+        [paymentId],
+      );
+      return rows;
+    });
+
+  type Totals = {
+    job_total: string;
+    net_paid_online: string;
+    balance_due: string | null;
+    paid_ahead: string | null;
+    held_over_total: string | null;
+  };
+  const totals = (tx: pg.Client, workOrderId: string) =>
+    readAsOwner(tx, async () => {
+      const { rows } = await tx.query<Totals>(
+        `select job_total::text, net_paid_online::text, balance_due::text, paid_ahead::text,
+                held_over_total::text
+           from public.work_order_payment_totals where work_order_id = $1`,
+        [workOrderId],
+      );
+      return rows[0];
+    });
+
+  it("paid_parts_not_fitted appears when the job completes with the part unfitted and clears once it is fitted", async () => {
+    await inTransaction(conn, async (tx) => {
+      const d = await answered(tx);
+      const p = await startCheckout(tx, d);
+      await payDeposit(tx, p);
+      expect(await issuesOf(tx, p.paymentId)).toEqual([]);
+
+      await actAs(tx, ADMIN);
+      await completeJob(tx, d.job.id);
+      expect(await issueRows(tx, p.paymentId)).toEqual([
+        { issue: "paid_parts_not_fitted", severity: "danger", message: NOT_ON_JOB },
+      ]);
+      await actAs(tx, ADMIN);
+      await setStatus(tx, d.job.id, "ready_for_collection");
+      expect(await issueRows(tx, p.paymentId)).toEqual([
+        { issue: "paid_parts_not_fitted", severity: "danger", message: NOT_ON_JOB },
+      ]);
+      // Its date is the later of the completion and the payment.
+      const since = await readAsOwner(tx, () =>
+        scalar<boolean>(
+          tx,
+          `select i.since = greatest(w.completed_at, p.paid_at)
+             from public.payment_issues i
+             join public.work_orders w on w.id = i.work_order_id
+             join public.payments p on p.id = i.payment_id
+            where i.payment_id = $1`,
+          [p.paymentId],
+        ),
+      );
+      expect(since).toBe(true);
+
+      // Reopen (open again: no issue), fit, complete: nothing held for nothing.
+      await actAs(tx, ADMIN);
+      await reopenJob(tx, d.job.id);
+      expect(await issuesOf(tx, p.paymentId)).toEqual([]);
+      await actAs(tx, ADMIN);
+      await addStock(tx, d.productId, 2);
+      await fit(tx, d.partId, randomUUID(), LOCATION.shopFloor);
+      await completeJob(tx, d.job.id);
+      expect(await issuesOf(tx, p.paymentId)).toEqual([]);
+      // The part is on the bill now: 240.00 billed, 120.00 paid online.
+      expect(await totals(tx, d.job.id)).toEqual({
+        job_total: "240.00",
+        net_paid_online: "120.00",
+        balance_due: "120.00",
+        paid_ahead: "0.00",
+        held_over_total: "0.00",
+      });
+    });
+  });
+
+  it("an ordered part counts too; on a collected job the words change, and D149's cancel and a refund clear it", async () => {
+    await inTransaction(conn, async (tx) => {
+      const d = await answered(tx);
+      const p = await startCheckout(tx, d);
+      await payDeposit(tx, p);
+      await actAs(tx, ADMIN);
+      await orderParts(tx, [d.partId], d.supplierId, randomUUID(), false);
+      await walkTo(tx, d.job.id, "collected");
+      expect(await issueRows(tx, p.paymentId)).toEqual([
+        { issue: "paid_parts_not_fitted", severity: "danger", message: NEVER_WENT_ON },
+      ]);
+      // A partial refund: the words follow what is still held.
+      await refundDeposit(tx, p, 5000);
+      expect((await issueRows(tx, p.paymentId))[0].message).toBe(
+        NEVER_WENT_ON.replace("$120.00", "$70.00"),
+      );
+
+      // D149: an admin or manager cancels the part on the collected job;
+      // with no approved part left the deposit is for cancelled parts.
+      await actAs(tx, MANAGER);
+      await cancelPart(tx, d.partId);
+      expect(await issuesOf(tx, p.paymentId)).toEqual(["paid_parts_cancelled"]);
+      await refundDeposit(tx, p, 7000);
+      expect(await issuesOf(tx, p.paymentId)).toEqual([]);
+    });
+  });
+
+  it("cancelling the unfitted part on a completed job and refunding clears it; a cancelled job keeps paid_job_cancelled only", async () => {
+    await inTransaction(conn, async (tx) => {
+      const d = await answered(tx);
+      const p = await startCheckout(tx, d);
+      await payDeposit(tx, p);
+      await actAs(tx, ADMIN);
+      await completeJob(tx, d.job.id);
+      expect(await issuesOf(tx, p.paymentId)).toEqual(["paid_parts_not_fitted"]);
+      await actAs(tx, MECHANIC1);
+      await cancelPart(tx, d.partId);
+      expect(await issuesOf(tx, p.paymentId)).toEqual(["paid_parts_cancelled"]);
+      await refundDeposit(tx, p, 12000);
+      expect(await issuesOf(tx, p.paymentId)).toEqual([]);
+
+      // An open job never has it; a cancelled one has paid_job_cancelled.
+      const c = await answered(tx);
+      const pc = await startCheckout(tx, c);
+      await payDeposit(tx, pc);
+      expect(await issuesOf(tx, pc.paymentId)).toEqual([]);
+      await actAs(tx, ADMIN);
+      await setStatus(tx, c.job.id, "cancelled", "Customer withdrew");
+      expect(await issuesOf(tx, pc.paymentId)).toEqual(["paid_job_cancelled"]);
+
+      // A refunded deposit raises nothing, whatever the parts.
+      const r = await answered(tx);
+      const pr = await startCheckout(tx, r);
+      await payDeposit(tx, pr);
+      await refundDeposit(tx, pr, 12000);
+      await actAs(tx, ADMIN);
+      await walkTo(tx, r.job.id, "collected");
+      expect(await issuesOf(tx, pr.paymentId)).toEqual([]);
+    });
+  });
+
+  /**
+   * One quote at 100% approving two parts at 60.00 each (deposit 120.00,
+   * the fixtures' default Checkout amount), paid; acting as ADMIN.
+   */
+  async function twoParts(tx: pg.Client) {
+    await withPercent(tx, 100);
+    const s = await setup(tx);
+    const a = await proposePart(tx, {
+      workOrderId: s.job.id,
+      productId: s.productId,
+      price: "60.00",
+    });
+    const b = await proposePart(tx, {
+      workOrderId: s.job.id,
+      productId: s.productId,
+      price: "60.00",
+    });
+    const token = await sendQuote(tx, { workOrderId: s.job.id, requestIds: [a, b] });
+    await actAs(tx, ANON);
+    await answerAll(tx, token);
+    const quoteId = await quoteIdOf(tx, s.job.id);
+    expect((await quoteRow(tx, quoteId)).deposit_amount).toBe("120.00");
+    await actAs(tx, ADMIN);
+    const p = await startCheckout(tx, { ...s, partId: a, serviceRequestId: b, token, quoteId });
+    await payDeposit(tx, p);
+    await actAs(tx, ADMIN);
+    return { ...s, a, b, p };
+  }
+
+  it("names only the unfitted share when some of the quote's parts were fitted; cancelling or refunding the rest clears it", async () => {
+    await inTransaction(conn, async (tx) => {
+      const t = await twoParts(tx);
+      await addStock(tx, t.productId, 1);
+      await fit(tx, t.a, randomUUID(), LOCATION.shopFloor);
+      await completeJob(tx, t.job.id);
+      expect(await issueRows(tx, t.p.paymentId)).toEqual([
+        {
+          issue: "paid_parts_not_fitted",
+          severity: "danger",
+          message:
+            "$120.00 is held; $60.00 of it is for parts that are not on this job. Reopen the job to fit them, or cancel them and refund that share in Stripe.",
+        },
+      ]);
+      // The same figure as the job's: 60.00 billed, 60.00 paid ahead of it.
+      expect(await totals(tx, t.job.id)).toEqual({
+        job_total: "60.00",
+        net_paid_online: "120.00",
+        balance_due: "0.00",
+        paid_ahead: "60.00",
+        held_over_total: "60.00",
+      });
+      await actAs(tx, ADMIN);
+      await setStatus(tx, t.job.id, "ready_for_collection");
+      await setStatus(tx, t.job.id, "collected");
+      expect((await issueRows(tx, t.p.paymentId))[0].message).toBe(
+        "$120.00 is held; $60.00 of it is for parts that never went on this job. Cancel them and refund that share in Stripe, or agree with the customer how it counts.",
+      );
+      expect((await totals(tx, t.job.id)).held_over_total).toBe("60.00");
+      // D149: cancelling the unfitted part clears it; the fitted one keeps
+      // the deposit live, so it is not paid_parts_cancelled. What is left
+      // to settle is the closed job's held_over_total.
+      await actAs(tx, MANAGER);
+      await cancelPart(tx, t.b);
+      expect(await issuesOf(tx, t.p.paymentId)).toEqual([]);
+      expect((await totals(tx, t.job.id)).held_over_total).toBe("60.00");
+
+      // Refunding the unfitted share (part not cancelled) clears it too: a
+      // refund is taken from the unfitted share first.
+      const r = await twoParts(tx);
+      await addStock(tx, r.productId, 1);
+      await fit(tx, r.a, randomUUID(), LOCATION.shopFloor);
+      await completeJob(tx, r.job.id);
+      await refundDeposit(tx, r.p, 3000);
+      expect((await issueRows(tx, r.p.paymentId))[0].message).toBe(
+        "$90.00 is held; $30.00 of it is for parts that are not on this job. Reopen the job to fit them, or cancel them and refund that share in Stripe.",
+      );
+      await refundDeposit(tx, r.p, 3000);
+      expect(await issuesOf(tx, r.p.paymentId)).toEqual([]);
+      expect(
+        await readAsOwner(tx, () =>
+          scalar<string>(tx, "select status::text from public.job_part_requests where id = $1", [
+            r.b,
+          ]),
+        ),
+      ).toBe("approved");
+    });
+  });
+
+  it("with two paid quotes on one job, only the payment whose quote has an unfitted part is flagged", async () => {
+    await inTransaction(conn, async (tx) => {
+      await withPercent(tx, 100);
+      const s = await setup(tx);
+      const pay = async (requestId: string) => {
+        const token = await sendQuote(tx, { workOrderId: s.job.id, requestIds: [requestId] });
+        await actAs(tx, ANON);
+        await answerAll(tx, token);
+        const quoteId = await quoteIdOf(tx, s.job.id);
+        await actAs(tx, ADMIN);
+        const p = await startCheckout(tx, {
+          ...s,
+          partId: requestId,
+          serviceRequestId: requestId,
+          token,
+          quoteId,
+        });
+        await payDeposit(tx, p);
+        await actAs(tx, ADMIN);
+        return p;
+      };
+      // Two quotes of one 120.00 part each: 120.00 asked and paid on each.
+      const first = await proposePart(tx, { workOrderId: s.job.id, productId: s.productId });
+      const p1 = await pay(first);
+      const second = await proposePart(tx, { workOrderId: s.job.id, productId: s.productId });
+      const p2 = await pay(second);
+
+      await addStock(tx, s.productId, 1);
+      await fit(tx, first, randomUUID(), LOCATION.shopFloor);
+      await completeJob(tx, s.job.id);
+      expect(await issuesOf(tx, p1.paymentId)).toEqual([]);
+      expect(await issueRows(tx, p2.paymentId)).toEqual([
+        {
+          issue: "paid_parts_not_fitted",
+          severity: "danger",
+          message: NOT_ON_JOB,
+        },
+      ]);
+      expect((await totals(tx, s.job.id)).held_over_total).toBe("120.00");
+
+      // Fitted after a reopen: nothing is flagged.
+      await actAs(tx, ADMIN);
+      await reopenJob(tx, s.job.id);
+      await addStock(tx, s.productId, 1);
+      await fit(tx, second, randomUUID(), LOCATION.shopFloor);
+      await completeJob(tx, s.job.id);
+      expect(await issuesOf(tx, p1.paymentId)).toEqual([]);
+      expect(await issuesOf(tx, p2.paymentId)).toEqual([]);
+    });
+  });
+
+  it("held_over_total reconciles a closed job: what was paid online above the bill, in every status", async () => {
+    await inTransaction(conn, async (tx) => {
+      const d = await answered(tx);
+      const p = await startCheckout(tx, d);
+      await payDeposit(tx, p);
+      expect(await totals(tx, d.job.id)).toEqual({
+        job_total: "0.00",
+        net_paid_online: "120.00",
+        balance_due: "0.00",
+        paid_ahead: "120.00",
+        held_over_total: "120.00",
+      });
+      await actAs(tx, ADMIN);
+      await walkTo(tx, d.job.id, "collected");
+      // balance_due and paid_ahead stay null once closed; held_over_total does not.
+      expect(await totals(tx, d.job.id)).toEqual({
+        job_total: "0.00",
+        net_paid_online: "120.00",
+        balance_due: null,
+        paid_ahead: null,
+        held_over_total: "120.00",
+      });
+      await refundDeposit(tx, p, 5000);
+      expect((await totals(tx, d.job.id)).held_over_total).toBe("70.00");
+      await refundDeposit(tx, p, 7000);
+      expect((await totals(tx, d.job.id)).held_over_total).toBe("0.00");
+
+      // A cancelled job: everything paid is above its (empty) bill.
+      const c = await answered(tx);
+      const pc = await startCheckout(tx, c);
+      await payDeposit(tx, pc);
+      await actAs(tx, ADMIN);
+      await setStatus(tx, c.job.id, "cancelled", "Customer withdrew");
+      expect((await totals(tx, c.job.id)).held_over_total).toBe("120.00");
+
+      // Staff read it through RLS like the rest of the view.
+      await actAs(tx, MECHANIC1);
+      expect(
+        await scalar<string>(
+          tx,
+          "select held_over_total::text from public.work_order_payment_totals where work_order_id = $1",
+          [c.job.id],
+        ),
+      ).toBe("120.00");
+    });
+  });
+
+  it("the quote page's job_closed: false while open, true once completed or collected; still 12 keys and no cost", async () => {
+    await inTransaction(conn, async (tx) => {
+      const d = await answered(tx);
+      expect((await pageDeposit(tx, d.token))!.job_closed).toBe(false);
+      const p = await startCheckout(tx, d);
+      await payDeposit(tx, p);
+      await actAs(tx, ADMIN);
+      await completeJob(tx, d.job.id);
+      expect(await pageDeposit(tx, d.token)).toEqual({
+        percent: 50,
+        amount: "120.00",
+        status: "paid",
+        parts_ordered: false,
+        job_closed: true,
+      });
+      await actAs(tx, ADMIN);
+      await setStatus(tx, d.job.id, "collected");
+      await actAs(tx, ANON);
+      const page = await quoteByToken(tx, d.token);
+      expect(Object.keys(page!)).toHaveLength(12);
+      expect(Object.keys(page!.deposit!).sort()).toEqual([
+        "amount",
+        "job_closed",
+        "parts_ordered",
+        "percent",
+        "status",
+      ]);
+      expect(JSON.stringify(page)).not.toMatch(/70\.00|cost|supplier|email|phone|note/i);
+
+      // An open quote's deposit keeps its three keys.
+      await withPercent(tx, 50);
+      const q = await quoted(tx);
+      expect(Object.keys((await pageDeposit(tx, q.token))!).sort()).toEqual([
+        "amount",
+        "percent",
+        "status",
+      ]);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 8. Exceptions (D108 kept)
 // ---------------------------------------------------------------------------
 
@@ -1474,6 +1870,46 @@ describe("Exceptions: payment_attention and stripe_attention (D108, D159b)", () 
         "payment_attention",
       ]);
       expect(await issuesOf(tx, pu.paymentId)).toEqual(["refund_not_counted"]);
+    });
+  });
+
+  it("paid_parts_not_fitted reaches Exceptions as payment_attention for admins and managers only", async () => {
+    await inTransaction(conn, async (tx) => {
+      const d = await answered(tx);
+      const p = await startCheckout(tx, d);
+      await payDeposit(tx, p);
+      await actAs(tx, ADMIN);
+      await walkTo(tx, d.job.id, "collected");
+      const forJob = (rows: ExceptionRow[]) => rows.filter((r) => r.entity_id === d.job.id);
+      expect(forJob(await listed(tx, ADMIN))).toEqual([
+        {
+          kind: "payment_attention",
+          severity: "danger",
+          entity_type: "work_order",
+          entity_id: d.job.id,
+          title: d.job.job_number,
+          detail:
+            "$120.00 is held for parts that never went on this job. Cancel them and refund in Stripe, or agree with the customer how it counts.",
+          issue: "payment_attention",
+        },
+      ]);
+      expect(forJob(await listed(tx, MANAGER))).toHaveLength(1);
+      expect(forJob(await listed(tx, MECHANIC2))).toEqual([]);
+      // Counts agree with the list for the admin.
+      const rows = await listed(tx, ADMIN);
+      const counts = (
+        await tx.query<{ kind: string; count: number }>(
+          "select kind, count from public.report_exception_counts()",
+        )
+      ).rows;
+      expect(counts.find((c) => c.kind === "payment_attention")?.count ?? 0).toBe(
+        rows.filter((r) => r.kind === "payment_attention").length,
+      );
+      // Cleared by the cancel (D149) and the refund.
+      await actAs(tx, ADMIN);
+      await cancelPart(tx, d.partId);
+      await refundDeposit(tx, p, 12000);
+      expect(forJob(await listed(tx, ADMIN))).toEqual([]);
     });
   });
 

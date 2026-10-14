@@ -27,8 +27,10 @@ import { canOverrideDeposit, canRecordRefund, hasPermission } from "@/lib/auth/p
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, shopDaysBetween } from "@/lib/dates";
 import { listPhotos } from "@/lib/domain/attachments";
-import { getIndentPanel } from "@/lib/domain/indent";
+import { getIndentPanel, getUnfittedSummary } from "@/lib/domain/indent";
 import { getJobPayments } from "@/lib/domain/payments";
+import { isUnfitted, unfittedMemo } from "@/lib/indent";
+import { formatMoney } from "@/lib/money";
 import { paidOnlineSummary } from "@/lib/payments";
 import { listLocations } from "@/lib/domain/inventory";
 import { getWorkOrderYield } from "@/lib/domain/reports";
@@ -87,6 +89,8 @@ function sharedRate(job: WorkOrderDetail): string | null {
  * Commons only with view_costs: the DTO has none otherwise), the indent
  * parts and quote (Phase 13), the Customer payments card once a deposit
  * or an online payment exists (Phase 14, D154; hidden if its read fails),
+ * approved indent items not on the bill as a memo under the total, never in
+ * it, and what a closed job holds above its bill (R-082),
  * photos, the people on it, notes and the timeline. A job checked in from an
  * appointment (D40) links back to it under the header. Straight after intake (`?intake=photos`) the intake photos come first: the job
  * has to exist before a photo can be recorded against it. The timeline
@@ -104,21 +108,25 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   // D60, D147: expected costs and suppliers on indent parts.
   const purchaseData = viewCosts || canOrder;
   const supabase = await createClient();
-  const [job, photos, activeStaff, locations, report, indent, payments] = await Promise.all([
-    getWorkOrder(supabase, id, {
-      viewCosts,
-      ...(allEvents ? { timelineRows: TIMELINE_ALL_ROWS } : {}),
-    }),
-    listPhotos(supabase, { entityType: "work_order", entityId: id }),
-    listActiveStaff(supabase),
-    listLocations(supabase),
-    // The yield panel's rates, losses and recognition (view_costs only, D30).
-    viewCosts ? getWorkOrderYield(supabase, id) : Promise.resolve(null),
-    // Indent parts and the customer's quote (Phase 13, D140-D147).
-    getIndentPanel(supabase, id, { purchaseData }),
-    // Deposits and online payments (Phase 14, D151-D159); null when the read fails.
-    getJobPayments(supabase, id),
-  ]);
+  const [job, photos, activeStaff, locations, report, indent, payments, unfitted] =
+    await Promise.all([
+      getWorkOrder(supabase, id, {
+        viewCosts,
+        ...(allEvents ? { timelineRows: TIMELINE_ALL_ROWS } : {}),
+      }),
+      listPhotos(supabase, { entityType: "work_order", entityId: id }),
+      listActiveStaff(supabase),
+      listLocations(supabase),
+      // The yield panel's rates, losses and recognition (view_costs only, D30).
+      viewCosts ? getWorkOrderYield(supabase, id) : Promise.resolve(null),
+      // Indent parts and the customer's quote (Phase 13, D140-D147); with
+      // view_costs, whether each part's product has a cost (Fit needs one).
+      getIndentPanel(supabase, id, { purchaseData, viewCosts }),
+      // Deposits and online payments (Phase 14, D151-D159); null when the read fails.
+      getJobPayments(supabase, id),
+      // Approved indent items not on the bill (R-082); null when none or the read fails.
+      getUnfittedSummary(supabase, id),
+    ]);
   if (!job) notFound();
   // Units on live part lines: a reopen puts them back on hold (D25).
   const heldUnits = job.lines
@@ -133,6 +141,14 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   const stripeOn = stripeIsOn();
   // D154 at the counter: a deposit paid online, shown by the total and on Collected.
   const paidOnline = paidOnlineSummary(payments?.totals ?? null);
+  // R-082: approved indent items not on the bill: a memo under the total
+  // (never in it), and named on the Collected confirmation.
+  const memo = unfittedMemo(unfitted, open);
+  const unfittedItems = indent.requests
+    .filter((r) => isUnfitted(r.status))
+    .map((r) => ({ description: r.description, total: formatMoney(r.lineTotal, r.currency) }));
+  const defaultLocationName =
+    locations.locations.find((l) => l.id === locations.defaultLocationId)?.name ?? null;
   const target = { entityType: "work_order" as const, entityId: job.id };
   const lockedReason = open
     ? null
@@ -204,6 +220,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
         status={job.status}
         heldUnits={heldUnits}
         paidOnline={paidOnline}
+        unfitted={unfittedItems}
       />
 
       {intake ? (
@@ -289,6 +306,19 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             <div className="mt-3">
               <TotalsSummary totals={job.totals} ccRate={sharedRate(job)} report={report} />
             </div>
+            {memo ? (
+              // R-082, D140: approved indent items reach the total only
+              // when fitted; this memo is never added to it, to the yield
+              // or to Cult Commons.
+              <p
+                aria-label="Approved, not on the bill"
+                className="border-t border-hairline px-4 py-3 text-sm text-waiting-deep sm:px-5"
+              >
+                <a href="#indent-parts" className="underline underline-offset-4">
+                  {memo}
+                </a>
+              </p>
+            ) : null}
             {paidOnline ? (
               // D154 where the counter looks: the deposit paid online is
               // not in the total above (money held, not a sale).
@@ -300,15 +330,19 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
                   <span>· Paid ahead {paidOnline.paidAhead}</span>
                 ) : paidOnline.stillToPay ? (
                   <span>· Still to pay {paidOnline.stillToPay}</span>
+                ) : paidOnline.moreThanBill ? (
+                  <span>· {paidOnline.moreThanBill} more than the bill</span>
                 ) : null}
               </p>
             ) : null}
           </Card>
 
           <IndentCard
+            id="indent-parts"
             workOrderId={job.id}
             jobNumber={job.jobNumber}
             open={open}
+            jobStatus={job.status}
             panel={indent}
             customer={{
               firstName: job.customer.firstName,
@@ -321,6 +355,8 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             emailEnabled={quoteEmailEnabled()}
             deposits={payments?.deposits ?? []}
             canOverrideDeposit={canOverrideDeposit(staff)}
+            canCancelClosed={canRecordRefund(staff)}
+            defaultLocationName={defaultLocationName}
           />
 
           {payments && (payments.deposits.length > 0 || payments.payments.length > 0) ? (

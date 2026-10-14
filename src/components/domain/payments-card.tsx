@@ -14,6 +14,7 @@ import { formatMoney } from "@/lib/money";
 import {
   DEPOSIT_STATE_LABELS,
   DEPOSIT_STATE_TONES,
+  heldOverSentence,
   incompleteCheckNote,
   PAYMENT_STATUS_TONES,
   paymentStatusLabel,
@@ -55,6 +56,8 @@ export function PaymentsCard({
   const attempts = payments.payments.filter((p) => p.status !== "failed" && p.status !== "expired");
   const notCompleted = payments.payments.length - attempts.length;
   const withIssue = new Set(issues.map((i) => i.paymentId));
+  // R-082: a collected or cancelled job holding more than its bill.
+  const heldOver = totals ? heldOverSentence(totals) : null;
 
   return (
     <Card
@@ -168,6 +171,12 @@ export function PaymentsCard({
                   </div>
                 )}
               </>
+            ) : null}
+            {heldOver ? (
+              <div className="flex flex-wrap justify-between gap-2 text-sm">
+                <dt className="sr-only">More than the bill</dt>
+                <dd>{heldOver}</dd>
+              </div>
             ) : null}
           </dl>
         ) : null}

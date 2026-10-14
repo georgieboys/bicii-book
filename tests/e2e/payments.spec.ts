@@ -20,7 +20,12 @@ import { createSupplier } from "./purchasing-helpers";
  * them at once), and Stripe's confirmation arrives as a webhook this spec
  * signs with the fixtures' secret, as Stripe would. The job's Customer
  * payments card, the ordering gate (D152) and its override with a reason,
- * a partial refund and a cancelled Checkout are checked on screen.
+ * a partial refund and a cancelled Checkout are checked on screen. A
+ * deposit paid for parts that are never fitted (R-082) is followed through
+ * Complete and Collected, the closed job's words, and an admin's cancel on
+ * the collected job (D149) and the refund, which clears its problem. A
+ * quote left unanswered when the job closed shows "Not answered", and an
+ * admin's cancel of its item on the collected job withdraws it (D149).
  *
  * Every spec shares one reset database (workers: 1), so the deposit goes
  * back to 0 straight after each quote is sent (the quote already holds its
@@ -462,4 +467,221 @@ test("a cancelled Checkout can be paid later with the same session", async ({
     );
     expect(lines).toBeGreaterThan(1);
   }
+});
+
+test("a deposit for parts never fitted: the memo, Collected, and an admin cancels on the collected job", async ({
+  page,
+  browser,
+  request,
+}, testInfo) => {
+  test.setTimeout(300_000);
+  const project = testInfo.project.name;
+  await signIn(page, "admin");
+  await sql("update public.shop_settings set indent_deposit_percent = 50 where id = 1");
+  const q = await quotedJob(page, testInfo);
+  const { context, customer } = await answerAll(browser, page, q);
+
+  // Paid: the fake's Checkout, then Stripe's signed confirmation.
+  await customer.getByRole("button", { name: "Pay $120.00 deposit" }).click();
+  await expect(customer).toHaveURL(`${q.link}?deposit=returned`);
+  const [row] = await pendingPayment(q.job.jobNumber);
+  const paymentIntent = `pi_e2e_${project}_n${Date.now()}`;
+  const deliver = async (event: unknown) => {
+    const raw = JSON.stringify(event);
+    const res = await request.post("/api/stripe/webhooks", {
+      data: raw,
+      headers: stripeWebhookHeaders({ raw }),
+    });
+    expect(res.status()).toBe(200);
+  };
+  await deliver(
+    stripeEvent({
+      id: `evt_e2e_${project}_n${Date.now()}`,
+      type: "checkout.session.completed",
+      object: sessionObject({
+        id: row.session_id,
+        paymentId: row.id,
+        workOrderId: row.work_order_id,
+        quoteId: row.quote_id,
+        amountCents: 12000,
+        paymentIntent,
+      }),
+    }),
+  );
+
+  // 1. Open: the approved items are a memo under the total, never in it.
+  await page.goto(`/jobs/${q.job.id}`);
+  const lines = section(page, "Lines");
+  const memo = lines.getByLabel("Approved, not on the bill");
+  await expect(memo).toHaveText(
+    "Approved, not on the bill yet: 2 items, $275.00. Fit them to bill them.",
+  );
+  await expect(lines.getByRole("link", { name: "Paid online $120.00" })).toBeVisible();
+  await expect(lines).toContainText("Paid ahead $120.00");
+
+  // 2. Completed without fitting: never fitted, and the card says what to do.
+  const header = page.getByRole("main").locator("header").first();
+  await page.getByRole("button", { name: "Start work" }).click();
+  await expect(header).toContainText("In progress");
+  await page.getByRole("button", { name: "Complete" }).click();
+  await expect(header).toContainText("Completed");
+  await expect(memo).toHaveText("Approved but never fitted: $275.00 (not billed).");
+  const indent = section(page, "Indent parts and quote");
+  const items = indent.getByRole("list", { name: "Proposed items" });
+  const part = items.getByRole("listitem", { name: q.partName });
+  await expect(part).toContainText("Not fitted");
+  await expect(part).toContainText("Deposit paid");
+  await expect(part).toContainText(
+    "Not on the bill: the job was completed before this was fitted. Reopen the job with Change status to fit it, or cancel it.",
+  );
+  await expect(part.getByRole("button", { name: "Fit" })).toHaveCount(0);
+  const payments = section(page, "Customer payments");
+  await expect(payments.getByRole("list", { name: "Payment problems" })).toHaveText(
+    "$120.00 is held for parts that are not on this job. Reopen the job to fit them, or cancel them and refund in Stripe.",
+  );
+
+  // 3. Collected: both ways name what is not on the bill.
+  await page.getByRole("button", { name: "Ready for collection" }).click();
+  await expect(header).toContainText("Ready for collection");
+  const paidSentence =
+    "$120.00 was paid online. That is $120.00 more than the job total, paid for parts that are not on the bill.";
+  const notOnBill = `Not on the bill: ${q.partName} $240.00 and Wheel True $35.00, approved and not fitted. To bill them, reopen the job and fit them; otherwise cancel them and refund any deposit in Stripe.`;
+  await page.getByRole("button", { name: "Change status" }).click();
+  const sheet = page.getByRole("dialog", { name: "Change status" });
+  await sheet.getByLabel("Collected").check();
+  await expect(sheet).toContainText(paidSentence);
+  await expect(sheet).toContainText(notOnBill);
+  // The footer's Close (the header's icon button has the same name).
+  await sheet.getByText("Close", { exact: true }).click();
+  await expect(sheet).toBeHidden();
+  await page.getByRole("button", { name: "Collected…" }).click();
+  const confirm = page.getByRole("group", { name: /^Mark .* collected by / });
+  await expect(confirm).toContainText(paidSentence);
+  await expect(confirm).toContainText(notOnBill);
+  await expect(confirm).not.toContainText("take nothing more");
+  await confirm.getByRole("button", { name: "Mark collected" }).click();
+  await expect(header).toContainText("Collected");
+
+  // 4. Closed: what was paid against what was billed, and why.
+  await expect(lines.getByRole("link", { name: "Paid online $120.00" })).toBeVisible();
+  await expect(lines).toContainText("· $120.00 more than the bill");
+  await expect(memo).toHaveText("Approved but never fitted: $275.00 (not billed).");
+  await expect(payments.getByRole("list", { name: "Payment problems" })).toHaveText(
+    "$120.00 is held for parts that never went on this job. Cancel them and refund in Stripe, or agree with the customer how it counts.",
+  );
+  await expect(payments.getByLabel("Paid online")).toContainText(
+    "$120.00 was paid online above this job's bill of $0.00. Refund it in Stripe if it is due back, or agree with the customer how it counts.",
+  );
+  await expect(part).toContainText(
+    "Not on the bill, and it can no longer be fitted: the job is collected. An admin or manager can cancel it and refund any deposit in Stripe.",
+  );
+  // The customer's page no longer says the shop will order the parts.
+  await customer.goto(q.link);
+  await expect(customer.getByRole("main")).toContainText("Ask the shop about your deposit.");
+  await expect(customer.getByRole("main")).not.toContainText("the shop will order your parts");
+  await context.close();
+
+  // 5. D149: a mechanic gets no Cancel on the collected job; the admin does.
+  const mechanicContext = await browser.newContext({
+    viewport: page.viewportSize() ?? undefined,
+  });
+  const mechanic = await mechanicContext.newPage();
+  await signIn(mechanic, "mechanic1");
+  await mechanic.goto(`/jobs/${q.job.id}`);
+  const mechanicPart = section(mechanic, "Indent parts and quote").getByRole("listitem", {
+    name: q.partName,
+  });
+  await expect(mechanicPart).toContainText("Not fitted");
+  await expect(mechanicPart.getByRole("button", { name: `Cancel ${q.partName}` })).toHaveCount(0);
+  await mechanicContext.close();
+
+  await part.getByRole("button", { name: `Cancel ${q.partName}` }).click();
+  const cancelSheet = page.getByRole("dialog", { name: `Cancel ${q.partName}` });
+  await expect(cancelSheet).toContainText("refund any deposit for it in Stripe");
+  await cancelSheet.getByLabel(/^Reason/).fill("Never supplied; deposit refunded in Stripe");
+  await cancelSheet.getByRole("button", { name: "Cancel item" }).click();
+  await expect(cancelSheet).toBeHidden();
+  await expect(toast(page, `${q.partName} cancelled.`)).toBeVisible();
+  await expect(items.getByRole("listitem", { name: q.partName })).toHaveCount(0);
+  await expect(header).toContainText("Collected");
+  await expect(payments.getByRole("list", { name: "Payment problems" })).toHaveText(
+    "$120.00 is held but every part it was for is cancelled. Refund it in Stripe, or agree with the customer that it counts towards the job.",
+  );
+
+  // 6. The refund made in Stripe clears it.
+  await deliver(
+    stripeEvent({
+      id: `evt_e2e_${project}_nr${Date.now()}`,
+      type: "refund.updated",
+      object: refundObject({
+        id: `re_e2e_${project}_n${Date.now()}`,
+        paymentIntent,
+        amountCents: 12000,
+        status: "succeeded",
+      }),
+    }),
+  );
+  await page.reload();
+  await expect(payments.getByRole("list", { name: "Payment problems" })).toHaveCount(0);
+  await expect(lines.getByRole("link", { name: /^Paid online/ })).toHaveCount(0);
+});
+
+test("a quote left unanswered on a closed job: Not answered, and an admin's cancel withdraws it (D149)", async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.setTimeout(240_000);
+  await signIn(page, "admin");
+  const q = await quotedJob(page, testInfo);
+
+  // Completed with the quote unanswered: nobody can answer it now.
+  await page.goto(`/jobs/${q.job.id}`);
+  const header = page.getByRole("main").locator("header").first();
+  await page.getByRole("button", { name: "Start work" }).click();
+  await expect(header).toContainText("In progress");
+  await page.getByRole("button", { name: "Complete" }).click();
+  await expect(header).toContainText("Completed");
+  const indent = section(page, "Indent parts and quote");
+  const status = indent.getByLabel("Quote status");
+  const items = indent.getByRole("list", { name: "Proposed items" });
+  const part = items.getByRole("listitem", { name: q.partName });
+  await expect(status).toContainText(
+    "The job is no longer open, so the customer can't answer it. Reopen the job with Change status to withdraw it or send it again.",
+  );
+  await expect(part).toContainText("Not answered");
+  await expect(part).not.toContainText("Waiting for the customer");
+  await expect(part.getByRole("button", { name: `Cancel ${q.partName}` })).toHaveCount(0);
+
+  // Collected: an admin cancels the item, which withdraws the quote.
+  await page.getByRole("button", { name: "Ready for collection" }).click();
+  await expect(header).toContainText("Ready for collection");
+  await page.getByRole("button", { name: "Collected…" }).click();
+  await page
+    .getByRole("group", { name: /^Mark .* collected by / })
+    .getByRole("button", { name: "Mark collected" })
+    .click();
+  await expect(header).toContainText("Collected");
+  await expect(status).toContainText(
+    "An admin or manager can cancel its items, which withdraws it.",
+  );
+  await part.getByRole("button", { name: `Cancel ${q.partName}` }).click();
+  const sheet = page.getByRole("dialog", { name: `Cancel ${q.partName}` });
+  await expect(sheet).toContainText("cancelling it withdraws that quote");
+  await sheet.getByLabel(/^Reason/).fill("Customer never answered; job collected");
+  await sheet.getByRole("button", { name: "Cancel item" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(toast(page, `${q.partName} cancelled. The quote was withdrawn.`)).toBeVisible();
+  await expect(status).toHaveText("The last quote was withdrawn.");
+  await expect(items.getByRole("listitem", { name: q.partName })).toHaveCount(0);
+  await expect(items.getByRole("listitem", { name: "Wheel True" })).toContainText("Proposed");
+  await expect(header).toContainText("Collected");
+
+  // The customer's link no longer offers the quote.
+  const context = await browser.newContext({ viewport: page.viewportSize() ?? undefined });
+  const customer = await context.newPage();
+  await customer.goto(q.link);
+  await expect(customer.getByRole("main")).toContainText(
+    "The shop replaced or withdrew this quote.",
+  );
+  await context.close();
 });

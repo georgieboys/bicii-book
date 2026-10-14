@@ -225,6 +225,8 @@ describe("a signed-in customer and the base tables", () => {
           "quote_deposits",
           "payment_issues",
           "work_order_payment_totals",
+          // Indent parts on closed jobs (R-082): the unfitted memo
+          "work_order_unfitted_requests",
         ]) {
           expect(await scalar(tx, `select count(*)::int from public.${table}`)).toBe(0);
         }

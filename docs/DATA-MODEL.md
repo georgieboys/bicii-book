@@ -3670,6 +3670,12 @@ stripe_events   (every webhook delivery and every server read; admins only, D86)
   --   last_delivered_at move; the decision columns once, while 'received';
   --   DELETE only of a rejected row under private.purge_stripe_events
   --   (stripe_event_immutable)
+  -- stripe_events_settled, a DEFERRABLE INITIALLY DEFERRED constraint
+  --   trigger (after insert or update, when the new status is 'received'):
+  --   at commit, a row still 'received' refuses the commit
+  --   (stripe_event_immutable), so no committed row can be cited later as
+  --   the event being applied; SET CONSTRAINTS … IMMEDIATE only raises
+  --   sooner
 
 payments        (one row per Checkout session; active staff read it)
   id uuid PK                     -- generated before Checkout (step 2); also Stripe's
@@ -3686,7 +3692,8 @@ payments        (one row per Checkout session; active staff read it)
                                  --   partially_refunded | refunded
   amount_received money_amount null       -- Stripe's amount_total / 100 when paid;
                                           --   null when not SGD or unreadable
-  refunded_amount money_amount (sum of succeeded refunds, D155, D159c)
+  refunded_amount money_amount (private.payment_refund_total: succeeded refunds
+                                 --   in the payment's currency and mode, D155, D159c)
   stripe_checkout_session_id (cs_test_… | cs_live_…, unique),
   stripe_session_expires_at, stripe_payment_intent_id null (pi_…), livemode
   checkout_completed_at, paid_at (Stripe's time, D159d), failed_at, expired_at,
@@ -3705,7 +3712,10 @@ payment_refunds (one row per Stripe Refund; matched rows: active staff;
                  unmatched rows: admins only)
   id uuid PK, stripe_refund_id (re_… | pyr_…, unique), stripe_payment_intent_id (pi_…)
   payment_id null -> payments    -- null until a payment carries the payment intent
-  amount money_amount (> 0), currency, status stripe_refund_status
+  amount money_amount (> 0), currency (upper-case, as Stripe sent it)
+  livemode boolean null          -- the mode of the event that first recorded it (a
+                                 --   Refund object has none); null when a read did
+  status stripe_refund_status
      -- pending | requires_action | succeeded | failed | canceled
   reason (≤ 60), failure_reason (≤ 120), stripe_created_at (refund.created)
   last_event_id -> stripe_events, created_at, updated_at
@@ -3742,10 +3752,14 @@ apply to every role, including the owner:
   once set, never changes. Status edges: pending to anything; failed or
   expired only into the paid group (Stripe's money wins); the paid group
   only within itself.
-- `payment_refunds_guard`: never deleted; the amount, currency, reason and
-  dates never change; the payment is linked once; the status only moves up
+- `payment_refunds_guard`: never deleted; the amount, currency, mode,
+  reason and dates never change; the payment is linked once; the status only moves up
   in rank; every insert and change cites a `received` event.
-- `stripe_events_guard`: see the table above.
+- `stripe_events_guard` and the deferred `stripe_events_settled`: see the
+  table above. Status `received` exists only inside the recording
+  transaction, so citing it is proof that the event is being applied now
+  (`tests/db/stripe-payments.test.ts` "A received event never outlives its
+  transaction", with a committed transaction).
 
 **Recording.** `record_stripe_event` stores a delivery and applies it in
 one transaction. A rejected delivery is evidence only (D88). A verified
@@ -3765,9 +3779,12 @@ raises for Stripe data). (1) Not a `checkout.session` with a `cs_` id:
 `not_ours`. (3) A malformed payment intent: `object_invalid`; otherwise
 `private.lock_stripe_payment_intent(pi)`. (4) No such payment:
 `payment_not_found`, needing attention only when Stripe says paid. (5) The
-job lock, then the payment FOR UPDATE. (6) Identity: another session id or
-payment intent is `session_mismatch`, another mode `livemode_mismatch`
-(both need attention, nothing changes). (7) The target:
+job lock, then the payment FOR UPDATE. (6) Identity, checked in this
+order (the first failure wins; each needs attention and changes nothing):
+another session id is `session_mismatch`; the object's boolean `livemode`
+differing from the payment's is `livemode_mismatch`; a payment intent
+differing from the one the payment already carries is
+`session_mismatch`. (7) The target:
 `async_payment_failed` → failed; `payment_status` paid → paid;
 `no_payment_required` → `unexpected_payment_status`; status `expired` →
 expired; `complete` (unpaid) → processing; `open` → open. (8) The
@@ -3782,7 +3799,8 @@ transition, one UPDATE citing the event:
 | expired | **→ paid**: `paid_after_expired` (`expired_at` kept) | `stale` | `stale` | `already_expired` | `stale` |
 
 **→ paid** adopts refunds that arrived first (`payment_refunds` with this
-payment intent and no payment), sums their succeeded amounts, and in one
+payment intent and no payment), sums the ones that count
+(`private.payment_refund_total`, below), and in one
 UPDATE sets the paid-group status, `paid_at` (the event's `created`, or the
 read time, D159d), `amount_received` (Stripe's cents / 100 when the
 currency is SGD, else null), `refunded_amount`, the payment intent and
@@ -3798,17 +3816,30 @@ with a `re_` or `pyr_` id, one of the five statuses, an integer amount of
 payment intent: `ignored` / `not_ours` (not BICII's Checkout); otherwise
 the advisory lock. (3) The payment carrying the intent, then the job lock
 and the payment FOR UPDATE. (4) The refund row FOR UPDATE: inserted at
-first sight (amount, currency and `created` fixed), or moved to a higher
-rank, or linked to the payment. (5) No payment: `ignored` /
-`refund_unmatched` (the row waits). (6) `private.settle_payment`:
-`refund_recorded` when the row or the payment changed, else
-`refund_unchanged`.
+first sight (amount, currency, the event's `livemode` and `created`
+fixed), or moved to a higher rank, or linked to the payment. (5) No
+payment: `ignored` / `refund_unmatched` (the row waits). (6)
+`private.settle_payment`. (7) Mode and currency: when the event's
+`livemode` (a webhook's; a read's is null for a Refund) or the row's stored
+`livemode` differs from the payment's, `needs_attention` /
+`livemode_mismatch`; else when the row's currency is not the payment's
+(`SGD`), `needs_attention` / `currency_mismatch`. The row is kept and
+linked to the payment but never netted, on this event and every later
+one. A mismatched refund that arrived before its payment is adopted by the
+completion without a flag on that event, so step 2's `payment_issues`
+(not built yet) must also list linked refunds whose currency or mode
+differs from the payment's.
+(8) Otherwise `refund_recorded` when the row or the payment changed,
+else `refund_unchanged`.
 
 **Refund ranks.** pending 0 < requires_action 1 < succeeded 2 < failed =
 canceled 3. A row moves only to a higher rank, so succeeded → failed (a
 PayNow refund that fails after succeeding) is allowed and nothing leaves
 rank 3. `settle_payment` is a pure function of the payment's refund rows:
-`refunded_amount` is the sum of succeeded refunds, and the status is paid
+`refunded_amount` is `private.payment_refund_total(payment)`, the sum of
+its succeeded refunds whose currency equals the payment's and whose
+`livemode` is null or the payment's (the same function the → paid path
+uses), and the status is paid
 (0), partially_refunded (below `coalesce(amount_received, amount)`) or
 refunded. A rise records `payment_refunded` `{payment_id, kind, refunded,
 refunded_total, currency, full}`; a fall `payment_refund_failed`

@@ -95,6 +95,19 @@ describe("verifyStripeSignature", () => {
     }
   });
 
+  it("is never ok when the clock is not a finite number; a forged header stays invalid", () => {
+    const header = signStripeBody(raw, { timestamp: NOW });
+    for (const now of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(verifyStripeSignature(bytes(raw), header, SECRET, now), String(now)).toBe("expired");
+      expect(verifyStripeSignature(bytes(raw), header, "whsec_another", now)).toBe("invalid");
+    }
+    // A non-finite tolerance falls back to 300 s instead of accepting any age.
+    const old = signStripeBody(raw, { timestamp: NOW - 301 });
+    for (const tolerance of [Number.POSITIVE_INFINITY, Number.NaN]) {
+      expect(verifyStripeSignature(bytes(raw), old, SECRET, NOW, tolerance)).toBe("expired");
+    }
+  });
+
   it("keeps a forged stale header invalid (the signature is checked first)", () => {
     const header = `t=${NOW - 10_000},v1=${"0".repeat(64)}`;
     expect(verifyStripeSignature(bytes(raw), header, SECRET, NOW)).toBe("invalid");

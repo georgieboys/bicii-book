@@ -39,10 +39,14 @@ import {
  *                                         -> stripe_bad_response
  *
  * Each call is retried once after a retriable error, with the same
- * Idempotency-Key and byte-identical body. Of an error body only
- * `error.type` and `error.code` are read; Stripe's message and param can
- * echo request values (the return URLs carry the quote token) and are
- * dropped. The gateway never logs: callers log the op and the error's code.
+ * Idempotency-Key and byte-identical body. After a 409 (the same
+ * idempotent request still running at Stripe) or a 429 the retry waits
+ * RETRY_DELAY_MIN_MS to RETRY_DELAY_MAX_MS, jittered, so it does not land
+ * on the same contention; after a network error or a 5xx it is
+ * immediate. Of an error body only `error.type` and `error.code` are
+ * read; Stripe's message and param can echo request values (the return
+ * URLs carry the quote token) and are dropped. The gateway never logs:
+ * callers log the op and the error's code.
  */
 
 export type HttpGatewayOptions = {
@@ -50,7 +54,24 @@ export type HttpGatewayOptions = {
   /** The key's mode (stripeConfig): every session read must have the same livemode. */
   livemode: boolean;
   timeoutMs?: number;
+  /** Waits before a retry after 409 or 429 (injected by tests). */
+  sleep?: (ms: number) => Promise<void>;
+  /** A number in [0, 1) for the jitter (injected by tests). */
+  random?: () => number;
 };
+
+/** The wait before the single retry after a 409 or a 429, in milliseconds. */
+export const RETRY_DELAY_MIN_MS = 250;
+export const RETRY_DELAY_MAX_MS = 500;
+
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** A jittered wait in [RETRY_DELAY_MIN_MS, RETRY_DELAY_MAX_MS]. */
+export function retryDelayMs(random: () => number = Math.random): number {
+  const r = random();
+  const unit = Number.isFinite(r) ? Math.min(Math.max(r, 0), 1) : 0.5;
+  return Math.round(RETRY_DELAY_MIN_MS + unit * (RETRY_DELAY_MAX_MS - RETRY_DELAY_MIN_MS));
+}
 
 type Obj = Record<string, unknown>;
 
@@ -73,7 +94,13 @@ type Call = {
 };
 
 export function createHttpStripeGateway(
-  { secretKey, livemode, timeoutMs = STRIPE_TIMEOUT_MS }: HttpGatewayOptions,
+  {
+    secretKey,
+    livemode,
+    timeoutMs = STRIPE_TIMEOUT_MS,
+    sleep = defaultSleep,
+    random = Math.random,
+  }: HttpGatewayOptions,
   fetchImpl: typeof globalThis.fetch = globalThis.fetch,
 ): StripeGateway {
   async function once(call: Call): Promise<unknown> {
@@ -136,8 +163,10 @@ export function createHttpStripeGateway(
     try {
       return await once(call);
     } catch (e) {
-      if (e instanceof StripeError && e.retriable) return once(call);
-      throw e;
+      if (!(e instanceof StripeError && e.retriable)) throw e;
+      if (e.status === 409 || e.status === 429) await sleep(retryDelayMs(random));
+      // The same call: the body was computed once, the key is the same.
+      return once(call);
     }
   }
 

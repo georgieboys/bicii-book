@@ -998,7 +998,9 @@ payment nobody can make), then remove the keys and redeploy.
 - **Events needing attention** (admins; Exceptions from step 2):
   `payment_not_found` (paid metadata naming no BICII payment),
   `session_mismatch` (another session for the same payment),
-  `livemode_mismatch` (a payment of the other mode), `read_mismatch`
+  `livemode_mismatch` (a session or refund of the other mode),
+  `currency_mismatch` (a refund in another currency than the payment's
+  SGD; recorded on the payment but not deducted), `read_mismatch`
   (a read that is not the payment's session),
   `unexpected_payment_status`. Each is Stripe's record kept as evidence;
   check the session in the Dashboard and refund there if the money is not

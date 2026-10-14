@@ -1998,6 +1998,7 @@ export type Database = {
           failure_reason: string | null;
           id: string;
           last_event_id: string;
+          livemode: boolean | null;
           payment_id: string | null;
           reason: string | null;
           status: Database["public"]["Enums"]["stripe_refund_status"];
@@ -2013,6 +2014,7 @@ export type Database = {
           failure_reason?: string | null;
           id?: string;
           last_event_id: string;
+          livemode?: boolean | null;
           payment_id?: string | null;
           reason?: string | null;
           status: Database["public"]["Enums"]["stripe_refund_status"];
@@ -2028,6 +2030,7 @@ export type Database = {
           failure_reason?: string | null;
           id?: string;
           last_event_id?: string;
+          livemode?: boolean | null;
           payment_id?: string | null;
           reason?: string | null;
           status?: Database["public"]["Enums"]["stripe_refund_status"];

@@ -14,7 +14,8 @@ import { SIGNATURE_TOLERANCE_SECONDS } from "./config";
  *
  * The signature is checked before the timestamp, so a forged stale header
  * stays `invalid`; a genuine one outside the tolerance (either way) is
- * `expired`. Never throws.
+ * `expired`, and so is any genuine one when the clock (`nowSeconds`) is not
+ * a finite number, since its age cannot be known. Never throws.
  */
 export function verifyStripeSignature(
   raw: Uint8Array,
@@ -51,7 +52,11 @@ export function verifyStripeSignature(
       }
     }
     if (!matched) return "invalid";
-    const tolerance = toleranceSeconds > 0 ? toleranceSeconds : SIGNATURE_TOLERANCE_SECONDS;
+    if (!Number.isFinite(nowSeconds)) return "expired";
+    const tolerance =
+      Number.isFinite(toleranceSeconds) && toleranceSeconds > 0
+        ? toleranceSeconds
+        : SIGNATURE_TOLERANCE_SECONDS;
     if (Math.abs(nowSeconds - Number(t)) > tolerance) return "expired";
     return "ok";
   } catch {

@@ -325,13 +325,15 @@ and the route answers 503.
 4. **Server reads.** `record_stripe_read` stores and applies a Checkout
    Session or Refund the server read with the secret key
    (`http-gateway.ts`: no SDK, pinned to `2026-09-30.endive`, 8 s timeout,
-   one retry with the same idempotency key). Step 2 calls it when the
+   one retry with the same bytes and idempotency key, after a jittered
+   250–500 ms wait when Stripe answered 409 or 429). Step 2 calls it when the
    customer presses Pay or returns, and when staff press *Check with
    Stripe*; they only trigger the read.
 5. **Refunds from Refund objects only.** `refund.created`, `.updated` and
    `.failed` give one `payment_refunds` row per Stripe Refund; only
-   succeeded ones reduce the money held, and a refund that fails after
-   succeeding puts the amount back (D155, D159c).
+   succeeded ones in the payment's currency and mode reduce the money held
+   (another currency or mode is recorded and needs attention), and a
+   refund that fails after succeeding puts the amount back (D155, D159c).
 6. **Attention is derived live (step 2).** Problems Stripe's data shows
    (paid on a cancelled job, a different amount, a failed refund, an
    unmatched event) are computed in views and listed on the job and in

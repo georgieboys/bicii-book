@@ -31,8 +31,10 @@
 --   * Provenance (D153, D159a): a Stripe-owned column of a payment or a
 --     refund changes only while the stripe_events row being applied right
 --     now (status 'received', which exists only inside the recording
---     transaction) is cited in last_event_id. A payment starts pending; it
---     is never deleted; its job, amount and Checkout session never change.
+--     transaction: a deferred constraint trigger refuses the commit of any
+--     row still 'received') is cited in last_event_id. A payment starts
+--     pending; it is never deleted; its job, amount and Checkout session
+--     never change.
 --   * Record reality, never refuse it (D159b): money Stripe confirms is
 --     recorded as paid with Stripe's amount, even when the job or parts were
 --     cancelled, it was already paid, or the amount or currency differs.
@@ -74,8 +76,9 @@ create type public.stripe_refund_status as enum
 
 create type public.stripe_event_source as enum ('webhook', 'api_read');
 
--- 'received' exists only inside the recording transaction (tested: no
--- committed row keeps it).
+-- 'received' exists only inside the recording transaction: the deferred
+-- constraint trigger stripe_events_settled refuses to commit a row that
+-- still has it (tested with a committed transaction).
 create type public.stripe_event_status as enum
   ('received', 'applied', 'ignored', 'needs_attention', 'rejected');
 
@@ -167,7 +170,7 @@ create table public.stripe_events (
     'already_paid', 'already_processing', 'already_failed', 'already_expired', 'still_open', 'stale',
     'refund_recorded', 'refund_unchanged', 'refund_unmatched',
     'not_ours', 'type_not_handled', 'payment_not_found', 'session_mismatch', 'livemode_mismatch',
-    'object_invalid', 'unexpected_payment_status', 'read_mismatch'
+    'currency_mismatch', 'object_invalid', 'unexpected_payment_status', 'read_mismatch'
   )),
   constraint stripe_events_correlation_id_check check (pg_catalog.char_length(correlation_id) <= 128)
 );
@@ -190,7 +193,7 @@ comment on table public.stripe_events is
 comment on column public.stripe_events.payload is
   'An allow-listed projection; never customer details or URLs (D159e). NULL for a rejected delivery.';
 comment on column public.stripe_events.status is
-  'received (only inside the recording transaction), then applied, ignored or needs_attention; rejected for a delivery that was not verified or could not be stored.';
+  'received (only inside the recording transaction; stripe_events_settled refuses to commit it), then applied, ignored or needs_attention; rejected for a delivery that was not verified or could not be stored.';
 
 -- ---------------------------------------------------------------------------
 -- payments
@@ -212,7 +215,8 @@ create table public.payments (
   status public.payment_status not null default 'pending',
   -- Stripe's amount_total / 100 when paid (null when Stripe's currency was not sgd).
   amount_received public.money_amount null,
-  -- Sum of this payment's payment_refunds with status succeeded (D155, D159c).
+  -- Sum of this payment's payment_refunds with status succeeded, in the
+  -- payment's currency and mode (private.payment_refund_total; D155, D159c).
   refunded_amount public.money_amount not null default 0,
   stripe_checkout_session_id text not null,
   stripe_session_expires_at timestamptz not null,
@@ -287,6 +291,9 @@ create table public.payment_refunds (
   payment_id uuid null references public.payments (id) on delete restrict,
   amount public.money_amount not null,           -- Stripe's refund.amount / 100, fixed at first sight
   currency char(3) not null,
+  -- The mode of the event that first recorded it (a Refund object carries
+  -- none); null when a server read recorded it first.
+  livemode boolean null,
   status public.stripe_refund_status not null,   -- moves only up in rank (private.stripe_refund_rank)
   reason text null,
   failure_reason text null,
@@ -316,7 +323,7 @@ create trigger payment_refunds_set_updated_at
   for each row execute function private.set_updated_at();
 
 comment on table public.payment_refunds is
-  'D155, D159c: one row per Stripe Refund (made by hand in Stripe), dated by stripe_created_at. Only succeeded refunds reduce the money held. Unmatched rows (no payment yet, or another sale of the Stripe account) are admins only; matched rows are read by active staff. Never deleted.';
+  'D155, D159c: one row per Stripe Refund (made by hand in Stripe), dated by stripe_created_at. Only succeeded refunds in the payment''s currency and mode reduce the money held (private.payment_refund_total); another currency or mode is recorded, linked and flagged, never counted. Unmatched rows (no payment yet, or another sale of the Stripe account) are admins only; matched rows are read by active staff. Never deleted.';
 
 -- ---------------------------------------------------------------------------
 -- Guards (every role, including the owner)
@@ -425,8 +432,9 @@ as $$
 $$;
 
 -- D155, D159c: a refund is never deleted; its identity, amount, currency,
--- reason and dates never change; its status moves only up in rank; it is
--- linked to a payment once; and every change cites the event being applied.
+-- mode, reason and dates never change; its status moves only up in rank;
+-- it is linked to a payment once; and every change cites the event being
+-- applied.
 create function private.payment_refunds_guard()
 returns trigger
 language plpgsql
@@ -524,6 +532,37 @@ $$;
 create trigger stripe_events_guard
   before update or delete on public.stripe_events
   for each row execute function private.stripe_events_guard();
+
+-- D159a: 'received' marks the one event being applied, so it must never
+-- outlive the transaction that records it; otherwise a committed
+-- 'received' row could be cited later as provenance by any writer. Checked
+-- at commit (deferred), on the row as it is then: the recording RPCs insert
+-- 'received' and write the decision before they return. Security definer:
+-- at commit the trigger runs as the caller (service_role), which cannot
+-- read the table.
+create function private.stripe_events_settled()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from public.stripe_events e where e.id = new.id and e.status = 'received') then
+    raise exception using
+      errcode = 'P0001',
+      message = 'stripe_event_immutable',
+      detail = 'A Stripe event is decided in the transaction that records it.';
+  end if;
+  return null;
+end;
+$$;
+
+create constraint trigger stripe_events_settled
+  after insert or update on public.stripe_events
+  deferrable initially deferred
+  for each row
+  when (new.status = 'received')
+  execute function private.stripe_events_settled();
 
 -- ---------------------------------------------------------------------------
 -- Private helpers (no API role may execute them)
@@ -658,6 +697,24 @@ begin
 end;
 $$;
 
+-- D155, D159c: the money refunded from a payment: its succeeded refunds in
+-- the payment's currency and mode. A refund in another currency or mode
+-- (null mode: a server read, made with this deployment's key) is recorded
+-- and flagged by apply_stripe_refund but never netted.
+create function private.payment_refund_total(pay public.payments)
+returns numeric
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(sum(r.amount), 0)
+  from public.payment_refunds r
+  where r.payment_id = payment_refund_total.pay.id
+    and r.status = 'succeeded'
+    and r.currency = payment_refund_total.pay.currency
+    and (r.livemode is null or r.livemode = payment_refund_total.pay.livemode);
+$$;
+
 -- D155, D159c: the only place a paid payment moves within the paid group: a
 -- pure function of its refund rows, so the order refund events arrive in
 -- does not matter. The caller holds the job lock and the payment FOR
@@ -676,9 +733,7 @@ begin
   if pay.status not in ('paid', 'partially_refunded', 'refunded') then
     return false;  -- a later paid transition sums the refunds itself
   end if;
-  select coalesce(sum(r.amount) filter (where r.status = 'succeeded'), 0) into total
-  from public.payment_refunds r
-  where r.payment_id = pay.id;
+  total := private.payment_refund_total(pay);
   base := coalesce(pay.amount_received, pay.amount);
   new_status := case when total = 0 then 'paid' when total < base then 'partially_refunded' else 'refunded' end;
   if total = pay.refunded_amount and new_status = pay.status then
@@ -773,14 +828,18 @@ begin
   -- 5. Lock the job, then the payment.
   perform private.lock_work_order(pay.work_order_id);
   select p.* into pay from public.payments p where p.id = pay.id for update;
-  -- 6. Identity: attention, nothing changed.
-  if sid <> pay.stripe_checkout_session_id
-     or (pay.stripe_payment_intent_id is not null and pi is not null and pi <> pay.stripe_payment_intent_id) then
+  -- 6. Identity, in this order: the session, the mode, the payment intent.
+  -- Attention, nothing changed.
+  if sid <> pay.stripe_checkout_session_id then
     return query select 'needs_attention'::public.stripe_event_status, 'session_mismatch'::text, pay.id, pay.work_order_id;
     return;
   end if;
   if pg_catalog.jsonb_typeof(o -> 'livemode') = 'boolean' and (o -> 'livemode')::boolean <> pay.livemode then
     return query select 'needs_attention'::public.stripe_event_status, 'livemode_mismatch'::text, pay.id, pay.work_order_id;
+    return;
+  end if;
+  if pay.stripe_payment_intent_id is not null and pi is not null and pi <> pay.stripe_payment_intent_id then
+    return query select 'needs_attention'::public.stripe_event_status, 'session_mismatch'::text, pay.id, pay.work_order_id;
     return;
   end if;
   -- 7. Target.
@@ -818,9 +877,7 @@ begin
       update public.payment_refunds r set payment_id = pay.id, last_event_id = ev.id
       where r.stripe_payment_intent_id = pi and r.payment_id is null;
     end if;
-    select coalesce(sum(r.amount) filter (where r.status = 'succeeded'), 0) into refunds
-    from public.payment_refunds r
-    where r.payment_id = pay.id;
+    refunds := private.payment_refund_total(pay);
     base := coalesce(received, pay.amount);
     new_status := case when refunds = 0 then 'paid' when refunds < base then 'partially_refunded' else 'refunded' end;
     update public.payments p
@@ -913,6 +970,10 @@ $$;
 -- D155, D159c (DATA-MODEL §19): apply a Refund. Refund rows move only up in
 -- rank; the payment is settled from its rows. A refund of a payment intent
 -- no payment carries yet is kept unmatched and adopted by the completion.
+-- A refund whose event is in another mode than the payment, or whose
+-- currency is not the payment's, is recorded and linked but never netted
+-- (private.payment_refund_total): needs_attention / livemode_mismatch or
+-- currency_mismatch, like a mismatched session.
 create function private.apply_stripe_refund(ev public.stripe_events, obj jsonb)
 returns table (o_status public.stripe_event_status, o_outcome text, o_payment_id uuid, o_work_order_id uuid)
 language plpgsql
@@ -930,6 +991,7 @@ declare
   old_r public.payment_refunds;
   row_changed boolean := false;
   settled boolean := false;
+  mismatch text;
 begin
   -- 1. Shape.
   rid := o ->> 'id';
@@ -965,12 +1027,12 @@ begin
   select r.* into old_r from public.payment_refunds r where r.stripe_refund_id = rid for update;
   if not found then
     insert into public.payment_refunds (
-      stripe_refund_id, stripe_payment_intent_id, payment_id, amount, currency, status, reason,
+      stripe_refund_id, stripe_payment_intent_id, payment_id, amount, currency, livemode, status, reason,
       failure_reason, stripe_created_at, last_event_id
     )
     values (
       rid, pi, case when found_pay then pay.id end, (cents::numeric / 100)::public.money_amount,
-      pg_catalog.upper(o ->> 'currency'), new_status,
+      pg_catalog.upper(o ->> 'currency'), ev.livemode, new_status,
       case when pg_catalog.jsonb_typeof(o -> 'reason') = 'string' then pg_catalog.left(o ->> 'reason', 60) end,
       case when pg_catalog.jsonb_typeof(o -> 'failure_reason') = 'string'
            then pg_catalog.left(o ->> 'failure_reason', 120) end,
@@ -996,8 +1058,21 @@ begin
     return query select 'ignored'::public.stripe_event_status, 'refund_unmatched'::text, null::uuid, null::uuid;
     return;
   end if;
-  -- 6. Settle.
+  -- 6. Settle (a pure function of the rows that count).
   settled := private.settle_payment(pay, ev.id);
+  -- 7. Mode and currency: this event's mode, and the stored row's mode and
+  -- currency (what payment_refund_total counts by). A mismatched row is
+  -- kept and linked, never netted.
+  select r.* into old_r from public.payment_refunds r where r.stripe_refund_id = rid;
+  mismatch := case
+    when (ev.livemode is not null and ev.livemode <> pay.livemode)
+      or (old_r.livemode is not null and old_r.livemode <> pay.livemode) then 'livemode_mismatch'
+    when old_r.currency <> pay.currency then 'currency_mismatch'
+  end;
+  if mismatch is not null then
+    return query select 'needs_attention'::public.stripe_event_status, mismatch, pay.id, pay.work_order_id;
+    return;
+  end if;
   return query select
     (case when row_changed or settled then 'applied' else 'ignored' end)::public.stripe_event_status,
     (case when row_changed or settled then 'refund_recorded' else 'refund_unchanged' end)::text,
@@ -1285,11 +1360,15 @@ comment on function private.lock_stripe_payment_intent(text) is
 comment on function private.stripe_refund_rank(public.stripe_refund_status) is
   'D159c: the order a refund''s status may move in.';
 comment on function private.settle_payment(public.payments, uuid) is
-  'D155, D159c: refunded_amount and the paid-group status as a pure function of the payment''s succeeded refunds, with the timeline entry; the caller holds the job lock and the payment.';
+  'D155, D159c: refunded_amount and the paid-group status as a pure function of the payment''s counted refunds (payment_refund_total), with the timeline entry; the caller holds the job lock and the payment.';
 comment on function private.apply_stripe_session(public.stripe_events, jsonb) is
   'D153, D159: apply a Checkout Session to its payment (DATA-MODEL §19''s transition table); never raises for Stripe data.';
 comment on function private.apply_stripe_refund(public.stripe_events, jsonb) is
-  'D155, D159c: apply a Stripe Refund; unmatched refunds wait for the completion.';
+  'D155, D159c: apply a Stripe Refund; unmatched refunds wait for the completion; a refund in another mode or currency than its payment is recorded and needs attention (livemode_mismatch, currency_mismatch), never netted.';
+comment on function private.payment_refund_total(public.payments) is
+  'D155, D159c: the payment''s succeeded refunds in its own currency and mode (a null mode, from a server read, counts); the only definition of refunded_amount.';
+comment on function private.stripe_events_settled() is
+  'D159a: deferred constraint trigger; refuses to commit a Stripe event still received (stripe_event_immutable), so a received row is never a reusable provenance token.';
 comment on function private.apply_stripe_object(public.stripe_events) is
   'D153: dispatch a stored Stripe event or read to its apply function.';
 
@@ -1304,6 +1383,7 @@ revoke all on function
   private.stripe_event_projection(jsonb),
   private.lock_stripe_payment_intent(text),
   private.stripe_refund_rank(public.stripe_refund_status),
+  private.payment_refund_total(public.payments),
   private.settle_payment(public.payments, uuid),
   private.apply_stripe_session(public.stripe_events, jsonb),
   private.apply_stripe_refund(public.stripe_events, jsonb),
@@ -1311,6 +1391,7 @@ revoke all on function
   private.payments_guard(),
   private.payment_refunds_guard(),
   private.stripe_events_guard(),
+  private.stripe_events_settled(),
   private.purge_stripe_events(interval)
 from public, anon, authenticated, service_role;
 

@@ -2132,17 +2132,31 @@ URLs, or customer data in this file.
   in Vercel's Production server environment and never in Preview, the
   public site or the repository.
 - Evidence and confidence: high. Database containment
-  (`tests/db/stripe-payments.test.ts`, 27 tests, pass on 2026-10-14):
+  (`tests/db/stripe-payments.test.ts`, 31 tests, pass on 2026-10-14):
   only the service role can call `record_stripe_event` and
   `record_stripe_read`; a payment changes only while a verified Stripe
-  event or read is applied, for the owner too (`payment_immutable`);
-  livemode is checked per payment; rejected deliveries are kept as
-  evidence with no body; the stored copy never holds customer details or
-  URLs (D159e). App containment (`tests/unit/stripe-signature.test.ts`,
-  `stripe-config.test.ts`, `stripe-webhook-handler.test.ts`,
-  `stripe-http-gateway.test.ts`, `env.test.ts` and `logger.test.ts`, pass
-  on 2026-10-14): the signature is checked on the raw bytes before
-  anything is parsed; `stripeConfig` keeps Stripe off for a key of the
+  event or read is applied, for the owner too (`payment_immutable`), and
+  the event being applied (status `received`) can never be committed, so
+  it cannot be cited later (a deferred constraint trigger refuses the
+  commit, `stripe_event_immutable`, proved with a committed transaction).
+  Per payment, exactly these are compared with the payment row: a
+  session's id, its object's boolean `livemode` and, once the payment
+  carries one, its payment intent (in that order; `session_mismatch`,
+  `livemode_mismatch`); a refund's event `livemode` and the `livemode`
+  and currency stored on its row (`livemode_mismatch`,
+  `currency_mismatch`). A mismatch needs attention and changes nothing; a
+  mismatched refund is kept and linked to the payment but never counted
+  in `refunded_amount`, which sums only succeeded refunds in the
+  payment's currency and mode. A refund recorded first by a server read
+  has no mode (a Refund object carries none) and counts. Rejected
+  deliveries are kept as evidence with no body; the stored copy never
+  holds customer details or URLs (D159e). App containment
+  (`tests/unit/stripe-signature.test.ts`, `stripe-config.test.ts`,
+  `stripe-webhook-handler.test.ts`, `stripe-http-gateway.test.ts`,
+  `stripe-limits.test.ts`, `env.test.ts` and `logger.test.ts`, pass on
+  2026-10-14): the signature is checked on the raw bytes before
+  anything is parsed, and a genuine one is never `ok` when the server's
+  clock is not a finite number; `stripeConfig` keeps Stripe off for a key of the
   wrong mode (a test key in Production, a live key anywhere else), in
   Preview, and without the webhook secret, the service-role key or
   `ADMIN_ORIGIN`, naming the reason without failing the app; livemode is
@@ -2163,7 +2177,7 @@ URLs, or customer data in this file.
 - Next action: the owner creates the account and keys and does a
   rotation drill at go-live (RUNBOOK "Stripe: rotating keys").
 - Revisit trigger: go-live; any key exposure.
-- Last checked: 2026-10-14, Phase 14 step 1 (second commit).
+- Last checked: 2026-10-14, Phase 14 step 1 (review hardening).
 
 ## R-086 — A payment stays pending until Stripe's webhook arrives
 
@@ -2234,13 +2248,16 @@ URLs, or customer data in this file.
 - Evidence and confidence: high for the mechanism. Built in step 1
   (`tests/unit/stripe-config.test.ts`, `stripe-form.test.ts`,
   `logger.test.ts`, `tests/db/stripe-payments.test.ts`, pass on
-  2026-10-14): return URLs can only come from `ADMIN_ORIGIN` (an https
-  origin with no path), never from the request's Host; the Checkout body
-  carries ids only in metadata and no `customer_email`; BICII's stored
-  copies are an allow-listed projection with no customer details and no
-  URLs, admins only; the logger redacts URL fields and Stripe modules
-  never log URLs.
-- Workaround or containment (step 2): redirects are checked against the
+  2026-10-14): `stripeConfig` validates `ADMIN_ORIGIN`'s shape (an https
+  origin with no path, query, fragment or credentials; http only for
+  localhost) and keeps Stripe off when it is missing or malformed;
+  nothing builds a return URL yet. The Checkout body carries ids only in
+  metadata and no `customer_email`; BICII's stored copies are an
+  allow-listed projection with no customer details and no URLs, admins
+  only; the logger redacts URL fields and Stripe modules never log URLs.
+- Workaround or containment (step 2): return URLs are built only from
+  `stripeConfig`'s validated origin, never from the request's Host (to be
+  tested with the Checkout flow); redirects are checked against the
   `checkout.stripe.com` host; the quote page keeps sending no-referrer,
   noindex and no-store; Pay is rate-limited per client and per token; an
   answered quote cannot be re-answered; anon gains no RPC.
@@ -2248,7 +2265,7 @@ URLs, or customer data in this file.
   and keep Stripe Dashboard users few.
 - Revisit trigger: step 3's balance-link page (consider token-free return
   URLs there).
-- Last checked: 2026-10-14, Phase 14 step 1 (second commit).
+- Last checked: 2026-10-14, Phase 14 step 1 (review hardening).
 
 ## R-089 — What BICII does not record or cannot apply from Stripe
 
@@ -2262,7 +2279,9 @@ URLs, or customer data in this file.
   PayNow has no disputes), Stripe fees and payouts, payments taken outside
   BICII's Checkout, and the GST time of supply for deposits (question 32).
   Recorded and flagged to admins but not applied: an event for an unknown
-  payment, a mismatched session or mode, unreadable data; refunds of
+  payment, a mismatched session or mode, a refund in another mode or
+  currency than its payment (kept on the payment, not deducted),
+  unreadable data; refunds of
   charges that are not BICII's stay unmatched and are visible to admins
   only. Open Checkout sessions are not expired when a job or part is
   cancelled (a window of at most 60 minutes; a payment that still arrives
@@ -2271,8 +2290,14 @@ URLs, or customer data in this file.
 - Evidence and confidence: high; `tests/db/stripe-payments.test.ts`
   (identity guards: `payment_not_found`, `session_mismatch`,
   `livemode_mismatch`, `not_ours`, `type_not_handled` for
-  `charge.refunded` and `charge.dispute.created`; unmatched refunds admins
-  only), pass on 2026-10-14. The flags reach Exceptions in step 2.
+  `charge.refunded` and `charge.dispute.created`; refunds of another mode
+  or currency, `livemode_mismatch` and `currency_mismatch`, recorded but
+  not netted; unmatched refunds admins only), pass on 2026-10-14. The
+  flags reach Exceptions in step 2. A refund in another currency that
+  arrives before its payment is adopted by the completion without a flag
+  on that event (its own event was `refund_unmatched`), so step 2's
+  `payment_issues` must also list linked refunds whose currency or mode
+  differs from the payment's.
 - Workaround or containment: Stripe emails the owner about every dispute
   and the response happens in Stripe's Dashboard; the owner notes the
   outcome on the job (RUNBOOK "Stripe: resolving problems").

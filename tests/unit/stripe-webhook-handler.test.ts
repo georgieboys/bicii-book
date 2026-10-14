@@ -12,7 +12,8 @@ vi.mock("server-only", () => ({}));
 
 const { handleStripeWebhook } = await import("@/lib/integrations/stripe/webhooks");
 const { SlidingWindowLimiter } = await import("@/lib/integrations/limiter");
-const { MAX_WEBHOOK_BYTES } = await import("@/lib/integrations/stripe/config");
+const { MAX_WEBHOOK_BYTES, WEBHOOK_HEADER_ALLOWLIST } =
+  await import("@/lib/integrations/stripe/config");
 
 import type { StripeConfig } from "@/lib/integrations/stripe/client";
 import type { RecordStripeEventInput } from "@/lib/integrations/stripe/records";
@@ -189,9 +190,12 @@ describe("handleStripeWebhook", () => {
       expect(r).toMatchObject({ rejection_reason: reason, payload: null });
       expect(r.body_sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(r.body_bytes).toBeGreaterThan(0);
-      expect(Object.keys(r.headers).sort()).toEqual(
-        ["content-type", "stripe-signature", "user-agent"].filter((h) => h in r.headers).sort(),
-      );
+      // Only allow-listed headers are kept, and the signature that was sent
+      // is kept as sent (evidence of what failed).
+      const allowed: readonly string[] = WEBHOOK_HEADER_ALLOWLIST;
+      for (const name of Object.keys(r.headers)) expect(allowed, name).toContain(name);
+      expect(req.headers.has("stripe-signature"), reason).toBe(true);
+      expect(r.headers).toHaveProperty("stripe-signature", req.headers.get("stripe-signature"));
       expect(r.correlation_id).toBeTruthy();
       expectCleanLogs(lines);
     }

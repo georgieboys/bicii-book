@@ -1016,6 +1016,113 @@ describe("Refunds and partial refunds (D155, D159c)", () => {
       });
     });
   });
+
+  it("a refund in another mode or currency is recorded and linked, needs attention, and is never netted", async () => {
+    await inTransaction(conn, async (tx) => {
+      const p = await setupPayment(tx);
+      const paid = await deliver(tx, "checkout.session.completed", session(p));
+      const [live, usd, sgd] = [`re_${tag()}`, `re_${tag()}`, `re_${tag()}`];
+
+      // The event's mode differs from the payment's (a test-mode payment).
+      expect(
+        await deliver(tx, "refund.updated", refund(p, live, 5000, "succeeded"), {
+          livemode: true,
+        }),
+      ).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "livemode_mismatch",
+        payment_id: p.id,
+      });
+      // Stripe's currency differs from the payment's SGD.
+      expect(
+        await deliver(
+          tx,
+          "refund.updated",
+          refundObject({
+            id: usd,
+            paymentIntent: p.pi,
+            amountCents: 3000,
+            status: "succeeded",
+            currency: "usd",
+          }),
+        ),
+      ).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "currency_mismatch",
+        payment_id: p.id,
+      });
+      // Nothing was netted: the payment is untouched since it was paid.
+      expect(await paymentRow(tx, p.id)).toMatchObject({
+        status: "paid",
+        refunded_amount: "0.00",
+        last_event_id: paid.event_id,
+      });
+      // A later event for the mismatched row still needs attention.
+      expect(
+        await deliver(tx, "refund.failed", refund(p, live, 5000, "failed"), { livemode: true }),
+      ).toMatchObject({ event_status: "needs_attention", outcome: "livemode_mismatch" });
+
+      // A matching refund counts on its own.
+      expect(await deliver(tx, "refund.updated", refund(p, sgd, 2000, "succeeded"))).toMatchObject({
+        event_status: "applied",
+        outcome: "refund_recorded",
+      });
+      expect(await paymentRow(tx, p.id)).toMatchObject({
+        status: "partially_refunded",
+        refunded_amount: "20.00",
+      });
+      const rows = await refundRows(tx, p.pi);
+      expect(
+        Object.fromEntries(
+          rows.map((r) => [r.stripe_refund_id, [r.status, r.currency, r.payment_id]]),
+        ),
+      ).toEqual({
+        [live]: ["failed", "SGD", p.id],
+        [usd]: ["succeeded", "USD", p.id],
+        [sgd]: ["succeeded", "SGD", p.id],
+      });
+      expect(
+        (await paymentEvents(tx, p.workOrderId)).map((e) => [e.event_type, e.refunded ?? e.amount]),
+      ).toEqual([
+        ["payment_received", "120.00"],
+        ["payment_refunded", "20.00"],
+      ]);
+    });
+  });
+
+  it("a refund in another currency that arrives first is adopted by the completion but not netted", async () => {
+    await inTransaction(conn, async (tx) => {
+      const p = await setupPayment(tx);
+      const [usd, sgd] = [`re_${tag()}`, `re_${tag()}`];
+      for (const [id, currency] of [
+        [usd, "usd"],
+        [sgd, "sgd"],
+      ]) {
+        expect(
+          await deliver(
+            tx,
+            "refund.updated",
+            refundObject({
+              id,
+              paymentIntent: p.pi,
+              amountCents: 4000,
+              status: "succeeded",
+              currency,
+            }),
+          ),
+        ).toMatchObject({ event_status: "ignored", outcome: "refund_unmatched" });
+      }
+      expect(await deliver(tx, "checkout.session.completed", session(p))).toMatchObject({
+        event_status: "applied",
+        outcome: "payment_paid",
+      });
+      expect(await paymentRow(tx, p.id)).toMatchObject({
+        status: "partially_refunded",
+        refunded_amount: "40.00",
+      });
+      expect((await refundRows(tx, p.pi)).map((r) => r.payment_id)).toEqual([p.id, p.id]);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1111,6 +1218,30 @@ describe("Identity guards: attention, never a raise (D159b)", () => {
       const row = await paymentRow(tx, p.id);
       expect(row).toMatchObject({ status: "pending", last_event_id: null });
       expect(await paymentEvents(tx, p.workOrderId)).toEqual([]);
+    });
+  });
+
+  it("checks the session, then the mode, then the payment intent (spec 2.5 step 6)", async () => {
+    await inTransaction(conn, async (tx) => {
+      const p = await setupPayment(tx);
+      // Completed, unpaid: the payment now carries its payment intent.
+      await deliver(tx, "checkout.session.completed", session(p, { paymentStatus: "unpaid" }));
+      expect((await paymentRow(tx, p.id)).stripe_payment_intent_id).toBe(p.pi);
+      const otherPi = `pi_${tag()}`;
+      const outcome = async (o: Partial<SessionInput>, livemode = false) =>
+        (await deliver(tx, "checkout.session.completed", session(p, o), { livemode })).outcome;
+
+      // Another session wins over another mode and another payment intent.
+      expect(
+        await outcome({ id: `cs_test_${tag()}`, livemode: true, paymentIntent: otherPi }, true),
+      ).toBe("session_mismatch");
+      // Another mode wins over another payment intent.
+      expect(await outcome({ livemode: true, paymentIntent: otherPi }, true)).toBe(
+        "livemode_mismatch",
+      );
+      // The same session and mode with another payment intent.
+      expect(await outcome({ paymentIntent: otherPi })).toBe("session_mismatch");
+      expect((await paymentRow(tx, p.id)).status).toBe("pending");
     });
   });
 });
@@ -1289,11 +1420,71 @@ describe("Rejected deliveries are evidence (D88); events are immutable", () => {
 // 14. Server reads (D159a)
 // ---------------------------------------------------------------------------
 
+describe("A received event never outlives its transaction (D159a)", () => {
+  // Committed transactions whose commit fails leave nothing behind, so this
+  // runs on the shared database too.
+  it("the commit of a row still 'received' is refused, for the owner too; a decided row passes", async () => {
+    const id = randomUUID();
+    const insertReceived = (tx: pg.Client) =>
+      tx.query(
+        `insert into public.stripe_events (id, source, event_type, payload, status)
+         values ($1, 'api_read', 'read.refund', '{}'::jsonb, 'received')`,
+        [id],
+      );
+    const immutable = { code: "P0001", message: "stripe_event_immutable" };
+
+    // Committed: the deferred constraint trigger refuses at COMMIT.
+    let failure: unknown = null;
+    await inTransaction(
+      conn,
+      async (tx) => {
+        await ownerMode(tx);
+        await insertReceived(tx);
+      },
+      { commit: true },
+    ).catch((e: unknown) => {
+      failure = e;
+    });
+    expect(failure).toMatchObject(immutable);
+    expect(
+      await scalar(conn, "select count(*)::int from public.stripe_events where id = $1", [id]),
+    ).toBe(0);
+
+    await inTransaction(conn, async (tx) => {
+      await ownerMode(tx);
+      // Checking early cannot skip it: IMMEDIATE raises at once.
+      await failsWith(
+        tx,
+        async () => {
+          await insertReceived(tx);
+          await tx.query("set constraints public.stripe_events_settled immediate");
+        },
+        immutable,
+      );
+      await tx.query("set constraints all deferred");
+      // Decided in the same transaction, as the recording RPCs do: it passes.
+      await insertReceived(tx);
+      await tx.query(
+        `update public.stripe_events
+            set status = 'ignored', outcome = 'type_not_handled', processed_at = clock_timestamp()
+          where id = $1`,
+        [id],
+      );
+      await tx.query("set constraints all immediate");
+      await tx.query("set constraints all deferred");
+    });
+  });
+});
+
 describe("Server reads with the secret key (D159a)", () => {
   it("a read applies like a webhook, keeps evidence, and stamps checked_at", async () => {
     await inTransaction(conn, async (tx) => {
       const p = await setupPayment(tx);
+      // D159d: a read carries no event time, so paid_at is the read's own
+      // (the database clock, read before and after the call).
+      const before = await scalar<Date>(tx, "select clock_timestamp()");
       const r = await read(tx, p.id, session(p));
+      const after = await scalar<Date>(tx, "select clock_timestamp()");
       expect(r).toMatchObject({
         event_status: "applied",
         outcome: "payment_paid",
@@ -1301,6 +1492,8 @@ describe("Server reads with the secret key (D159a)", () => {
       });
       const first = await paymentRow(tx, p.id);
       expect(first.paid_at).not.toBeNull();
+      expect(first.paid_at!.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(first.paid_at!.getTime()).toBeLessThanOrEqual(after.getTime());
       expect(first.checked_at).not.toBeNull();
       expect(await eventRow(tx, r.event_id)).toMatchObject({
         source: "api_read",

@@ -9,8 +9,13 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { createHttpStripeGateway, paymentMethodTypes } =
-  await import("@/lib/integrations/stripe/http-gateway");
+const {
+  createHttpStripeGateway,
+  paymentMethodTypes,
+  retryDelayMs,
+  RETRY_DELAY_MIN_MS,
+  RETRY_DELAY_MAX_MS,
+} = await import("@/lib/integrations/stripe/http-gateway");
 const { StripeError } = await import("@/lib/integrations/stripe/gateway");
 
 import type { CheckoutSessionInput } from "@/lib/integrations/stripe/gateway";
@@ -63,8 +68,10 @@ function fetchReturning(...responses: Array<Response | Error>) {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
+/** Waits are recorded, never slept, so the suite stays fast. */
+const noSleep = async () => {};
 const gateway = (fetchImpl: typeof globalThis.fetch, livemode = false) =>
-  createHttpStripeGateway({ secretKey: KEY, livemode }, fetchImpl);
+  createHttpStripeGateway({ secretKey: KEY, livemode, sleep: noSleep }, fetchImpl);
 
 async function caught(p: Promise<unknown>): Promise<InstanceType<typeof StripeError>> {
   try {
@@ -106,6 +113,52 @@ describe("createCheckoutSession", () => {
     expect(calls).toHaveLength(2);
     expect(calls[1].init.body).toBe(calls[0].init.body);
     expect(calls[1].init.headers).toEqual(calls[0].init.headers);
+  });
+
+  it("waits 250-500 ms (jittered) before retrying a 409 or a 429, with the same bytes and key", async () => {
+    for (const status of [409, 429]) {
+      for (const r of [0, 0.5, 0.999]) {
+        const { calls, fetch } = fetchReturning(
+          json(status, { error: { type: "idempotency_error" } }),
+          json(200, session()),
+        );
+        const order: string[] = [];
+        const sleep = vi.fn(async (ms: number) => {
+          order.push(`sleep ${ms} after ${calls.length}`);
+        });
+        await createHttpStripeGateway(
+          { secretKey: KEY, livemode: false, sleep, random: () => r },
+          fetch,
+        ).createCheckoutSession(INPUT, "k-1");
+        expect(sleep).toHaveBeenCalledTimes(1);
+        const ms = sleep.mock.calls[0][0];
+        expect(ms).toBe(retryDelayMs(() => r));
+        expect(ms).toBeGreaterThanOrEqual(RETRY_DELAY_MIN_MS);
+        expect(ms).toBeLessThanOrEqual(RETRY_DELAY_MAX_MS);
+        // Between the two requests, not before the first.
+        expect(order).toEqual([`sleep ${ms} after 1`]);
+        expect(calls).toHaveLength(2);
+        expect(calls[1].init.body).toBe(calls[0].init.body);
+        expect(calls[1].init.headers).toEqual(calls[0].init.headers);
+      }
+    }
+    expect([RETRY_DELAY_MIN_MS, RETRY_DELAY_MAX_MS]).toEqual([250, 500]);
+    expect(retryDelayMs(() => 0)).toBe(250);
+    expect(retryDelayMs(() => 1)).toBe(500);
+    expect(retryDelayMs(() => Number.NaN)).toBe(375);
+  });
+
+  it("retries a network error or a 5xx at once, without waiting", async () => {
+    for (const first of [new TypeError("fetch failed"), json(503, {})]) {
+      const { calls, fetch } = fetchReturning(first, json(200, session()));
+      const sleep = vi.fn(async () => {});
+      await createHttpStripeGateway(
+        { secretKey: KEY, livemode: false, sleep },
+        fetch,
+      ).createCheckoutSession(INPUT, "k-1");
+      expect(sleep).not.toHaveBeenCalled();
+      expect(calls).toHaveLength(2);
+    }
   });
 
   it("gives up after the second retriable failure", async () => {

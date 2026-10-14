@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -12,13 +12,23 @@ import { startDepositCheckoutAction } from "./actions";
  * Checkout's URL and goes there, staying busy while the browser leaves.
  * The server reuses an open session, so pressing again never charges
  * twice. When the deposit turns out paid or being confirmed, the page
- * refreshes to say so.
+ * refreshes to say so. Coming Back from Stripe restores this page from
+ * the browser's back-forward cache with the button still busy, so a
+ * restored page resets it (pageshow with `persisted`).
  */
 export function PayDepositButton({ token, amountLabel }: { token: string; amountLabel: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const restored = (event: PageTransitionEvent) => {
+      if (event.persisted) setLeaving(false);
+    };
+    window.addEventListener("pageshow", restored);
+    return () => window.removeEventListener("pageshow", restored);
+  }, []);
 
   const pay = () => {
     setError(null);

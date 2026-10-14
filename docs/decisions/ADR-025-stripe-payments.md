@@ -87,6 +87,52 @@ question 32 is answered.
   replay and a forged delivery, the override with a reason, a partial
   refund, a cancelled Checkout).
 
+Deviations of step 2 from the design spec, recorded here: the inputs
+of `record_deposit_checkout` are named `p_payment_id` and `p_quote_id`
+(its result has a `payment_id` column); `payment_issues` gained a
+`refund_not_counted` kind (a linked refund in another currency or mode,
+not deducted), which step 1's adoption path needed; and `refund_failed`
+is decided by which counted refund Stripe settled last, ordered by each
+refund's own decision time (below).
+
+Status update 2026-10-14 (Phase 14 final review, one fix commit; the step
+1 and 2 migration files edited in place, as neither has reached a hosted
+database):
+
+- **An asynchronous failure is recoverable from the app (R-086).** A
+  session that completed unpaid and then failed looks, to a session read,
+  exactly like one still processing. *Check with Stripe* now also reads
+  that payment's PaymentIntent (`record_stripe_read` takes a
+  `payment_intent`; `private.apply_stripe_payment_intent`):
+  `requires_payment_method` or `canceled` records the payment failed and
+  the deposit is due again. Reads only; paid stays the session's word.
+  The restricted key gains PaymentIntents: Read, and the permission for
+  listing refunds is named as Stripe names it, Charges: Read (RUNBOOK
+  "Stripe: restricted key").
+- **Refund order by the refund's own time.** `payment_refunds` gained
+  `status_changed_at`, set when a refund's status changes; `refund_failed`
+  orders by it, so refunds adopted by a completion keep their order, and
+  `payment_issues` no longer needs the definer helper that read the
+  admins-only `stripe_events` (no private function of Phase 14 is
+  executable by an API role, pinned in `meta.test.ts`).
+- **Screens.** The job shows "Paid online … · Still to pay …" under the
+  Lines total and in the Collected confirmation (D154 at the counter);
+  the quote page stops saying the parts wait for the deposit once the
+  shop has ordered them (`parts_ordered`), and warns before a second
+  payment; Exceptions rows give where to act under the sentence instead
+  of repeating it; payment sentences print money as the screens do.
+- **Adapter.** A POST's 5xx is retried only when Stripe marks it
+  retryable (Stripe replays a saved result for the same key), each expire
+  takes a fresh key, the Checkout expiry is checked against Stripe's
+  30-minute to 24-hour window in the live adapter and the fake, the fake
+  expires sessions by its clock, Pay deposit stops starting Stripe steps
+  after 30 s, `ADMIN_ORIGIN` may not be a loopback host in Production, and
+  the quote page treats an unreadable server environment as Stripe off.
+- **Not changed, recorded:** a pending payment whose session Stripe
+  cannot find under the current key stays pending (R-086, RUNBOOK); a
+  Checkout custom domain is refused by the redirect guard (R-088,
+  RUNBOOK); deposits paid at the counter are still not recorded (R-089).
+
 ## Context
 
 Asked whether indent parts should take a deposit, the owner answered on

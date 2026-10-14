@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 
 import {
   cancelPartRequestAction,
@@ -47,6 +47,7 @@ import {
   DEPOSIT_STATE_LABELS,
   DEPOSIT_STATE_TONES,
   depositBlockedIds,
+  depositStates,
   type DepositState,
 } from "@/lib/payments";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
@@ -319,22 +320,6 @@ export function IndentCard({
       ) : null}
     </Card>
   );
-}
-
-/**
- * Each approved part request's deposit state. A request on more than one
- * deposit quote takes the state that blocks ordering, as the SQL gate does
- * (any quote whose deposit is not paid).
- */
-function depositStates(deposits: readonly JobDeposit[]): Map<string, DepositState> {
-  const map = new Map<string, DepositState>();
-  for (const d of deposits) {
-    for (const id of d.partRequestIds) {
-      const before = map.get(id);
-      if (before === undefined || before === "paid") map.set(id, d.state);
-    }
-  }
-  return map;
 }
 
 /** "Deposit due", "Being confirmed" or "Deposit refunded" on an approved or ordered part (D152). */
@@ -869,6 +854,9 @@ function OrderSheet({
   );
   const [reason, setReason] = useState("");
   const [reasonMissing, setReasonMissing] = useState(false);
+  // The note under the parts says why a disabled one can't be ticked.
+  const blockedNoteId = useId();
+  const showBlockedNote = blocked.size > 0 && !canOverrideDeposit;
   const unpaidChosen = items.filter((i) => chosen.has(i.id) && blocked.has(i.id)).length;
   const preset = items.find((i) => i.purchase?.supplierId)?.purchase?.supplierId ?? "";
   const [supplierId, setSupplierId] = useState(preset);
@@ -946,6 +934,7 @@ function OrderSheet({
               label={`${formatQuantity(i.quantity)} × ${i.description}${blocked.has(i.id) ? " (deposit not paid)" : ""}`}
               checked={chosen.has(i.id)}
               disabled={blocked.has(i.id) && !canOverrideDeposit}
+              aria-describedby={blocked.has(i.id) && showBlockedNote ? blockedNoteId : undefined}
               onChange={(e) => {
                 const next = new Set(chosen);
                 if (e.target.checked) next.add(i.id);
@@ -954,8 +943,8 @@ function OrderSheet({
               }}
             />
           ))}
-          {blocked.size > 0 && !canOverrideDeposit ? (
-            <p className="text-sm text-dust-700">
+          {showBlockedNote ? (
+            <p id={blockedNoteId} className="text-sm text-dust-700">
               Parts whose deposit isn&apos;t paid can be ordered once the customer pays, or by an
               admin or manager.
             </p>

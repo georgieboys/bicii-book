@@ -22,8 +22,9 @@
 --                     when the payment completes.
 --   RPCs (service_role only, called from src/lib/integrations/stripe/):
 --                     record_stripe_event (store and apply one delivery)
---                     and record_stripe_read (store and apply an object the
---                     server read from Stripe). The owner-only
+--                     and record_stripe_read (store and apply a Checkout
+--                     Session, Refund or PaymentIntent the server read from
+--                     Stripe). The owner-only
 --                     private.purge_stripe_events removes old rejected
 --                     deliveries by hand.
 --
@@ -110,7 +111,8 @@ create table public.stripe_events (
   -- evt_… for a verified webhook only (the dedupe key); null for rejected
   -- deliveries and reads.
   stripe_event_id text null,
-  -- Webhook: the event type; read: 'read.checkout.session' or 'read.refund';
+  -- Webhook: the event type; read: 'read.checkout.session', 'read.refund' or
+  -- 'read.payment_intent';
   -- rejected: 'unknown'.
   event_type text not null,
   api_version text null,
@@ -295,6 +297,10 @@ create table public.payment_refunds (
   -- none); null when a server read recorded it first.
   livemode boolean null,
   status public.stripe_refund_status not null,   -- moves only up in rank (private.stripe_refund_rank)
+  -- When the apply recorded the current status (a clock time): which
+  -- refund Stripe decided last (payment_issues' refund_failed). Linking an
+  -- unmatched refund to its payment leaves it alone.
+  status_changed_at timestamptz not null default clock_timestamp(),
   reason text null,
   failure_reason text null,
   stripe_created_at timestamptz null,            -- refund.created (step 3 dates refunds by it)
@@ -441,7 +447,9 @@ language plpgsql
 set search_path = ''
 as $$
 declare
-  movable constant text[] := array['status', 'failure_reason', 'payment_id', 'last_event_id', 'updated_at'];
+  movable constant text[] := array[
+    'status', 'status_changed_at', 'failure_reason', 'payment_id', 'last_event_id', 'updated_at'
+  ];
 begin
   if tg_op = 'DELETE' then
     raise exception using
@@ -478,6 +486,12 @@ begin
       errcode = 'P0001',
       message = 'payment_refund_immutable',
       detail = 'A refund''s status only moves forward.';
+  end if;
+  if new.status_changed_at is distinct from old.status_changed_at and new.status = old.status then
+    raise exception using
+      errcode = 'P0001',
+      message = 'payment_refund_immutable',
+      detail = 'A refund''s decision time moves only with its status.';
   end if;
   if (pg_catalog.to_jsonb(new) - 'updated_at'::text) <> (pg_catalog.to_jsonb(old) - 'updated_at'::text)
      and (new.last_event_id is not distinct from old.last_event_id or not exists (
@@ -1043,6 +1057,7 @@ begin
   elsif private.stripe_refund_rank(new_status) > private.stripe_refund_rank(old_r.status) then
     update public.payment_refunds r
     set status = new_status,
+        status_changed_at = pg_catalog.clock_timestamp(),
         failure_reason = case when pg_catalog.jsonb_typeof(o -> 'failure_reason') = 'string'
                               then pg_catalog.left(o ->> 'failure_reason', 120) else r.failure_reason end,
         payment_id = coalesce(r.payment_id, case when found_pay then pay.id end),
@@ -1080,6 +1095,79 @@ begin
 end;
 $$;
 
+-- R-086 (DATA-MODEL §19): apply a PaymentIntent the server read for a
+-- payment whose Checkout completed unpaid (an asynchronous method still
+-- confirming). A failed asynchronous payment leaves its session complete
+-- and unpaid, the same shape as one still processing; only
+-- checkout.session.async_payment_failed says it failed, or the
+-- PaymentIntent, which returns to requires_payment_method (or is
+-- canceled). Reads only (record_stripe_read; no webhook type maps here),
+-- and it only ever moves pending-and-completed to failed: paid stays the
+-- session's word (amount_total).
+create function private.apply_stripe_payment_intent(ev public.stripe_events, obj jsonb)
+returns table (o_status public.stripe_event_status, o_outcome text, o_payment_id uuid, o_work_order_id uuid)
+language plpgsql
+volatile
+set search_path = ''
+as $$
+declare
+  o jsonb := apply_stripe_payment_intent.obj;
+  pi text;
+  st text;
+  pay public.payments;
+begin
+  -- 1. Shape.
+  pi := o ->> 'id';
+  st := o ->> 'status';
+  if pg_catalog.jsonb_typeof(o) is distinct from 'object'
+     or (o ->> 'object') is distinct from 'payment_intent'
+     or coalesce(pi, '') !~ '^pi_[A-Za-z0-9_]{1,250}$'
+     or coalesce(st, '') not in ('requires_payment_method', 'requires_confirmation', 'requires_action',
+                                 'processing', 'requires_capture', 'canceled', 'succeeded') then
+    return query select 'needs_attention'::public.stripe_event_status, 'object_invalid'::text, null::uuid, null::uuid;
+    return;
+  end if;
+  -- 2. The advisory lock, the payment (unlocked), the job, the payment FOR UPDATE.
+  perform private.lock_stripe_payment_intent(pi);
+  select p.* into pay from public.payments p
+  where p.stripe_payment_intent_id = pi
+  order by p.created_at, p.id
+  limit 1;
+  if not found then
+    return query select 'ignored'::public.stripe_event_status, 'payment_not_found'::text, null::uuid, null::uuid;
+    return;
+  end if;
+  perform private.lock_work_order(pay.work_order_id);
+  select p.* into pay from public.payments p where p.id = pay.id for update;
+  if pg_catalog.jsonb_typeof(o -> 'livemode') = 'boolean' and (o -> 'livemode')::boolean <> pay.livemode then
+    return query select 'needs_attention'::public.stripe_event_status, 'livemode_mismatch'::text, pay.id, pay.work_order_id;
+    return;
+  end if;
+  -- 3. Only a pending payment whose Checkout completed can learn it failed.
+  if pay.status in ('paid', 'partially_refunded', 'refunded', 'expired') then
+    return query select 'ignored'::public.stripe_event_status, 'stale'::text, pay.id, pay.work_order_id;
+    return;
+  end if;
+  if pay.status = 'failed' then
+    return query select 'ignored'::public.stripe_event_status, 'already_failed'::text, pay.id, pay.work_order_id;
+    return;
+  end if;
+  if pay.checkout_completed_at is null then
+    return query select 'ignored'::public.stripe_event_status, 'still_open'::text, pay.id, pay.work_order_id;
+    return;
+  end if;
+  if st in ('requires_payment_method', 'canceled') then
+    update public.payments p
+    set status = 'failed', failed_at = pg_catalog.clock_timestamp(), last_event_id = ev.id
+    where p.id = pay.id;
+    return query select 'applied'::public.stripe_event_status, 'payment_failed'::text, pay.id, pay.work_order_id;
+    return;
+  end if;
+  -- succeeded, processing or anything else: the session read records paid.
+  return query select 'ignored'::public.stripe_event_status, 'already_processing'::text, pay.id, pay.work_order_id;
+end;
+$$;
+
 -- The dispatcher. It applies the stored projection, so what is stored is
 -- exactly what was applied. charge.refunded is not used: it carries only a
 -- running total, while Refund objects carry the id, amount and status.
@@ -1099,6 +1187,8 @@ begin
     return query select * from private.apply_stripe_session(apply_stripe_object.ev, obj);
   elsif apply_stripe_object.ev.event_type in ('refund.created', 'refund.updated', 'refund.failed', 'read.refund') then
     return query select * from private.apply_stripe_refund(apply_stripe_object.ev, obj);
+  elsif apply_stripe_object.ev.event_type = 'read.payment_intent' then
+    return query select * from private.apply_stripe_payment_intent(apply_stripe_object.ev, obj);
   else
     return query select 'ignored'::public.stripe_event_status, 'type_not_handled'::text, null::uuid, null::uuid;
   end if;
@@ -1251,10 +1341,12 @@ begin
     raise exception 'payment_id and object are required' using errcode = '22004';
   end if;
   kind := case when pg_catalog.jsonb_typeof(o) = 'object' then o ->> 'object' end;
-  if kind is null or kind not in ('checkout.session', 'refund')
+  if kind is null or kind not in ('checkout.session', 'refund', 'payment_intent')
      or (kind = 'checkout.session' and coalesce(o ->> 'id', '') !~ '^cs_(test|live)_[A-Za-z0-9_]{1,250}$')
-     or (kind = 'refund' and coalesce(o ->> 'id', '') !~ '^(re|pyr)_[A-Za-z0-9_]{1,250}$') then
-    raise exception 'object must be a Checkout Session or a Refund read from Stripe' using errcode = '22023';
+     or (kind = 'refund' and coalesce(o ->> 'id', '') !~ '^(re|pyr)_[A-Za-z0-9_]{1,250}$')
+     or (kind = 'payment_intent' and coalesce(o ->> 'id', '') !~ '^pi_[A-Za-z0-9_]{1,250}$') then
+    raise exception 'object must be a Checkout Session, a Refund or a PaymentIntent read from Stripe'
+      using errcode = '22023';
   end if;
   -- 2. The payment (unlocked).
   select p.* into pay from public.payments p where p.id = record_stripe_read.payment_id;
@@ -1276,11 +1368,13 @@ begin
   -- 4. Identity: only ids stored on the payment are ever read.
   matches := (
     case when kind = 'checkout.session' then (o ->> 'id') = pay.stripe_checkout_session_id
+         when kind = 'payment_intent' then pay.stripe_payment_intent_id is not null
+              and (o ->> 'id') = pay.stripe_payment_intent_id
          else pay.stripe_payment_intent_id is not null
               and private.stripe_ref(o -> 'payment_intent') is not distinct from pay.stripe_payment_intent_id
     end
   ) and (pg_catalog.jsonb_typeof(o -> 'livemode') is distinct from 'boolean' or (o -> 'livemode')::boolean = pay.livemode);
-  if not matches then
+  if not coalesce(matches, false) then
     -- The job lock first, so the event's FK KEY SHARE comes after FOR UPDATE.
     perform private.lock_work_order(pay.work_order_id);
     update public.stripe_events e
@@ -1309,7 +1403,7 @@ end;
 $$;
 
 comment on function public.record_stripe_read(uuid, jsonb, text) is
-  'service_role (src/lib/integrations/stripe/ only): record a Checkout Session or Refund the server read from Stripe with the secret key, for the given payment, and apply it like a webhook (D153, D159a); stamps checked_at. Reads are not deduplicated, so a repair read always applies. A read of an id the payment does not carry is kept as read_mismatch (needs attention).';
+  'service_role (src/lib/integrations/stripe/ only): record a Checkout Session, Refund or PaymentIntent the server read from Stripe with the secret key, for the given payment, and apply it like a webhook (D153, D159a; a PaymentIntent only moves a completed, unpaid payment to failed, R-086); stamps checked_at. Reads are not deduplicated, so a repair read always applies. A read of an id the payment does not carry is kept as read_mismatch (needs attention).';
 
 -- ---------------------------------------------------------------------------
 -- private.purge_stripe_events (D88): OWNER ONLY, run by hand (no API role
@@ -1369,6 +1463,8 @@ comment on function private.payment_refund_total(public.payments) is
   'D155, D159c: the payment''s succeeded refunds in its own currency and mode (a null mode, from a server read, counts); the only definition of refunded_amount.';
 comment on function private.stripe_events_settled() is
   'D159a: deferred constraint trigger; refuses to commit a Stripe event still received (stripe_event_immutable), so a received row is never a reusable provenance token.';
+comment on function private.apply_stripe_payment_intent(public.stripe_events, jsonb) is
+  'R-086: apply a PaymentIntent the server read: a pending payment whose Checkout completed unpaid moves to failed when the intent is requires_payment_method or canceled (an asynchronous failure whose webhook was lost); anything else changes nothing.';
 comment on function private.apply_stripe_object(public.stripe_events) is
   'D153: dispatch a stored Stripe event or read to its apply function.';
 
@@ -1387,6 +1483,7 @@ revoke all on function
   private.settle_payment(public.payments, uuid),
   private.apply_stripe_session(public.stripe_events, jsonb),
   private.apply_stripe_refund(public.stripe_events, jsonb),
+  private.apply_stripe_payment_intent(public.stripe_events, jsonb),
   private.apply_stripe_object(public.stripe_events),
   private.payments_guard(),
   private.payment_refunds_guard(),

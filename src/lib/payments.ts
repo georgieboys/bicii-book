@@ -1,4 +1,5 @@
 import type { Database } from "@/lib/database.types";
+import { formatMoney } from "@/lib/money";
 import type { StatusTone } from "@/lib/workshop";
 
 /**
@@ -59,6 +60,36 @@ export function depositBlockedIds(
   });
 }
 
+/**
+ * Each approved part request's deposit state, from the job's deposits
+ * (public.quote_deposits rows). A request on more than one deposit quote
+ * takes the state that blocks ordering, as the SQL gate does (any quote
+ * whose deposit is not paid).
+ */
+export function depositStates(
+  deposits: ReadonlyArray<{ state: DepositState; partRequestIds: readonly string[] }>,
+): Map<string, DepositState> {
+  const map = new Map<string, DepositState>();
+  for (const d of deposits) {
+    for (const id of d.partRequestIds) {
+      const before = map.get(id);
+      if (before === undefined || before === "paid") map.set(id, d.state);
+    }
+  }
+  return map;
+}
+
+/**
+ * D157a: a deposit above 0 needs Stripe on (a deposit nobody can pay online
+ * would only hold up indent orders); 0 is always allowed (the RUNBOOK's
+ * switch-off order). The refusal's sentence, or null when allowed.
+ */
+export function depositPercentRefusal(percent: number, stripeOn: boolean): string | null {
+  return percent > 0 && !stripeOn
+    ? "Set up Stripe first: customers can't pay a deposit until it is."
+    : null;
+}
+
 /** Settings → Customer payments: what the deposit percent means (D151, D157a). */
 export function depositPercentLabel(percent: number): string {
   return percent === 0
@@ -99,6 +130,34 @@ export const PAYMENT_STATUS_TONES: Readonly<Record<PaymentStatus, StatusTone>> =
   failed: "danger",
   expired: "neutral",
 };
+
+/**
+ * D154 at the counter: what was paid online against a job and what is
+ * left, formatted, for the line under the job's total and the Collected
+ * confirmation, so staff never take the full total from a customer who
+ * paid a deposit. Null when nothing is held online (net 0) or there are no
+ * totals. `stillToPay` and `paidAhead` are null once the job is closed or
+ * outside SGD (work_order_payment_totals); `paidAhead` is null when 0.
+ * Formatting only: every figure is Postgres's.
+ */
+export function paidOnlineSummary(
+  totals: {
+    currency: string;
+    netPaidOnline: string;
+    balanceDue: string | null;
+    paidAhead: string | null;
+  } | null,
+): { paid: string; stillToPay: string | null; paidAhead: string | null } | null {
+  if (!totals || Number(totals.netPaidOnline) === 0) return null;
+  const money = (v: string) => formatMoney(v, totals.currency);
+  const ahead =
+    totals.paidAhead !== null && Number(totals.paidAhead) !== 0 ? money(totals.paidAhead) : null;
+  return {
+    paid: money(totals.netPaidOnline),
+    stillToPay: totals.balanceDue === null ? null : money(totals.balanceDue),
+    paidAhead: ahead,
+  };
+}
 
 /** A Stripe PaymentIntent id, as config.ts's PAYMENT_INTENT_ID (that module is server-only). */
 const PAYMENT_INTENT_ID = /^pi_[A-Za-z0-9_]{1,250}$/;
@@ -168,7 +227,7 @@ export const STRIPE_OFF_REASONS: Readonly<Record<StripeOffReason, string>> = {
   service_role_missing:
     "SUPABASE_SERVICE_ROLE_KEY isn't set, so BICII can't record payments. Set it in Vercel (sign-in needs it too).",
   origin_invalid:
-    "ADMIN_ORIGIN isn't this Admin's https address with no path (http only for localhost). Set it to https://<admin host>.",
+    "ADMIN_ORIGIN isn't this Admin's https address with no path (http only for localhost, and never localhost in Production). Set it to https://<admin host>.",
 };
 
 export type StripeConnectionSummary = {

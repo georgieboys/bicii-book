@@ -22,6 +22,9 @@ import {
   STRIPE_REJECTION_LABELS,
   depositBlockedIds,
   depositPercentLabel,
+  depositPercentRefusal,
+  depositStates,
+  paidOnlineSummary,
   paymentStatusLabel,
   stripeConnectionLabel,
   stripeDashboardHref,
@@ -102,6 +105,67 @@ describe("the ordering gate on screen (D152)", () => {
     expect(depositBlockedIds(ids, states)).toEqual(["a", "c", "d"]);
     expect(depositBlockedIds(ids, new Map())).toEqual([]);
     expect(depositBlockedIds([], states)).toEqual([]);
+    // "none" (every approved part cancelled) is not paid, so the gate holds, as in SQL.
+    expect(depositBlockedIds(["n"], new Map([["n", "none" as DepositState]]))).toEqual(["n"]);
+  });
+
+  it("a request on a paid and a due quote takes the blocking state, in either order", () => {
+    const paid = { state: "paid" as const, partRequestIds: ["r1", "r2"] };
+    const due = { state: "due" as const, partRequestIds: ["r1"] };
+    for (const deposits of [
+      [paid, due],
+      [due, paid],
+    ]) {
+      const map = depositStates(deposits);
+      expect(map.get("r1")).toBe("due");
+      expect(map.get("r2")).toBe("paid");
+      expect(depositBlockedIds(["r1", "r2", "r3"], map)).toEqual(["r1"]);
+    }
+    expect(depositStates([]).size).toBe(0);
+  });
+});
+
+describe("the deposit setting's rollout guard (D157a)", () => {
+  it("refuses above 0 while Stripe is off; 0 is always allowed; above 0 is allowed while on", () => {
+    expect(depositPercentRefusal(50, false)).toBe(
+      "Set up Stripe first: customers can't pay a deposit until it is.",
+    );
+    expect(depositPercentRefusal(1, false)).not.toBeNull();
+    expect(depositPercentRefusal(0, false)).toBeNull();
+    expect(depositPercentRefusal(0, true)).toBeNull();
+    expect(depositPercentRefusal(100, true)).toBeNull();
+  });
+});
+
+describe("paid online at the counter (D154)", () => {
+  const totals = {
+    currency: "SGD",
+    netPaidOnline: "60.00",
+    balanceDue: "85.00",
+    paidAhead: "0.00",
+  };
+  it("says what was paid online and what is left, as Postgres computed it", () => {
+    expect(paidOnlineSummary(totals)).toEqual({
+      paid: "$60.00",
+      stillToPay: "$85.00",
+      paidAhead: null,
+    });
+    expect(paidOnlineSummary({ ...totals, balanceDue: "0.00", paidAhead: "35.00" })).toEqual({
+      paid: "$60.00",
+      stillToPay: "$0.00",
+      paidAhead: "$35.00",
+    });
+    // Closed (collected or cancelled): no balance, the payment still shows.
+    expect(paidOnlineSummary({ ...totals, balanceDue: null, paidAhead: null })).toEqual({
+      paid: "$60.00",
+      stillToPay: null,
+      paidAhead: null,
+    });
+  });
+
+  it("is null when nothing is held online", () => {
+    expect(paidOnlineSummary(null)).toBeNull();
+    expect(paidOnlineSummary({ ...totals, netPaidOnline: "0.00" })).toBeNull();
   });
 });
 

@@ -29,7 +29,13 @@ Check with Stripe, Open in Stripe for admins and managers), ordering an
 unpaid part on screen (unticked by default; an admin or manager orders
 it with a reason, recorded on the timeline), the exception wording and
 links, and `tests/e2e/payments.spec.ts` with Stripe's fake on for the
-E2E server. Phase 14 step 2 is complete on the branch. Stripe is
+E2E server. Phase 14 step 2 is complete on the branch, followed by one
+commit of the final review's fixes ("Fix Phase 14 review findings": the
+PaymentIntent read that recovers a lost asynchronous failure, refund
+order by each refund's own time, paid online under the job total and on
+Collected, the quote page after an override, the adapter's retry and
+expiry rules, and the docs; the step 1 and 2 migration files edited in
+place, still 61 files). Stripe is
 built against a fake and off in production: no account, key or
 `ADMIN_ORIGIN` exists, so the route would answer 503. The owner also loaded the service
 catalogue and product categories into production on 2026-10-12–14
@@ -48,8 +54,11 @@ deployment of `main`. Earlier rows keep the evidence of their own phase.
   (PR #14, `migrate.yml`) and the public site's backend (PR #15, Phase 11
   step 1).
 - Go-live state (2026-10-12): production is live.
-  - Database: the hosted project holds all 56 migrations (`migrate.yml`
-    run 10, last `20261006103000`); no seed; buckets in place; Postgres 17.
+  - Database: the hosted project holds `main`'s 58 migrations, last
+    `20261014000200_indent_parts` (applied by `migrate.yml` when Phase 13
+    merged; the first line of this file and ENGINEERING "Migrations"); no
+    seed; buckets in place; Postgres 17. None of Phase 14's three files
+    (`20261014000300`–`…0500`) is on a hosted project.
   - Admin: Vercel project `bicii-book` deploys `main` to production
     (functions in sin1) with the Supabase URL, anon key and service-role
     key; production redeployed after the key was added.
@@ -73,12 +82,11 @@ deployment of `main`. Earlier rows keep the evidence of their own phase.
     staging project
     ([R-001](docs/RISKS.md#r-001--nothing-is-deployed)), an exercised
     backup ([R-002](docs/RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery)).
-- Current objective: Phase 13, indent parts and customer quotes
-  ([PLAN Phase 13](docs/PLAN.md#phase-13--indent-parts-and-customer-quotes),
-  D140–D148, [ADR-024](docs/decisions/ADR-024-indent-parts-and-customer-quotes.md)),
-  then Phase 14, Stripe payments
+- Current objective: Phase 14, Stripe payments
   ([PLAN Phase 14](docs/PLAN.md#phase-14--customer-payments-through-stripe),
-  D150–D159, [ADR-025](docs/decisions/ADR-025-stripe-payments.md)). Also
+  D150–D159, [ADR-025](docs/decisions/ADR-025-stripe-payments.md)): push
+  step 1 as PR A, then step 2 with the review fixes as PR B; step 3
+  (balance links, Reports) next. Phase 13 is merged (PR #23). Also
   waiting: staff and the public site (Phase 11 step 2,
   [PLAN Phase 11](docs/PLAN.md#phase-11--public-site-integration-in-the-bicii-repo),
   D120–D125, [ADR-023](docs/decisions/ADR-023-public-site.md)), whose
@@ -89,19 +97,22 @@ deployment of `main`. Earlier rows keep the evidence of their own phase.
      Stripe variables, so nothing else changes). Step 2's three commits
      (the database; the quote page, Checkout and Settings; the job's
      Customer payments card, the override on screen and
-     `payments.spec.ts`) are local after them: push them as PR B once PR
-     A is merged, answering the template's documentation and hosted
-     impact (spec 3.10: the percent is 0, so nothing is asked or gated;
-     a failed read of the new views hides the card). Merging step 2
-     changes nothing in production while the percent stays 0. The owner creates the Stripe account and restricted key and
-     answers question 32 (D151–D159, GST time of supply, the privacy
-     notice). Phase 13 steps 2 and 3 are merged (PR #23). Quote
+     `payments.spec.ts`) and the review-fix commit are local after them:
+     push them as PR B once PR A is merged, answering the template's
+     documentation and hosted impact (spec 3.10: the percent is 0, so
+     nothing is asked or gated; a failed read of the new views hides the
+     card). The fix commit edits `20261014000400` as well as `…0500`, so
+     PR A must carry the edited `…0400` (or the fix moves into a new
+     migration sorting after `…0500` if PR A merges first). Merging step 2
+     changes nothing in production while the percent stays 0. The owner
+     creates the Stripe account (Singapore, PayNow on) and the restricted
+     key with the three permissions in RUNBOOK "Stripe: restricted key",
+     and answers question 32 (D151–D159, GST time of supply, the privacy
+     notice, counter payments). Phase 13 steps 2 and 3 are merged (PR #23). Quote
      emails stay off until the owner verifies the Resend domain and sets
      `RESEND_API_KEY` and `EMAIL_FROM` in Vercel Production
      ([RUNBOOK](docs/RUNBOOK.md#quote-emails),
      [R-079](docs/RISKS.md#r-079--email-quotes-need-the-resend-domain-and-api-key)).
-     The owner creates the Stripe account (Singapore, PayNow on) before
-     Phase 14 goes live (PRODUCT question 32).
   1. Owner: finish Resend's domain verification, set the shop's address as
      the Auth sender, send a code to a second address, then invite staff
      from Settings → Staff.
@@ -242,7 +253,9 @@ deployment of `main`. Earlier rows keep the evidence of their own phase.
 - Phase 14 risks (Stripe range R-085–R-089): R-085 (keys and the webhook,
   with step 1's database and adapter evidence), R-086 (a payment stays
   pending until Stripe confirms it; contained in steps 1 and 2: Check
-  with Stripe, the return's re-read, `pending_unconfirmed`), R-087
+  with Stripe, which also reads the PaymentIntent of a Checkout that
+  completed unpaid, the return's re-read, `pending_unconfirmed`; a session
+  Stripe cannot find under the current key stays pending), R-087
   (refunds made by hand in Stripe; held deposits on cancelled jobs or
   parts now flagged on the job and in Exceptions), R-088 (the quote
   link is a payment capability that reaches Stripe) and R-089 (what BICII
@@ -312,6 +325,7 @@ Deployed column keeps each row's state when the row was written.
 | Indent deposits in Postgres (Phase 14 step 2, first commit: D151, D152, D154, D157, D158, D159b; the deposit setting at 0 and its admin setter; the quote snapshot trigger; `quote_deposits`, `payment_issues`, `work_order_payment_totals`; the quote page's `deposit` key; `prepare_deposit_checkout` and `record_deposit_checkout`, service role only; the D152 gate with `override_reason` on `order_part_requests`; `payment_attention` and `stripe_attention`) | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): `supabase/migrations/20261014000500_indent_deposits.sql`, `database.types.ts`, `db-errors.ts`, `src/lib/domain/indent.ts` (`overrideReason` passed through, nothing calls it yet), `tests/db/indent-fixtures.ts` (extracted), `tests/db/indent-deposits.test.ts`, edits to `indent-parts`, `stripe-payments` (the `payment_issues` checks step 1 left for this view), `operational-exceptions` and `customer-access` tests, api-surface; DATA-MODEL (authority, status, §3, §5 "Indent deposits", §14, §15, §16, §19, the lock order), TESTING | Locally on 2026-10-14: `npm run db:reset` applied all 61 files (`61\|20261014000500`); `npm run check` pass (typegen, tsc, eslint, prettier); `npm run check:types` pass (types staged, no diff); `npm test` pass, 171 files and 2,569 tests (`indent-deposits.test.ts` 20 tests, `stripe-payments.test.ts` 31); `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test tests/e2e/indent.spec.ts tests/e2e/exceptions.spec.ts tests/e2e/today.spec.ts` pass, 24 tests on phone and tablet (unchanged at 0%; it reset `bicii_dev`). No other E2E run | Not deployed; no screen calls the new RPCs yet; the percent ships at 0 |
 | Deposit on the quote page, Stripe Checkout and the deposit setting (Phase 14 step 2, second commit: D151, D153, D157a, D158, D159a; the open quote names the percent, the answered quote's Deposit card with Pay deposit, the confirming state with one verified re-read and a minute of refreshes, the cancelled and returned banners; `startDepositCheckout` reusing an open session or creating one per attempt with a fresh idempotency key, return URLs from `ADMIN_ORIGIN` only, redirects only to `checkout.stripe.com` (the fake: this Admin's quote page); `confirmDepositReturn` never creates; `refreshPaymentFromStripe` for the next commit's Check with Stripe; the quote page's `pay` limit, 10 per client and per token; Settings → Customer payments, admins only) | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): `src/lib/integrations/stripe/checkout.ts`, `records.ts` (`prepareDepositCheckout`, `recordDepositCheckout`), `deps.ts` (the correlation id), `src/lib/quote-limits.ts`, `src/lib/quote-page.ts`, the quote page (`page.tsx`, `actions.ts`, `deposit-card.tsx`, `pay-deposit-button.tsx`, `confirming-payment.tsx`), `src/lib/payments.ts` (labels, tones, the off-reason sentences, delivery words), `src/lib/domain/payments.ts` (the percent getter and setter, `listRecentStripeEvents`), `src/app/(staff)/settings/payments/` (page and action), `deposit-percent-control.tsx`, the Settings row; unit tests `stripe-checkout` (new, 21), `payments` (new, 7), `quote-page` (extended); USER-GUIDE (the quote page's deposit, the refusal on ordering, the new admin task), DESIGN (the quote page's deposit, Settings → Customer payments, `DepositPercentControl`), TESTING (unit), RUNBOOK (Settings shows the off reason), DATA-MODEL (status) | Locally on 2026-10-14: `npm run check` pass (typegen, tsc, eslint, prettier); `npm test` pass, 173 files and 2,602 tests; `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test tests/e2e/indent.spec.ts` pass, 2 tests on phone and tablet (the quote page at 0% unchanged for customers; it reset `bicii_dev`). `npm run check:types` not run (no migration or type change). No other E2E run; the Pay flow end to end is `payments.spec.ts`, next commit | Not deployed; Stripe off in production; the percent ships at 0 |
 | Customer payments card, the ordering gate on screen, exceptions and the deposit E2E (Phase 14 step 2, third commit: D151, D152, D154, D155, D159; the job's Customer payments card read through RLS by `getJobPayments` (deposits, payments, `payment_issues` sentences, paid online, job total, still to pay or paid ahead; hidden when the read fails), Check with Stripe (any staff member, rate-limited per payment) and Open in Stripe (admins and managers); the order sheet starts unpaid parts unticked, only an admin or manager (`canOverrideDeposit`) ticks them, with a required reason sent as `overrideReason`; the deposit badges on part rows; the `part_ordered` override on the timeline; "Customer payment" and "Stripe needs attention" exceptions in a "Customer payments" section; the fake Stripe on for the E2E server) | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): `src/lib/domain/payments.ts` (`getJobPayments`), `src/components/domain/payments-card.tsx`, `src/app/(staff)/jobs/payment-actions.ts`, `indent-card.tsx`, `indent-actions.ts`, `permissions.ts` (`canOverrideDeposit`), the job page, `src/lib/payments.ts` (`depositBlockedIds`, `stripeDashboardHref`), `workshop-timeline.ts`, `reports.ts`, `reconciliation.ts`, `playwright.config.mts`, `tests/e2e/payments.spec.ts`; unit tests (payments, exception-kinds, reconciliation, workshop-timeline, consignment); USER-GUIDE (ordering an unpaid part, the card, roles), PRODUCT (roles, four domain rules, non-goals), DESIGN (`PaymentsCard`, `IndentCard`, the job page, Exceptions), TESTING (unit, the E2E narrative, journey 8, the E2E Stripe variables and `E2E_REUSE_SERVER`), ADR-025 (step 2 status), PLAN (D151, D152 built; Phase 14 step 2), RISKS (R-086, R-087, R-088) | Locally on 2026-10-14: `npm run check` pass (typegen, tsc, eslint, prettier); `npm test` pass, 173 files and 2,608 tests; `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test tests/e2e/payments.spec.ts` pass, 6 tests on phone and tablet (a first run failed two tests on the order sheet's visually hidden checkbox; fixed by clicking its label); the full suite `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test` pass, 225 passed and 3 skipped on phone and tablet in 24.8 minutes (the run crossed Singapore midnight, so the clock-based skips fired: Today's "lists what needs attention" on both projects and appointments' Journey 2 on the phone); then `… npx playwright test tests/e2e/appointments.spec.ts tests/e2e/payments.spec.ts tests/e2e/today.spec.ts tests/e2e/exceptions.spec.ts` after the day turned: pass, 36 tests, none skipped (payments.spec leaves Today and Exceptions as they were) (it reset `bicii_dev`). `npm run check:types` not run (no migration or type change) | Not deployed; Stripe off in production; the percent ships at 0 |
+| Phase 14 final review fixes (one commit, "Fix Phase 14 review findings": D152, D154, D155, D157, D158, D159; R-085–R-089). *Check with Stripe* reads the PaymentIntent of a Checkout that completed unpaid and records a lost asynchronous failure (`record_stripe_read` takes `payment_intent`, `private.apply_stripe_payment_intent`); refunds carry `status_changed_at`, so `refund_failed` survives adoption and `payment_issues` needs no definer helper; payment sentences print `$…`; `pending_unconfirmed` worded by whether Checkout completed; a linked refund in another currency listed once; `record_deposit_checkout` checks a replay's quote and a ≤ 61-minute expiry; the quote page's `parts_ordered` wording after an override; paid online under the Lines total and on Collected; Exceptions rows say where to act; the adapter retries a POST's 5xx only when Stripe says so, expires with a fresh key, checks Stripe's 30-minute to 24-hour expiry window (live and fake, whose sessions now expire by its clock) and stops starting Stripe steps after 30 s; `ADMIN_ORIGIN` not loopback in Production; `stripeIsOn()` never throws; the return marker leaves the address; Pay resets after Back; the runbook link points at georgieboys | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): migrations `20261014000400` and `…0500` edited in place (61 files), `database.types.ts`, `src/lib/integrations/stripe/` (`checkout.ts`, `client.ts`, `config.ts`, `form.ts`, `gateway.ts`, `http-gateway.ts`, `fake-gateway.ts`), the quote page, the job page, `payments-card.tsx`, `job-status-actions.tsx`, `indent-card.tsx`, `payment-actions.ts`, `src/lib/payments.ts`, `quote-page.ts`, `reports.ts`, `docs-links.ts`; tests: `tests/db/lock-race.ts` (the Phase 14 races now prove the second call waits), `stripe-payments`, `indent-deposits`, `meta`, unit (`stripe-*`, `payments`, `quote-page`, `exception-kinds`, `job-status-actions`, new `job-payments`, `deposit-components`, `docs-links`), `payments.spec.ts`; docs: DATA-MODEL, ARCHITECTURE, ADR-025, PLAN §6, RISKS R-085–R-089, RUNBOOK (restricted key: Checkout Sessions Write, Charges Read, PaymentIntents Read; no Checkout custom domain; resolving problems; rehearsal step 10), TESTING, USER-GUIDE, DESIGN, PRODUCT | Locally on 2026-10-14: `npm run db:reset` applied all 61 files; `npm run check` pass; `npm run check:types` pass (types staged, no diff); `npm test` pass, 176 files and 2,646 tests (a first run failed only `stack.smoke.test.ts` with Auth's "Database error finding user" right after `db:reset`, the known race; it passed alone and on the full rerun); the docs link check 43 files, 1,117 links, 0 problems; the full E2E suite `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test` pass, 228 passed on phone and tablet in 25.2 minutes (it reset `bicii_dev`) | Not deployed; Stripe off in production; the percent ships at 0 |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
@@ -322,8 +336,9 @@ Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
   what production runs. The local `main` ref is stale; use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted
   from `main` after each merge (PRs #14–#18, #22, #23); this checkpoint
-  (Phase 14 step 1's three commits and step 2's three commits, on
-  `main` 20b33ae) is committed locally and not pushed.
+  (Phase 14 step 1's three commits, step 2's three commits and the
+  review-fix commit, on `main` 20b33ae) is committed locally and not
+  pushed.
 - The build session's branches, paused for the handover: `feat/p8-labels`
   (3f09d22) and `wip/feat/p8-labels` (01cb3da), merged through PR #16;
   `wip/feat/p10-shopify` (8dbe6c4: 3b5341c, merged through PR #17, plus

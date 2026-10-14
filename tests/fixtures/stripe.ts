@@ -7,7 +7,8 @@
  * The objects follow Stripe's API shapes (API version 2026-09-30.endive,
  * snapshot payloads) for the fields BICII reads (DATA-MODEL §19): a
  * Checkout Session (`checkout.session`) and a Refund (`refund`), wrapped in
- * an Event (`event`). Amounts are integers in the currency's minor unit;
+ * an Event (`event`), and a PaymentIntent (`payment_intent`, read only by
+ * Check with Stripe). Amounts are integers in the currency's minor unit;
  * currencies are lower-case. Anything BICII does not read is left out
  * unless a test adds it through `extra` (for example customer details,
  * which BICII must never store, D159e). Verify these shapes against a real
@@ -158,6 +159,43 @@ export function refundObject({
     reason,
     failure_reason: failureReason,
     created,
+    metadata: {},
+  };
+}
+
+export type PaymentIntentInput = {
+  /** pi_… */
+  id: string;
+  /** requires_payment_method | requires_action | processing | canceled | succeeded … */
+  status: string;
+  amountCents?: number;
+  currency?: string;
+  livemode?: boolean;
+  created?: number;
+};
+
+/** A Stripe PaymentIntent object (the fields BICII reads, plus one it must not store). */
+export function paymentIntentObject({
+  id,
+  status,
+  amountCents = 12000,
+  currency = "sgd",
+  livemode = false,
+  created = Math.floor(Date.now() / 1000),
+}: PaymentIntentInput): Record<string, unknown> {
+  return {
+    id,
+    object: "payment_intent",
+    amount: amountCents,
+    currency,
+    status,
+    livemode,
+    created,
+    // Never stored (D159e): the projection keeps ids, statuses and amounts only.
+    last_payment_error:
+      status === "requires_payment_method"
+        ? { code: "payment_intent_payment_attempt_failed", message: "The payment failed." }
+        : null,
     metadata: {},
   };
 }

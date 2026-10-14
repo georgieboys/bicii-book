@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import type { Json } from "@/lib/database.types";
 
 import {
@@ -14,9 +16,11 @@ import { checkoutSessionParams, formEncode } from "./form";
 import {
   StripeError,
   toCheckoutSession,
+  toPaymentIntent,
   type CheckoutSession,
   type CheckoutSessionInput,
   type StripeGateway,
+  type StripePaymentIntent,
   type StripeRefundObject,
 } from "./gateway";
 
@@ -28,8 +32,8 @@ import {
  *
  * Error mapping (RUNBOOK "Stripe payments"):
  *   fetch throws or times out, 409 (an idempotent request still running),
- *   5xx                                   -> stripe_unavailable (retriable)
- *   429                                   -> stripe_rate_limited (retriable)
+ *   5xx                                   -> stripe_unavailable
+ *   429                                   -> stripe_rate_limited
  *   401, 403                              -> stripe_auth_failed
  *   404                                   -> stripe_not_found
  *   400 with error.type idempotency_error -> stripe_idempotency_conflict
@@ -38,12 +42,18 @@ import {
  *   a 2xx BICII cannot use (wrong object, no id, another livemode)
  *                                         -> stripe_bad_response
  *
- * Each call is retried once after a retriable error, with the same
- * Idempotency-Key and byte-identical body. After a 409 (the same
- * idempotent request still running at Stripe) or a 429 the retry waits
- * RETRY_DELAY_MIN_MS to RETRY_DELAY_MAX_MS, jittered, so it does not land
- * on the same contention; after a network error or a 5xx it is
- * immediate. Of an error body only `error.type` and `error.code` are
+ * Each call is retried once, with the same Idempotency-Key and
+ * byte-identical body, only when the retry can get a different answer:
+ * after a network error or a timeout (nothing was saved), a 409 (the same
+ * idempotent request still running) or a 429, and after a 5xx on a GET
+ * (no key) or when Stripe says `Stripe-Should-Retry: true`. A POST's other
+ * 5xx is not retried: Stripe saves the result of an idempotent request
+ * that started executing, 500s included, and replays it for the same key
+ * (docs.stripe.com/api/idempotent_requests). After a 409 or a 429 the
+ * retry waits RETRY_DELAY_MIN_MS to RETRY_DELAY_MAX_MS, jittered, so it
+ * does not land on the same contention; otherwise it is immediate. Expire
+ * takes a fresh key per call (expireIdempotencyKey), so a saved 500 never
+ * blocks a later expire. Of an error body only `error.type` and `error.code` are
  * read; Stripe's message and param can echo request values (the return
  * URLs carry the quote token) and are dropped. The gateway never logs:
  * callers log the op and the error's code.
@@ -58,6 +68,10 @@ export type HttpGatewayOptions = {
   sleep?: (ms: number) => Promise<void>;
   /** A number in [0, 1) for the jitter (injected by tests). */
   random?: () => number;
+  /** Epoch milliseconds (checkoutSessionParams' window; injected by tests). */
+  now?: () => number;
+  /** The expire key's nonce (injected by tests). */
+  nonce?: () => string;
 };
 
 /** The wait before the single retry after a 409 or a 429, in milliseconds. */
@@ -100,6 +114,8 @@ export function createHttpStripeGateway(
     timeoutMs = STRIPE_TIMEOUT_MS,
     sleep = defaultSleep,
     random = Math.random,
+    now = Date.now,
+    nonce = randomUUID,
   }: HttpGatewayOptions,
   fetchImpl: typeof globalThis.fetch = globalThis.fetch,
 ): StripeGateway {
@@ -135,6 +151,8 @@ export function createHttpStripeGateway(
       body = null;
     }
     const status = res.status;
+    // A 5xx is worth repeating only when no result was saved under the key.
+    const shouldRetry = call.method === "GET" || res.headers.get("stripe-should-retry") === "true";
     if (status >= 200 && status < 300) {
       if (!isObj(body)) throw new StripeError("stripe_bad_response", false, status);
       return body;
@@ -143,9 +161,8 @@ export function createHttpStripeGateway(
     const type = shortString(error.type);
     const code = shortString(error.code);
     if (status === 429) throw new StripeError("stripe_rate_limited", true, status, code);
-    if (status === 409 || status >= 500) {
-      throw new StripeError("stripe_unavailable", true, status, code);
-    }
+    if (status === 409) throw new StripeError("stripe_unavailable", true, status, code);
+    if (status >= 500) throw new StripeError("stripe_unavailable", shouldRetry, status, code);
     if (status === 401 || status === 403) {
       throw new StripeError("stripe_auth_failed", false, status, code);
     }
@@ -183,7 +200,7 @@ export function createHttpStripeGateway(
       input: CheckoutSessionInput,
       idempotencyKey: string,
     ): Promise<CheckoutSession> {
-      const body = formEncode(checkoutSessionParams(input));
+      const body = formEncode(checkoutSessionParams(input, Math.floor(now() / 1000)));
       const raw = await request({
         method: "POST",
         path: "/v1/checkout/sessions",
@@ -203,7 +220,7 @@ export function createHttpStripeGateway(
         method: "POST",
         path: `${sessionPath(id)}/expire`,
         body: "",
-        idempotencyKey: expireIdempotencyKey(id),
+        idempotencyKey: expireIdempotencyKey(id, nonce()),
         expire: true,
       });
       return toCheckoutSession(raw, livemode);
@@ -222,6 +239,15 @@ export function createHttpStripeGateway(
       return raw.data
         .filter((r): r is Obj => isObj(r) && r.object === "refund" && typeof r.id === "string")
         .map((r) => ({ id: r.id as string, raw: r as Record<string, Json> }));
+    },
+
+    async retrievePaymentIntent(id: string): Promise<StripePaymentIntent> {
+      if (!PAYMENT_INTENT_ID.test(id)) throw new StripeError("stripe_request_failed", false);
+      const raw = await request({
+        method: "GET",
+        path: `/v1/payment_intents/${encodeURIComponent(id)}`,
+      });
+      return toPaymentIntent(raw, livemode);
     },
   };
 }

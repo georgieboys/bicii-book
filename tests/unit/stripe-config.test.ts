@@ -148,6 +148,23 @@ describe("stripeConfig", () => {
     expect(config(env)).toEqual({ state: "off", reason });
   });
 
+  it.each([
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "https://127.0.0.1",
+    "https://app.localhost",
+    "https://[::1]:3000",
+  ])("is off in production for a loopback ADMIN_ORIGIN (%s)", (origin) => {
+    expect(
+      config({
+        ...ON,
+        STRIPE_SECRET_KEY: LIVE_KEY,
+        VERCEL_ENV: "production",
+        ADMIN_ORIGIN: origin,
+      }),
+    ).toEqual({ state: "off", reason: "origin_invalid" });
+  });
+
   it("accepts https origins with a trailing slash, and http on 127.0.0.1", () => {
     expect(config({ ...ON, ADMIN_ORIGIN: "https://admin.example.com/" })).toMatchObject({
       origin: "https://admin.example.com",
@@ -199,5 +216,31 @@ describe("stripeCheckBucket", () => {
     expect(stripeCheckBucket(id)).toBe(bucket);
     expect(stripeCheckBucket(`${id.slice(0, -1)}6`)).not.toBe(bucket);
     expect(STRIPE_CHECK_LIMIT).toBe(6);
+  });
+});
+
+describe("stripeIsOn", () => {
+  it("is false, logged by name only, when the server environment does not parse (D157c)", async () => {
+    vi.resetModules();
+    const error = vi.fn();
+    vi.doMock("@/lib/logger", () => ({ logger: { error, warn: vi.fn() }, child: vi.fn() }));
+    vi.doMock("@/lib/env", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("@/lib/env")>();
+      return {
+        ...actual,
+        getServerEnv: () => {
+          throw new actual.EnvError("server", []);
+        },
+      };
+    });
+    const client = await import("@/lib/integrations/stripe/client");
+    expect(client.stripeIsOn()).toBe(false);
+    expect(error).toHaveBeenCalledWith(
+      { integration: "stripe", error: "EnvError" },
+      "stripe state unreadable",
+    );
+    vi.doUnmock("@/lib/env");
+    vi.doUnmock("@/lib/logger");
+    vi.resetModules();
   });
 });

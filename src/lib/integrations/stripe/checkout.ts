@@ -30,7 +30,9 @@ import {
  *   confirmDepositReturn      the customer back from Stripe: re-read the
  *                             open session, never create one
  *   refreshPaymentFromStripe  staff's Check with Stripe: re-read the
- *                             session and list its refunds (R-086)
+ *                             session, its PaymentIntent when Checkout
+ *                             completed unpaid (an asynchronous failure
+ *                             shows only there), and its refunds (R-086)
  *
  * The quote token appears only in the success and cancel URLs, which are
  * built from ADMIN_ORIGIN (never from the request's Host): never in
@@ -47,13 +49,35 @@ export type StartDepositResult =
   | { kind: "unavailable" };
 
 export type RefreshResult =
-  | { kind: "checked"; before: PaymentStatus; after: PaymentStatus; changed: boolean }
+  | {
+      kind: "checked";
+      before: PaymentStatus;
+      after: PaymentStatus;
+      /** After the check: pending with Checkout completed (Stripe still confirming). */
+      processing: boolean;
+      changed: boolean;
+      /**
+       * The session was read and recorded, but its PaymentIntent or refunds
+       * could not be (most often the restricted key lacks a permission,
+       * RUNBOOK "Stripe: restricted key").
+       */
+      incomplete: boolean;
+    }
   | { kind: "unavailable" }
   | { kind: "not_found" }
-  | { kind: "other_mode" };
+  | { kind: "other_mode" }
+  /** Stripe has no such Checkout under this key (another account, or the fake restarted). */
+  | { kind: "session_missing" };
 
 /** A pay attempt prepares at most this many times (a replaced or lost session loops once or twice). */
 const MAX_ATTEMPTS = 3;
+
+/**
+ * Pay deposit starts no new Stripe step after this long, so a slow Stripe
+ * (8-second timeouts, each retried once) answers "unavailable" inside the
+ * quote page's 60-second maxDuration rather than being cut off.
+ */
+export const PAY_DEADLINE_MS = 30_000;
 
 const QUOTE_NOT_FOUND_MESSAGE = "This link is not valid. Ask the shop for a new one.";
 
@@ -63,16 +87,21 @@ type Ready = {
     gateway: NonNullable<StripeDeps["gateway"]>;
   };
   origin: string;
+  /** Epoch milliseconds after which no new Stripe step starts (Pay only). */
+  deadline: number;
 };
 
 /** Stripe on, a gateway and the service client, or null (no RPC runs). */
-function ready(deps: StripeDeps): Ready | null {
+function ready(deps: StripeDeps, budgetMs = Number.POSITIVE_INFINITY): Ready | null {
   if (deps.config.state !== "on" || !deps.gateway || !deps.supabase) return null;
   return {
     deps: deps as Ready["deps"],
     origin: deps.config.origin,
+    deadline: deps.now() + budgetMs,
   };
 }
+
+const pastDeadline = (r: Ready) => r.deps.now() > r.deadline;
 
 function isRpcError(error: unknown): error is StripeRpcError {
   return error instanceof Error && typeof (error as StripeRpcError).code === "string";
@@ -147,6 +176,10 @@ async function read(
 
 /** Expire a session BICII will not use (best effort; Stripe expires it in 60 minutes anyway). */
 async function expireQuietly(r: Ready, paymentId: string, sessionId: string): Promise<void> {
+  if (pastDeadline(r)) {
+    r.deps.log.warn({ op: "expire", paymentId }, "checkout expire skipped: out of time");
+    return;
+  }
   try {
     await r.deps.gateway.expireCheckoutSession(sessionId);
   } catch (error) {
@@ -160,7 +193,20 @@ type Step = { done: StartDepositResult } | { again: true };
 async function checkOpenSession(r: Ready, row: PrepareDepositResult): Promise<Step> {
   const { gateway, now } = r.deps;
   const paymentId = row.payment_id;
-  const session = await gateway.retrieveCheckoutSession(row.stripe_checkout_session_id ?? "");
+  let session: CheckoutSession;
+  try {
+    session = await gateway.retrieveCheckoutSession(row.stripe_checkout_session_id ?? "");
+  } catch (error) {
+    if (error instanceof StripeError && error.code === "stripe_not_found") {
+      // The pending row names a session this key cannot see (another
+      // Stripe account, or the fake restarted): it stays pending and blocks
+      // Pay on this quote until it is resolved (RUNBOOK "Stripe: resolving
+      // problems", R-086).
+      r.deps.log.error({ op: "check", paymentId }, "pending checkout session not found at stripe");
+      return { done: { kind: "unavailable" } };
+    }
+    throw error;
+  }
   const result = await read(r, paymentId, session.raw);
   const status = result.payment_status;
   if (status && PAID_GROUP.has(status)) return { done: { kind: "paid" } };
@@ -179,6 +225,7 @@ async function checkOpenSession(r: Ready, row: PrepareDepositResult): Promise<St
   }
 
   // Too close to its expiry to finish paying: expire it and record that.
+  if (pastDeadline(r)) return { done: { kind: "unavailable" } };
   try {
     const expired = await gateway.expireCheckoutSession(session.id);
     await read(r, paymentId, expired.raw);
@@ -276,12 +323,16 @@ export async function startDepositCheckout(
   token: string,
   deps: StripeDeps,
 ): Promise<StartDepositResult> {
-  const r = ready(deps);
+  const r = ready(deps, PAY_DEADLINE_MS);
   if (!r) return { kind: "unavailable" };
 
   let paymentId = "";
   try {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      if (pastDeadline(r)) {
+        deps.log.warn({ op: "pay", paymentId }, "checkout out of time");
+        return { kind: "unavailable" };
+      }
       let row: PrepareDepositResult;
       try {
         row = await prepareDepositCheckout(r.deps.supabase, token);
@@ -353,9 +404,13 @@ export async function confirmDepositReturn(
 }
 
 /**
- * Staff's Check with Stripe (D159a; R-086): re-read the payment's session
- * and list its refunds, recording each through record_stripe_read. Staff
- * supply only the payment id; every value comes from Stripe.
+ * Staff's Check with Stripe (D159a; R-086): re-read the payment's session,
+ * then, when Checkout completed unpaid, its PaymentIntent (an asynchronous
+ * failure whose webhook was lost shows only there), then its refunds,
+ * recording each through record_stripe_read. Staff supply only the payment
+ * id; every value comes from Stripe. Once the session is recorded, a
+ * failure to read the intent or the refunds is reported as `incomplete`,
+ * not as Stripe being unreachable.
  */
 export async function refreshPaymentFromStripe(
   paymentId: string,
@@ -379,18 +434,49 @@ export async function refreshPaymentFromStripe(
       return { kind: "other_mode" };
     }
 
-    const session = await gateway.retrieveCheckoutSession(row.stripe_checkout_session_id);
-    await read(r, paymentId, session.raw);
+    let session: CheckoutSession;
+    try {
+      session = await gateway.retrieveCheckoutSession(row.stripe_checkout_session_id);
+    } catch (error) {
+      if (error instanceof StripeError && error.code === "stripe_not_found") {
+        log.error({ op: "refresh", paymentId }, "checkout session not found at stripe");
+        return { kind: "session_missing" };
+      }
+      throw error;
+    }
+    const recorded = await read(r, paymentId, session.raw);
+    let incomplete = false;
     const pi = session.paymentIntent ?? row.stripe_payment_intent_id;
+    if (
+      pi &&
+      recorded.payment_status === "pending" &&
+      session.status === "complete" &&
+      session.paymentStatus === "unpaid"
+    ) {
+      try {
+        const intent = await gateway.retrievePaymentIntent(pi);
+        await read(r, paymentId, intent.raw);
+      } catch (error) {
+        if (!(error instanceof StripeError)) throw error;
+        logStripeError(deps, "refresh_intent", paymentId, error);
+        incomplete = true;
+      }
+    }
     if (pi) {
-      for (const refund of await gateway.listRefunds(pi)) {
-        await read(r, paymentId, refund.raw);
+      try {
+        for (const refund of await gateway.listRefunds(pi)) {
+          await read(r, paymentId, refund.raw);
+        }
+      } catch (error) {
+        if (!(error instanceof StripeError)) throw error;
+        logStripeError(deps, "refresh_refunds", paymentId, error);
+        incomplete = true;
       }
     }
 
     const { data: after, error: afterError } = await supabase
       .from("payments")
-      .select("status, refunded_amount")
+      .select("status, refunded_amount, checkout_completed_at")
       .eq("id", paymentId)
       .single();
     if (afterError) {
@@ -400,9 +486,11 @@ export async function refreshPaymentFromStripe(
       kind: "checked",
       before: row.status,
       after: after.status,
+      processing: after.status === "pending" && Boolean(after.checkout_completed_at),
       changed:
         after.status !== row.status ||
         String(after.refunded_amount) !== String(row.refunded_amount),
+      incomplete,
     };
   } catch (error) {
     logStripeError(deps, "refresh", paymentId, error);

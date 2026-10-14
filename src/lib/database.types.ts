@@ -2023,6 +2023,7 @@ export type Database = {
           payment_id: string | null;
           reason: string | null;
           status: Database["public"]["Enums"]["stripe_refund_status"];
+          status_changed_at: string;
           stripe_created_at: string | null;
           stripe_payment_intent_id: string;
           stripe_refund_id: string;
@@ -2039,6 +2040,7 @@ export type Database = {
           payment_id?: string | null;
           reason?: string | null;
           status: Database["public"]["Enums"]["stripe_refund_status"];
+          status_changed_at?: string;
           stripe_created_at?: string | null;
           stripe_payment_intent_id: string;
           stripe_refund_id: string;
@@ -2055,6 +2057,7 @@ export type Database = {
           payment_id?: string | null;
           reason?: string | null;
           status?: Database["public"]["Enums"]["stripe_refund_status"];
+          status_changed_at?: string;
           stripe_created_at?: string | null;
           stripe_payment_intent_id?: string;
           stripe_refund_id?: string;

@@ -28,7 +28,9 @@ import { createHttpStripeGateway } from "./http-gateway";
  *      not whsec_…                            -> off webhook_secret_invalid
  *   7. no SUPABASE_SERVICE_ROLE_KEY           -> off service_role_missing
  *   8. ADMIN_ORIGIN not an https origin (http only for localhost or
- *      127.0.0.1) with no path, search or hash -> off origin_invalid
+ *      127.0.0.1) with no path, search or hash, or in production a
+ *      loopback host (localhost, 127.0.0.1, ::1: Checkout would send
+ *      paying customers to their own machine) -> off origin_invalid
  *   9. on
  */
 
@@ -59,7 +61,16 @@ const LIVE_KEY = /^(sk|rk)_live_[A-Za-z0-9]+$/;
 const TEST_KEY = /^(sk|rk)_test_[A-Za-z0-9]+$/;
 const WEBHOOK_SECRET = /^whsec_[A-Za-z0-9+/=_-]{8,}$/;
 
-function adminOrigin(value: string | undefined): string | null {
+function isLoopback(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "[::1]" ||
+    /^127(\.\d{1,3}){3}$/.test(hostname)
+  );
+}
+
+function adminOrigin(value: string | undefined, production: boolean): string | null {
   if (!value) return null;
   let url: URL;
   try {
@@ -70,6 +81,7 @@ function adminOrigin(value: string | undefined): string | null {
   const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) return null;
   if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) return null;
+  if (production && (url.protocol !== "https:" || isLoopback(url.hostname))) return null;
   return url.origin;
 }
 
@@ -98,7 +110,7 @@ export function stripeConfig(env: ConfigEnv): StripeConfig {
   if (!webhookSecret) return off("webhook_secret_missing");
   if (!WEBHOOK_SECRET.test(webhookSecret)) return off("webhook_secret_invalid");
   if (!env.SUPABASE_SERVICE_ROLE_KEY) return off("service_role_missing");
-  const origin = adminOrigin(env.ADMIN_ORIGIN);
+  const origin = adminOrigin(env.ADMIN_ORIGIN, env.VERCEL_ENV === "production");
   if (!origin) return off("origin_invalid");
 
   return { state: "on", mode, livemode: mode === "live", origin, webhookSecret, secretKey };
@@ -149,6 +161,24 @@ export type StripeConnection = {
   /** What to paste into Stripe's Dashboard as the endpoint URL. */
   webhookEndpoint: string | null;
 };
+
+/**
+ * Whether customers can pay online now, for the quote and job pages: never
+ * throws. A server environment that does not parse (getServerEnv throws an
+ * EnvError) turns payments off for the page, logged by the error's name
+ * only, so the customer can still see and answer the quote (D157c).
+ */
+export function stripeIsOn(): boolean {
+  try {
+    return stripeConnection().state === "on";
+  } catch (error) {
+    logger.error(
+      { integration: "stripe", error: error instanceof Error ? error.name : "unknown" },
+      "stripe state unreadable",
+    );
+    return false;
+  }
+}
 
 /** What Settings shows (never a key or a secret). */
 export function stripeConnection(): StripeConnection {

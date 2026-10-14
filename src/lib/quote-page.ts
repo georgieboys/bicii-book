@@ -27,7 +27,9 @@ const quoteItem = z.object({
 /**
  * The deposit the quote asks (Phase 14 step 2; D151, D158): on_answer
  * while open (the percent only: no amount is computed outside Postgres),
- * then due, processing, paid or refunded once answered. Optional, so a
+ * then due, processing, paid or refunded once answered, with
+ * parts_ordered once every approved part still live is ordered or fitted
+ * (D152: the shop ordered without waiting for the deposit). Optional, so a
  * payload from before the deposit migration still parses (null).
  */
 const deposit = z
@@ -35,6 +37,10 @@ const deposit = z
     percent: z.number().int().min(1).max(100),
     amount: money.nullable(),
     status: z.enum(["on_answer", "due", "processing", "paid", "refunded"]),
+    parts_ordered: z
+      .boolean()
+      .optional()
+      .transform((v) => v ?? false),
   })
   .nullable()
   .optional()
@@ -95,4 +101,29 @@ export const ANSWER_NAME_MAX = 100;
 /** How many items were approved, of how many, for the answered page. */
 export function approvedSummary(items: readonly QuoteItem[]): { approved: number; of: number } {
   return { approved: items.filter((i) => i.decision === "approved").length, of: items.length };
+}
+
+/**
+ * The sentence after "Thank you": what happens to the parts. Once the
+ * shop has ordered them without waiting for the deposit (D152), the page
+ * no longer says the order waits for it.
+ */
+export function answeredNext(deposit: QuoteDeposit | null): string {
+  const ordered = deposit?.parts_ordered === true;
+  switch (deposit?.status) {
+    case "due":
+      return ordered
+        ? "The shop has ordered your parts. Ask the shop if you still need to pay the deposit."
+        : "The shop orders your parts once the deposit is paid.";
+    case "processing":
+      return ordered
+        ? "The shop has ordered your parts."
+        : "The shop orders your parts once the deposit is paid.";
+    case "paid":
+      return ordered
+        ? "Your deposit is paid and the shop has ordered your parts."
+        : "Your deposit is paid, so the shop will order your parts.";
+    default:
+      return "The shop will be in touch.";
+  }
 }

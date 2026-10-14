@@ -12,8 +12,13 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { confirmDepositReturn, refreshPaymentFromStripe, startDepositCheckout, validateRedirect } =
-  await import("@/lib/integrations/stripe/checkout");
+const {
+  PAY_DEADLINE_MS,
+  confirmDepositReturn,
+  refreshPaymentFromStripe,
+  startDepositCheckout,
+  validateRedirect,
+} = await import("@/lib/integrations/stripe/checkout");
 
 import type { StripeConfig } from "@/lib/integrations/stripe/client";
 import type { StripeDeps } from "@/lib/integrations/stripe/deps";
@@ -91,6 +96,21 @@ function rpcScript(script: Record<string, Array<RpcResult | Handler>>) {
   return { calls, rpc };
 }
 
+/** The fake on Stripe's clock at NOW_MS. */
+const fakeStripe = () => createFakeStripeGateway({ now: () => NOW_MS });
+
+/** A session made 59 minutes ago, so it now expires inside the reuse margin. */
+async function nearlyExpired(paymentId: string) {
+  let at = NOW_MS - 59 * 60_000;
+  const gateway = createFakeStripeGateway({ now: () => at });
+  const session = await gateway.createCheckoutSession(
+    input(paymentId, NOW_S + 60),
+    `bicii-checkout-${paymentId}`,
+  );
+  at = NOW_MS;
+  return { gateway, session };
+}
+
 function makeDeps(
   script: Record<string, Array<RpcResult | Handler>>,
   over: Partial<StripeDeps> & { rows?: Array<Row | null> } = {},
@@ -108,7 +128,7 @@ function makeDeps(
       return { select: () => ({ eq: () => ({ maybeSingle: next, single: next }) }) };
     },
   } as unknown as ServiceSupabase;
-  const gateway = createFakeStripeGateway();
+  const gateway = fakeStripe();
   const deps: StripeDeps = {
     supabase,
     gateway,
@@ -171,7 +191,7 @@ describe("startDepositCheckout (D158)", () => {
   });
 
   it("check with an open session: re-read at Stripe, then the same url, no new session", async () => {
-    const gateway = createFakeStripeGateway();
+    const gateway = fakeStripe();
     const open = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
     gateway.calls.length = 0;
     const { deps, calls, names } = makeDeps({
@@ -188,8 +208,7 @@ describe("startDepositCheckout (D158)", () => {
   });
 
   it("check within the reuse margin: expire it, record that, then a new session", async () => {
-    const gateway = createFakeStripeGateway();
-    const old = await gateway.createCheckoutSession(input(P1, NOW_S + 60), `bicii-checkout-${P1}`);
+    const { gateway, session: old } = await nearlyExpired(P1);
     gateway.calls.length = 0;
     const { deps, calls } = makeDeps({
       prepare_deposit_checkout: [
@@ -229,8 +248,7 @@ describe("startDepositCheckout (D158)", () => {
   });
 
   it("check whose expire finds it no longer open: retrieve and record it again", async () => {
-    const gateway = createFakeStripeGateway();
-    const old = await gateway.createCheckoutSession(input(P1, NOW_S + 60), `bicii-checkout-${P1}`);
+    const { gateway, session: old } = await nearlyExpired(P1);
     gateway.calls.length = 0;
     gateway.failNext("expire", new StripeError("stripe_session_not_open", false, 400));
     const { deps, calls } = makeDeps({
@@ -253,7 +271,7 @@ describe("startDepositCheckout (D158)", () => {
       ["refunded", false, "refunded"],
       ["pending", true, "processing"],
     ] as const) {
-      const gateway = createFakeStripeGateway();
+      const gateway = fakeStripe();
       const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
       if (complete) gateway.complete(s.id, { paid: false });
       const { deps } = makeDeps({
@@ -266,7 +284,7 @@ describe("startDepositCheckout (D158)", () => {
   });
 
   it("record says another attempt won: expire the new session, then reuse the winner's", async () => {
-    const gateway = createFakeStripeGateway();
+    const gateway = fakeStripe();
     const winner = await gateway.createCheckoutSession(input(P3), `bicii-checkout-${P3}`);
     gateway.calls.length = 0;
     const { deps } = makeDeps({
@@ -412,6 +430,9 @@ describe("startDepositCheckout (D158)", () => {
         retrieveCheckoutSession: async () => liveSession(url),
         expireCheckoutSession: expire,
         listRefunds: async () => [],
+        retrievePaymentIntent: async () => {
+          throw new StripeError("stripe_not_found", false, 404);
+        },
       };
       const { deps, lines } = makeDeps(
         {
@@ -435,8 +456,47 @@ describe("startDepositCheckout (D158)", () => {
     }
   });
 
+  it("check whose session Stripe cannot find: unavailable, logged, nothing created (R-086)", async () => {
+    const { deps, gateway, names, lines } = makeDeps({
+      prepare_deposit_checkout: [
+        prepared("check", { stripe_checkout_session_id: `cs_test_fake_${"0".repeat(32)}` }),
+      ],
+    });
+    expect(await startDepositCheckout(TOKEN, deps)).toEqual({ kind: "unavailable" });
+    expect(gateway.calls.map((c) => c.op)).toEqual(["retrieve"]);
+    expect(names()).toEqual(["prepare_deposit_checkout"]);
+    expect(lines.join("\n")).toContain("pending checkout session not found at stripe");
+    expectCleanLogs(lines);
+  });
+
+  it("starts no Stripe step after the deadline, so the page's maxDuration is never hit", async () => {
+    // Stripe answered slowly: 31 seconds have passed by the second attempt.
+    let t = NOW_MS;
+    const gateway = fakeStripe();
+    const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
+    gateway.expire(s.id);
+    gateway.calls.length = 0;
+    const { deps, names, lines } = makeDeps(
+      {
+        prepare_deposit_checkout: [prepared("check", { stripe_checkout_session_id: s.id })],
+        record_stripe_read: [
+          () => {
+            t = NOW_MS + PAY_DEADLINE_MS + 1_000;
+            return readResult("expired");
+          },
+        ],
+      },
+      { now: () => t },
+    );
+    deps.gateway = gateway;
+    expect(await startDepositCheckout(TOKEN, deps)).toEqual({ kind: "unavailable" });
+    expect(names()).toEqual(["prepare_deposit_checkout", "record_stripe_read"]);
+    expect(gateway.calls.map((c) => c.op)).toEqual(["retrieve"]);
+    expect(lines.join("\n")).toContain("checkout out of time");
+  });
+
   it("gives up after three attempts", async () => {
-    const gateway = createFakeStripeGateway();
+    const gateway = fakeStripe();
     const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
     gateway.expire(s.id);
     const { deps, names } = makeDeps({
@@ -486,7 +546,7 @@ describe("confirmDepositReturn (R-086)", () => {
       ["pending", false, "due"],
       ["expired", false, "due"],
     ] as const) {
-      const gateway = createFakeStripeGateway();
+      const gateway = fakeStripe();
       const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
       if (complete) gateway.complete(s.id, { paid: status === "paid" });
       const { deps, calls } = makeDeps({
@@ -528,7 +588,7 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
   });
 
   it("re-reads the session and every refund of its payment, then says what changed", async () => {
-    const gateway = createFakeStripeGateway();
+    const gateway = fakeStripe();
     const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
     gateway.complete(s.id, { paymentIntent: "pi_t1" });
     gateway.addRefund("pi_t1", { id: "re_1", amountCents: 5000, status: "succeeded" });
@@ -543,7 +603,9 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
       kind: "checked",
       before: "paid",
       after: "partially_refunded",
+      processing: false,
       changed: true,
+      incomplete: false,
     });
     expect(gateway.calls).toEqual([
       { op: "retrieve", id: s.id },
@@ -554,7 +616,7 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
   });
 
   it("unchanged when Stripe has nothing new", async () => {
-    const gateway = createFakeStripeGateway();
+    const gateway = fakeStripe();
     await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
     const { deps } = makeDeps(
       { record_stripe_read: [readResult("pending")] },
@@ -565,8 +627,113 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
       kind: "checked",
       before: "pending",
       after: "pending",
+      processing: false,
+      changed: false,
+      incomplete: false,
+    });
+  });
+
+  it("Checkout completed unpaid: also reads the PaymentIntent, which records a lost async failure", async () => {
+    const gateway = fakeStripe();
+    const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
+    gateway.complete(s.id, { paid: false, paymentIntent: "pi_async1" });
+    gateway.failAsyncPayment(s.id);
+    gateway.calls.length = 0;
+    const { deps, calls } = makeDeps(
+      { record_stripe_read: [readResult("pending"), readResult("failed")] },
+      {
+        rows: [
+          row({ status: "pending", stripe_payment_intent_id: "pi_async1" }),
+          { status: "failed", refunded_amount: "0.00", checkout_completed_at: null },
+        ],
+      },
+    );
+    deps.gateway = gateway;
+    expect(await refreshPaymentFromStripe(P1, deps)).toEqual({
+      kind: "checked",
+      before: "pending",
+      after: "failed",
+      processing: false,
+      changed: true,
+      incomplete: false,
+    });
+    expect(gateway.calls).toEqual([
+      { op: "retrieve", id: s.id },
+      { op: "retrieve_pi", id: "pi_async1" },
+      { op: "list", id: "pi_async1" },
+    ]);
+    const intent = calls[1].args.object as Row;
+    expect(intent).toMatchObject({
+      id: "pi_async1",
+      object: "payment_intent",
+      status: "requires_payment_method",
+    });
+  });
+
+  it("still being confirmed: processing, and no PaymentIntent read for a paid or open session", async () => {
+    const gateway = fakeStripe();
+    const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
+    gateway.complete(s.id, { paid: false, paymentIntent: "pi_async2" });
+    gateway.calls.length = 0;
+    const { deps } = makeDeps(
+      { record_stripe_read: [readResult("pending")] },
+      {
+        rows: [
+          row({ status: "pending", stripe_payment_intent_id: "pi_async2" }),
+          {
+            status: "pending",
+            refunded_amount: "0.00",
+            checkout_completed_at: "2027-01-15T08:00:00Z",
+          },
+        ],
+      },
+    );
+    deps.gateway = gateway;
+    expect(await refreshPaymentFromStripe(P1, deps)).toMatchObject({
+      kind: "checked",
+      processing: true,
       changed: false,
     });
+    expect(gateway.calls.map((c) => c.op)).toEqual(["retrieve", "retrieve_pi", "list"]);
+
+    // Paid: the session is the authority; no intent read.
+    const paid = fakeStripe();
+    const ps = await paid.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
+    paid.complete(ps.id, { paymentIntent: "pi_paid" });
+    paid.calls.length = 0;
+    const second = makeDeps({ record_stripe_read: [readResult("paid")] }, { rows: [row()] });
+    second.deps.gateway = paid;
+    await refreshPaymentFromStripe(P1, second.deps);
+    expect(paid.calls.map((c) => c.op)).toEqual(["retrieve", "list"]);
+  });
+
+  it("the session recorded but the intent or refunds unreadable (a key permission): incomplete, not unavailable", async () => {
+    for (const op of ["list", "retrieve_pi"] as const) {
+      const gateway = fakeStripe();
+      const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
+      gateway.complete(s.id, { paid: false, paymentIntent: "pi_perm" });
+      gateway.failNext(op, new StripeError("stripe_auth_failed", false, 403));
+      const { deps, lines } = makeDeps(
+        { record_stripe_read: [readResult("pending")] },
+        {
+          rows: [
+            row({ status: "pending", stripe_payment_intent_id: "pi_perm" }),
+            {
+              status: "pending",
+              refunded_amount: "0.00",
+              checkout_completed_at: "2027-01-15T08:00:00Z",
+            },
+          ],
+        },
+      );
+      deps.gateway = gateway;
+      expect(await refreshPaymentFromStripe(P1, deps), op).toMatchObject({
+        kind: "checked",
+        incomplete: true,
+      });
+      expect(lines.join("\n")).toContain("stripe_auth_failed");
+      expectCleanLogs(lines);
+    }
   });
 
   it("not_found, other_mode and unavailable", async () => {
@@ -580,10 +747,15 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
     const off = makeDeps({}, { gateway: null, rows: [row()] });
     expect(await refreshPaymentFromStripe(P1, off.deps)).toEqual({ kind: "unavailable" });
 
-    // The session is unknown to Stripe (the fake holds none): logged, unavailable.
+    // The session is unknown to Stripe (the fake holds none): its own result, logged.
     const lost = makeDeps({}, { rows: [row()] });
-    expect(await refreshPaymentFromStripe(P1, lost.deps)).toEqual({ kind: "unavailable" });
-    expect(lost.lines.join("\n")).toContain("stripe_not_found");
+    expect(await refreshPaymentFromStripe(P1, lost.deps)).toEqual({ kind: "session_missing" });
+    expect(lost.lines.join("\n")).toContain("checkout session not found at stripe");
     expectCleanLogs(lost.lines);
+
+    // Stripe unreachable for the session itself: unavailable.
+    const down = makeDeps({}, { rows: [row()] });
+    down.gateway.failNext("retrieve", new StripeError("stripe_unavailable", true, 503));
+    expect(await refreshPaymentFromStripe(P1, down.deps)).toEqual({ kind: "unavailable" });
   });
 });

@@ -221,46 +221,6 @@ comment on view public.quote_deposits is
   'D151/D152/D158: each answered quote''s deposit and its state: paid (paid or partly refunded, D158e), refunded, processing (Checkout complete, Stripe still confirming), due, none (every approved part cancelled). Security invoker: staff through RLS; the definer RPCs (the gate, quote_view, the Checkout RPCs) read it as owner. One definition for all of them.';
 
 -- ---------------------------------------------------------------------------
--- D159c: when a payment's refund failure stands, for payment_issues
--- ---------------------------------------------------------------------------
-
--- The counted refund whose outcome Stripe reported last (succeeded or
--- failed; a pending or canceled refund moves no money), ordered by when the event or
--- read that last changed it was applied (stripe_events.processed_at, a
--- clock time; updated_at is the transaction's start). When that refund
--- failed, the time it was applied; otherwise null: a failure stands until a
--- later refund succeeds ("Refund again in Stripe"). Security definer
--- because the delivery evidence is admins only (D86) while the issue is for
--- admins and managers; it returns nothing to a signed-in user who is not
--- active staff (staff already read the payment's matched refunds).
-create function private.payment_refund_failed_at(payment_id uuid)
-returns timestamptz
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select case when lr.status = 'failed' then lr.decided_at end
-  from (
-    select r.status, coalesce(e.processed_at, r.updated_at) as decided_at
-    from public.payment_refunds r
-    join public.payments p on p.id = r.payment_id
-    join public.stripe_events e on e.id = r.last_event_id
-    where r.payment_id = payment_refund_failed_at.payment_id
-      and r.status in ('succeeded', 'failed')
-      -- only refunds that count (private.payment_refund_total's rule);
-      -- another currency or mode is refund_not_counted
-      and r.currency = p.currency and (r.livemode is null or r.livemode = p.livemode)
-      and (auth.uid() is null or private.is_staff())  -- never a signed-in customer
-    order by e.processed_at desc nulls first, r.created_at desc, r.id
-    limit 1
-  ) lr;
-$$;
-
-comment on function private.payment_refund_failed_at(uuid) is
-  'D159c: for public.payment_issues'' refund_failed: the time the payment''s last decided counted refund (succeeded or failed, in its currency and mode, by when its event or read was applied) failed, or null. Null for a signed-in user who is not active staff; reads the admin-only stripe_events as owner.';
-
--- ---------------------------------------------------------------------------
 -- View public.payment_issues: the derived "needs attention" list (D159b)
 -- ---------------------------------------------------------------------------
 create view public.payment_issues
@@ -270,8 +230,24 @@ select p.id as payment_id, p.work_order_id, p.quote_id, x.issue, x.severity, x.s
 from public.payments p
 join public.work_orders w on w.id = p.work_order_id
 cross join lateral (
-  select (coalesce(p.amount_received, p.amount) - p.refunded_amount)::text as held,
-         private.payment_refund_failed_at(p.id) as refund_failed_at,
+  -- Money as the screens print it (formatMoney, en-SG: $1,234.50);
+  -- payments are SGD only (payments_currency_check).
+  select '$' || pg_catalog.to_char(coalesce(p.amount_received, p.amount) - p.refunded_amount,
+                                   'FM999,999,990.00') as held,
+         '$' || pg_catalog.to_char(p.amount, 'FM999,999,990.00') as asked,
+         '$' || pg_catalog.to_char(p.amount_received, 'FM999,999,990.00') as received,
+         '$' || pg_catalog.to_char(p.refunded_amount, 'FM999,999,990.00') as refunded,
+         -- D159c: the counted refund (succeeded or failed, in the payment's
+         -- currency and mode) whose outcome Stripe reported last, by when
+         -- the apply recorded that status (status_changed_at; linking an
+         -- unmatched refund leaves it alone). Its failure stands until a
+         -- later refund succeeds ("Refund again in Stripe").
+         (select case when lr.status = 'failed' then lr.status_changed_at end
+          from public.payment_refunds lr
+          where lr.payment_id = p.id and lr.status in ('succeeded', 'failed')
+            and lr.currency = p.currency and (lr.livemode is null or lr.livemode = p.livemode)
+          order by lr.status_changed_at desc, lr.created_at desc, lr.id
+          limit 1) as refund_failed_at,
          -- Linked refunds that payment_refund_total never counts: another
          -- currency or mode (DATA-MODEL §19, step 1's apply_stripe_refund;
          -- one adopted by the completion is flagged on no event).
@@ -282,30 +258,28 @@ cross join lateral (
 ) h
 cross join lateral (values
   ('paid_job_cancelled', 'danger', p.paid_at,
-   pg_catalog.format('%s %s is held but this job is cancelled. Refund it in Stripe if it is due back.',
-                     p.currency, h.held),
+   pg_catalog.format('%s is held but this job is cancelled. Refund it in Stripe if it is due back.', h.held),
    p.status in ('paid', 'partially_refunded') and w.status = 'cancelled'),
   ('paid_parts_cancelled', 'danger', p.paid_at,
-   pg_catalog.format('%s %s is held but every part it was for is cancelled. Refund it in Stripe, or agree with the customer that it counts towards the job.',
-                     p.currency, h.held),
+   pg_catalog.format('%s is held but every part it was for is cancelled. Refund it in Stripe, or agree with the customer that it counts towards the job.',
+                     h.held),
    p.kind = 'deposit' and p.status in ('paid', 'partially_refunded') and w.status <> 'cancelled'
      and not exists (select 1 from public.quote_items i
                      join public.job_part_requests r on r.id = i.part_request_id
                      where i.quote_id = p.quote_id and i.kind = 'part' and i.decision = 'approved'
                        and r.status in ('approved', 'ordered', 'fitted'))),
   ('paid_twice', 'danger', p.paid_at,
-   pg_catalog.format('This deposit was paid twice (%s %s again). Refund one payment in Stripe.',
-                     p.currency, h.held),
+   pg_catalog.format('This deposit was paid twice (%s again). Refund one payment in Stripe.', h.held),
    p.kind = 'deposit' and p.status in ('paid', 'partially_refunded') and exists (
      select 1 from public.payments o
      where o.quote_id = p.quote_id and o.kind = 'deposit' and o.id <> p.id
        and o.status in ('paid', 'partially_refunded') and (o.paid_at, o.id) < (p.paid_at, p.id))),
   ('amount_mismatch', 'danger', p.paid_at,
    case when p.amount_received is null
-     then pg_catalog.format('Stripe took this payment in another currency, not the %s %s asked. Check it in Stripe.',
-                            p.currency, p.amount::text)
-     else pg_catalog.format('Stripe received %s %s, not the %s asked. Check the payment in Stripe.',
-                            p.currency, p.amount_received::text, p.amount::text) end,
+     then pg_catalog.format('Stripe took this payment in another currency, not the %s asked. Check it in Stripe.',
+                            h.asked)
+     else pg_catalog.format('Stripe received %s, not the %s asked. Check the payment in Stripe.',
+                            h.received, h.asked) end,
    p.status in ('paid', 'partially_refunded') and p.amount_received is distinct from p.amount),
   ('refund_failed', 'danger', h.refund_failed_at,
    'A refund failed in Stripe and the money went back to the Stripe balance. Refund again in Stripe.',
@@ -314,18 +288,24 @@ cross join lateral (values
    'Stripe reported a refund of this payment in another currency or mode (test or live), and BICII did not count it. Check it in Stripe.',
    h.uncounted_refund_at is not null),
   ('refund_exceeds_payment', 'danger', p.updated_at,
-   pg_catalog.format('Stripe refunded %s %s, more than BICII recorded as paid. Check the payment in Stripe.',
-                     p.currency, p.refunded_amount::text),
+   pg_catalog.format('Stripe refunded %s, more than BICII recorded as paid. Check the payment in Stripe.',
+                     h.refunded),
    p.refunded_amount > coalesce(p.amount_received, p.amount)),
+  -- R-086: before Checkout completed, a read settles it (expired or
+  -- paid); after it, Check with Stripe also reads the PaymentIntent, and a
+  -- payment Stripe still has not decided is checked in the Dashboard.
   ('pending_unconfirmed', 'warning', p.stripe_session_expires_at,
-   pg_catalog.format('Stripe has not confirmed a payment of %s %s. Press Check with Stripe on the job.',
-                     p.currency, p.amount::text),
+   case when p.checkout_completed_at is null
+     then pg_catalog.format('Stripe has not confirmed a payment of %s. Press Check with Stripe on the job.',
+                            h.asked)
+     else pg_catalog.format('The customer completed Checkout for %s, but Stripe has not confirmed the payment. Press Check with Stripe on the job; if it stays, look the payment up in the Stripe Dashboard.',
+                            h.asked) end,
    p.status = 'pending' and p.stripe_session_expires_at < pg_catalog.now() - interval '15 minutes')
 ) as x (issue, severity, since, message, hit)
 where x.hit;
 
 comment on view public.payment_issues is
-  'D159b: payment conditions needing an admin or manager, derived live (clear when their cause clears). The message is the sentence shown on the job card and in Exceptions. Issues: paid_job_cancelled, paid_parts_cancelled, paid_twice, amount_mismatch, refund_failed, refund_not_counted (a linked refund in another currency or mode), refund_exceeds_payment (danger); pending_unconfirmed (warning, 15 minutes after the session expired). Security invoker: staff through RLS.';
+  'D159b: payment conditions needing an admin or manager, derived live (clear when their cause clears). The message is the sentence shown on the job card and in Exceptions (money as the screens print it: $1,234.50). Issues: paid_job_cancelled, paid_parts_cancelled, paid_twice, amount_mismatch, refund_failed, refund_not_counted (a linked refund in another currency or mode), refund_exceeds_payment (danger); pending_unconfirmed (warning, 15 minutes after the session expired). Security invoker: staff through RLS.';
 
 -- ---------------------------------------------------------------------------
 -- View public.work_order_payment_totals: D154's "paid and balance due"
@@ -376,6 +356,7 @@ declare
   state text;
   deposit jsonb;
   dstate text;
+  ordered boolean;
 begin
   select w.* into wo from public.work_orders w where w.id = quote.work_order_id;
   state := case
@@ -389,7 +370,10 @@ begin
   select c.first_name into first_name from public.customers c where c.id = wo.customer_id;
   -- D151, D158: the deposit the page may show. Open: the percent only (the
   -- amount is fixed when the customer answers). Answered: the amount and
-  -- its state; a due deposit only while the job is open (D158c).
+  -- its state; a due deposit only while the job is open (D158c); and
+  -- parts_ordered, true once every approved part still live is ordered or
+  -- fitted (D152: an admin or manager ordered them before the deposit was
+  -- paid, so the page stops saying the order waits for it).
   if quote.status = 'open' then
     if coalesce(quote.deposit_percent, 0) > 0
        and exists (select 1 from public.quote_items i where i.quote_id = quote.id and i.kind = 'part') then
@@ -400,8 +384,14 @@ begin
     select d.state into dstate from public.quote_deposits d where d.quote_id = quote.id;
     if dstate in ('processing', 'paid', 'refunded')
        or (dstate = 'due' and private.work_order_status_is_open(wo.status)) then
+      select pg_catalog.bool_and(r.status in ('ordered', 'fitted')) into ordered
+      from public.quote_items i
+      join public.job_part_requests r on r.id = i.part_request_id
+      where i.quote_id = quote.id and i.kind = 'part' and i.decision = 'approved'
+        and r.status in ('approved', 'ordered', 'fitted');
       deposit := pg_catalog.jsonb_build_object('percent', quote.deposit_percent,
-                                               'amount', quote.deposit_amount, 'status', dstate);
+                                               'amount', quote.deposit_amount, 'status', dstate,
+                                               'parts_ordered', coalesce(ordered, false));
     end if;
   end if;
   return pg_catalog.jsonb_build_object(
@@ -437,7 +427,7 @@ end;
 $$;
 
 comment on function private.quote_view(public.quotes) is
-  'D143, D151, D158: what the quote page may show for one quote: never costs, notes, staff, contact details, other jobs or any Stripe id or URL. Withdrawn or expired: status and job number only. Otherwise 12 keys, the last ''deposit'': null, or {percent, amount, status} with status on_answer (open; amount null), due (answered, job open), processing, paid or refunded (quote_deposits).';
+  'D143, D151, D158: what the quote page may show for one quote: never costs, notes, staff, contact details, other jobs or any Stripe id or URL. Withdrawn or expired: status and job number only. Otherwise 12 keys, the last ''deposit'': null, or {percent, amount, status} with status on_answer (open; amount null), or {percent, amount, status, parts_ordered} with status due (answered, job open), processing, paid or refunded (quote_deposits) and parts_ordered true once every approved part still live is ordered or fitted.';
 
 -- ---------------------------------------------------------------------------
 -- Starting Checkout (service role only, src/lib/integrations/stripe/)
@@ -576,14 +566,15 @@ begin
   -- 2. Replay of the same payment id.
   select p.* into pay from public.payments p where p.id = record_deposit_checkout.p_payment_id;
   if found then
-    if pay.stripe_checkout_session_id = sid then
+    if pay.stripe_checkout_session_id = sid and pay.kind = 'deposit'
+       and pay.quote_id = record_deposit_checkout.p_quote_id then
       return query select 'existing'::text, pay.id, pay.stripe_checkout_session_id;
       return;
     end if;
     raise exception using
       errcode = 'P0001',
       message = 'checkout_session_conflict',
-      detail = 'That payment already has another Checkout session.';
+      detail = 'That payment already has another Checkout session or quote.';
   end if;
 
   -- 3. Re-check under the locks.
@@ -634,7 +625,9 @@ begin
      or (s ->> 'client_reference_id') is distinct from record_deposit_checkout.p_payment_id::text
      or pg_catalog.jsonb_typeof(s -> 'livemode') is distinct from 'boolean'
      or expires is null
-     or pg_catalog.to_timestamp(expires) <= pg_catalog.clock_timestamp() then
+     or pg_catalog.to_timestamp(expires) <= pg_catalog.clock_timestamp()
+     -- prepare_deposit_checkout asks 60 minutes ahead (D158d)
+     or pg_catalog.to_timestamp(expires) > pg_catalog.clock_timestamp() + interval '61 minutes' then
     raise exception using
       errcode = 'P0001',
       message = 'checkout_session_mismatch',
@@ -664,7 +657,7 @@ end;
 $$;
 
 comment on function public.record_deposit_checkout(uuid, uuid, jsonb) is
-  'service_role (src/lib/integrations/stripe/ only; D153, D158d): record the Checkout session Stripe returned for a payment id from prepare_deposit_checkout, under the job and quote locks: created (a pending payment), existing (a replay of the same pair, or another pending attempt won; its id and session), or paid, refunded or processing (no row). Raises checkout_session_mismatch when Stripe''s echo differs from the deposit asked (object, id, open, amount_total in cents, sgd, metadata, client_reference_id, livemode, a future expires_at), checkout_session_conflict, deposit_not_due, deposit_parts_cancelled or deposit_job_closed. Writes no timeline entry.';
+  'service_role (src/lib/integrations/stripe/ only; D153, D158d): record the Checkout session Stripe returned for a payment id from prepare_deposit_checkout, under the job and quote locks: created (a pending payment), existing (a replay of the same pair, or another pending attempt won; its id and session), or paid, refunded or processing (no row). Raises checkout_session_mismatch when Stripe''s echo differs from the deposit asked (object, id, open, amount_total in cents, sgd, metadata, client_reference_id, livemode, an expires_at in the next 61 minutes), checkout_session_conflict (that payment id already holds another session or quote, or that session another payment), deposit_not_due, deposit_parts_cancelled or deposit_job_closed. Writes no timeline entry.';
 
 -- ---------------------------------------------------------------------------
 -- order_part_requests: the Phase 13 body (20261014000200:961-1103) with the
@@ -936,7 +929,9 @@ as $$
 
   -- D159b, D86: Stripe deliveries BICII could not apply, or could not
   -- store, admins only. A not_recorded rejection clears once one of
-  -- Stripe's retries of the same body is stored.
+  -- Stripe's retries of the same body is stored. A refund in another
+  -- currency (currency_mismatch, always linked to its payment) is left to
+  -- payment_attention's refund_not_counted, so it is listed once.
   select 'stripe_attention'::text,
          'danger'::text,
          (case when e.work_order_id is null then 'stripe_event' else 'work_order' end)::text,
@@ -946,7 +941,6 @@ as $$
             when 'payment_not_found' then 'Stripe reported a payment BICII has no record of. Check it in Stripe.'
             when 'session_mismatch' then 'A Stripe payment did not match its BICII record. Check it in Stripe.'
             when 'livemode_mismatch' then 'Stripe data from the other mode (test or live) was not applied. Check the Stripe keys.'
-            when 'currency_mismatch' then 'A Stripe refund in another currency than its payment was not counted. Check it in Stripe.'
             when 'object_invalid' then 'Stripe sent data BICII could not read. Check Settings → Customer payments.'
             when 'unexpected_payment_status' then 'Stripe reported an unexpected payment status. Check it in Stripe.'
             when 'read_mismatch' then 'A Stripe read did not match its payment. Ask engineering.'
@@ -959,14 +953,15 @@ as $$
   from public.stripe_events e
   left join public.work_orders w on w.id = e.work_order_id
   where private.is_admin()
-    and ((e.status = 'needs_attention' and e.received_at > pg_catalog.now() - interval '30 days')
+    and ((e.status = 'needs_attention' and e.received_at > pg_catalog.now() - interval '30 days'
+          and e.outcome is distinct from 'currency_mismatch')
       or (e.rejection_reason = 'not_recorded' and e.last_delivered_at > pg_catalog.now() - interval '3 days'
           and not exists (select 1 from public.stripe_events v
                           where v.body_sha256 = e.body_sha256 and v.rejection_reason is null)));
 $$;
 
 comment on function private.integration_exceptions() is
-  'D86, D159b: the integration rows of reporting.operational_exceptions, Phase 10''s nine-column shape. integration_failed (danger): one per needs_attention Shopify job, admins only. payment_attention: one per public.payment_issues row (its severity; entity the job; subject the issue''s message), active admins and managers (private.can_record_refunds). stripe_attention (danger): a Stripe event left needs_attention in the last 30 days, or a not_recorded delivery in the last 3 days that no stored retry of the same body has cleared, admins only (entity the job, else the event). Computed live, never stored. Read only through reporting.operational_exceptions inside the definer RPCs; no API role may execute it.';
+  'D86, D159b: the integration rows of reporting.operational_exceptions, Phase 10''s nine-column shape. integration_failed (danger): one per needs_attention Shopify job, admins only. payment_attention: one per public.payment_issues row (its severity; entity the job; subject the issue''s message), active admins and managers (private.can_record_refunds). stripe_attention (danger): a Stripe event left needs_attention in the last 30 days (except currency_mismatch, which payment_attention lists as refund_not_counted), or a not_recorded delivery in the last 3 days that no stored retry of the same body has cleared, admins only (entity the job, else the event). Computed live, never stored. Read only through reporting.operational_exceptions inside the definer RPCs; no API role may execute it.';
 
 create or replace function private.exception_visible(p_kind text)
 returns boolean
@@ -995,7 +990,6 @@ comment on view reporting.operational_exceptions is
 -- ---------------------------------------------------------------------------
 revoke all on function
   private.quotes_deposit_snapshot(),
-  private.payment_refund_failed_at(uuid),
   public.set_indent_deposit_percent(integer),
   public.prepare_deposit_checkout(text),
   public.record_deposit_checkout(uuid, uuid, jsonb),
@@ -1006,9 +1000,6 @@ grant execute on function
   public.set_indent_deposit_percent(integer),
   public.order_part_requests(uuid[], uuid, uuid, boolean, text)
 to authenticated;
-
--- payment_issues runs as the caller and calls it (staff only inside).
-grant execute on function private.payment_refund_failed_at(uuid) to authenticated;
 
 grant execute on function
   public.prepare_deposit_checkout(text),

@@ -143,11 +143,25 @@ describe("API surface (tests/fixtures/api-surface.ts)", () => {
     expect(rows.map((r) => r.fn)).toEqual([]);
   });
 
-  it("no API role can execute private.integration_exceptions or the purges", async () => {
+  // Phase 14 adds no private function an API role may execute: the
+  // payment views run as the caller on tables and RLS only (payment_issues
+  // reads each refund's own status_changed_at, not the admins-only
+  // stripe_events), and the apply paths run inside the service-role RPCs.
+  it("no API role can execute private.integration_exceptions, the purges or Phase 14's private functions", async () => {
+    const { rows: phase14 } = await conn.query<{ fn: string }>(
+      `select p.oid::regprocedure::text as fn
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'private'
+          and (p.proname ~ '^(apply_stripe_|stripe_|payment|payments_|settle_payment|lock_stripe_)'
+               or p.proname in ('quotes_deposit_snapshot', 'purge_stripe_events'))
+        order by 1`,
+    );
+    expect(phase14.length).toBeGreaterThanOrEqual(15);
     for (const fn of [
       "private.integration_exceptions()",
       "private.purge_integration_events(interval)",
       "private.purge_stripe_events(interval)",
+      ...phase14.map((r) => r.fn),
     ]) {
       for (const role of ["anon", "authenticated", "service_role"]) {
         const { rows } = await conn.query<{ ok: boolean }>(

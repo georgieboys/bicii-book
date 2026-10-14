@@ -1,6 +1,6 @@
 import type { Json } from "@/lib/database.types";
 
-import { EVENT_ID, EVENT_TYPE, SESSION_ID } from "./config";
+import { EVENT_ID, EVENT_TYPE, PAYMENT_INTENT_ID, SESSION_ID } from "./config";
 
 /**
  * The Stripe adapter's interface (Phase 14; D153, D159; ADR-025): one
@@ -40,6 +40,20 @@ export type CheckoutSession = {
 
 export type StripeRefundObject = { id: string; raw: Record<string, Json> };
 
+/**
+ * A PaymentIntent, read only by Check with Stripe for a Checkout that
+ * completed unpaid (R-086): an asynchronous failure leaves the session
+ * complete and unpaid, and only the intent (back at
+ * requires_payment_method, or canceled) says it failed.
+ */
+export type StripePaymentIntent = {
+  id: string;
+  status: string;
+  livemode: boolean;
+  /** As Stripe returned it: passed to record_stripe_read (projected in SQL), never logged. */
+  raw: Record<string, Json>;
+};
+
 export interface StripeGateway {
   readonly mode: "live" | "test" | "fake";
   readonly livemode: boolean;
@@ -51,6 +65,7 @@ export interface StripeGateway {
   /** Throws stripe_session_not_open when the session is no longer open. */
   expireCheckoutSession(id: string): Promise<CheckoutSession>;
   listRefunds(paymentIntentId: string): Promise<StripeRefundObject[]>;
+  retrievePaymentIntent(id: string): Promise<StripePaymentIntent>;
 }
 
 export type StripeErrorCode =
@@ -139,4 +154,19 @@ export function toCheckoutSession(raw: unknown, expectedLivemode: boolean): Chec
     paymentIntent: pi,
     raw: raw as Record<string, Json>,
   };
+}
+
+/**
+ * A PaymentIntent Stripe returned, checked: object 'payment_intent', a pi_
+ * id, the key's livemode and a short status. Anything else throws
+ * stripe_bad_response.
+ */
+export function toPaymentIntent(raw: unknown, expectedLivemode: boolean): StripePaymentIntent {
+  const bad = () => new StripeError("stripe_bad_response", false);
+  if (!isObj(raw) || raw.object !== "payment_intent") throw bad();
+  const { id, status, livemode } = raw;
+  if (typeof id !== "string" || !PAYMENT_INTENT_ID.test(id)) throw bad();
+  if (typeof livemode !== "boolean" || livemode !== expectedLivemode) throw bad();
+  if (typeof status !== "string" || !/^[a-z_]{1,40}$/.test(status)) throw bad();
+  return { id, status, livemode, raw: raw as Record<string, Json> };
 }

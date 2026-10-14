@@ -6,6 +6,7 @@ import { z } from "zod";
 import { ActionError, staffAction } from "@/lib/actions";
 import { setIndentDepositPercent } from "@/lib/domain/payments";
 import { stripeConnection } from "@/lib/integrations/stripe/client";
+import { depositPercentRefusal } from "@/lib/payments";
 
 /**
  * Settings → Customer payments (admins only; Phase 14 step 2; D151,
@@ -24,11 +25,8 @@ export const setDepositPercentAction = staffAction(
   z.object({ percent }),
   { name: "payments.set_deposit_percent", admin: true },
   async ({ percent }, { supabase }) => {
-    if (percent > 0 && stripeConnection().state !== "on") {
-      throw new ActionError("Set up Stripe first: customers can't pay a deposit until it is.", {
-        percent: ["Set up Stripe first: customers can't pay a deposit until it is."],
-      });
-    }
+    const refusal = depositPercentRefusal(percent, stripeConnection().state === "on");
+    if (refusal) throw new ActionError(refusal, { percent: [refusal] });
     const value = await setIndentDepositPercent(supabase, percent);
     refresh();
     return { percent: value };

@@ -25,7 +25,14 @@ export const checkWithStripeAction = staffAction(
   async (
     { paymentId },
     { supabase, correlationId },
-  ): Promise<{ changed: boolean; after: PaymentStatus }> => {
+  ): Promise<{
+    changed: boolean;
+    after: PaymentStatus;
+    /** Still pending with Checkout completed (Stripe confirming). */
+    processing: boolean;
+    /** The session was recorded, its PaymentIntent or refunds could not be read. */
+    incomplete: boolean;
+  }> => {
     const row = unwrap(
       await supabase.from("payments").select("id").eq("id", paymentId).maybeSingle(),
     );
@@ -37,13 +44,22 @@ export const checkWithStripeAction = staffAction(
     switch (result.kind) {
       case "checked":
         refresh();
-        return { changed: result.changed, after: result.after };
+        return {
+          changed: result.changed,
+          after: result.after,
+          processing: result.processing,
+          incomplete: result.incomplete,
+        };
       case "other_mode":
         throw new ActionError(
           "This payment was made in Stripe's other mode (test or live) and can't be checked here.",
         );
       case "not_found":
         throw new ActionError("That payment no longer exists.");
+      case "session_missing":
+        throw new ActionError(
+          "Stripe has no record of this Checkout under the key BICII uses now (another Stripe account?). An admin can follow RUNBOOK “Stripe: resolving problems”.",
+        );
       case "unavailable":
         throw new ActionError(
           "Stripe can't be reached right now, or it isn't set up. Try again in a few minutes.",

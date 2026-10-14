@@ -3,9 +3,10 @@ import type { Metadata } from "next";
 import { Card } from "@/components/ui/card";
 import { noteQuoteAttempt } from "@/lib/admin/quote-throttle";
 import { formatDate, formatDateTime } from "@/lib/dates";
-import { stripeConnection } from "@/lib/integrations/stripe/client";
+import { stripeIsOn } from "@/lib/integrations/stripe/client";
 import { formatMoney, formatQuantity, sumMoney } from "@/lib/money";
 import {
+  answeredNext,
   approvedSummary,
   depositReturn,
   isQuoteToken,
@@ -82,8 +83,8 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
     );
   }
 
-  // Reads the environment only, never a secret.
-  const payOnline = stripeConnection().state === "on";
+  // Reads the environment only, never a secret; never throws (D157c).
+  const payOnline = stripeIsOn();
 
   return (
     <div className="flex flex-col gap-6">
@@ -168,12 +169,7 @@ function Answered({
 }) {
   const { approved, of } = approvedSummary(quote.items);
   const deposit = quote.deposit;
-  const next =
-    deposit?.status === "due" || deposit?.status === "processing"
-      ? "The shop orders your parts once the deposit is paid."
-      : deposit?.status === "paid"
-        ? "Your deposit is paid, so the shop will order your parts."
-        : "The shop will be in touch.";
+  const next = answeredNext(deposit);
   const approvedTotal = sumMoney(
     quote.items.filter((i) => i.decision === "approved").map((i) => i.line_total),
   );

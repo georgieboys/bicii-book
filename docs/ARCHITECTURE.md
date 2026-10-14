@@ -41,8 +41,8 @@ flowchart LR
   customer["Customer's phone<br/>(quote link, signed out)"] --> app
   app -. "quote emails (HTTPS API,<br/>off until configured)" .-> resend["Resend"]
   stripe["Stripe Checkout<br/>(Phase 14: built against a fake;<br/>off until keys)"]
-  customer -. "pays (step 2)" .-> stripe
-  app -. "Stripe API (Checkout Sessions,<br/>Refunds read)" .-> stripe
+  customer -. "pays the deposit" .-> stripe
+  app -. "Stripe API (Checkout Sessions;<br/>refunds and PaymentIntents read)" .-> stripe
   stripe -. "webhooks (signature)" .-> app
 ```
 
@@ -289,12 +289,15 @@ PostgREST with the fake Shopify.
 
 ## Stripe payment flow
 
-Built in Phase 14 step 1: the database (`20261014000400_stripe_payments.sql`)
-and the service layer (`src/lib/integrations/stripe/`, the route
-`api/stripe/webhooks`); the Checkout flows, the quote page's Pay deposit
-and the staff card come in step 2
-([ADR-025](decisions/ADR-025-stripe-payments.md), D150, D153, D155,
-D157–D159). Stripe is on only when `stripeConfig` finds every variable
+Built in Phase 14 steps 1 and 2, against the in-memory fake: the
+database (`20261014000400_stripe_payments.sql`,
+`20261014000500_indent_deposits.sql`), the service layer
+(`src/lib/integrations/stripe/`, the route `api/stripe/webhooks`), the
+Checkout flows (`checkout.ts`), the quote page's Deposit card and Pay
+deposit (`src/app/(customer)/quote/[token]/`), Settings → Customer
+payments and the job's Customer payments card
+([ADR-025](decisions/ADR-025-stripe-payments.md), D150–D159). Balance
+links and Reports are step 3. Stripe is on only when `stripeConfig` finds every variable
 right for the deployment (D157); otherwise it is off with a named reason
 and the route answers 503.
 
@@ -323,25 +326,41 @@ and the route answers 503.
    Business problems never raise: whatever Stripe confirms is recorded
    (D159b).
 4. **Server reads.** `record_stripe_read` stores and applies a Checkout
-   Session or Refund the server read with the secret key
+   Session, Refund or PaymentIntent the server read with the secret key
    (`http-gateway.ts`: no SDK, pinned to `2026-09-30.endive`, 8 s timeout,
-   one retry with the same bytes and idempotency key, after a jittered
-   250–500 ms wait when Stripe answered 409 or 429). Step 2 calls it when the
-   customer presses Pay or returns, and when staff press *Check with
-   Stripe*; they only trigger the read.
+   one retry with the same bytes and idempotency key only when it can get
+   a different answer: a network error or timeout, a 409 or 429 (after a
+   jittered 250–500 ms wait), a GET's 5xx, or a 5xx Stripe marks
+   `Stripe-Should-Retry: true`; a POST's other 5xx is not retried, as
+   Stripe replays a saved result for the same key, and each expire takes
+   a fresh key). It runs when the customer presses Pay or returns, and
+   when staff press *Check with Stripe*, which also reads the
+   PaymentIntent of a Checkout that completed unpaid (an asynchronous
+   failure shows only there, R-086); they only trigger the read. Pay
+   deposit starts no new Stripe step after 30 s (`PAY_DEADLINE_MS`), inside
+   the quote page's 60-second `maxDuration`.
 5. **Refunds from Refund objects only.** `refund.created`, `.updated` and
    `.failed` give one `payment_refunds` row per Stripe Refund; only
    succeeded ones in the payment's currency and mode reduce the money held
    (another currency or mode is recorded and needs attention), and a
    refund that fails after succeeding puts the amount back (D155, D159c).
-6. **Attention is derived live (step 2).** Problems Stripe's data shows
-   (paid on a cancelled job, a different amount, a failed refund, an
-   unmatched event) are computed in views and listed on the job and in
-   Exceptions, never stored as a status of their own.
+6. **Attention is derived live.** Problems Stripe's data shows (paid on a
+   cancelled job, a different amount, a failed refund, an unmatched event)
+   are computed in views (`payment_issues`, and `stripe_attention` over
+   `stripe_events`) and listed on the job and in Exceptions, never stored
+   as a status of their own.
+7. **Money held, shown where the counter looks (D154).** The job's
+   Customer payments card (`src/components/domain/payments-card.tsx`, over
+   `getJobPayments` in `src/lib/domain/payments.ts`) shows what Stripe
+   confirmed and what is still to pay; `paidOnlineSummary`
+   (`src/lib/payments.ts`) puts the same figures under the Lines total and
+   in the Collected confirmation, so staff take only what is left.
 
-`tests/db/stripe-payments.test.ts` proves the database steps, including
-concurrent deliveries; `tests/unit/stripe-*.test.ts` the signature, the
-configuration, the adapter, the fake and the route.
+`tests/db/stripe-payments.test.ts` and `indent-deposits.test.ts` prove
+the database steps, including concurrent deliveries that are shown to
+wait on their locks; `tests/unit/stripe-*.test.ts` the signature, the
+configuration, the adapter, the fake, the Checkout flows and the route;
+`tests/e2e/payments.spec.ts` the deposit journey.
 
 ## Component map
 
@@ -367,7 +386,8 @@ configuration, the adapter, the fake and the route.
 | Service-role use | [src/lib/admin/](../src/lib/admin/) (staff logins via the Auth admin API, created without a password; the sign-in counters) | `SUPABASE_SERVICE_ROLE_KEY` (required in every deployment) | without it, or with a wrong one, nobody can sign in (every code request and verification is counted with it first, D72; sign-in says it is unavailable and the error log names the cause) and staff cannot be invited; bypasses RLS, so imports are restricted by ESLint |
 | Shopify integration layer (Phase 10 step 3; D80–D89, [ADR-020](decisions/ADR-020-shopify.md)) | [src/lib/integrations/shopify/](../src/lib/integrations/shopify/): `config.ts` (pinned API version, topics, limits), `ids.ts` (gids, handles), `hmac.ts`, `admin.ts` (the `ShopifyAdmin` interface and `ShopifyError`), `graphql-admin.ts` (live), `fake-admin.ts` / `fake-ids.ts` (in memory), `client.ts` (`getShopifyAdmin`, `shopifyConnection`), `desired-state.ts` (pure), `deps.ts` (`IntegrationDeps`), `sync.ts` (`runProductSync`), `queue.ts` (`runJob`, `runJobById`, `runDueJobs`), `webhooks.ts` (`handleShopifyWebhook`), `cron.ts` (`handleCronRequest`); routes [api/shopify/webhooks](../src/app/api/shopify/webhooks/route.ts) (POST, HMAC) and [api/cron/integrations](../src/app/api/cron/integrations/route.ts) (GET, bearer), both Node runtime with `maxDuration` 60, both outside the proxy matcher; [vercel.json](../vercel.json) cron every 5 minutes | the service-role client and the Shopify RPCs (DATA-MODEL §16); `SHOPIFY_*`, `CRON_SECRET` | webhooks are refused or not stored (Shopify retries for a while); syncs wait in the queue with a human message; no sale or stock is ever recorded outside the RPCs |
 | Shopify screens (Phase 10 step 4; D84, D86) | [src/lib/domain/shopify.ts](../src/lib/domain/shopify.ts) (reads over the RLS client: `getProductOnline` for any staff, `getShopifyOverview`, `listSyncedProducts`, `listQueue`, `getQueueJob`, `listEvents`, `getEvent` for admins; writes only through the staff RPCs; `describeRun` reads back a job's result for the toast); [src/lib/shopify.ts](../src/lib/shopify.ts) (pure words and tones) and [shopify-forms.ts](../src/lib/shopify-forms.ts); Publish online and Sync now in `src/app/(staff)/inventory/actions.ts` (manage_inventory) and the admin actions in `src/app/(staff)/shopify/actions.ts`, which run only the job id an RPC returned through `runJobById` with the service-role deps; the product page's `OnlineCard`; `/shopify`, `/shopify/queue`, `/shopify/products`, `/shopify/events`, `/shopify/events/[id]` (admins only, no `loading.tsx`); components in `src/components/domain/shopify/`; Today's `integration_failed` row through `src/lib/reports.ts` | RLS-scoped client and the staff RPCs; the integration layer for running a job | the screens error; online orders keep being stored and processed by the routes and the cron |
-| Stripe integration layer (Phase 14; D150–D159, [ADR-025](decisions/ADR-025-stripe-payments.md)) | [src/lib/integrations/stripe/](../src/lib/integrations/stripe/): `config.ts` (pinned API version, the 7 event types, limits, id shapes, idempotency keys), `form.ts` (the Checkout Session body), `gateway.ts` (the `StripeGateway` interface, `StripeError`, the parsers), `signature.ts`, `http-gateway.ts` (live, over fetch), `fake-gateway.ts` (in memory), `client.ts` (`stripeConfig`, `getStripeGateway`, `stripeConnection`), `deps.ts`, `records.ts` (the RPC wrappers), `webhooks.ts` (`handleStripeWebhook`), `limits.ts` (*Check with Stripe*'s counter); route [api/stripe/webhooks](../src/app/api/stripe/webhooks/route.ts) (POST, signature, Node runtime, `maxDuration` 30, outside the proxy matcher); the shared [limiter.ts](../src/lib/integrations/limiter.ts) | the service-role client and `record_stripe_event` / `record_stripe_read` (DATA-MODEL §16, §19); `STRIPE_*`, `ADMIN_ORIGIN` | Stripe off: the route answers 503 (kept as evidence). A failed store answers 500 and Stripe retries; the payment stays pending meanwhile ([R-086](RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)) |
+| Stripe integration layer (Phase 14; D150–D159, [ADR-025](decisions/ADR-025-stripe-payments.md)) | [src/lib/integrations/stripe/](../src/lib/integrations/stripe/): `config.ts` (pinned API version, the 7 event types, limits, id shapes, idempotency keys), `form.ts` (the Checkout Session body), `gateway.ts` (the `StripeGateway` interface, `StripeError`, the parsers), `signature.ts`, `http-gateway.ts` (live, over fetch), `fake-gateway.ts` (in memory), `client.ts` (`stripeConfig`, `getStripeGateway`, `stripeConnection`, `stripeIsOn`, which never throws), `deps.ts`, `records.ts` (the RPC wrappers), `checkout.ts` (Pay deposit, the return check, *Check with Stripe*), `webhooks.ts` (`handleStripeWebhook`), `limits.ts` (*Check with Stripe*'s counter); route [api/stripe/webhooks](../src/app/api/stripe/webhooks/route.ts) (POST, signature, Node runtime, `maxDuration` 30, outside the proxy matcher); the shared [limiter.ts](../src/lib/integrations/limiter.ts) | the service-role client and `record_stripe_event` / `record_stripe_read` / `prepare_deposit_checkout` / `record_deposit_checkout` (DATA-MODEL §16, §19); `STRIPE_*`, `ADMIN_ORIGIN` | Stripe off: the route answers 503 (kept as evidence) and Pay deposit is not offered. A failed store answers 500 and Stripe retries; the payment stays pending meanwhile ([R-086](RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)) |
+| Customer payments screens (Phase 14 step 2; D151, D152, D154, D157, D159) | Customer: `src/app/(customer)/quote/[token]/` (`deposit-card.tsx`, `pay-deposit-button.tsx`, `confirming-payment.tsx`, the deposit actions in `actions.ts`) and `answeredNext` in [src/lib/quote-page.ts](../src/lib/quote-page.ts). Staff: [src/lib/domain/payments.ts](../src/lib/domain/payments.ts) (`getJobPayments`, the deposit setting, recent deliveries), [payments-card.tsx](../src/components/domain/payments-card.tsx), `src/app/(staff)/jobs/payment-actions.ts` (*Check with Stripe*), the order sheet's override in [indent-card.tsx](../src/components/domain/indent-card.tsx), the paid-online line and Collected confirmation (`paidOnlineSummary`, [job-status-actions.tsx](../src/components/domain/job-status-actions.tsx)), and `src/app/(staff)/settings/payments/` (admins); pure words, states and rules in [src/lib/payments.ts](../src/lib/payments.ts); runbook links from [src/lib/docs-links.ts](../src/lib/docs-links.ts) | the RLS-scoped client over `quote_deposits`, `payments`, `payment_refunds`, `payment_issues`, `work_order_payment_totals`; the Stripe layer for Pay and *Check with Stripe* | a failed read hides the card (logged) and the job page still renders; the D152 gate holds in SQL whatever the screen shows |
 | Error mapping | [src/lib/db-errors.ts](../src/lib/db-errors.ts) | P0001 codes, constraint names | users see the generic error |
 | Logging and server errors | [src/instrumentation.ts](../src/instrumentation.ts), [src/lib/logger.ts](../src/lib/logger.ts) | pino to stdout | no trace of failures (no retention or alerting, [R-002](RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery)) |
 | PWA shell | [public/sw.js](../public/sw.js), [src/app/manifest.ts](../src/app/manifest.ts) | browser | no install or offline page |

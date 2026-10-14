@@ -280,9 +280,11 @@ export const withdrawQuoteAction = staffAction(
 
 /**
  * Order approved parts from one supplier (D145, Manage purchasing). A part
- * whose deposit is not paid (D152) needs an active admin or manager and
- * overrideReason, recorded on the job's timeline; the RPC checks the role,
- * so Manage purchasing alone is refused (deposit_unpaid without a reason).
+ * whose deposit is not paid (D152) needs overrideReason and an active
+ * admin or manager; the reason is recorded on the job's timeline. The RPC
+ * decides: without a reason it answers deposit_unpaid (P0001); with one,
+ * anyone but an active admin or manager is refused (42501), so Manage
+ * purchasing alone never orders such a part.
  */
 export const orderPartRequestsAction = staffAction(
   z.object({

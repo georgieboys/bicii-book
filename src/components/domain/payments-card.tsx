@@ -21,6 +21,9 @@ import {
 
 const ZERO = "0.00";
 
+const INCOMPLETE_CHECK =
+  "Stripe's payment or its refunds couldn't be read. An admin should check the Stripe key's permissions (RUNBOOK “Stripe: restricted key”).";
+
 /**
  * A job's Customer payments (Phase 14 step 2; D151, D154, D155, D159;
  * ADR-025): what Stripe confirmed against this job, which every staff
@@ -33,11 +36,14 @@ const ZERO = "0.00";
  * refunds are made in Stripe (D155) and appear here on their own.
  */
 export function PaymentsCard({
+  id,
   payments,
   canCheck,
   canOpenStripe,
   payOnline,
 }: {
+  /** The anchor the line under the job's total links to. */
+  id?: string;
   payments: JobPayments;
   /** Stripe is on, so the server can read it. */
   canCheck: boolean;
@@ -53,7 +59,12 @@ export function PaymentsCard({
   const withIssue = new Set(issues.map((i) => i.paymentId));
 
   return (
-    <Card title="Customer payments" eyebrow="Online, through Stripe">
+    <Card
+      id={id}
+      title="Customer payments"
+      eyebrow="Online, through Stripe"
+      className="scroll-mt-4"
+    >
       <div className="flex flex-col gap-4">
         {issues.length > 0 ? (
           <ul aria-label="Payment problems" className="flex flex-col gap-2">
@@ -193,15 +204,19 @@ function PaymentRow({
   const check = () =>
     start(async () => {
       const r = await checkWithStripeAction({ paymentId: p.id });
+      const incomplete = r.ok && r.data.incomplete ? INCOMPLETE_CHECK : undefined;
       if (!r.ok) {
         toast({ title: "Not checked", description: r.error, tone: "error" });
       } else if (r.data.changed) {
-        toast({
-          title: `Stripe confirmed: ${paymentStatusLabel({ status: r.data.after, checkoutCompletedAt: null })}`,
-          tone: "success",
+        // The status as the card words it: a pending payment whose Checkout
+        // completed is "Being confirmed".
+        const after = paymentStatusLabel({
+          status: r.data.after,
+          checkoutCompletedAt: r.data.processing ? "completed" : null,
         });
+        toast({ title: `Stripe confirmed: ${after}`, description: incomplete, tone: "success" });
       } else {
-        toast({ title: "Nothing new from Stripe.", tone: "success" });
+        toast({ title: "Nothing new from Stripe.", description: incomplete, tone: "success" });
       }
     });
 

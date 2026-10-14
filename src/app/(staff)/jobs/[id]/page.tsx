@@ -22,13 +22,14 @@ import { CalendarIcon, CheckIcon } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatAppointmentMoment } from "@/lib/appointments/format";
 import { quoteEmailEnabled } from "@/lib/integrations/email/quote";
-import { stripeConnection } from "@/lib/integrations/stripe/client";
+import { stripeIsOn } from "@/lib/integrations/stripe/client";
 import { canOverrideDeposit, canRecordRefund, hasPermission } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, shopDaysBetween } from "@/lib/dates";
 import { listPhotos } from "@/lib/domain/attachments";
 import { getIndentPanel } from "@/lib/domain/indent";
 import { getJobPayments } from "@/lib/domain/payments";
+import { paidOnlineSummary } from "@/lib/payments";
 import { listLocations } from "@/lib/domain/inventory";
 import { getWorkOrderYield } from "@/lib/domain/reports";
 import {
@@ -129,7 +130,9 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   const closed = isClosedStatus(job.status);
   const overdue = isOverdue({ status: job.status, checkedInAt: job.stamps.checkedInAt }, now);
   const tel = telHref(job.customer.phone);
-  const stripeOn = stripeConnection().state === "on";
+  const stripeOn = stripeIsOn();
+  // D154 at the counter: a deposit paid online, shown by the total and on Collected.
+  const paidOnline = paidOnlineSummary(payments?.totals ?? null);
   const target = { entityType: "work_order" as const, entityId: job.id };
   const lockedReason = open
     ? null
@@ -200,6 +203,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
         customerLabel={job.customer.label}
         status={job.status}
         heldUnits={heldUnits}
+        paidOnline={paidOnline}
       />
 
       {intake ? (
@@ -285,6 +289,20 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             <div className="mt-3">
               <TotalsSummary totals={job.totals} ccRate={sharedRate(job)} report={report} />
             </div>
+            {paidOnline ? (
+              // D154 where the counter looks: the deposit paid online is
+              // not in the total above (money held, not a sale).
+              <p className="flex flex-wrap gap-x-2 border-t border-hairline px-4 py-3 text-sm font-semibold sm:px-5">
+                <a href="#customer-payments" className="underline underline-offset-4">
+                  Paid online {paidOnline.paid}
+                </a>
+                {paidOnline.paidAhead ? (
+                  <span>· Paid ahead {paidOnline.paidAhead}</span>
+                ) : paidOnline.stillToPay ? (
+                  <span>· Still to pay {paidOnline.stillToPay}</span>
+                ) : null}
+              </p>
+            ) : null}
           </Card>
 
           <IndentCard
@@ -307,6 +325,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
 
           {payments && (payments.deposits.length > 0 || payments.payments.length > 0) ? (
             <PaymentsCard
+              id="customer-payments"
               payments={payments}
               canCheck={stripeOn}
               canOpenStripe={canRecordRefund(staff)}

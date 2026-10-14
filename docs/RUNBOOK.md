@@ -877,12 +877,17 @@ job. No API role can run it and there is no cron.
 ## Stripe payments
 
 Customer payments through Stripe Checkout (Phase 14, D150–D159 in
-[ADR-025](decisions/ADR-025-stripe-payments.md)). Step 1 (the database,
-the adapter and the webhook route) is built and tested only against the
-in-memory fake; the deposit screens come in step 2. Stripe stays **off**
-in production until every variable below is set and right for the
-deployment (D157); while it is off the webhook route answers 503 and keeps
-each delivery as rejected evidence, and nothing else changes. Work through
+[ADR-025](decisions/ADR-025-stripe-payments.md)). Steps 1 and 2 (the
+database, the adapter, the webhook route, the quote page's deposit,
+Settings → Customer payments and the job's Customer payments card) are
+built and tested only against the in-memory fake; balance links and
+Reports are step 3. Stripe stays **off** in production until every
+variable below is set and right for the deployment (D157); while it is
+off the webhook route answers 503 and keeps each delivery as rejected
+evidence, and nothing else changes. Once step 2's migration is applied
+the deposit percent is 0, so no quote asks for a deposit and nothing is
+gated; if the hosted database lacks the step 2 views, the job page
+leaves the Customer payments card out rather than failing. Work through
 [Stripe: verify before go-live](#stripe-verify-before-go-live) with test
 keys before switching on.
 
@@ -905,6 +910,15 @@ keys before switching on.
 4. Reveal the endpoint's **signing secret** (`whsec_…`) and put it into
    Vercel Production as `STRIPE_WEBHOOK_SECRET` (Sensitive). Test mode and
    live mode endpoints have different secrets.
+5. **No Checkout custom domain.** Do not add one under Settings → Checkout
+   and Payment Links → Custom domains: once its DNS verifies, Stripe
+   switches every new session's URL to it, and BICII sends customers only
+   to `https://checkout.stripe.com` (an open-redirect guard), so every Pay
+   deposit would answer "unavailable" (logged as `checkout redirect
+   refused`). Stripe does not offer custom domains in test mode, so the
+   rehearsal below cannot catch it. If the shop wants one, engineering
+   must first allow its host
+   ([R-088](RISKS.md#r-088--the-quote-link-is-a-payment-capability-that-reaches-stripe)).
 
 What each response means (`src/lib/integrations/stripe/webhooks.ts`): 200
 stored and applied (a repeat answers `duplicate: true` and changes
@@ -918,11 +932,22 @@ they are only logged (`stripe_rejected_rate_limited`).
 
 ### Stripe: restricted key
 
-Developers → API keys → Create restricted key ("BICII Admin"):
-**Checkout Sessions: Write** and **Refunds: Read**; nothing else. Copy it
-once (`rk_live_…`) into Vercel Production as `STRIPE_SECRET_KEY`
-(Sensitive). A full secret key (`sk_…`) also works but grants far more;
-prefer the restricted one.
+Developers → API keys → Create restricted key ("BICII Admin") with
+exactly three permissions, as Stripe's permissions reference
+(docs.stripe.com/keys/permissions-reference) names them:
+
+| Dashboard resource | Access | Permission | What BICII calls with it |
+|---|---|---|---|
+| Checkout Sessions | Write | `checkout_session_write` (includes read) | create, retrieve and expire a session |
+| Charges | Read | `charge_read` | list a payment's refunds (`GET /v1/refunds`: Stripe files refunds under Charges) |
+| PaymentIntents | Read | `payment_intent_read` | *Check with Stripe* on a Checkout that completed unpaid ([R-086](RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)) |
+
+Nothing else. Copy it once (`rk_live_…`) into Vercel Production as
+`STRIPE_SECRET_KEY` (Sensitive). A full secret key (`sk_…`) also works
+but grants far more; prefer the restricted one. A missing Charges or
+PaymentIntents permission does not stop payments (webhooks need no key
+permission), but *Check with Stripe* then says Stripe's payment or its
+refunds couldn't be read; add the permission to the key in the Dashboard.
 
 ### Stripe: environment variables and fake mode
 
@@ -948,7 +973,7 @@ warning in the logs carries the code). None of these stops the app:
 | `webhook_secret_missing` | no `STRIPE_WEBHOOK_SECRET` | set the endpoint's signing secret |
 | `webhook_secret_invalid` | not `whsec_…` | paste the signing secret again (not the endpoint id) |
 | `service_role_missing` | no `SUPABASE_SERVICE_ROLE_KEY` | set it (sign-in needs it too) |
-| `origin_invalid` | `ADMIN_ORIGIN` unset, not https (http only for localhost), or with a path, query or hash | set `https://<admin host>` |
+| `origin_invalid` | `ADMIN_ORIGIN` unset, not https (http only for localhost), with a path, query or hash, or a loopback host (`localhost`, `127.0.0.1`) in Production | set `https://<admin host>` |
 
 `STRIPE_ADAPTER=fake` swaps in the in-memory Stripe (one per server
 process): Pay deposit returns straight to the success URL, and payments
@@ -976,7 +1001,7 @@ payment nobody can make), then remove the keys and redeploy.
 
 ### Stripe: rotating keys
 
-- Secret key: create a new restricted key with the same two permissions,
+- Secret key: create a new restricted key with the same three permissions,
   set it in Vercel, redeploy, check Settings → Customer payments says
   Live, then roll or delete the old key in Stripe.
 - Webhook secret: use the endpoint's **Roll secret** with a 24-hour
@@ -987,30 +1012,53 @@ payment nobody can make), then remove the keys and redeploy.
 ### Stripe: resolving problems
 
 - **A customer says they paid but the job shows the deposit due.** Press
-  *Check with Stripe* on the job's Customer payments card (step 2): the
-  server re-reads the session and its refunds and applies what Stripe
-  says. Otherwise find the delivery: the `stripe_events` row by the
-  request's correlation id (admins only), and the endpoint's delivery log
-  in the Dashboard (a 500 there means Stripe is retrying; a 400 means the
-  signature or mode is wrong).
+  *Check with Stripe* on the job's Customer payments card: the server
+  re-reads the session (and, when Checkout completed unpaid, its
+  PaymentIntent) and its refunds, and applies what Stripe says. Otherwise
+  find the delivery: the `stripe_events` row by the request's correlation
+  id (admins only), and the endpoint's delivery log in the Dashboard (a
+  500 there means Stripe is retrying; a 400 means the signature or mode is
+  wrong).
+- **"Being confirmed" for days.** An asynchronous payment that failed
+  leaves its session complete and unpaid; only
+  `checkout.session.async_payment_failed`, or the PaymentIntent, says it
+  failed. *Check with Stripe* reads the PaymentIntent and records the
+  failure, which puts the deposit back to due. If it still shows "Being
+  confirmed", look the payment up in the Dashboard; a lost
+  `async_payment_failed` can also be resent from the endpoint's event list
+  (for 15 days).
+- **"Stripe has no record of this Checkout."** *Check with Stripe* (and
+  Pay deposit, which answers "unavailable") cannot find the pending
+  session under the current key: the shop moved to another Stripe account
+  while a deposit Checkout was open, or, locally, the fake restarted. The
+  payment stays pending and blocks Pay deposit on that quote; an admin or
+  manager can still order with a reason. Before switching Stripe accounts,
+  make sure no deposit payment is pending (the job cards show "Checkout
+  open" or "Being confirmed"). Locally, `npm run db:reset` clears it. In
+  production, ask engineering: there is no in-app way to close such a row
+  ([R-086](RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)).
+- **"Stripe's payment or its refunds couldn't be read."** The session was
+  checked, but the restricted key lacks Charges: Read or PaymentIntents:
+  Read ([Stripe: restricted key](#stripe-restricted-key)).
 - **`not_recorded` deliveries.** Storing or applying raised; Stripe
   retries. Look at the logs for the correlation id; once a retry succeeds
   the verified row exists and nothing more is needed.
-- **Events needing attention** (admins; Exceptions from step 2):
+- **Events needing attention** (admins, on Exceptions):
   `payment_not_found` (paid metadata naming no BICII payment),
   `session_mismatch` (another session for the same payment),
   `livemode_mismatch` (a session or refund of the other mode),
-  `currency_mismatch` (a refund in another currency than the payment's
-  SGD; recorded on the payment but not deducted), `read_mismatch`
-  (a read that is not the payment's session),
-  `unexpected_payment_status`. Each is Stripe's record kept as evidence;
+  `read_mismatch` (a read that is not the payment's session or payment),
+  `unexpected_payment_status`. A refund in another currency
+  (`currency_mismatch`) is listed once, as the payment issue below. Each is Stripe's record kept as evidence;
   check the session in the Dashboard and refund there if the money is not
   the shop's to keep.
-- **Payment issues** (admins and managers, step 2): paid on a cancelled
-  job or cancelled parts, paid twice, a different amount, a refund that
-  failed or exceeds the payment, a payment still pending after its
-  session expired. BICII records them and never refunds on its own (D155,
-  D159); decide in the Dashboard.
+- **Payment issues** (admins and managers, on the job's card and
+  Exceptions): paid on a cancelled job or cancelled parts, paid twice, a
+  different amount, a refund that failed or exceeds the payment, a refund
+  in another currency or mode than the payment (recorded, not deducted:
+  `refund_not_counted`), a payment still pending after its session
+  expired. BICII records them and never refunds on its own (D155, D159);
+  check each in the Dashboard and decide there.
 - **Refunds** are made in the Stripe Dashboard and appear on the job on
   their own from `refund.*` events (D155).
 - **Disputes** are handled in the Dashboard; BICII does not record them
@@ -1046,6 +1094,10 @@ here (date, result):
 7. The logged `payment_method_types` of a new session includes `paynow`.
 8. Refund ids start `re_` (cards) or `pyr_` (PayNow).
 9. With Adaptive Pricing off, `amount_total` stays in SGD.
+10. With the **restricted** test key (`rk_test_…`, the three permissions
+    above), *Check with Stripe* on a paid test payment that has a refund
+    reports no error (it lists the refunds), and on a Checkout left
+    "Being confirmed" it reads the PaymentIntent.
 
 ## Label printers
 

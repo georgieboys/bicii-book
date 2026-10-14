@@ -18,12 +18,12 @@ import {
   stripeConnectionLabel,
   stripeOutcomeLabel,
 } from "@/lib/payments";
+import { runbookHref } from "@/lib/docs-links";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Customer payments" };
 
-const RUNBOOK =
-  "https://github.com/abhishekcheriangeorge-ops/bicii-book/blob/main/docs/RUNBOOK.md#stripe-payments";
+const RUNBOOK = runbookHref("stripe-payments");
 
 /**
  * Settings → Customer payments (admins only, a real 403 for anyone else:

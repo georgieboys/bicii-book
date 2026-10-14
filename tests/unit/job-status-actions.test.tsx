@@ -61,6 +61,43 @@ describe("JobStatusActions", () => {
     });
   });
 
+  it("says what the customer already paid online, so staff take only what is left (D154)", async () => {
+    const withPaid = (paidOnline: Parameters<typeof JobStatusActions>[0]["paidOnline"]) => (
+      <ToastProvider>
+        <JobStatusActions
+          workOrderId="00000000-0000-4000-8000-000000000001"
+          jobNumber="J-000123"
+          customerLabel="Priya Raman"
+          status="ready_for_collection"
+          paidOnline={paidOnline}
+        />
+      </ToastProvider>
+    );
+    const { unmount } = render(withPaid({ paid: "$60.00", stillToPay: "$85.00", paidAhead: null }));
+    const collected = screen.getByRole("button", { name: "Collected…" });
+    await waitFor(() => expect(collected).toBeEnabled());
+    fireEvent.click(collected);
+    const group = screen.getByRole("group", { name: "Mark J-000123 collected by Priya Raman?" });
+    expect(group).toHaveTextContent("$60.00 was paid online. Take only $85.00.");
+    unmount();
+
+    render(withPaid({ paid: "$120.00", stillToPay: "$0.00", paidAhead: "$35.00" }));
+    const again = screen.getByRole("button", { name: "Collected…" });
+    await waitFor(() => expect(again).toBeEnabled());
+    fireEvent.click(again);
+    expect(screen.getByRole("group")).toHaveTextContent(
+      "$120.00 was paid online. That is $35.00 more than the job total; take nothing more.",
+    );
+  });
+
+  it("says nothing about online payments when there are none", async () => {
+    render(ui("ready_for_collection"));
+    const collected = screen.getByRole("button", { name: "Collected…" });
+    await waitFor(() => expect(collected).toBeEnabled());
+    fireEvent.click(collected);
+    expect(screen.getByRole("group")).not.toHaveTextContent("paid online");
+  });
+
   it("Back leaves the job as it is", async () => {
     render(ui("ready_for_collection"));
     const collected = screen.getByRole("button", { name: "Collected…" });

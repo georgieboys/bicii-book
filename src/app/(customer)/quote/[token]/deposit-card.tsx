@@ -67,7 +67,7 @@ function DepositState({
     case "processing":
       return (
         <p role="status" className="text-dust-700">
-          Your payment of {amount} is being confirmed by Stripe. This page shows it once it&apos;s
+          Your payment of {amount} is being confirmed by Stripe. Reload this page later to see it
           confirmed. You don&apos;t need to pay again.
         </p>
       );
@@ -85,6 +85,12 @@ function DepositState({
       }
       return (
         <div className="flex flex-col gap-3">
+          {deposit.parts_ordered ? (
+            <p className="text-dust-700">
+              The shop has already ordered your parts. If you paid the deposit another way, ask the
+              shop before paying here.
+            </p>
+          ) : null}
           {returning === "cancelled" ? (
             <p role="status" className="rounded-xl bg-sunken p-4 text-dust-700">
               Payment not finished. Nothing was charged. You can pay the deposit below whenever

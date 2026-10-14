@@ -2132,7 +2132,7 @@ URLs, or customer data in this file.
   in Vercel's Production server environment and never in Preview, the
   public site or the repository.
 - Evidence and confidence: high. Database containment
-  (`tests/db/stripe-payments.test.ts`, 31 tests, pass on 2026-10-14):
+  (`tests/db/stripe-payments.test.ts`, 32 tests, pass on 2026-10-14):
   only the service role can call `record_stripe_event` and
   `record_stripe_read`; a payment changes only while a verified Stripe
   event or read is applied, for the owner too (`payment_immutable`), and
@@ -2165,10 +2165,19 @@ URLs, or customer data in this file.
   (like R-048); the adapter's errors never carry the key or Stripe's
   message; logs never carry keys, signatures, URLs or bodies, and the
   logger redacts those keys.
-- Workaround or containment: a restricted key with Checkout Sessions
-  Write and Refunds Read only, set in Production only and marked
-  Sensitive; RUNBOOK "Stripe payments" covers setting, switching on and
-  off, and rotating both.
+- Workaround or containment: a restricted key with Checkout Sessions:
+  Write, Charges: Read (`charge_read`, which covers listing refunds) and
+  PaymentIntents: Read only, set in Production only and marked Sensitive;
+  RUNBOOK "Stripe payments" covers setting, switching on and off, and
+  rotating both. The review of 2026-10-14 corrected the permission
+  previously named "Refunds: Read": Stripe files `GET /v1/refunds` under
+  Charges, and a key without it makes *Check with Stripe* report the
+  refunds unreadable (`incomplete`), not fail the payment flow (webhooks
+  need no key permission). `ADMIN_ORIGIN` may not be a loopback host in
+  Production (`origin_invalid`), and the quote and job pages read
+  Stripe's state through `stripeIsOn()`, which answers off rather than
+  throwing when the server environment does not parse
+  (`tests/unit/stripe-config.test.ts`).
 - Residual: a leaked webhook secret would let a forger mark a pending
   payment paid with matching cents, which (from step 2) opens the D152
   gate with no real deposit; detection is *Check with Stripe* (step 2),
@@ -2177,7 +2186,7 @@ URLs, or customer data in this file.
 - Next action: the owner creates the account and keys and does a
   rotation drill at go-live (RUNBOOK "Stripe: rotating keys").
 - Revisit trigger: go-live; any key exposure.
-- Last checked: 2026-10-14, Phase 14 step 1 (review hardening).
+- Last checked: 2026-10-14, Phase 14 final review (fix commit).
 
 ## R-086 — A payment stays pending until Stripe's webhook arrives
 
@@ -2194,14 +2203,24 @@ URLs, or customer data in this file.
   Checkout waits, so the return usually already shows paid; a failure
   rolls back and answers 500, so Stripe retries for up to 3 days, and a
   `not_recorded` row is kept as evidence; a server read
-  (`record_stripe_read`) applies Stripe's answer the same way.
+  (`record_stripe_read`) applies Stripe's answer the same way, with one
+  exception the final review found: an asynchronous payment that failed
+  leaves its Checkout Session complete and unpaid, the same shape as one
+  still processing, so a session read alone can never record the failure.
 - Workaround or containment (step 2, built): the return page makes one
   verified re-read and then refreshes for 60 s; a Pay click on an open
   session re-reads it before reusing or replacing it
   (`tests/unit/stripe-checkout.test.ts`); staff have *Check with Stripe*
-  on the job's Customer payments card, which re-reads the session and
-  lists its refunds, so a missed refund event is recovered
-  (`refreshPaymentFromStripe`, rate-limited per payment); a
+  on the job's Customer payments card, which re-reads the session, then,
+  when Checkout completed unpaid, the PaymentIntent (back at
+  `requires_payment_method` or `canceled` means the payment failed:
+  `record_stripe_read` records it as `read.payment_intent` and the
+  deposit is due again; `tests/db/stripe-payments.test.ts` "a
+  PaymentIntent read records an asynchronous failure whose webhook was
+  lost"), then lists its refunds, so a missed refund or async-failure
+  event is recovered (`refreshPaymentFromStripe`, rate-limited per
+  payment; a session it reads but whose intent or refunds the key cannot
+  read is reported as `incomplete`); a
   `pending_unconfirmed` issue appears 15 minutes after the session
   expires and a `not_recorded` delivery shows to admins until a retry
   succeeds (`tests/db/indent-deposits.test.ts`, the views and exceptions);
@@ -2216,12 +2235,25 @@ URLs, or customer data in this file.
   Stripe*, and nothing prompts that for a paid payment; a cron sweep was
   judged not worth sharing the Shopify cron's 60 s budget. A bug that
   makes every apply fail answers 500 and Stripe retries for 3 days
-  (Dashboard resend for 15 days, CLI for 30).
+  (Dashboard resend for 15 days, CLI for 30). A pending payment whose
+  Checkout Session Stripe cannot return under the current key (the shop
+  moved to another Stripe account while a deposit Checkout was open; or,
+  locally, the in-memory fake restarted) stays pending: only Stripe's
+  data moves a payment, so Pay deposit on that quote answers
+  "unavailable" (logged `pending checkout session not found at stripe`,
+  `tests/unit/stripe-checkout.test.ts`) and *Check with Stripe* says
+  Stripe has no record of it, with no in-app way to close the row; the
+  D152 override still lets an admin or manager order. RUNBOOK "Stripe:
+  resolving problems" says to switch accounts only with no deposit
+  pending; locally `npm run db:reset` clears it.
 - Next action: none in the build; at go-live, rehearse a delayed webhook
-  with test keys (RUNBOOK "Stripe: verify before go-live").
-- Revisit trigger: any `not_recorded` row, or a payment pending for more
-  than an hour.
-- Last checked: 2026-10-14, Phase 14 step 2 (third commit).
+  and *Check with Stripe* with the restricted test key (RUNBOOK "Stripe:
+  verify before go-live" step 10). If a Stripe account move ever happens
+  with deposits pending, add a recorded, service-role way to close a
+  payment Stripe reports as not found (a decision with its own record).
+- Revisit trigger: any `not_recorded` row, a payment pending for more
+  than an hour, or a Stripe account change.
+- Last checked: 2026-10-14, Phase 14 final review (fix commit).
 
 ## R-087 — Refunds are made by hand in Stripe
 
@@ -2288,11 +2320,23 @@ URLs, or customer data in this file.
   the E2E's stored webhook payload keeps neither customer details nor the
   success URL. Staff screens never show a quote token or a Stripe URL
   other than the Dashboard link for admins and managers.
+- Residual: the redirect guard accepts `checkout.stripe.com` only, so a
+  Checkout custom domain added in Stripe's Dashboard (it switches every
+  new session's URL once its DNS verifies, and Stripe offers none in test
+  mode, so the go-live rehearsal cannot catch it) would make every Pay
+  deposit "unavailable", seen only as `checkout redirect refused` in the
+  logs. It fails closed (no money moves, the session is expired); RUNBOOK
+  "Stripe: account and webhook endpoint" step 5 says not to add one.
+  `ADMIN_ORIGIN` is refused in Production when it is a loopback host, so
+  a value copied from local setup cannot send paying customers to their
+  own machine (`tests/unit/stripe-config.test.ts`).
 - Next action: name Stripe in the privacy notice (PRODUCT question 32)
-  and keep Stripe Dashboard users few.
+  and keep Stripe Dashboard users few; if the shop wants a Checkout
+  custom domain, allow its host explicitly first (an env value validated
+  by `stripeConfig`).
 - Revisit trigger: step 3's balance-link page (consider token-free return
-  URLs there).
-- Last checked: 2026-10-14, Phase 14 step 2 (third commit).
+  URLs there); a request for a Checkout custom domain.
+- Last checked: 2026-10-14, Phase 14 final review (fix commit).
 
 ## R-089 — What BICII does not record or cannot apply from Stripe
 
@@ -2305,6 +2349,14 @@ URLs, or customer data in this file.
   not subscribed, so a lost chargeback leaves a deposit shown as paid;
   PayNow has no disputes), Stripe fees and payouts, payments taken outside
   BICII's Checkout, and the GST time of supply for deposits (question 32).
+  A deposit paid at the counter is one of those: after an admin or
+  manager orders the parts with a reason (D152), the deposit stays due,
+  and the customer's page keeps Pay deposit; from the final review it
+  says the shop has ordered the parts and asks the customer to check with
+  the shop before paying if they paid another way, but a second, online
+  payment is still possible and is not flagged (`paid_twice` compares
+  Stripe payments only); staff refund it in Stripe (D155). Recording
+  counter payments stays a later owner decision (ADR-025).
   Recorded and flagged to admins but not applied: an event for an unknown
   payment, a mismatched session or mode, a refund in another mode or
   currency than its payment (kept on the payment, not deducted),
@@ -2324,12 +2376,22 @@ URLs, or customer data in this file.
   arrives before its payment is adopted by the completion without a flag
   on that event (its own event was `refund_unmatched`), so step 2's
   `payment_issues` must also list linked refunds whose currency or mode
-  differs from the payment's.
+  differs from the payment's. Built in step 2 as `refund_not_counted`
+  (`tests/db/indent-deposits.test.ts`); a linked refund in another
+  currency is listed once on Exceptions, as that payment issue, not also
+  as a `currency_mismatch` Stripe event. A refund first recorded by a
+  server read has no mode (a Refund object carries none) and counts;
+  should a webhook of the other mode later arrive for the same refund id,
+  that event is flagged `livemode_mismatch` but the row keeps its null
+  mode and still counts. Refund ids are unique per Stripe account and mode,
+  so this needs a test-mode and a live-mode refund sharing an id, which is
+  not expected to happen.
 - Workaround or containment: Stripe emails the owner about every dispute
   and the response happens in Stripe's Dashboard; the owner notes the
   outcome on the job (RUNBOOK "Stripe: resolving problems").
 - Next action: add `charge.dispute.*` through the same apply path in step
   3 if a dispute occurs.
-- Revisit trigger: the first dispute, the first `needs_attention` row, or
-  the accountant's answer on GST.
-- Last checked: 2026-10-14, Phase 14 step 1 (second commit).
+- Revisit trigger: the first dispute, the first `needs_attention` row, a
+  customer who paid twice (counter and online), or the accountant's
+  answer on GST.
+- Last checked: 2026-10-14, Phase 14 final review (fix commit).

@@ -48,15 +48,8 @@ import {
   sendQuote,
   setup,
 } from "./indent-fixtures";
-import {
-  ADMIN,
-  MANAGER,
-  MECHANIC1,
-  MECHANIC2,
-  addStock,
-  committed,
-  readAsOwner,
-} from "./inventory-fixtures";
+import { ADMIN, MANAGER, MECHANIC1, MECHANIC2, addStock, readAsOwner } from "./inventory-fixtures";
+import { race } from "./lock-race";
 import { grantPurchasing } from "./purchasing-fixtures";
 import { events, failsWith, ownerMode, setStatus, walkTo } from "./workshop-fixtures";
 
@@ -132,7 +125,7 @@ async function answered(
 async function pageDeposit(tx: pg.Client, token: string) {
   await actAs(tx, ANON);
   const { rows } = await tx.query<{
-    deposit: { percent: number; status: string } | null;
+    deposit: { percent: number; status: string; parts_ordered?: boolean } | null;
     amount: string | null;
   }>(
     `select q -> 'deposit' as deposit, q -> 'deposit' ->> 'amount' as amount
@@ -589,6 +582,7 @@ describe("The quote view's deposit key (D143, D158)", () => {
         percent: 50,
         amount: "120.00",
         status: "due",
+        parts_ordered: false,
       });
 
       // Completed but unpaid (an asynchronous method): processing.
@@ -605,6 +599,7 @@ describe("The quote view's deposit key (D143, D158)", () => {
         percent: 50,
         amount: "120.00",
         status: "paid",
+        parts_ordered: false,
       });
       await refundDeposit(tx, p, 5000);
       expect((await pageDeposit(tx, q.token))!.status).toBe("paid");
@@ -616,6 +611,25 @@ describe("The quote view's deposit key (D143, D158)", () => {
       expect(Object.keys(page!)).toHaveLength(12);
       expect(JSON.stringify(page)).not.toMatch(/70\.00|cost|supplier|email|phone|note/i);
       expect(JSON.stringify(page)).not.toMatch(/cs_|pi_|re_|evt_|https?:/i);
+    });
+  });
+
+  it("parts_ordered: once an admin or manager orders the parts before the deposit is paid, it is still due", async () => {
+    await inTransaction(conn, async (tx) => {
+      const d = await answered(tx);
+      await actAs(tx, ADMIN);
+      await orderWithReason(tx, [d.partId], d.supplierId, "Customer is paying at the counter");
+      expect(await pageDeposit(tx, d.token)).toEqual({
+        percent: 50,
+        amount: "120.00",
+        status: "due",
+        parts_ordered: true,
+      });
+      // Fitted counts as ordered.
+      await actAs(tx, ADMIN);
+      await addStock(tx, d.productId, 2);
+      await fit(tx, d.partId, randomUUID(), LOCATION.shopFloor);
+      expect((await pageDeposit(tx, d.token))!.parts_ordered).toBe(true);
     });
   });
 
@@ -806,6 +820,17 @@ describe("record_deposit_checkout (service role; D153, D158d)", () => {
         () => callRecordCheckout(tx, prep.payment_id!, d.quoteId, openSession(d, prep.payment_id!)),
         p0001("checkout_session_conflict"),
       );
+      // The same payment id and session replayed against another quote.
+      const elsewhere = await answered(tx);
+      await failsWith(
+        tx,
+        async () => {
+          await actAs(tx, SERVICE);
+          return callRecordCheckout(tx, prep.payment_id!, elsewhere.quoteId, s);
+        },
+        p0001("checkout_session_conflict"),
+      );
+      await actAs(tx, SERVICE);
       // Another attempt while one is pending: the first wins.
       const other = randomUUID();
       expect(await recordCheckout(tx, other, d.quoteId, openSession(d, other))).toEqual({
@@ -847,6 +872,8 @@ describe("record_deposit_checkout (service role; D153, D158d)", () => {
         { extra: { client_reference_id: randomUUID() } },
         { status: "complete" },
         { expiresAt: unixNow() - 60 },
+        // More than 61 minutes ahead: not the 60-minute session asked (D158d).
+        { expiresAt: unixNow() + 2 * 60 * 60 },
         { extra: { livemode: "false" } },
       ];
       for (const o of mismatches)
@@ -1097,7 +1124,7 @@ describe("quote_deposits, payment_issues and work_order_payment_totals", () => {
         ]),
       );
       expect(message).toBe(
-        "SGD 120.00 is held but every part it was for is cancelled. Refund it in Stripe, or agree with the customer that it counts towards the job.",
+        "$120.00 is held but every part it was for is cancelled. Refund it in Stripe, or agree with the customer that it counts towards the job.",
       );
       await refundDeposit(tx, pb, 5000);
       expect(await issuesOf(tx, pb.paymentId)).toEqual(["paid_parts_cancelled"]);
@@ -1107,7 +1134,7 @@ describe("quote_deposits, payment_issues and work_order_payment_totals", () => {
             pb.paymentId,
           ]),
         ),
-      ).toContain("SGD 70.00 is held");
+      ).toContain("$70.00 is held");
 
       // paid_twice: an expired session paid after a second one was paid.
       const c = await answered(tx);
@@ -1130,6 +1157,14 @@ describe("quote_deposits, payment_issues and work_order_payment_totals", () => {
       const pe = await startCheckout(tx, e);
       await payDeposit(tx, pe, { amountCents: 11999 });
       expect(await issuesOf(tx, pe.paymentId)).toEqual(["amount_mismatch"]);
+      // Money as the screens print it, both figures with the currency sign.
+      expect(
+        await readAsOwner(tx, () =>
+          scalar<string>(tx, "select message from public.payment_issues where payment_id = $1", [
+            pe.paymentId,
+          ]),
+        ),
+      ).toBe("Stripe received $119.99, not the $120.00 asked. Check the payment in Stripe.");
 
       // refund_failed, cleared by a later refund that succeeds.
       const f = await answered(tx);
@@ -1141,6 +1176,29 @@ describe("quote_deposits, payment_issues and work_order_payment_totals", () => {
       expect(await issuesOf(tx, pf.paymentId)).toEqual(["refund_failed"]);
       await refundDeposit(tx, pf, 5000, "succeeded");
       expect(await issuesOf(tx, pf.paymentId)).toEqual([]);
+
+      // refund_failed when the refunds were decided before the completion
+      // arrived: adopting them re-cites the completion on every row, so the
+      // last decision is read from each refund's own status time.
+      const o = await answered(tx);
+      const po = await startCheckout(tx, o);
+      const [o1, o2] = [`pyr_${tag()}`, `pyr_${tag()}`];
+      await refundDeposit(tx, po, 3000, "pending", o1);
+      await refundDeposit(tx, po, 3000, "pending", o2);
+      await refundDeposit(tx, po, 3000, "succeeded", o1);
+      await refundDeposit(tx, po, 3000, "succeeded", o2);
+      await refundDeposit(tx, po, 3000, "failed", o1);
+      await payDeposit(tx, po);
+      expect(
+        await readAsOwner(tx, () =>
+          scalar<string>(
+            tx,
+            "select status::text || ' ' || refunded_amount::text from public.payments where id = $1",
+            [po.paymentId],
+          ),
+        ),
+      ).toBe("partially_refunded 30.00");
+      expect(await issuesOf(tx, po.paymentId)).toEqual(["refund_failed"]);
 
       // refund_exceeds_payment.
       const g = await answered(tx);
@@ -1167,12 +1225,44 @@ describe("quote_deposits, payment_issues and work_order_payment_totals", () => {
         [ph.paymentId],
       );
       expect(severity).toBe("warning");
+      expect(
+        await scalar<string>(
+          tx,
+          "select message from public.payment_issues where payment_id = $1",
+          [ph.paymentId],
+        ),
+      ).toBe("Stripe has not confirmed a payment of $120.00. Press Check with Stripe on the job.");
       await deliver(
         tx,
         "checkout.session.expired",
         paidSession(ph, { status: "expired", paymentStatus: "unpaid", paymentIntent: null }),
       );
       expect(await issuesOf(tx, ph.paymentId)).toEqual([]);
+
+      // Completed at Checkout but never confirmed (R-086): other words.
+      const k = await answered(tx);
+      const pk = await startCheckout(tx, k);
+      await deliver(
+        tx,
+        "checkout.session.completed",
+        paidSession(pk, { paymentStatus: "unpaid", status: "complete" }),
+      );
+      await ownerMode(tx);
+      await tx.query("alter table public.payments disable trigger payments_guard");
+      await tx.query(
+        "update public.payments set stripe_session_expires_at = now() - interval '20 minutes' where id = $1",
+        [pk.paymentId],
+      );
+      await tx.query("alter table public.payments enable trigger payments_guard");
+      expect(
+        await scalar<string>(
+          tx,
+          "select message from public.payment_issues where payment_id = $1",
+          [pk.paymentId],
+        ),
+      ).toBe(
+        "The customer completed Checkout for $120.00, but Stripe has not confirmed the payment. Press Check with Stripe on the job; if it stays, look the payment up in the Stripe Dashboard.",
+      );
     });
   });
 
@@ -1308,7 +1398,7 @@ describe("Exceptions: payment_attention and stripe_attention (D108, D159b)", () 
           entity_type: "work_order",
           entity_id: d.job.id,
           title: d.job.job_number,
-          detail: "Stripe received SGD 119.99, not the 120.00 asked. Check the payment in Stripe.",
+          detail: "Stripe received $119.99, not the $120.00 asked. Check the payment in Stripe.",
           issue: "payment_attention",
         },
       ]);
@@ -1360,6 +1450,29 @@ describe("Exceptions: payment_attention and stripe_attention (D108, D159b)", () 
       // The payment issue clears when its cause clears (a full refund).
       await refundDeposit(tx, p, 11999);
       expect(paymentRows(await listed(tx, ADMIN))).toEqual([]);
+
+      // A linked refund in another currency is listed once: payment_attention
+      // (refund_not_counted), not also stripe_attention (currency_mismatch).
+      const u = await answered(tx);
+      const pu = await startCheckout(tx, u);
+      await payDeposit(tx, pu);
+      const usd = await deliver(
+        tx,
+        "refund.updated",
+        refundObject({
+          id: `re_${tag()}`,
+          paymentIntent: pu.pi,
+          amountCents: 1000,
+          status: "succeeded",
+          currency: "usd",
+        }),
+      );
+      expect(usd).toMatchObject({ event_status: "needs_attention", outcome: "currency_mismatch" });
+      const afterUsd = await listed(tx, ADMIN);
+      expect(afterUsd.filter((r) => r.entity_id === u.job.id).map((r) => r.kind)).toEqual([
+        "payment_attention",
+      ]);
+      expect(await issuesOf(tx, pu.paymentId)).toEqual(["refund_not_counted"]);
     });
   });
 });
@@ -1369,12 +1482,13 @@ describe("Exceptions: payment_attention and stripe_attention (D108, D159b)", () 
 // ---------------------------------------------------------------------------
 
 describe.skipIf(!isolatedDatabase())("Concurrency (DATA-MODEL §19 lock order)", () => {
-  let c1: pg.Client;
-  let c2: pg.Client;
+  // Each case holds the first call's locks in an open transaction and
+  // proves the second waits on a lock before the first commits (race(),
+  // tests/db/lock-race.ts).
   let setupConn: pg.Client;
 
   beforeAll(async () => {
-    [c1, c2, setupConn] = await openConnections(3);
+    [setupConn] = await openConnections(1);
   });
 
   afterAll(async () => {
@@ -1394,33 +1508,44 @@ describe.skipIf(!isolatedDatabase())("Concurrency (DATA-MODEL §19 lock order)",
       { commit: true },
     );
 
-  it("two record_deposit_checkout calls for one quote: one created, one existing", async () => {
+  const paidWebhook = (p: Pay) => (tx: pg.Client) =>
+    callRecordEvent(
+      tx,
+      stripeEvent({
+        id: `evt_${tag()}`,
+        type: "checkout.session.completed",
+        object: paidSession(p),
+      }),
+    );
+
+  const paymentStatus = (paymentId: string) =>
+    scalar<string>(conn, "select status::text from public.payments where id = $1", [paymentId]);
+
+  it("two record_deposit_checkout calls for one quote: the second waits on the job, then is existing", async () => {
     const d = await committedDeposit();
     const [a, b] = await inTransaction(
       setupConn,
       async (tx) => [await prepare(tx, d.token), await prepare(tx, d.token)],
       { commit: true },
     );
-    const results = await Promise.all([
-      committed(
-        c1,
-        (tx) => callRecordCheckout(tx, a.payment_id!, d.quoteId, openSession(d, a.payment_id!)),
-        SERVICE,
-      ),
-      committed(
-        c2,
-        (tx) => callRecordCheckout(tx, b.payment_id!, d.quoteId, openSession(d, b.payment_id!)),
-        SERVICE,
-      ),
-    ]);
-    expect(
-      results.every((r) => r.ok),
-      JSON.stringify(results),
-    ).toBe(true);
-    expect(results.map((r) => (r.ok ? r.value.outcome : null)).sort()).toEqual([
-      "created",
-      "existing",
-    ]);
+    const [first, second] = await race(
+      setupConn,
+      {
+        as: SERVICE,
+        run: (tx) =>
+          callRecordCheckout(tx, a.payment_id!, d.quoteId, openSession(d, a.payment_id!)),
+      },
+      {
+        as: SERVICE,
+        run: (tx) =>
+          callRecordCheckout(tx, b.payment_id!, d.quoteId, openSession(d, b.payment_id!)),
+      },
+    );
+    expect(first).toMatchObject({ ok: true, value: { outcome: "created" } });
+    expect(second).toMatchObject({
+      ok: true,
+      value: { outcome: "existing", payment_id: a.payment_id },
+    });
     expect(
       await scalar<number>(
         conn,
@@ -1430,64 +1555,68 @@ describe.skipIf(!isolatedDatabase())("Concurrency (DATA-MODEL §19 lock order)",
     ).toBe(1);
   });
 
-  it("a paid webhook against ordering without a reason: never ordered while unpaid, no deadlock", async () => {
-    for (let i = 0; i < 2; i++) {
-      const d = await committedDeposit();
-      const p = await inTransaction(setupConn, (tx) => startCheckout(tx, d), { commit: true });
-      const webhook = (tx: pg.Client) =>
-        callRecordEvent(
-          tx,
-          stripeEvent({
-            id: `evt_${tag()}`,
-            type: "checkout.session.completed",
-            object: paidSession(p),
-          }),
-        );
-      const order = (tx: pg.Client) => orderParts(tx, [d.partId], d.supplierId);
-      const results =
-        i === 0
-          ? await Promise.all([committed(c1, webhook, SERVICE), committed(c2, order, ADMIN)])
-          : await Promise.all([committed(c2, order, ADMIN), committed(c1, webhook, SERVICE)]);
-      const [hook, ordered] = i === 0 ? results : [results[1], results[0]];
-      expect(hook.ok, JSON.stringify(hook)).toBe(true);
-      if (!ordered.ok) expect(ordered.error).toMatchObject(p0001("deposit_unpaid"));
-      // If ordering committed, it saw the payment the webhook had committed.
-      if (ordered.ok) {
-        const orderedAt = await scalar<Date>(
-          conn,
-          "select ordered_at from public.job_part_requests where id = $1",
-          [d.partId],
-        );
-        const paidCommitted = await scalar<Date>(
-          conn,
-          "select processed_at from public.stripe_events where payment_id = $1 and outcome = 'payment_paid'",
-          [p.paymentId],
-        );
-        expect(orderedAt.getTime()).toBeGreaterThanOrEqual(paidCommitted.getTime());
-      }
-      expect(
-        await scalar<string>(conn, "select status::text from public.payments where id = $1", [
-          p.paymentId,
-        ]),
-      ).toBe("paid");
-    }
+  it("ordering without a reason waits for a paid webhook still applying, then orders (the gate reads under the job lock)", async () => {
+    const d = await committedDeposit();
+    const p = await inTransaction(setupConn, (tx) => startCheckout(tx, d), { commit: true });
+    const [hook, ordered] = await race(
+      setupConn,
+      { as: SERVICE, run: paidWebhook(p) },
+      { as: ADMIN, run: (tx) => orderParts(tx, [d.partId], d.supplierId) },
+    );
+    expect(hook).toMatchObject({ ok: true, value: { outcome: "payment_paid" } });
+    // Had the gate read the deposit before waiting, it would have refused.
+    expect(ordered.ok, JSON.stringify(ordered)).toBe(true);
+    expect(
+      await scalar<string>(
+        conn,
+        "select status::text from public.job_part_requests where id = $1",
+        [d.partId],
+      ),
+    ).toBe("ordered");
+    expect(await paymentStatus(p.paymentId)).toBe("paid");
   });
 
-  it("record_deposit_checkout against cancelling the part: no deadlock, a consistent outcome", async () => {
+  it("a paid webhook waits for an override order still holding the job, then records the payment", async () => {
     const d = await committedDeposit();
-    const prep = await inTransaction(setupConn, (tx) => prepare(tx, d.token), { commit: true });
-    const results = await Promise.all([
-      committed(
-        c1,
-        (tx) =>
+    const p = await inTransaction(setupConn, (tx) => startCheckout(tx, d), { commit: true });
+    const [ordered, hook] = await race(
+      setupConn,
+      {
+        as: ADMIN,
+        run: (tx) =>
+          orderWithReason(tx, [d.partId], d.supplierId, "Customer is paying at the counter"),
+      },
+      { as: SERVICE, run: paidWebhook(p) },
+    );
+    expect(ordered.ok, JSON.stringify(ordered)).toBe(true);
+    expect(hook).toMatchObject({ ok: true, value: { outcome: "payment_paid" } });
+    const overrides = await readAsOwner(conn, async () =>
+      (await partOrdered(conn, d.job.id)).map((e) => e.payload.deposit_override),
+    );
+    expect(overrides).toHaveLength(1);
+    expect(overrides[0]).toMatchObject({ reason: "Customer is paying at the counter" });
+    expect(await paymentStatus(p.paymentId)).toBe("paid");
+  });
+
+  it("record_deposit_checkout and cancelling the part wait on the job lock, in either order", async () => {
+    for (const recordFirst of [true, false]) {
+      const d = await committedDeposit();
+      const prep = await inTransaction(setupConn, (tx) => prepare(tx, d.token), { commit: true });
+      const record = {
+        as: SERVICE,
+        run: (tx: pg.Client) =>
           callRecordCheckout(tx, prep.payment_id!, d.quoteId, openSession(d, prep.payment_id!)),
-        SERVICE,
-      ),
-      committed(c2, (tx) => cancelPart(tx, d.partId), ADMIN),
-    ]);
-    const [rec, cancel] = results;
-    expect(cancel.ok, JSON.stringify(cancel)).toBe(true);
-    if (rec.ok) expect(rec.value.outcome).toBe("created");
-    else expect(rec.error).toMatchObject(p0001("deposit_parts_cancelled"));
+      };
+      const cancel = { as: ADMIN, run: (tx: pg.Client) => cancelPart(tx, d.partId) };
+      if (recordFirst) {
+        const [rec, cancelled] = await race(setupConn, record, cancel);
+        expect(rec).toMatchObject({ ok: true, value: { outcome: "created" } });
+        expect(cancelled.ok, JSON.stringify(cancelled)).toBe(true);
+      } else {
+        const [cancelled, rec] = await race(setupConn, cancel, record);
+        expect(cancelled.ok, JSON.stringify(cancelled)).toBe(true);
+        expect(rec).toMatchObject({ ok: false, error: p0001("deposit_parts_cancelled") });
+      }
+    }
   });
 });

@@ -1,4 +1,8 @@
-import { METADATA_KEYS } from "./config";
+import {
+  METADATA_KEYS,
+  SESSION_MAX_LIFETIME_SECONDS,
+  SESSION_MIN_LIFETIME_SECONDS,
+} from "./config";
 import type { CheckoutSessionInput } from "./gateway";
 
 /**
@@ -36,14 +40,25 @@ const MAX_CENTS = 99_999_999;
  *
  * Throws a plain Error (a caller bug, not a Stripe failure) unless the
  * amount is whole cents from 50 to 99,999,999, `expiresAt` is a whole
- * number of seconds and the product name is 1-250 characters.
+ * number of seconds within Stripe's window (30 minutes to 24 hours after
+ * `nowSeconds`, the caller's clock), and the product name is 1-250
+ * characters. The live adapter and the fake share this, so a change to
+ * prepare_deposit_checkout's 60 minutes that Stripe would refuse fails
+ * the tests too.
  */
-export function checkoutSessionParams(input: CheckoutSessionInput): Array<[string, string]> {
+export function checkoutSessionParams(
+  input: CheckoutSessionInput,
+  nowSeconds: number,
+): Array<[string, string]> {
   const { amountCents, expiresAt } = input;
   if (!Number.isSafeInteger(amountCents) || amountCents < MIN_CENTS || amountCents > MAX_CENTS) {
     throw new Error("amountCents must be a whole number of cents from 50 to 99999999");
   }
   if (!Number.isSafeInteger(expiresAt)) throw new Error("expiresAt must be whole epoch seconds");
+  const lifetime = expiresAt - nowSeconds;
+  if (lifetime < SESSION_MIN_LIFETIME_SECONDS || lifetime > SESSION_MAX_LIFETIME_SECONDS) {
+    throw new Error("expiresAt must be 30 minutes to 24 hours from now (Stripe's window)");
+  }
   const name = `${input.kind === "deposit" ? "Deposit" : "Balance"} for job ${input.jobNumber}`;
   if (name.length < 1 || name.length > 250) {
     throw new Error("the product name must be 1-250 characters");

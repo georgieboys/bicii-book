@@ -519,18 +519,14 @@ export function exceptionCopy(
       // line; the fix happens in the Shopify queue.
       return { text: "Fix it in the Shopify queue", tone: "danger" };
     case "payment_attention":
-      // Phase 14 (D159b): the sentence public.payment_issues computed, the
-      // same words the job's Customer payments card shows.
-      return {
-        text: row.subjectLabel ?? "Check the job's customer payments",
-        tone: exceptionTone(row.severity),
-      };
+      // Phase 14 (D159b): the row's subject line is the sentence
+      // public.payment_issues computed (the job card's words); this is
+      // where to act, so the list never says the same thing twice.
+      return { text: "Open the job's Customer payments", tone: exceptionTone(row.severity) };
     case "stripe_attention":
-      // Phase 14 (D86, D159b, admins only): a delivery BICII could not apply or store.
-      return {
-        text: row.subjectLabel ?? "Check Stripe deliveries in Settings → Customer payments",
-        tone: "danger",
-      };
+      // Phase 14 (D86, D159b, admins only): a delivery BICII could not apply
+      // or store; its subject line says what, this where to look.
+      return { text: "Check Stripe deliveries in Settings → Customer payments", tone: "danger" };
     default: {
       const what = [row.entityLabel, row.subjectLabel].filter(Boolean).join(" · ");
       return { text: what ? `Check ${what}` : "Something needs checking", tone };

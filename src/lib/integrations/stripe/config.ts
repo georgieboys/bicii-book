@@ -18,7 +18,7 @@ export const STRIPE_API_BASE = "https://api.stripe.com";
  */
 export const STRIPE_API_VERSION = "2026-09-30.endive";
 
-/** A Stripe call that has not answered by then is abandoned (retriable). */
+/** A Stripe call that has not answered by then is abandoned (retried once). */
 export const STRIPE_TIMEOUT_MS = 8_000;
 
 /** A webhook body above 1 MiB gets 413 and is not stored (as D88 for Shopify). */
@@ -82,9 +82,19 @@ export function checkoutIdempotencyKey(paymentId: string): string {
   return `bicii-checkout-${paymentId}`;
 }
 
-export function expireIdempotencyKey(sessionId: string): string {
-  return `bicii-expire-${sessionId}`;
+/**
+ * A fresh key per expire call (`nonce`: a random UUID), reused only by that
+ * call's own retry. Expiring is idempotent at Stripe anyway (a second
+ * expire is a 400, not open), and a fixed key would replay a saved 500 for
+ * 24 hours.
+ */
+export function expireIdempotencyKey(sessionId: string, nonce: string): string {
+  return `bicii-expire-${sessionId}-${nonce}`;
 }
+
+/** Stripe's window for a Checkout Session's expires_at: 30 minutes to 24 hours ahead. */
+export const SESSION_MIN_LIFETIME_SECONDS = 30 * 60;
+export const SESSION_MAX_LIFETIME_SECONDS = 24 * 60 * 60;
 
 /** Staff "Check with Stripe" presses per payment in one 5-minute window (limits.ts). */
 export const STRIPE_CHECK_LIMIT = 6;

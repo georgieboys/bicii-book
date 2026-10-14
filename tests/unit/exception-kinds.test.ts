@@ -115,11 +115,11 @@ describe("exception kinds (D34, D106–D108)", () => {
     );
   });
 
-  it("words customer payment and Stripe exceptions with the database's sentence (Phase 14, D159b)", () => {
+  it("words customer payment and Stripe exceptions with where to act; the sentence stays the subject line (Phase 14, D159b)", () => {
     expect(exceptionLabel("payment_attention")).toBe("Customer payment");
     expect(exceptionLabel("stripe_attention")).toBe("Stripe needs attention");
     const message =
-      "SGD 120.00 is held but this job is cancelled. Refund it in Stripe if it is due back.";
+      "$120.00 is held but this job is cancelled. Refund it in Stripe if it is due back.";
     const payment = row({
       kind: "payment_attention",
       entityType: "work_order",
@@ -127,13 +127,18 @@ describe("exception kinds (D34, D106–D108)", () => {
       subjectLabel: message,
       issue: "payment_attention",
     });
-    expect(exceptionCopy("payment_attention", payment)).toEqual({ text: message, tone: "danger" });
+    // Never the subject line again (ExceptionList shows both lines).
+    expect(exceptionCopy("payment_attention", payment)).toEqual({
+      text: "Open the job's Customer payments",
+      tone: "danger",
+    });
+    expect(exceptionCopy("payment_attention", payment).text).not.toBe(message);
     expect(
       exceptionCopy("payment_attention", { ...payment, severity: "warning", subjectLabel: null }),
-    ).toEqual({ text: "Check the job's customer payments", tone: "waiting" });
+    ).toEqual({ text: "Open the job's Customer payments", tone: "waiting" });
     expect(
       exceptionCopy("stripe_attention", row({ kind: "stripe_attention", severity: "warning" })),
-    ).toEqual({ text: "Canyon Grizl", tone: "danger" });
+    ).toEqual({ text: "Check Stripe deliveries in Settings → Customer payments", tone: "danger" });
     expect(
       exceptionCopy("stripe_attention", row({ kind: "stripe_attention", subjectLabel: null })),
     ).toEqual({ text: "Check Stripe deliveries in Settings → Customer payments", tone: "danger" });

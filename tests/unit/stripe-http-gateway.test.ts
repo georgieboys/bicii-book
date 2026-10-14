@@ -65,13 +65,26 @@ function fetchReturning(...responses: Array<Response | Error>) {
   return { calls, fetch: impl as unknown as typeof globalThis.fetch };
 }
 
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", ...headers },
+  });
+
+/** A 5xx Stripe marks as worth retrying (no idempotent result was saved). */
+const shouldRetry = (status: number) => json(status, {}, { "stripe-should-retry": "true" });
 
 /** Waits are recorded, never slept, so the suite stays fast. */
 const noSleep = async () => {};
-const gateway = (fetchImpl: typeof globalThis.fetch, livemode = false) =>
-  createHttpStripeGateway({ secretKey: KEY, livemode, sleep: noSleep }, fetchImpl);
+/** Stripe's clock: INPUT's session expires an hour after it. */
+const now = () => 1_800_000_000_000;
+const gateway = (fetchImpl: typeof globalThis.fetch, livemode = false) => {
+  let n = 0;
+  return createHttpStripeGateway(
+    { secretKey: KEY, livemode, sleep: noSleep, now, nonce: () => `n${++n}` },
+    fetchImpl,
+  );
+};
 
 async function caught(p: Promise<unknown>): Promise<InstanceType<typeof StripeError>> {
   try {
@@ -108,7 +121,7 @@ describe("createCheckoutSession", () => {
   });
 
   it("retries once after a retriable error with the identical bytes and key", async () => {
-    const { calls, fetch } = fetchReturning(json(503, {}), json(200, session()));
+    const { calls, fetch } = fetchReturning(shouldRetry(503), json(200, session()));
     await gateway(fetch).createCheckoutSession(INPUT, "k-1");
     expect(calls).toHaveLength(2);
     expect(calls[1].init.body).toBe(calls[0].init.body);
@@ -127,7 +140,7 @@ describe("createCheckoutSession", () => {
           order.push(`sleep ${ms} after ${calls.length}`);
         });
         await createHttpStripeGateway(
-          { secretKey: KEY, livemode: false, sleep, random: () => r },
+          { secretKey: KEY, livemode: false, sleep, random: () => r, now },
           fetch,
         ).createCheckoutSession(INPUT, "k-1");
         expect(sleep).toHaveBeenCalledTimes(1);
@@ -148,12 +161,12 @@ describe("createCheckoutSession", () => {
     expect(retryDelayMs(() => Number.NaN)).toBe(375);
   });
 
-  it("retries a network error or a 5xx at once, without waiting", async () => {
-    for (const first of [new TypeError("fetch failed"), json(503, {})]) {
+  it("retries a network error, or a 5xx Stripe says to retry, at once, without waiting", async () => {
+    for (const first of [new TypeError("fetch failed"), shouldRetry(503)]) {
       const { calls, fetch } = fetchReturning(first, json(200, session()));
       const sleep = vi.fn(async () => {});
       await createHttpStripeGateway(
-        { secretKey: KEY, livemode: false, sleep },
+        { secretKey: KEY, livemode: false, sleep, now },
         fetch,
       ).createCheckoutSession(INPUT, "k-1");
       expect(sleep).not.toHaveBeenCalled();
@@ -162,10 +175,27 @@ describe("createCheckoutSession", () => {
   });
 
   it("gives up after the second retriable failure", async () => {
-    const { calls, fetch } = fetchReturning(new TypeError("fetch failed"), json(500, {}));
+    const { calls, fetch } = fetchReturning(new TypeError("fetch failed"), shouldRetry(500));
     const e = await caught(gateway(fetch).createCheckoutSession(INPUT, "k-1"));
     expect(e).toMatchObject({ code: "stripe_unavailable", retriable: true, status: 500 });
     expect(calls).toHaveLength(2);
+  });
+
+  it("does not retry a POST's 5xx Stripe does not mark: the same key would replay the saved 500", async () => {
+    for (const header of [{}, { "stripe-should-retry": "false" }] as Record<string, string>[]) {
+      const { calls, fetch } = fetchReturning(json(500, {}, header), json(200, session()));
+      const e = await caught(gateway(fetch).createCheckoutSession(INPUT, "k-1"));
+      expect(e).toMatchObject({ code: "stripe_unavailable", retriable: false, status: 500 });
+      expect(calls).toHaveLength(1);
+    }
+  });
+
+  it("refuses an expiry outside Stripe's window before calling Stripe", async () => {
+    const { calls, fetch } = fetchReturning();
+    await expect(
+      gateway(fetch).createCheckoutSession({ ...INPUT, expiresAt: 1_800_000_000 + 600 }, "k-1"),
+    ).rejects.toThrow(/30 minutes to 24 hours/);
+    expect(calls).toEqual([]);
   });
 
   it("does not retry a non-retriable error", async () => {
@@ -269,6 +299,12 @@ describe("retrieve, expire and list refunds", () => {
     expect(calls[0].init.headers).not.toHaveProperty("Idempotency-Key");
   });
 
+  it("retries a GET's 5xx once (a read saves no result)", async () => {
+    const { calls, fetch } = fetchReturning(json(502, {}), json(200, session()));
+    await gateway(fetch).retrieveCheckoutSession(SESSION);
+    expect(calls).toHaveLength(2);
+  });
+
   it("refuses an id that is not a session's, without calling Stripe", async () => {
     const { calls, fetch } = fetchReturning();
     for (const id of ["../v1/charges", "cs_test_a/b", "pi_123", "cs_test_"]) {
@@ -278,7 +314,7 @@ describe("retrieve, expire and list refunds", () => {
     expect(calls).toEqual([]);
   });
 
-  it("expires with its own idempotency key, and any 400 means not open", async () => {
+  it("expires with a fresh idempotency key per call, and any 400 means not open", async () => {
     const { calls, fetch } = fetchReturning(
       json(200, session({ status: "expired", url: null })),
       json(400, { error: { type: "invalid_request_error", code: "checkout_session_not_open" } }),
@@ -288,10 +324,47 @@ describe("retrieve, expire and list refunds", () => {
     expect(calls[0].url).toBe(`https://api.stripe.com/v1/checkout/sessions/${SESSION}/expire`);
     expect(calls[0].init.method).toBe("POST");
     expect((calls[0].init.headers as Record<string, string>)["Idempotency-Key"]).toBe(
-      `bicii-expire-${SESSION}`,
+      `bicii-expire-${SESSION}-n1`,
     );
     const e = await caught(g.expireCheckoutSession(SESSION));
     expect(e.code).toBe("stripe_session_not_open");
+    // A later expire never reuses a key, so a saved 500 cannot block it.
+    expect((calls[1].init.headers as Record<string, string>)["Idempotency-Key"]).toBe(
+      `bicii-expire-${SESSION}-n2`,
+    );
+  });
+
+  it("an expire's own retry keeps its key and body", async () => {
+    const { calls, fetch } = fetchReturning(
+      new TypeError("fetch failed"),
+      json(200, session({ status: "expired", url: null })),
+    );
+    await gateway(fetch).expireCheckoutSession(SESSION);
+    expect(calls).toHaveLength(2);
+    expect(calls[1].init.headers).toEqual(calls[0].init.headers);
+  });
+
+  it("retrieves a PaymentIntent by a validated id, checked for its mode", async () => {
+    const intent = { id: "pi_123", object: "payment_intent", livemode: false, status: "canceled" };
+    const { calls, fetch } = fetchReturning(
+      json(200, intent),
+      json(200, { ...intent, livemode: true }),
+    );
+    const g = gateway(fetch);
+    expect(await g.retrievePaymentIntent("pi_123")).toEqual({
+      id: "pi_123",
+      status: "canceled",
+      livemode: false,
+      raw: intent,
+    });
+    expect(calls[0].url).toBe("https://api.stripe.com/v1/payment_intents/pi_123");
+    expect(calls[0].init.method).toBe("GET");
+    expect((await caught(g.retrievePaymentIntent("pi_123"))).code).toBe("stripe_bad_response");
+    const { calls: none, fetch: f2 } = fetchReturning();
+    expect((await caught(gateway(f2).retrievePaymentIntent("pi_1/../x"))).code).toBe(
+      "stripe_request_failed",
+    );
+    expect(none).toEqual([]);
   });
 
   it("lists a payment intent's refunds, validated, keeping refund objects only", async () => {

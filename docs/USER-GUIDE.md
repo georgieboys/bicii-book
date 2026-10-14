@@ -94,7 +94,11 @@ managers.
 - Steps: use the large buttons for the usual next step: **Start work**,
   **Diagnose**, **Waiting on parts**, **Pause**, **Resume**, **Complete**,
   **Ready for collection**, then **Collected…** and **Mark collected**
-  (Collected is final, so it asks again). Any other allowed move is under
+  (Collected is final, so it asks again). When the customer paid a
+  deposit online, the confirmation says so first ("$60.00 was paid
+  online. Take only $85.00."), and the same figures are under the job's
+  total in **Lines** ("Paid online $60.00 · Still to pay $85.00"): take
+  only what is left at the counter. Any other allowed move is under
   **Change status**, with an optional **Note**.
   - Reopen a completed job (or one ready for collection): **Change
     status** → **Reopen job…**, answer "Why are you reopening this job?",
@@ -197,7 +201,9 @@ before it is ordered, and it goes on the job only when it is fitted
      opens Stripe's own payment page (card or PayNow) and brings them back
      to the quote. Their approval stands whether or not they pay. Back on
      the page they see "We're confirming your payment with Stripe…" and
-     then "Deposit of $… paid. Thank you."; if they left Stripe without
+     then "Deposit of $… paid. Thank you." (a PayNow payment Stripe is
+     still confirming says "Reload this page later to see it
+     confirmed."); if they left Stripe without
      paying, "Payment not finished. Nothing was charged." and the button
      again. Pressing Pay again reuses the same Stripe payment, so they are
      never charged twice. Only Stripe's own confirmation marks a deposit
@@ -220,9 +226,15 @@ before it is ordered, and it goes on the job only when it is fitted
      it shows "The customer hasn't paid the deposit for N of these parts."
      and **Why order before the deposit is paid?**; type the reason and
      press **Order without deposit**. The reason is recorded on the job's
-     timeline ("Ordered before the deposit was paid: …"). With the deposit
-     at 0, the default, nothing is held up. Fitting is never held up by a
-     deposit.
+     timeline ("Ordered before the deposit was paid: …"). Ordering does
+     not pay the deposit: it stays **Deposit due**, and the customer's page
+     keeps **Pay $… deposit**, now saying "The shop has ordered your
+     parts. Ask the shop if you still need to pay the deposit." and "If you
+     paid the deposit another way, ask the shop before paying here." BICII
+     does not record a deposit taken at the counter, so a customer who
+     paid in the shop could still pay online; if that happens, refund the
+     online payment in Stripe. With the deposit at 0, the default, nothing
+     is held up. Fitting is never held up by a deposit.
   6. When the order is received the item shows **Arrived**, and the
      product's page says "2 reserved for jobs" with the job numbers. They
      are not held: don't sell or use them elsewhere. Press **Fit**,
@@ -231,7 +243,7 @@ before it is ordered, and it goes on the job only when it is fitted
      service press **Add to job**.
   7. Once a deposit is asked, the job shows a **Customer payments** card
      (every staff member sees it): first anything that needs attention, in
-     a sentence (for example "SGD 120.00 is held but this job is cancelled.
+     a sentence (for example "$120.00 is held but this job is cancelled.
      Refund it in Stripe if it is due back."); then each deposit ("Deposit
      on the quote answered …", the amount and percent, and **Deposit
      due**, **Being confirmed**, **Deposit paid**, **Deposit refunded** or
@@ -245,9 +257,11 @@ before it is ordered, and it goes on the job only when it is fitted
      against the job, not a sale: it never changes the job's totals or
      reports. **Check with Stripe** (on a payment Stripe hasn't confirmed,
      a pending refund or a problem) asks Stripe for its own record and
-     shows what changed ("Stripe confirmed: Paid" or "Nothing new from
-     Stripe."); use it when a customer says they paid but the card still
-     says due. Admins and managers also get **Open in Stripe**. Refunds
+     shows what changed ("Stripe confirmed: Paid", "Stripe confirmed:
+     Payment failed" for a PayNow payment that failed after Checkout, or
+     "Nothing new from Stripe."); use it when a customer says they paid
+     but the card still says due, or when a payment stays **Being
+     confirmed**. Admins and managers also get **Open in Stripe**. Refunds
      are made in Stripe's Dashboard (D155) and appear on the card and the
      timeline by themselves. While Stripe is off the card says the
      customer can't pay online and that an admin or manager can order
@@ -275,8 +289,13 @@ before it is ordered, and it goes on the job only when it is fitted
     them anyway with a reason.").
   - Check with Stripe: "Checked a moment ago. Wait a few minutes.",
     "Stripe can't be reached right now, or it isn't set up. Try again in a
-    few minutes." or "This payment was made in Stripe's other mode (test
-    or live) and can't be checked here."
+    few minutes.", "This payment was made in Stripe's other mode (test
+    or live) and can't be checked here.", "Stripe has no record of this
+    Checkout under the key BICII uses now (another Stripe account?). An
+    admin can follow RUNBOOK “Stripe: resolving problems”." or, under a
+    success toast, "Stripe's payment or its refunds couldn't be read. An
+    admin should check the Stripe key's permissions (RUNBOOK “Stripe:
+    restricted key”)."
   - Fitting before the order is received warns: "Its order (PO-…) has not
     been received yet. Fitting it now may take the stock count below
     zero."

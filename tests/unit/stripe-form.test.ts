@@ -9,6 +9,9 @@ import { describe, expect, it } from "vitest";
 import { checkoutSessionParams, formEncode } from "@/lib/integrations/stripe/form";
 import type { CheckoutSessionInput } from "@/lib/integrations/stripe/gateway";
 
+/** Stripe's clock in these tests: the session below expires an hour later. */
+const NOW_S = 1_800_000_000;
+
 const INPUT: CheckoutSessionInput = {
   paymentId: "11111111-2222-4333-8444-555555555555",
   workOrderId: "66666666-7777-4888-9999-000000000000",
@@ -35,7 +38,7 @@ describe("formEncode", () => {
 describe("checkoutSessionParams", () => {
   it("is this exact body for a deposit", () => {
     const pi = (k: string) => `payment_intent_data[metadata][${k}]`;
-    expect(formEncode(checkoutSessionParams(INPUT))).toBe(
+    expect(formEncode(checkoutSessionParams(INPUT, NOW_S))).toBe(
       [
         "mode=payment",
         `client_reference_id=${INPUT.paymentId}`,
@@ -60,7 +63,7 @@ describe("checkoutSessionParams", () => {
   });
 
   it("names a balance and leaves out a null quote", () => {
-    const pairs = checkoutSessionParams({ ...INPUT, kind: "balance", quoteId: null });
+    const pairs = checkoutSessionParams({ ...INPUT, kind: "balance", quoteId: null }, NOW_S);
     const keys = pairs.map(([k]) => k);
     expect(keys).not.toContain("metadata[bicii_quote_id]");
     expect(Object.fromEntries(pairs)["line_items[0][price_data][product_data][name]"]).toBe(
@@ -70,7 +73,7 @@ describe("checkoutSessionParams", () => {
   });
 
   it("never sends payment method types, a customer email, ui_mode or locale", () => {
-    const keys = checkoutSessionParams(INPUT).map(([k]) => k);
+    const keys = checkoutSessionParams(INPUT, NOW_S).map(([k]) => k);
     for (const banned of [
       "payment_method_types",
       "allowed_payment_method_types",
@@ -90,13 +93,27 @@ describe("checkoutSessionParams", () => {
 
   it("refuses an amount outside 50..99999999 whole cents and a fractional expiry", () => {
     for (const amountCents of [49, 100_000_000, 120.5, Number.NaN, -1]) {
-      expect(() => checkoutSessionParams({ ...INPUT, amountCents })).toThrow(/amountCents/);
+      expect(() => checkoutSessionParams({ ...INPUT, amountCents }, NOW_S)).toThrow(/amountCents/);
     }
-    expect(() => checkoutSessionParams({ ...INPUT, amountCents: 50 })).not.toThrow();
-    expect(() => checkoutSessionParams({ ...INPUT, amountCents: 99_999_999 })).not.toThrow();
-    expect(() => checkoutSessionParams({ ...INPUT, expiresAt: 1.5 })).toThrow(/expiresAt/);
-    expect(() => checkoutSessionParams({ ...INPUT, jobNumber: "x".repeat(250) })).toThrow(
+    expect(() => checkoutSessionParams({ ...INPUT, amountCents: 50 }, NOW_S)).not.toThrow();
+    expect(() => checkoutSessionParams({ ...INPUT, amountCents: 99_999_999 }, NOW_S)).not.toThrow();
+    expect(() => checkoutSessionParams({ ...INPUT, expiresAt: 1.5 }, NOW_S)).toThrow(/expiresAt/);
+    expect(() => checkoutSessionParams({ ...INPUT, jobNumber: "x".repeat(250) }, NOW_S)).toThrow(
       /product name/,
     );
+  });
+
+  it("refuses an expiry outside Stripe's window of 30 minutes to 24 hours", () => {
+    for (const ahead of [0, 29 * 60, 30 * 60 - 1, 24 * 3600 + 1, 2 * 24 * 3600, -60]) {
+      expect(
+        () => checkoutSessionParams({ ...INPUT, expiresAt: NOW_S + ahead }, NOW_S),
+        String(ahead),
+      ).toThrow(/30 minutes to 24 hours/);
+    }
+    for (const ahead of [30 * 60, 60 * 60, 24 * 3600]) {
+      expect(() =>
+        checkoutSessionParams({ ...INPUT, expiresAt: NOW_S + ahead }, NOW_S),
+      ).not.toThrow();
+    }
   });
 });

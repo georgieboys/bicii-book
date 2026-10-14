@@ -22,6 +22,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { LOCATION } from "../fixtures/ids";
 import {
+  paymentIntentObject,
   refundObject,
   sessionObject,
   stripeEvent,
@@ -44,12 +45,12 @@ import {
   MECHANIC1,
   addPart,
   addStock,
-  committed,
   completeJob,
   makeProduct,
   newJob,
   readAsOwner,
 } from "./inventory-fixtures";
+import { race } from "./lock-race";
 import { shopToday } from "./reporting-fixtures";
 import { addServiceLine, failsWith, makeService, ownerMode, setStatus } from "./workshop-fixtures";
 
@@ -584,6 +585,16 @@ describe("The guards hold for every role, including the owner (D153)", () => {
           tx.query(
             "update public.payment_refunds set status = 'failed' where stripe_refund_id = $1",
             [rid],
+          ),
+        immutable,
+      );
+      // The decision time moves only with the status, even citing a received event.
+      await failsWith(
+        tx,
+        () =>
+          tx.query(
+            "update public.payment_refunds set status_changed_at = now() - interval '1 day', last_event_id = $2 where stripe_refund_id = $1",
+            [rid, received],
           ),
         immutable,
       );
@@ -1578,6 +1589,115 @@ describe("Server reads with the secret key (D159a)", () => {
       await failsWith(tx, () => callRead(tx, p.id, null), { code: "22004" });
     });
   });
+
+  it("a PaymentIntent read records an asynchronous failure whose webhook was lost (R-086)", async () => {
+    await inTransaction(conn, async (tx) => {
+      // Completed unpaid: the session alone cannot say failed.
+      const p = await setupPayment(tx);
+      await deliver(
+        tx,
+        "checkout.session.completed",
+        session(p, { status: "complete", paymentStatus: "unpaid" }),
+      );
+      const stuck = await read(
+        tx,
+        p.id,
+        session(p, { status: "complete", paymentStatus: "unpaid" }),
+      );
+      expect(stuck).toMatchObject({ outcome: "already_processing", payment_status: "pending" });
+
+      // Still confirming: nothing changes.
+      expect(
+        await read(tx, p.id, paymentIntentObject({ id: p.pi, status: "processing" })),
+      ).toMatchObject({
+        event_status: "ignored",
+        outcome: "already_processing",
+        payment_status: "pending",
+      });
+      // The intent back at requires_payment_method: the payment failed.
+      const failed = await read(
+        tx,
+        p.id,
+        paymentIntentObject({ id: p.pi, status: "requires_payment_method" }),
+      );
+      expect(failed).toMatchObject({
+        event_status: "applied",
+        outcome: "payment_failed",
+        payment_status: "failed",
+      });
+      const row = await paymentRow(tx, p.id);
+      expect(row.failed_at).not.toBeNull();
+      expect(row.last_event_id).toBe(failed.event_id);
+      const ev = await eventRow(tx, failed.event_id);
+      expect(ev).toMatchObject({
+        source: "api_read",
+        event_type: "read.payment_intent",
+        object_type: "payment_intent",
+        object_id: p.pi,
+        status: "applied",
+      });
+      expect(ev.payload_text).not.toMatch(/last_payment_error|The payment failed/);
+      expect(
+        await read(tx, p.id, paymentIntentObject({ id: p.pi, status: "canceled" })),
+      ).toMatchObject({ outcome: "already_failed", payment_status: "failed" });
+      // Stripe's money still wins afterwards.
+      expect(
+        await deliver(tx, "checkout.session.async_payment_succeeded", session(p)),
+      ).toMatchObject({
+        outcome: "paid_after_failed",
+      });
+      expect(
+        await read(tx, p.id, paymentIntentObject({ id: p.pi, status: "requires_payment_method" })),
+      ).toMatchObject({ event_status: "ignored", outcome: "stale", payment_status: "paid" });
+
+      // canceled after completion also means failed.
+      const q = await setupPayment(tx);
+      await deliver(
+        tx,
+        "checkout.session.completed",
+        session(q, { status: "complete", paymentStatus: "unpaid" }),
+      );
+      expect(
+        await read(tx, q.id, paymentIntentObject({ id: q.pi, status: "canceled" })),
+      ).toMatchObject({ outcome: "payment_failed", payment_status: "failed" });
+
+      // A Checkout still open, or an intent the payment does not carry, changes nothing.
+      const o = await setupPayment(tx);
+      expect(
+        await read(tx, o.id, paymentIntentObject({ id: o.pi, status: "requires_payment_method" })),
+      ).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "read_mismatch",
+        payment_status: "pending",
+      });
+      expect(
+        await read(tx, q.id, paymentIntentObject({ id: `pi_${tag()}`, status: "canceled" })),
+      ).toMatchObject({ outcome: "read_mismatch" });
+      // The other mode, or an unknown status: attention, nothing changed.
+      const m = await setupPayment(tx);
+      await deliver(
+        tx,
+        "checkout.session.completed",
+        session(m, { status: "complete", paymentStatus: "unpaid" }),
+      );
+      expect(
+        await read(tx, m.id, paymentIntentObject({ id: m.pi, status: "canceled", livemode: true })),
+      ).toMatchObject({ outcome: "read_mismatch", payment_status: "pending" });
+      expect(
+        await read(tx, m.id, {
+          ...paymentIntentObject({ id: m.pi, status: "canceled" }),
+          status: "lost",
+        }),
+      ).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "object_invalid",
+        payment_status: "pending",
+      });
+      await failsWith(tx, () => callRead(tx, m.id, { id: "pi-bad", object: "payment_intent" }), {
+        code: "22023",
+      });
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1681,12 +1801,14 @@ describe("D154: payments are money held, not revenue", () => {
 // ---------------------------------------------------------------------------
 
 describe.skipIf(!isolatedDatabase())("Concurrency (DATA-MODEL §19 lock order)", () => {
-  let c1: pg.Client;
-  let c2: pg.Client;
+  // Each case holds the first call's locks in an open transaction and
+  // proves the second waits on a lock before the first commits (race(),
+  // tests/db/lock-race.ts), so the serialisation is shown, not inferred
+  // from an outcome a sequential run would also give.
   let setup: pg.Client;
 
   beforeAll(async () => {
-    [c1, c2, setup] = await openConnections(3);
+    [setup] = await openConnections(1);
   });
 
   /** A committed job and pending payment. */
@@ -1699,24 +1821,30 @@ describe.skipIf(!isolatedDatabase())("Concurrency (DATA-MODEL §19 lock order)",
       [paymentWorkOrderId, type],
     );
 
-  it("the same evt_ on two connections at once: one applied, one duplicate", async () => {
+  const completedCall = (p: Pay) => (tx: pg.Client) =>
+    callRecord(
+      tx,
+      stripeEvent({ id: evtId(), type: "checkout.session.completed", object: session(p) }),
+    );
+
+  it("the same evt_ on two connections: the second waits on the dedupe key, then is a duplicate", async () => {
     const p = await committedPayment();
     const body = stripeEvent({
       id: evtId(),
       type: "checkout.session.completed",
       object: session(p),
     });
-    const results = await Promise.all([
-      committed(c1, (tx) => callRecord(tx, body), SERVICE),
-      committed(c2, (tx) => callRecord(tx, body), SERVICE),
-    ]);
-    expect(results.every((r) => r.ok)).toBe(true);
-    const values = results.map((r) => (r.ok ? r.value : null));
-    expect(values.map((v) => v?.duplicate).sort()).toEqual([false, true]);
+    const [first, second] = await race(
+      setup,
+      { as: SERVICE, run: (tx) => callRecord(tx, body) },
+      { as: SERVICE, run: (tx) => callRecord(tx, body) },
+    );
+    expect(first).toMatchObject({ ok: true, value: { duplicate: false, outcome: "payment_paid" } });
+    expect(second).toMatchObject({ ok: true, value: { duplicate: true, outcome: "payment_paid" } });
     expect(await timelineCount(p.workOrderId, "payment_received")).toBe(1);
   });
 
-  it("a refund and the completion for the same payment intent, in either order", async () => {
+  it("a refund and the completion for the same payment intent wait on its advisory lock, in either order", async () => {
     for (const refundFirst of [true, false]) {
       const p = await committedPayment();
       const refundCall = (tx: pg.Client) =>
@@ -1728,16 +1856,8 @@ describe.skipIf(!isolatedDatabase())("Concurrency (DATA-MODEL §19 lock order)",
             object: refund(p, `re_${tag()}`, 5000, "succeeded"),
           }),
         );
-      const completeCall = (tx: pg.Client) =>
-        callRecord(
-          tx,
-          stripeEvent({ id: evtId(), type: "checkout.session.completed", object: session(p) }),
-        );
-      const calls = refundFirst ? [refundCall, completeCall] : [completeCall, refundCall];
-      const results = await Promise.all([
-        committed(c1, calls[0], SERVICE),
-        committed(c2, calls[1], SERVICE),
-      ]);
+      const [a, b] = refundFirst ? [refundCall, completedCall(p)] : [completedCall(p), refundCall];
+      const results = await race(setup, { as: SERVICE, run: a }, { as: SERVICE, run: b });
       expect(
         results.every((r) => r.ok),
         JSON.stringify(results),
@@ -1747,66 +1867,58 @@ describe.skipIf(!isolatedDatabase())("Concurrency (DATA-MODEL §19 lock order)",
     }
   });
 
-  it("a webhook and a server read of the same paid session: one transition, no deadlock", async () => {
-    const p = await committedPayment();
-    const results = await Promise.all([
-      committed(
-        c1,
-        (tx) =>
-          callRecord(
-            tx,
-            stripeEvent({ id: evtId(), type: "checkout.session.completed", object: session(p) }),
-          ),
-        SERVICE,
-      ),
-      committed(c2, (tx) => callRead(tx, p.id, session(p)), SERVICE),
-    ]);
-    expect(
-      results.every((r) => r.ok),
-      JSON.stringify(results),
-    ).toBe(true);
-    const outcomes = results.map((r) => (r.ok ? r.value.outcome : null)).sort();
-    expect(outcomes).toEqual(["already_paid", "payment_paid"]);
-    expect(await timelineCount(p.workOrderId, "payment_received")).toBe(1);
+  it("a webhook and a server read of the same paid session: the second waits, one transition", async () => {
+    for (const webhookFirst of [true, false]) {
+      const p = await committedPayment();
+      type Call = (tx: pg.Client) => Promise<{ outcome: string | null }>;
+      const readCall: Call = (tx) => callRead(tx, p.id, session(p));
+      const webhookCall: Call = completedCall(p);
+      const [a, b] = webhookFirst ? [webhookCall, readCall] : [readCall, webhookCall];
+      const results = await race(setup, { as: SERVICE, run: a }, { as: SERVICE, run: b });
+      expect(
+        results.every((r) => r.ok),
+        JSON.stringify(results),
+      ).toBe(true);
+      expect(results.map((r) => (r.ok ? r.value.outcome : null))).toEqual([
+        "payment_paid",
+        "already_paid",
+      ]);
+      expect(await timelineCount(p.workOrderId, "payment_received")).toBe(1);
+    }
   });
 
-  it("a paid webhook against cancelling the job: both commit, the money is recorded", async () => {
-    const p = await committedPayment();
-    const results = await Promise.all([
-      committed(
-        c1,
-        (tx) =>
-          callRecord(
-            tx,
-            stripeEvent({ id: evtId(), type: "checkout.session.completed", object: session(p) }),
-          ),
-        SERVICE,
-      ),
-      committed(
-        c2,
-        (tx) => setStatus(tx, p.workOrderId, "cancelled", "Customer changed their mind"),
-        ADMIN,
-      ),
-    ]);
-    expect(
-      results.every((r) => r.ok),
-      JSON.stringify(results),
-    ).toBe(true);
-    const row = await inTransaction(conn, (tx) => paymentRow(tx, p.id));
-    expect(row.status).toBe("paid");
-    expect(
-      await scalar(conn, "select status::text from public.work_orders where id = $1", [
-        p.workOrderId,
-      ]),
-    ).toBe("cancelled");
-    // Recorded, then flagged live (D159b).
-    expect(
-      (
-        await conn.query<{ issue: string }>(
-          "select issue from public.payment_issues where payment_id = $1",
-          [p.id],
-        )
-      ).rows.map((r) => r.issue),
-    ).toEqual(["paid_job_cancelled"]);
+  it("a paid webhook and cancelling the job wait on the job lock: both commit, the money is recorded", async () => {
+    for (const webhookFirst of [true, false]) {
+      const p = await committedPayment();
+      const webhook = { as: SERVICE, run: completedCall(p) };
+      const cancel = {
+        as: ADMIN,
+        run: (tx: pg.Client) =>
+          setStatus(tx, p.workOrderId, "cancelled", "Customer changed their mind"),
+      };
+      const results = webhookFirst
+        ? await race(setup, webhook, cancel)
+        : await race(setup, cancel, webhook);
+      expect(
+        results.every((r) => r.ok),
+        JSON.stringify(results),
+      ).toBe(true);
+      const row = await inTransaction(conn, (tx) => paymentRow(tx, p.id));
+      expect(row.status).toBe("paid");
+      expect(
+        await scalar(conn, "select status::text from public.work_orders where id = $1", [
+          p.workOrderId,
+        ]),
+      ).toBe("cancelled");
+      // Recorded, then flagged live (D159b).
+      expect(
+        (
+          await conn.query<{ issue: string }>(
+            "select issue from public.payment_issues where payment_id = $1",
+            [p.id],
+          )
+        ).rows.map((r) => r.issue),
+      ).toEqual(["paid_job_cancelled"]);
+    }
   });
 });

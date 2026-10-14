@@ -326,8 +326,7 @@ test("an admin orders before the deposit is paid, with a reason", async ({
   await signIn(page, "admin");
   await sql("update public.shop_settings set indent_deposit_percent = 50 where id = 1");
   const q = await quotedJob(page, testInfo);
-  const { context } = await answerAll(browser, page, q);
-  await context.close();
+  const { context, customer } = await answerAll(browser, page, q);
 
   await page.goto(`/jobs/${q.job.id}`);
   const indent = section(page, "Indent parts and quote");
@@ -362,6 +361,21 @@ test("an admin orders before the deposit is paid, with a reason", async ({
   await expect(
     section(page, "Customer payments").getByRole("list", { name: "Deposits" }),
   ).toContainText("Deposit due");
+
+  // The customer's page no longer says the order waits for the deposit, and
+  // warns before a second payment (the counter is not recorded, R-089).
+  await customer.reload();
+  await expect(customer.getByRole("main")).toContainText(
+    "The shop has ordered your parts. Ask the shop if you still need to pay the deposit.",
+  );
+  await expect(customer.getByRole("main")).not.toContainText(
+    "The shop orders your parts once the deposit is paid.",
+  );
+  await expect(section(customer, "Deposit")).toContainText(
+    "The shop has already ordered your parts. If you paid the deposit another way, ask the shop before paying here.",
+  );
+  await expect(customer.getByRole("button", { name: "Pay $120.00 deposit" })).toBeVisible();
+  await context.close();
 });
 
 test("a cancelled Checkout can be paid later with the same session", async ({
@@ -399,4 +413,37 @@ test("a cancelled Checkout can be paid later with the same session", async ({
   );
   await payments.getByRole("button", { name: "Check with Stripe" }).click();
   await expect(toast(page, "Nothing new from Stripe.")).toBeVisible();
+
+  // Stripe confirms a different amount: recorded, flagged once on Exceptions
+  // (the sentence, then where to act), and shown by the job's total.
+  const raw = JSON.stringify(
+    stripeEvent({
+      id: `evt_e2e_${testInfo.project.name}_m${Date.now()}`,
+      type: "checkout.session.completed",
+      object: sessionObject({
+        id: rows[0].session_id,
+        paymentId: rows[0].id,
+        workOrderId: rows[0].work_order_id,
+        quoteId: rows[0].quote_id,
+        amountCents: 11999,
+        paymentIntent: `pi_e2e_${testInfo.project.name}_m${Date.now()}`,
+      }),
+    }),
+  );
+  const delivered = await page.request.post("/api/stripe/webhooks", {
+    data: raw,
+    headers: stripeWebhookHeaders({ raw }),
+  });
+  expect(delivered.status()).toBe(200);
+  const sentence = "Stripe received $119.99, not the $120.00 asked. Check the payment in Stripe.";
+  await page.reload();
+  await expect(payments.getByRole("list", { name: "Payment problems" })).toHaveText(sentence);
+  const lines = section(page, "Lines");
+  await expect(lines.getByRole("link", { name: "Paid online $119.99" })).toBeVisible();
+
+  await page.goto("/reports/exceptions");
+  const row = page.getByRole("link").filter({ hasText: q.job.jobNumber });
+  await expect(row).toHaveCount(1);
+  await expect(row.getByText(sentence, { exact: true })).toHaveCount(1);
+  await expect(row).toContainText("Open the job's Customer payments");
 });

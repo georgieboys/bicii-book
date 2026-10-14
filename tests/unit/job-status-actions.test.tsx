@@ -73,7 +73,9 @@ describe("JobStatusActions", () => {
         />
       </ToastProvider>
     );
-    const { unmount } = render(withPaid({ paid: "$60.00", stillToPay: "$85.00", paidAhead: null }));
+    const { unmount } = render(
+      withPaid({ paid: "$60.00", stillToPay: "$85.00", paidAhead: null, moreThanBill: null }),
+    );
     const collected = screen.getByRole("button", { name: "Collected…" });
     await waitFor(() => expect(collected).toBeEnabled());
     fireEvent.click(collected);
@@ -81,12 +83,45 @@ describe("JobStatusActions", () => {
     expect(group).toHaveTextContent("$60.00 was paid online. Take only $85.00.");
     unmount();
 
-    render(withPaid({ paid: "$120.00", stillToPay: "$0.00", paidAhead: "$35.00" }));
+    render(
+      withPaid({ paid: "$120.00", stillToPay: "$0.00", paidAhead: "$35.00", moreThanBill: null }),
+    );
     const again = screen.getByRole("button", { name: "Collected…" });
     await waitFor(() => expect(again).toBeEnabled());
     fireEvent.click(again);
     expect(screen.getByRole("group")).toHaveTextContent(
       "$120.00 was paid online. That is $35.00 more than the job total; take nothing more.",
+    );
+  });
+
+  it("names approved indent items not on the bill and ties the paid-ahead money to them (R-082)", async () => {
+    render(
+      <ToastProvider>
+        <JobStatusActions
+          workOrderId="00000000-0000-4000-8000-000000000001"
+          jobNumber="J-000123"
+          customerLabel="Priya Raman"
+          status="ready_for_collection"
+          paidOnline={{
+            paid: "$2.00",
+            stillToPay: "$0.00",
+            paidAhead: "$2.00",
+            moreThanBill: null,
+          }}
+          unfitted={[{ description: "Brake pad", total: "$2.00" }]}
+        />
+      </ToastProvider>,
+    );
+    const collected = screen.getByRole("button", { name: "Collected…" });
+    await waitFor(() => expect(collected).toBeEnabled());
+    fireEvent.click(collected);
+    const group = screen.getByRole("group");
+    expect(group).toHaveTextContent(
+      "$2.00 was paid online. That is $2.00 more than the job total, paid for parts that are not on the bill.",
+    );
+    expect(group).not.toHaveTextContent("take nothing more");
+    expect(group).toHaveTextContent(
+      "Not on the bill: Brake pad $2.00, approved and not fitted. To bill it, reopen the job and fit it; otherwise cancel it and refund any deposit in Stripe.",
     );
   });
 
@@ -142,5 +177,38 @@ describe("Change status sheet", () => {
     expect(within(sheet).queryByText(/Collected is final/)).toBeNull();
     fireEvent.click(within(sheet).getByLabelText("Collected"));
     expect(within(sheet).getByText(/Collected is final/)).toBeInTheDocument();
+    expect(within(sheet).queryByText(/paid online/)).toBeNull();
+  });
+
+  it("says what was paid online and names items not on the bill when Collected is picked (R-082)", () => {
+    render(
+      <ToastProvider>
+        <JobStatusActions
+          workOrderId="00000000-0000-4000-8000-000000000001"
+          jobNumber="J-000123"
+          customerLabel="Priya Raman"
+          status="completed"
+          paidOnline={{
+            paid: "$2.00",
+            stillToPay: "$0.00",
+            paidAhead: "$2.00",
+            moreThanBill: null,
+          }}
+          unfitted={[{ description: "Brake pad", total: "$2.00" }]}
+        />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Change status" }));
+    const sheet = screen.getByRole("dialog", { name: "Change status" });
+    expect(within(sheet).queryByText(/Not on the bill/)).toBeNull();
+    fireEvent.click(within(sheet).getByLabelText("Collected"));
+    expect(
+      within(sheet).getByText(
+        "$2.00 was paid online. That is $2.00 more than the job total, paid for parts that are not on the bill.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).getByText(/^Not on the bill: Brake pad \$2\.00, approved and not fitted\./),
+    ).toBeInTheDocument();
   });
 });

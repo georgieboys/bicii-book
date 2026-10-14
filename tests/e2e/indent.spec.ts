@@ -15,7 +15,8 @@ import { createSupplier } from "./purchasing-helpers";
  * orders the approved part onto the supplier's draft (the job moves to
  * Waiting on parts); the arrived parts show as reserved on the product page
  * until the admin fits them and the service, which become the job's lines.
- * Every record carries tagFor(testInfo).
+ * Until then the Lines card shows them as a memo under the total, never in
+ * it (R-082). Every record carries tagFor(testInfo).
  */
 
 test("indent part: proposed, quoted, answered, ordered, received and fitted", async ({
@@ -132,6 +133,11 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   await page.reload();
   await expect(card.getByLabel("Quote status")).toContainText(`Quote answered by Intake ${tag}`);
   await expect(items.getByRole("listitem", { name: partName })).toContainText("Approved");
+  // R-082: approved items are a memo under the total until they are fitted.
+  const memo = section(page, "Lines").getByLabel("Approved, not on the bill");
+  await expect(memo).toHaveText(
+    "Approved, not on the bill yet: 2 items, $275.00. Fit them to bill them.",
+  );
 
   // 4. Order the approved part from its supplier; the job waits on parts.
   await card.getByRole("button", { name: "Order approved parts" }).click();
@@ -206,6 +212,8 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   const lines = section(page, "Lines");
   await expect(lines).toContainText(partName);
   await expect(lines).toContainText("Wheel True");
+  // Both are on the bill now: no memo.
+  await expect(memo).toHaveCount(0);
 
   // Fitted parts are no longer reserved.
   await page.goto(product.url);

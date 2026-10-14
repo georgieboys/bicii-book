@@ -11,7 +11,7 @@ import { useToast } from "@/components/ui/toast";
 import { useArmed, useArmedAfter } from "@/components/ui/use-armed";
 import { cn } from "@/lib/cn";
 import { reopenUnitNote } from "@/lib/inventory";
-import type { paidOnlineSummary } from "@/lib/payments";
+import { collectedNotes, type UnfittedItem, type paidOnlineSummary } from "@/lib/payments";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import {
   STATUS_LABELS,
@@ -33,7 +33,9 @@ import { ReasonConfirm } from "./reason-confirm";
  * CONFIRM_GUARD_MS after every status change (useArmedAfter). Collected is
  * final, so it is never one tap: it opens a confirmation naming the job and
  * the customer, focus on Back, whose confirm button is armed after the same
- * guard. Cancelling and reopening need a reason (ReasonConfirm).
+ * guard. Cancelling and reopening need a reason (ReasonConfirm). Both ways
+ * to Collected (the button and Change status) say what was paid online and
+ * name approved indent items not on the bill (R-082).
  */
 export function JobStatusActions({
   workOrderId,
@@ -42,6 +44,7 @@ export function JobStatusActions({
   status,
   heldUnits = [],
   paidOnline = null,
+  unfitted = [],
 }: {
   workOrderId: string;
   jobNumber: string;
@@ -57,6 +60,11 @@ export function JobStatusActions({
    * puts them back on hold for the job (D25), which the reopen says.
    */
   heldUnits?: readonly string[];
+  /**
+   * R-082: approved indent items (approved or ordered) not on the bill, with
+   * their quoted totals, which the Collected confirmation names.
+   */
+  unfitted?: readonly UnfittedItem[];
 }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -88,7 +96,7 @@ export function JobStatusActions({
       <CollectedConfirm
         jobNumber={jobNumber}
         customerLabel={customerLabel}
-        paidOnline={paidOnline}
+        notes={collectedNotes(paidOnline, unfitted)}
         pending={pending}
         onBack={() => setConfirmingCollected(false)}
         onConfirm={() => move("collected")}
@@ -121,6 +129,7 @@ export function JobStatusActions({
           jobNumber={jobNumber}
           status={status}
           heldUnits={heldUnits}
+          collectedNotes={collectedNotes(paidOnline, unfitted)}
           onClose={() => setSheetOpen(false)}
         />
       ) : null}
@@ -131,20 +140,21 @@ export function JobStatusActions({
 /**
  * "Collected" is final (D15: no reopen, the job locks): a second step that
  * names the job and who collects it, what the customer already paid online
- * (D154), focus on Back, and a confirm button that ignores presses for
- * CONFIRM_GUARD_MS.
+ * (D154) and any approved indent item not on the bill (R-082), focus on
+ * Back, and a confirm button that ignores presses for CONFIRM_GUARD_MS.
  */
 function CollectedConfirm({
   jobNumber,
   customerLabel,
-  paidOnline,
+  notes,
   pending,
   onBack,
   onConfirm,
 }: {
   jobNumber: string;
   customerLabel: string;
-  paidOnline: ReturnType<typeof paidOnlineSummary>;
+  /** collectedNotes(): paid online, and approved items not on the bill. */
+  notes: readonly string[];
   pending: boolean;
   onBack: () => void;
   onConfirm: () => void;
@@ -163,16 +173,11 @@ function CollectedConfirm({
       <p id={titleId} className="font-medium text-waiting-deep">
         Mark {jobNumber} collected by {customerLabel}?
       </p>
-      {paidOnline ? (
-        <p className="text-sm font-semibold text-waiting-deep">
-          {paidOnline.paid} was paid online.{" "}
-          {paidOnline.paidAhead
-            ? `That is ${paidOnline.paidAhead} more than the job total; take nothing more.`
-            : paidOnline.stillToPay
-              ? `Take only ${paidOnline.stillToPay}.`
-              : "Take only what is left of the job total."}
+      {notes.map((note) => (
+        <p key={note} className="text-sm font-semibold text-waiting-deep">
+          {note}
         </p>
-      ) : null}
+      ))}
       <p className="text-sm text-waiting-deep">
         Collected is final: the job can&apos;t be reopened, and its lines and people are locked.
       </p>
@@ -200,12 +205,15 @@ function ChangeStatusSheet({
   jobNumber,
   status,
   heldUnits,
+  collectedNotes: notes,
   onClose,
 }: {
   workOrderId: string;
   jobNumber: string;
   status: WorkOrderStatus;
   heldUnits: readonly string[];
+  /** The Collected confirmation's sentences (collectedNotes), shown when Collected is picked. */
+  collectedNotes: readonly string[];
   onClose: () => void;
 }) {
   const { toast } = useToast();
@@ -306,10 +314,17 @@ function ChangeStatusSheet({
                 </label>
               ))}
               {to === "collected" ? (
-                <p className="text-sm font-medium text-waiting-deep">
-                  Collected is final: the job can&apos;t be reopened, and its lines and people are
-                  locked.
-                </p>
+                <div aria-live="polite" className="flex flex-col gap-2">
+                  {notes.map((note) => (
+                    <p key={note} className="text-sm font-semibold text-waiting-deep">
+                      {note}
+                    </p>
+                  ))}
+                  <p className="text-sm font-medium text-waiting-deep">
+                    Collected is final: the job can&apos;t be reopened, and its lines and people are
+                    locked.
+                  </p>
+                </div>
               ) : null}
             </fieldset>
             <Field label="Note" hint="Optional. Shown on the job's timeline." error={error}>

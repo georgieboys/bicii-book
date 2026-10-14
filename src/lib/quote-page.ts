@@ -29,8 +29,10 @@ const quoteItem = z.object({
  * while open (the percent only: no amount is computed outside Postgres),
  * then due, processing, paid or refunded once answered, with
  * parts_ordered once every approved part still live is ordered or fitted
- * (D152: the shop ordered without waiting for the deposit). Optional, so a
- * payload from before the deposit migration still parses (null).
+ * (D152: the shop ordered without waiting for the deposit) and job_closed
+ * once the job is completed, ready, collected or cancelled (R-082).
+ * Optional, so a payload from before the deposit migration still parses
+ * (null); the two flags default to false for a payload from before them.
  */
 const deposit = z
   .object({
@@ -38,6 +40,10 @@ const deposit = z
     amount: money.nullable(),
     status: z.enum(["on_answer", "due", "processing", "paid", "refunded"]),
     parts_ordered: z
+      .boolean()
+      .optional()
+      .transform((v) => v ?? false),
+    job_closed: z
       .boolean()
       .optional()
       .transform((v) => v ?? false),
@@ -106,10 +112,14 @@ export function approvedSummary(items: readonly QuoteItem[]): { approved: number
 /**
  * The sentence after "Thank you": what happens to the parts. Once the
  * shop has ordered them without waiting for the deposit (D152), the page
- * no longer says the order waits for it.
+ * no longer says the order waits for it; once the job closed without the
+ * parts ordered (R-082), it no longer says the shop will order them.
  */
 export function answeredNext(deposit: QuoteDeposit | null): string {
   const ordered = deposit?.parts_ordered === true;
+  if (deposit?.job_closed && !ordered && deposit.status !== "refunded") {
+    return "Ask the shop about your deposit.";
+  }
   switch (deposit?.status) {
     case "due":
       return ordered

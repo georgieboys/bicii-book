@@ -25,6 +25,8 @@ import {
   depositPercentRefusal,
   depositStates,
   incompleteCheckNote,
+  collectedNotes,
+  heldOverSentence,
   paidOnlineSummary,
   paymentStatusLabel,
   stripeConnectionLabel,
@@ -150,23 +152,109 @@ describe("paid online at the counter (D154)", () => {
       paid: "$60.00",
       stillToPay: "$85.00",
       paidAhead: null,
+      moreThanBill: null,
     });
     expect(paidOnlineSummary({ ...totals, balanceDue: "0.00", paidAhead: "35.00" })).toEqual({
       paid: "$60.00",
       stillToPay: "$0.00",
       paidAhead: "$35.00",
+      moreThanBill: null,
     });
     // Closed (collected or cancelled): no balance, the payment still shows.
     expect(paidOnlineSummary({ ...totals, balanceDue: null, paidAhead: null })).toEqual({
       paid: "$60.00",
       stillToPay: null,
       paidAhead: null,
+      moreThanBill: null,
     });
+  });
+
+  it("says how much a closed job holds above its bill (R-082, held_over_total)", () => {
+    const closed = { ...totals, netPaidOnline: "2.00", balanceDue: null, paidAhead: null };
+    expect(paidOnlineSummary({ ...closed, heldOverTotal: "2.00" })).toEqual({
+      paid: "$2.00",
+      stillToPay: null,
+      paidAhead: null,
+      moreThanBill: "$2.00",
+    });
+    expect(paidOnlineSummary({ ...closed, heldOverTotal: "0.00" })!.moreThanBill).toBeNull();
+    // Open jobs say Paid ahead or Still to pay instead, whatever is held over.
+    expect(
+      paidOnlineSummary({
+        ...totals,
+        balanceDue: "0.00",
+        paidAhead: "35.00",
+        heldOverTotal: "35.00",
+      })!.moreThanBill,
+    ).toBeNull();
+
+    expect(
+      heldOverSentence({
+        currency: "SGD",
+        jobTotal: "0.00",
+        balanceDue: null,
+        heldOverTotal: "2.00",
+      }),
+    ).toBe(
+      "$2.00 was paid online above this job's bill of $0.00. Refund it in Stripe if it is due back, or agree with the customer how it counts.",
+    );
+    expect(
+      heldOverSentence({
+        currency: "SGD",
+        jobTotal: "0.00",
+        balanceDue: "0.00",
+        heldOverTotal: "2.00",
+      }),
+    ).toBeNull();
+    expect(
+      heldOverSentence({
+        currency: "SGD",
+        jobTotal: "5.00",
+        balanceDue: null,
+        heldOverTotal: "0.00",
+      }),
+    ).toBeNull();
+    expect(heldOverSentence({ currency: "SGD", jobTotal: "5.00", balanceDue: null })).toBeNull();
   });
 
   it("is null when nothing is held online", () => {
     expect(paidOnlineSummary(null)).toBeNull();
     expect(paidOnlineSummary({ ...totals, netPaidOnline: "0.00" })).toBeNull();
+  });
+});
+
+describe("the Collected confirmation's sentences (D154, R-082)", () => {
+  const paid = { paid: "$2.00", stillToPay: "$0.00", paidAhead: "$2.00", moreThanBill: null };
+  const pad = [{ description: "Brake pad", total: "$2.00" }];
+
+  it("keeps the paid-online words when every approved item is on the bill", () => {
+    expect(collectedNotes(paid, [])).toEqual([
+      "$2.00 was paid online. That is $2.00 more than the job total; take nothing more.",
+    ]);
+    expect(collectedNotes({ ...paid, paidAhead: null, stillToPay: "$85.00" }, [])).toEqual([
+      "$2.00 was paid online. Take only $85.00.",
+    ]);
+    expect(collectedNotes(null, [])).toEqual([]);
+  });
+
+  it("names approved items not on the bill and ties the paid-ahead money to them", () => {
+    expect(collectedNotes(paid, pad)).toEqual([
+      "$2.00 was paid online. That is $2.00 more than the job total, paid for parts that are not on the bill.",
+      "Not on the bill: Brake pad $2.00, approved and not fitted. To bill it, reopen the job and fit it; otherwise cancel it and refund any deposit in Stripe.",
+    ]);
+    expect(
+      collectedNotes(null, [
+        ...pad,
+        { description: "Fitting", total: "$25.00" },
+        { description: "Cable", total: "$4.00" },
+      ]),
+    ).toEqual([
+      "Not on the bill: Brake pad $2.00, Fitting $25.00 and Cable $4.00, approved and not fitted. To bill them, reopen the job and fit them; otherwise cancel them and refund any deposit in Stripe.",
+    ]);
+    // Still to pay: unchanged wording for the money, the items named after it.
+    expect(collectedNotes({ ...paid, paidAhead: null, stillToPay: "$10.00" }, pad)[0]).toBe(
+      "$2.00 was paid online. Take only $10.00.",
+    );
   });
 });
 

@@ -48,9 +48,11 @@ URLs, or customer data in this file.
   `supabase/seed.sql` off the hosted project (it never runs there:
   `migrate.yml` has no seed step). A migration added from now on must sort
   after the newest file on `main` (`HANDOVER.md` "Migrations after
-  go-live"); since Phase 14 steps 1 and 2 that is
-  `20261014000500_indent_deposits.sql` (`20261014000600` once the recheck
-  merges).
+  go-live"); since the Phase 14 recheck (PR #25) that is
+  `20261014000600_payment_exception_dedupe.sql`
+  (`20261014000700_indent_closed_jobs.sql` once
+  [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
+  containment merges).
 - Next action: the owner decides whether to create a staging project
   before staff and customers use production; until then each migration
   is dry-run by `migrate.yml` before it applies.
@@ -2120,6 +2122,131 @@ URLs, or customer data in this file.
 - Revisit trigger: log access granted beyond the owner; a disputed answer.
 - Last checked: 2026-10-14, Phase 13 step 3.
 
+## R-082 — Approved indent parts can be left unfitted on a completed or collected job
+
+- Category: product gap (business process; D140, D149, D151, D154).
+- Status and owner: contained 2026-10-15 SGT on `claude/brave-clarke-kfqhgt`
+  (local commit, not pushed; not deployed); the owner decides whether
+  Complete is blocked or only warned (pending); build agent (containment).
+- Trigger: a job with an approved or ordered indent item is completed and
+  collected without the item being fitted, for example because the part
+  was bought outside BICII or never arrived, or because Fit was missed.
+- Impact: by design an indent request reaches the bill only when it is
+  fitted (D140, ADR-024), so the job's total, yield, Cult Commons and the
+  reports never count the unfitted part. That is correct, but before this
+  change nothing said so: a deposit paid for the part stayed held with no
+  warning, the indent card showed a green "Approved" with no reason and no
+  action, the Collected confirmation said only "take nothing more", the
+  customer's quote page still said the shop would order the parts, and
+  on the collected job the request could be neither fitted
+  (`work_order_locked`) nor cancelled (`work_order_closed`). Complete is
+  one tap and hides Fit.
+- Evidence and confidence: high. The owner's live test in production on
+  2026-10-15 SGT (job J-000002; no customer data recorded here): one
+  indent part at S$2.00 proposed, quoted, approved and its 100% deposit
+  paid through Stripe, then the job completed and collected without the
+  part ordered or fitted. The bill and the yield showed S$0 and the
+  S$2.00 sat held with no flag. The analysis matched every screen to the
+  code (`set_work_order_status` never reads indent requests; the indent
+  card hid every action on a job that is not open; `payment_issues` had
+  no rule for this case). Reproduced locally by the new database tests
+  and `tests/e2e/payments.spec.ts`.
+- Workaround or containment (`20261014000700_indent_closed_jobs` and the
+  screens, this commit):
+  - the job page shows approved items not on the bill as a memo under the
+    Lines total, "Approved, not on the bill yet: N items, $X. Fit them to
+    bill them.", and once the job is completed "Approved but never
+    fitted: $X (not billed)." (summed in Postgres by
+    `work_order_unfitted_requests`; never in the total, yield or Cult
+    Commons);
+  - on a job that is no longer open the indent card marks such items
+    "Not fitted", shows their deposit, and says to reopen and fit, or to
+    cancel; a deposit held for them is the payment issue
+    `paid_parts_not_fitted`, on the job's Customer payments card for every
+    staff member and in Exceptions for admins and managers, naming only
+    the share the fitted parts do not account for when some of the
+    quote's parts were fitted;
+  - both ways to Collected name the items not on the bill and tie money
+    paid ahead to them; a closed job shows what was paid above its bill
+    (`held_over_total`);
+  - D149: an active admin or manager cancels a request that was never
+    fitted on a collected or cancelled job, with a reason, so its deposit
+    can be refunded in Stripe (D155) and the problem clears; an item still
+    on a quote left open (nobody can answer or withdraw it there, so it
+    showed "Waiting for the customer" for good) is cancelled the same way,
+    which withdraws that quote, and the card marks it "Not answered";
+  - ordering refuses a job that is not open and withdrawing a quote
+    refuses a closed one; the Fit sheet warns before fitting a part never
+    ordered in BICII (stock may go below zero, D23) or one whose product
+    has no cost (D24);
+  - the quote page says "Ask the shop about your deposit." once the job
+    closed without the parts.
+  Staff can still complete a job without fitting: the warning at Complete
+  itself is not built. The containment covers approved and ordered
+  requests only: a fitted request whose line was voided is
+  [R-083](#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged).
+- Next action: the owner decides whether Complete is blocked, or only
+  warned, while approved or ordered indent items are not fitted (the
+  owner noted that not all orders happen through the app); then build
+  that choice with its own decision number (the indent range D140–D149 is
+  used up, so D160 or later). For J-000002 once this is deployed: an
+  admin or manager cancels the request with a reason and refunds the
+  S$2.00 in Stripe (RUNBOOK "Stripe: resolving problems").
+- Revisit trigger: the owner's Complete decision; a deposit flagged
+  `paid_parts_not_fitted` in production; staff asking for a Complete
+  checklist.
+- Last checked: 2026-10-15 SGT, this commit (database tests, unit tests,
+  E2E).
+
+## R-083 — A fitted indent request whose line was voided is stuck and unflagged
+
+- Category: product gap (business process; D140, D146, D149).
+- Status and owner: open; the owner decides the fix (below); build agent
+  (record). Found by the review of the R-082 containment on 2026-10-15
+  SGT; the behaviour dates from `20261014000200_indent_parts`, already in
+  production.
+- Trigger: an indent part or service is fitted (its request becomes
+  `fitted`, linked to the new job line), then that line is voided on the
+  open job (a wrong part, say), and the job is completed or collected.
+- Impact: `void_line` reverses the line's stock and takes it off the bill
+  but never touches `job_part_requests`, and nothing moves a request out
+  of `fitted`. So the request stays `fitted`, pointing at a voided line:
+  - Fit refuses it (`part_request_fitted`: it is linked to another line),
+    and Cancel refuses it with "It is already on the job. Void the line
+    instead.", advice already followed; on a collected or cancelled job
+    the line cannot be voided either (`work_order_locked`).
+  - A deposit for it is in no payment issue: `paid_parts_not_fitted`
+    looks only at approved and ordered requests, and
+    `paid_parts_cancelled` counts `fitted` as live.
+    `work_order_unfitted_requests` leaves it out, and the quote page
+    counts it as ordered ("the shop has ordered your parts").
+  - The money shows only as `paid_ahead` while the job is open, or
+    `held_over_total` once it is collected or cancelled.
+- Evidence and confidence: high for the mechanism, from the code:
+  `public.void_line` (`20261004001900_inventory_jobs.sql`) never reads or
+  writes requests; the only writer of `fitted` is `fit_part_request`;
+  `job_part_requests_fitted_has_line` only requires the line id to be
+  set. Not reproduced in production. A one-line "or fitted with a voided
+  line" in `paid_parts_not_fitted` was considered and not built: staff who
+  void the fitted line and add the part again by hand (re-fit is refused)
+  would be flagged wrongly, and the issue's advice ("Reopen the job to fit
+  them") cannot be followed for such a request.
+- Workaround or containment: none in the app. Staff who void a fitted
+  indent line should add the part again as an ordinary line if it stays
+  on the job, or settle any deposit for it by hand in Stripe; the job's
+  timeline records both the fit and the void.
+- Next action: the owner chooses one of: `void_line` returns a fitted
+  request to approved or ordered (so it can be fitted again or
+  cancelled); D149's cancel also accepts a fitted request whose line is
+  voided; or a separate payment issue for such deposits that ignores a
+  job with a live line of the same product or service (with its own
+  database test: fit, void, complete, collect; a hand-added replacement
+  line as the negative case). Any of these takes a number from D160.
+- Revisit trigger: a fitted indent line voided in production; the owner's
+  Complete decision (R-082), which may touch the same paths.
+- Last checked: 2026-10-15 SGT, code reading on
+  `claude/brave-clarke-kfqhgt`.
+
 ## R-085 — Stripe keys and the webhook are new hosted secrets
 
 - Category: operational gap / security concern (non-exploitable summary;
@@ -2286,7 +2413,12 @@ URLs, or customer data in this file.
   Stripe* on a payment.
 - Workaround or containment: deposits held on open jobs and on cancelled
   parts or jobs are surfaced, now by these issues on the job and in
-  Exceptions, and in step 3 by the Reports list (D154).
+  Exceptions, and in step 3 by the Reports list (D154). Since
+  [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
+  containment (2026-10-15, not yet deployed), a deposit held for parts a
+  completed or collected job never fitted is `paid_parts_not_fitted`, a
+  closed job shows what was paid above its bill, and an admin or manager
+  can cancel such a part on a collected job (D149) before refunding.
 - Residual: a deposit on a quote whose approved parts are only *partly*
   cancelled raises no issue; Stripe keeps its fee on refunds.
 - Next action: a refund action in the Admin if refunds become routine.

@@ -994,15 +994,19 @@ fake together with `STRIPE_SECRET_KEY` and when `VERCEL_ENV` is
    endpoint) or, for a live event of another type, `type_not_handled`.
 4. Do [the go-live rehearsal](#stripe-verify-before-go-live) with test keys
    locally, if not done already.
-5. Raise the deposit to 50% in Settings → Customer payments (D151): its
-   **Change** refuses anything above 0 while Stripe is off.
+5. Raise the deposit in Settings → Customer payments (D151's build
+   default is 50%; the owner set 100% in production on 2026-10-15 SGT):
+   its **Change** refuses anything above 0 while Stripe is off.
 6. Make one live deposit yourself before any customer does: on a test
    job, quote one cheap part to your own phone (the deposit must come to
    S$0.50 or more), approve it, press Pay deposit and pay. Check that the
    job's Customer payments card shows it paid, refund it in the
    Dashboard, and check that the card shows it refunded. Then cancel the
-   test job. If anything is wrong, set the deposit back to 0 (below) and
-   follow [Stripe: resolving problems](#stripe-resolving-problems).
+   part (with a reason) and the test job; don't complete or collect a test
+   job with the part unfitted (that is how the 2026-10-15 test ended, R-082;
+   if it happens, follow "Payment issues" below). If anything is wrong, set
+   the deposit back to 0 (below) and follow
+   [Stripe: resolving problems](#stripe-resolving-problems).
 
 **Switching off:** set the deposit to 0 first (so no quote asks for a
 payment nobody can make), then remove the keys and redeploy.
@@ -1085,13 +1089,38 @@ payment nobody can make), then remove the keys and redeploy.
   it is never dropped. Each is Stripe's record kept as evidence; check
   the session or refund in the Dashboard and refund there if the money is
   not the shop's to keep.
-- **Payment issues** (admins and managers, on the job's card and
-  Exceptions): paid on a cancelled job or cancelled parts, paid twice, a
+- **Payment issues** (on the job's Customer payments card for every
+  staff member, and in Exceptions for admins and managers): paid on a cancelled job or cancelled parts, paid twice, a
   different amount, a refund that failed or exceeds the payment, a refund
   in another currency or mode than the payment (recorded, not deducted:
   `refund_not_counted`), a payment still pending after its session
   expired. BICII records them and never refunds on its own (D155, D159);
   check each in the Dashboard and decide there.
+- **"$… is held for parts that are not on this job" / "…that never went
+  on this job"** (`paid_parts_not_fitted`,
+  [R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)):
+  the job was completed or collected with an approved part never fitted,
+  so the part is not on the bill. If the job is completed or ready for
+  collection and the part was supplied: **Change status** → **Reopen
+  job…**, **Fit** it, then complete again; the issue clears. Otherwise
+  (or once the job is collected or cancelled): an admin or manager
+  presses **Cancel** on the item, gives the reason (D149: only they can
+  on a collected or cancelled job; the job stays closed), then refunds the
+  deposit in the Dashboard (*Open in Stripe*). The issue becomes "…every
+  part it was for is cancelled…" and clears when Stripe's refund arrives
+  (press *Check with Stripe* if it shows "Refund pending"). When other
+  parts of the same quote were fitted, the sentence reads "$… is held; $…
+  of it is for parts…": refund only that second amount (the rest pays for
+  the fitted parts, which are on the bill); after the cancel there is no
+  "every part … cancelled" issue, and on a collected job the card's "…was
+  paid online above this job's bill…" shows what is still held beyond the
+  bill. If the customer agrees the money counts towards other work, note
+  that on the job's timeline instead of refunding. An item left on a
+  quote the customer never answered ("Not answered") holds no deposit; on
+  a collected or cancelled job an admin or manager cancels it the same
+  way, which withdraws the quote. The production test job of
+  2026-10-15 (J-000002) is closed out this way once the change is
+  deployed.
 - **Refunds** are made in the Stripe Dashboard and appear on the job on
   their own from `refund.*` events (D155).
 - **Disputes** are handled in the Dashboard; BICII does not record them

@@ -1,7 +1,8 @@
 # ADR-024: Indent parts and customer quotes
 
 Date: 2026-10-14 (design, before Phase 13 is built; on
-`claude/brave-clarke-kfqhgt` from `main` 511aac6). Status: proposed. The
+`claude/brave-clarke-kfqhgt` from `main` 511aac6); amended 2026-10-15
+(D149, [below](#amendment-2026-10-15-d149-indent-close)). Status: proposed. The
 owner decided the workflow and three of its rules on 2026-10-14; the rest
 are build defaults for the owner to confirm
 ([PRODUCT question 31](../PRODUCT.md#open-assumptions-and-owner-questions)).
@@ -51,9 +52,10 @@ What the build had (Phases 3, 4 and 7):
 | D146 | INDENT-FIT: a request is "arrived" when receipts on its purchase order line cover it, first requested first covered. Fit adds the part line from the location it was received into and marks the request fitted. Arrived stock is shown as reserved for the job on the product, but nothing stops it being sold or used elsewhere | Build default | Phase 13 steps 1 and 2 |
 | D147 | INDENT-ACCESS: any active staff member proposes items and sends quotes on an open job, as any staff member adds parts; ordering needs `manage_purchasing`; costs and suppliers need `view_costs` or `manage_purchasing` (D60). Customers reach a quote only through its link; the public site shows nothing of it | Build default | Phase 13 step 1 |
 | D148 | INDENT-SCOPE: SPEC §7.1's offline approval and SPEC §30's exclusion of customer approval and automated messaging are lifted for quotes only. Ordinary parts and services are still added straight to a job, with the internal approval flag as before | Owner decision 2026-10-14 | This record |
+| D149 | INDENT-CLOSE: an active admin or manager may cancel an indent request that was never fitted on a collected or cancelled job (one on a quote left open there withdraws that quote first), with a required reason recorded on the timeline; Fit stays refused on any job that is not open; collected and cancelled stay final for everything else ([amendment](#amendment-2026-10-15-d149-indent-close)) | Owner decision 2026-10-15 SGT (approved) | `20261014000700_indent_closed_jobs` |
 
 Full text: [PLAN §6](../PLAN.md#6-open-decisions-for-the-owner), rows
-D140–D148. Payments (the deposit on a quote) are
+D140–D149. Payments (the deposit on a quote) are
 [ADR-025](ADR-025-stripe-payments.md).
 
 ## Alternatives actually considered
@@ -78,9 +80,72 @@ D140–D148. Payments (the deposit on a quote) are
 - The Admin gets its first anonymous page and its first outgoing
   customer messages; both are limited to quotes.
 
+## Amendment 2026-10-15: D149 INDENT-CLOSE
+
+**Context.** The owner's live test in production on 2026-10-15 SGT
+(J-000002, no customer data here): an indent part was proposed, quoted,
+approved and its deposit paid through Stripe; the job was then completed
+and collected without the part ever being ordered or fitted. D140 held:
+the part never became a line, so the bill and the yield were S$0. But
+nothing said why, the deposit sat held with no flag, and on the
+collected job the request could be neither fitted nor cancelled (D15:
+collected and cancelled are final). The analysis is recorded in
+[R-082](../RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job).
+
+**Decision (the owner, approved 2026-10-15 SGT).** An active admin or
+manager (`private.can_record_refunds()`, the role check of D94 and D152)
+may cancel a request that is not fitted on a collected or cancelled job,
+with the same required reason and the same `part_request_cancelled`
+timeline entry. A request still on a quote left open when the job closed
+is included: nobody can answer or withdraw that quote on a closed job, so
+the cancel withdraws it first (`quote_withdrawn`; its other items go back
+to proposed, and can be cancelled the same way). Fit stays refused on
+every job that is not open, and collected and cancelled stay final for
+everything else: the job's
+status, lines, people and totals do not move, and anyone else still gets
+`work_order_closed`. This is the one exception to D15's "nothing changes
+on a closed job except its notes", for requests only.
+
+**Built with it (build defaults, not part of the owner's approval; no
+change to money, lines, stock or Cult Commons).** Ordering refuses a job
+that is not open and withdrawing a quote refuses a closed one (they had
+no status check in the database). The job page
+shows approved items not on the bill as a memo under the Lines total,
+summed in Postgres (`work_order_unfitted_requests`) and never added to
+the total, the yield or Cult Commons. A deposit held for them on a
+completed, ready or collected job is the payment issue
+`paid_parts_not_fitted` (naming only the share the quote's fitted parts do
+not account for); an item on a quote left open on a job that is no longer
+open shows "Not answered"; a closed job shows what was paid above its bill
+(`work_order_payment_totals.held_over_total`); both ways to Collected
+name the unfitted items; the Fit sheet warns before fitting a part never
+ordered in BICII or one with no cost; the quote page says "Ask the shop
+about your deposit." once the job closed without the parts (its deposit
+object gains `job_closed`, D143 otherwise unchanged). The containment
+covers approved and ordered requests only: a fitted request whose line
+was later voided stays fitted and unflagged
+([R-083](../RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged),
+owner to decide).
+
+**Alternatives considered.** Adding approved parts to the bill when the
+customer approves or pays (rejected again: it is the first alternative
+above, and would also make a payment write a line, against D154); a
+block on Complete until each approved item is fitted or cancelled
+(Option C of the analysis) or only a warning at Complete: the owner has
+not decided ("not all orders will happen via the app"), so neither is
+built and the choice will take its own number from D160.
+
+**Consequences.** A deposit for a part that was never supplied can now
+be closed out: cancel the request (D149), then refund in Stripe (D155);
+`paid_parts_cancelled` asks for the refund until it arrives (or, when
+other parts of that quote were fitted, the closed job's "more than the
+bill" shows what is left). Staff can
+still complete a job without fitting; the memo, the card and the issue
+make it visible rather than impossible.
+
 ## Revisit trigger
 
-The owner's answer to question 31; a request for hard reservation, for
+The owner's Complete decision (block or warn, R-082); the owner's answer to question 31; a request for hard reservation, for
 customers to see quotes on the public site, or for messages other than
 quotes.
 

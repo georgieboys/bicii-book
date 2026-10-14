@@ -382,6 +382,10 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.payment_issues": ["SELECT"],
   "public.quote_deposits": ["SELECT"],
   "public.work_order_payment_totals": ["SELECT"],
+  // Indent parts on completed and closed jobs (R-082): the approved items
+  // not on the bill yet, counted and totalled; security invoker over
+  // job_part_requests' RLS and column grants, no cost
+  "public.work_order_unfitted_requests": ["SELECT"],
 };
 
 /**

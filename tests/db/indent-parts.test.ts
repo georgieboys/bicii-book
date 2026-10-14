@@ -14,6 +14,11 @@
  *   part_request_arrivals, indent_reservations, fit_part_request
  *                       receipts cover requests first requested first;
  *                       fitting adds one ordinary line (D146).
+ *   completed and closed jobs (R-082, D149)  an admin or manager cancels
+ *                       an unfitted request on a collected or cancelled
+ *                       job, with a reason; fit, order and withdraw are
+ *                       refused there; work_order_unfitted_requests counts
+ *                       and totals the approved items not on the bill.
  *
  * Template: purchasing.test.ts (rolled-back transactions, owner inserts,
  * actAs for identity). The race commits, so it runs only on this file's
@@ -25,6 +30,7 @@ import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { LOCATION, STAFF } from "../fixtures/ids";
+import { customerClaims, linkCustomerLogin } from "./customer-fixtures";
 import {
   actAs,
   connect,
@@ -42,6 +48,7 @@ import {
   makeProduct,
   newJob,
   onHand,
+  readAsOwner,
 } from "./inventory-fixtures";
 import {
   answer,
@@ -56,7 +63,7 @@ import {
   setup,
 } from "./indent-fixtures";
 import { grantPurchasing, receive } from "./purchasing-fixtures";
-import { eventTypes, failsWith, ownerMode } from "./workshop-fixtures";
+import { eventTypes, events, failsWith, ownerMode, setStatus, walkTo } from "./workshop-fixtures";
 
 let conn: pg.Client;
 
@@ -799,6 +806,434 @@ describe("cancel_part_request", () => {
         tx,
         () => tx.query("select public.cancel_part_request($1, $2)", [q.serviceRequestId, "No"]),
         p0001("part_request_fitted"),
+      );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Completed and closed jobs (R-082, D149 INDENT-CLOSE)
+// ---------------------------------------------------------------------------
+
+const cancelRequest = (tx: pg.Client, id: string, reason: string | null = "Never supplied") =>
+  tx.query("select public.cancel_part_request($1, $2)", [id, reason]);
+
+/** quoted() with every item approved by the link; acting as ADMIN afterwards. */
+async function approved(tx: pg.Client) {
+  const q = await quoted(tx);
+  await actAs(tx, ANON);
+  await answerAll(tx, q.token);
+  await actAs(tx, ADMIN);
+  return q;
+}
+
+/** The job's open quote id (read as the owner). */
+const openQuoteId = (tx: pg.Client, workOrderId: string) =>
+  readAsOwner(tx, () =>
+    scalar<string>(
+      tx,
+      "select id from public.quotes where work_order_id = $1 and status = 'open'",
+      [workOrderId],
+    ),
+  );
+
+describe("cancel_part_request on collected and cancelled jobs (D149)", () => {
+  it("only an active admin or manager cancels an unfitted request there, with a reason, on the timeline", async () => {
+    await inTransaction(conn, async (tx) => {
+      const q = await approved(tx);
+      await walkTo(tx, q.job.id, "collected");
+
+      // Anyone else: collected stays final (work_order_closed), even with
+      // Manage purchasing as extra access (a role check, as D152's).
+      await ownerMode(tx);
+      await grantPurchasing(tx, STAFF.mechanic2);
+      for (const claims of [MECHANIC1, MECHANIC2]) {
+        await actAs(tx, claims);
+        await failsWith(tx, () => cancelRequest(tx, q.partId), p0001("work_order_closed"));
+      }
+      // Fit stays refused on a closed job, for everyone.
+      for (const claims of [MECHANIC1, MANAGER, ADMIN]) {
+        await actAs(tx, claims);
+        await failsWith(tx, () => fit(tx, q.partId), p0001("work_order_locked"));
+      }
+
+      // The reason rule is the usual one.
+      await actAs(tx, MANAGER);
+      await failsWith(tx, () => cancelRequest(tx, q.partId, " "), p0001("reason_required"));
+      await failsWith(tx, () => cancelRequest(tx, q.partId, null), p0001("reason_required"));
+      await failsWith(
+        tx,
+        () => cancelRequest(tx, q.partId, "x".repeat(501)),
+        p0001("reason_too_long"),
+      );
+      expect(
+        await scalar<string>(tx, "select public.cancel_part_request($1, $2)::text", [
+          q.partId,
+          "  Live test: part never supplied; deposit refunded in Stripe  ",
+        ]),
+      ).toBe(q.partId);
+      expect(await requestStatus(tx, q.partId)).toBe("cancelled");
+      await actAs(tx, ADMIN);
+      await cancelRequest(tx, q.serviceRequestId, "Fitting not needed");
+
+      await ownerMode(tx);
+      const cancelled = (await events(tx, q.job.id)).filter(
+        (e) => e.event_type === "part_request_cancelled",
+      );
+      expect(cancelled.map((e) => [e.payload, e.actor_staff_id])).toEqual([
+        [
+          {
+            request_id: q.partId,
+            description: expect.any(String),
+            reason: "Live test: part never supplied; deposit refunded in Stripe",
+            was: "approved",
+          },
+          STAFF.manager,
+        ],
+        [
+          {
+            request_id: q.serviceRequestId,
+            description: expect.any(String),
+            reason: "Fitting not needed",
+            was: "approved",
+          },
+          STAFF.admin,
+        ],
+      ]);
+      const row = (
+        await tx.query(
+          "select cancel_reason, cancelled_by, status::text from public.job_part_requests where id = $1",
+          [q.partId],
+        )
+      ).rows[0];
+      expect(row).toEqual({
+        cancel_reason: "Live test: part never supplied; deposit refunded in Stripe",
+        cancelled_by: STAFF.manager,
+        status: "cancelled",
+      });
+      // The job itself does not move: still collected, no line, no movement.
+      expect(
+        await scalar<string>(tx, "select status::text from public.work_orders where id = $1", [
+          q.job.id,
+        ]),
+      ).toBe("collected");
+      expect(await lineCount(tx, q.job.id)).toBe(0);
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.inventory_movements where product_id = $1",
+          [q.productId],
+        ),
+      ).toBe(0);
+
+      // Replay: a cancelled request answers for anyone, on any job.
+      await actAs(tx, MECHANIC1);
+      await cancelRequest(tx, q.partId, "again");
+    });
+  });
+
+  it("covers cancelled jobs and ordered parts; a fitted request is still refused", async () => {
+    await inTransaction(conn, async (tx) => {
+      // A cancelled job (no live lines) with an ordered part.
+      const c = await approved(tx);
+      await orderParts(tx, [c.partId], c.supplierId);
+      await setStatus(tx, c.job.id, "cancelled", "Customer withdrew");
+      await actAs(tx, MECHANIC2);
+      await failsWith(tx, () => cancelRequest(tx, c.partId), p0001("work_order_closed"));
+      await actAs(tx, ADMIN);
+      await cancelRequest(tx, c.partId, "Job cancelled before delivery");
+      expect(await requestStatus(tx, c.partId)).toBe("cancelled");
+      // An ordered part stays on its purchase order (D140).
+      await ownerMode(tx);
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.job_part_requests where id = $1 and purchase_order_line_id is not null",
+          [c.partId],
+        ),
+      ).toBe(1);
+
+      // A fitted request: void the line instead (refused on a closed job).
+      const f = await approved(tx);
+      await fit(tx, f.serviceRequestId);
+      await walkTo(tx, f.job.id, "collected");
+      await actAs(tx, MANAGER);
+      await failsWith(
+        tx,
+        () => cancelRequest(tx, f.serviceRequestId),
+        p0001("part_request_fitted"),
+      );
+    });
+  });
+
+  it("an item still on the open quote of a collected or cancelled job: the cancel withdraws that quote first", async () => {
+    await inTransaction(conn, async (tx) => {
+      for (const [status, claims, staffId] of [
+        ["collected", ADMIN, STAFF.admin],
+        ["cancelled", MANAGER, STAFF.manager],
+      ] as const) {
+        await actAs(tx, ADMIN);
+        const o = await quoted(tx);
+        if (status === "cancelled") await setStatus(tx, o.job.id, "cancelled", "Customer withdrew");
+        else await walkTo(tx, o.job.id, status);
+        const quoteId = await openQuoteId(tx, o.job.id);
+        const quoteStatus = () =>
+          readAsOwner(tx, () =>
+            scalar<string>(tx, "select status::text from public.quotes where id = $1", [quoteId]),
+          );
+
+        // Nobody can answer it or withdraw it there; a mechanic can't cancel.
+        await actAs(tx, MECHANIC1);
+        await failsWith(tx, () => cancelRequest(tx, o.partId), p0001("work_order_closed"));
+        // A refused cancel (here: no reason) withdraws nothing.
+        await actAs(tx, claims);
+        await failsWith(tx, () => cancelRequest(tx, o.partId, " "), p0001("reason_required"));
+        expect(await requestStatus(tx, o.partId)).toBe("quoted");
+        expect(await quoteStatus()).toBe("open");
+
+        // The admin or manager cancels it: the quote is withdrawn, its other
+        // item goes back to proposed, and the job does not move.
+        await cancelRequest(tx, o.partId, "Customer never answered; job closed");
+        expect(await requestStatus(tx, o.partId)).toBe("cancelled");
+        expect(await requestStatus(tx, o.serviceRequestId)).toBe("proposed");
+        expect(await quoteStatus()).toBe("withdrawn");
+        await actAs(tx, ANON);
+        expect(await quoteByToken(tx, o.token)).toEqual({
+          status: "withdrawn",
+          job_number: o.job.job_number,
+        });
+        await ownerMode(tx);
+        const tail = (await events(tx, o.job.id)).slice(-2);
+        expect(tail.map((e) => [e.event_type, e.payload, e.actor_staff_id])).toEqual([
+          ["quote_withdrawn", { quote_id: quoteId }, staffId],
+          [
+            "part_request_cancelled",
+            {
+              request_id: o.partId,
+              description: expect.any(String),
+              reason: "Customer never answered; job closed",
+              was: "quoted",
+            },
+            staffId,
+          ],
+        ]);
+        expect(
+          await scalar<string>(tx, "select status::text from public.work_orders where id = $1", [
+            o.job.id,
+          ]),
+        ).toBe(status);
+        // The item back to proposed is cancelled the ordinary D149 way.
+        await actAs(tx, claims);
+        await cancelRequest(tx, o.serviceRequestId, "Customer never answered");
+        expect(await requestStatus(tx, o.serviceRequestId)).toBe("cancelled");
+        // Withdrawing stays refused on the closed job (the replay answers).
+        await tx.query("select public.withdraw_quote($1)", [quoteId]);
+      }
+
+      // On a completed job the open quote still needs a withdraw (any staff
+      // member) before its items are cancelled.
+      await actAs(tx, ADMIN);
+      const c = await quoted(tx);
+      await completeJob(tx, c.job.id);
+      await actAs(tx, MECHANIC1);
+      await failsWith(tx, () => cancelRequest(tx, c.partId), p0001("part_request_quoted"));
+    });
+  });
+
+  it("an admin or manager who is no longer active is refused on a closed job", async () => {
+    await inTransaction(conn, async (tx) => {
+      const q = await approved(tx);
+      await walkTo(tx, q.job.id, "collected");
+      // As the owner with no session (staff_enforce_rules refuses a
+      // signed-in user deactivating their own row).
+      await ownerMode(tx);
+      await tx.query("select set_config('request.jwt.claims', '', true)");
+      await tx.query("update public.staff set active = false where id = $1", [STAFF.manager]);
+      await actAs(tx, MANAGER);
+      await failsWith(tx, () => cancelRequest(tx, q.partId), denied);
+      await ownerMode(tx);
+      expect(await requestStatus(tx, q.partId)).toBe("approved");
+      expect(await eventTypes(tx, q.job.id)).not.toContain("part_request_cancelled");
+    });
+  });
+
+  it("keeps open, completed and ready jobs as before: any staff member cancels", async () => {
+    await inTransaction(conn, async (tx) => {
+      const q = await approved(tx);
+      await completeJob(tx, q.job.id);
+      await actAs(tx, MECHANIC1);
+      await cancelRequest(tx, q.partId, "Customer no longer wants it");
+      expect(await requestStatus(tx, q.partId)).toBe("cancelled");
+      await actAs(tx, ADMIN);
+      await setStatus(tx, q.job.id, "ready_for_collection");
+      await actAs(tx, MECHANIC2);
+      await cancelRequest(tx, q.serviceRequestId, "Customer no longer wants it");
+      expect(await requestStatus(tx, q.serviceRequestId)).toBe("cancelled");
+    });
+  });
+});
+
+describe("order_part_requests and withdraw_quote on jobs that are not open (R-082)", () => {
+  it("ordering refuses a completed, ready, collected or cancelled job; a replay still returns its order", async () => {
+    await inTransaction(conn, async (tx) => {
+      const q = await approved(tx);
+      const poId = await orderParts(tx, [q.partId], q.supplierId, randomUUID(), false);
+      await completeJob(tx, q.job.id);
+      // The replay of an ordered set answers whatever the job's status.
+      expect(await orderParts(tx, [q.partId], q.supplierId)).toBe(poId);
+
+      for (const status of [
+        "completed",
+        "ready_for_collection",
+        "collected",
+        "cancelled",
+      ] as const) {
+        const j = await approved(tx);
+        if (status === "cancelled") await setStatus(tx, j.job.id, "cancelled", "Customer withdrew");
+        else await walkTo(tx, j.job.id, status);
+        await actAs(tx, MANAGER);
+        await failsWith(
+          tx,
+          () => orderParts(tx, [j.partId], j.supplierId),
+          p0001("work_order_locked"),
+        );
+        await actAs(tx, ADMIN);
+        expect(await requestStatus(tx, j.partId)).toBe("approved");
+      }
+
+      // One closed job among open ones refuses the whole order.
+      const open = await approved(tx);
+      const done = await approved(tx);
+      await completeJob(tx, done.job.id);
+      await failsWith(
+        tx,
+        () => orderParts(tx, [open.partId, done.partId], open.supplierId),
+        p0001("work_order_locked"),
+      );
+      expect(await requestStatus(tx, open.partId)).toBe("approved");
+    });
+  });
+
+  it("withdrawing refuses a collected or cancelled job; completed and ready jobs still withdraw", async () => {
+    await inTransaction(conn, async (tx) => {
+      const withdraw = (id: string) => tx.query("select public.withdraw_quote($1)", [id]);
+
+      const done = await quoted(tx);
+      await completeJob(tx, done.job.id);
+      const doneQuote = await openQuoteId(tx, done.job.id);
+      await actAs(tx, MECHANIC1);
+      await withdraw(doneQuote);
+      expect(await requestStatus(tx, done.partId)).toBe("proposed");
+
+      for (const status of ["collected", "cancelled"] as const) {
+        await actAs(tx, ADMIN);
+        const j = await quoted(tx);
+        if (status === "cancelled") await setStatus(tx, j.job.id, "cancelled", "Customer withdrew");
+        else await walkTo(tx, j.job.id, status);
+        const quoteId = await openQuoteId(tx, j.job.id);
+        for (const claims of [MECHANIC1, ADMIN]) {
+          await actAs(tx, claims);
+          await failsWith(tx, () => withdraw(quoteId), p0001("work_order_closed"));
+        }
+        expect(await requestStatus(tx, j.partId)).toBe("quoted");
+      }
+
+      // A quote withdrawn before the job closed replays on the closed job.
+      await actAs(tx, ADMIN);
+      const w = await quoted(tx);
+      const wQuote = await openQuoteId(tx, w.job.id);
+      await withdraw(wQuote);
+      await walkTo(tx, w.job.id, "collected");
+      await withdraw(wQuote);
+    });
+  });
+});
+
+describe("work_order_unfitted_requests (R-082)", () => {
+  type Unfitted = { currency: string; item_count: number; quoted_total: string };
+  const unfitted = async (tx: pg.Client, workOrderId: string) => {
+    const { rows } = await tx.query<Unfitted>(
+      `select currency, item_count, quoted_total::text
+         from public.work_order_unfitted_requests where work_order_id = $1`,
+      [workOrderId],
+    );
+    return rows;
+  };
+
+  it("counts and totals approved and ordered items only, in Postgres, with no cost", async () => {
+    await inTransaction(conn, async (tx) => {
+      const q = await quoted(tx);
+      // Proposed and quoted items are not approved yet.
+      expect(await unfitted(tx, q.job.id)).toEqual([]);
+      await actAs(tx, ANON);
+      await answerAll(tx, q.token);
+      await actAs(tx, MECHANIC1);
+      // 2 x 120.00 part and a 25.00 service.
+      expect(await unfitted(tx, q.job.id)).toEqual([
+        { currency: "SGD", item_count: 2, quoted_total: "265.00" },
+      ]);
+      await actAs(tx, ADMIN);
+      await orderParts(tx, [q.partId], q.supplierId, randomUUID(), false);
+      expect(await unfitted(tx, q.job.id)).toEqual([
+        { currency: "SGD", item_count: 2, quoted_total: "265.00" },
+      ]);
+      // A declined item is never counted.
+      const extra = await proposePart(tx, { workOrderId: q.job.id, productId: q.productId });
+      const token = await sendQuote(tx, { workOrderId: q.job.id, requestIds: [extra] });
+      await actAs(tx, ANON);
+      await answerAll(tx, token, () => false);
+      await actAs(tx, ADMIN);
+      expect(await requestStatus(tx, extra)).toBe("declined");
+      expect((await unfitted(tx, q.job.id))[0].item_count).toBe(2);
+      // Fitted leaves (it is on the bill now); cancelled leaves.
+      await fit(tx, q.serviceRequestId);
+      expect(await unfitted(tx, q.job.id)).toEqual([
+        { currency: "SGD", item_count: 1, quoted_total: "240.00" },
+      ]);
+      await cancelRequest(tx, q.partId, "Supplier discontinued it");
+      expect(await unfitted(tx, q.job.id)).toEqual([]);
+
+      // The memo is never in the job's total.
+      const other = await approved(tx);
+      await ownerMode(tx);
+      expect(
+        await scalar<boolean>(
+          tx,
+          "select coalesce((select sale_total from public.work_order_totals where work_order_id = $1), 0) = 0",
+          [other.job.id],
+        ),
+      ).toBe(true);
+      await actAs(tx, MECHANIC2);
+      expect(await unfitted(tx, other.job.id)).toEqual([
+        { currency: "SGD", item_count: 2, quoted_total: "265.00" },
+      ]);
+    });
+  });
+
+  it("has no cost column; staff read it, customers read nothing, anon is refused", async () => {
+    await inTransaction(conn, async (tx) => {
+      const q = await approved(tx);
+      const columns = await readAsOwner(tx, async () =>
+        (
+          await tx.query<{ column_name: string }>(
+            `select column_name from information_schema.columns
+              where table_schema = 'public' and table_name = 'work_order_unfitted_requests'
+              order by ordinal_position`,
+          )
+        ).rows.map((r) => r.column_name),
+      );
+      expect(columns).toEqual(["work_order_id", "currency", "item_count", "quoted_total"]);
+      await ownerMode(tx);
+      const login = await linkCustomerLogin(tx, q.job.customer_id);
+      await actAs(tx, customerClaims(login));
+      expect(
+        await scalar<number>(tx, "select count(*)::int from public.work_order_unfitted_requests"),
+      ).toBe(0);
+      await actAs(tx, ANON);
+      await failsWith(
+        tx,
+        () => tx.query("select 1 from public.work_order_unfitted_requests"),
+        denied,
       );
     });
   });

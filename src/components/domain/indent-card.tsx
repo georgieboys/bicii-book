@@ -34,12 +34,16 @@ import { formatDateTime } from "@/lib/dates";
 import type { IndentPanel, IndentProductOption, PartRequest } from "@/lib/domain/indent";
 import type { JobDeposit } from "@/lib/domain/payments";
 import {
-  CANCELLABLE,
-  PART_REQUEST_LABELS,
-  PART_REQUEST_TONES,
+  COST_MISSING_NOTE,
   QUOTE_DAYS,
+  canCancelRequest,
   canFit,
+  isUnfitted,
+  neverOrderedNote,
+  notFittedNote,
   quoteMessage,
+  requestBadge,
+  unansweredQuoteNote,
   whatsappHref,
 } from "@/lib/indent";
 import { formatMoney, formatQuantity, sumMoney } from "@/lib/money";
@@ -52,6 +56,7 @@ import {
 } from "@/lib/payments";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
+import type { WorkOrderStatus } from "@/lib/workshop";
 
 import { CopyText } from "./copy-text";
 
@@ -68,11 +73,19 @@ const errorsOf = (r: ActionResult<unknown> | null): Errors =>
  * From Phase 14 (D152), a part whose answered quote asked a deposit that is
  * not paid shows the deposit's state and starts unticked in the order
  * sheet; only an admin or manager orders it, with a reason.
+ * On a job that is no longer open (R-082), an approved or ordered item is
+ * "Not fitted" with what can be done: on a completed or ready job, reopen
+ * to fit it or cancel it; on a collected or cancelled job only an admin or
+ * manager cancels it (D149), and Fit is never offered. An item still on
+ * the open quote there is "Not answered"; on a collected or cancelled job
+ * an admin or manager cancels it too, which withdraws the quote.
  */
 export function IndentCard({
+  id,
   workOrderId,
   jobNumber,
   open,
+  jobStatus,
   panel,
   customer,
   canOrder,
@@ -81,11 +94,17 @@ export function IndentCard({
   emailEnabled,
   deposits = [],
   canOverrideDeposit = false,
+  canCancelClosed = false,
+  defaultLocationName = null,
 }: {
+  /** The anchor the memo under the job's total links to. */
+  id?: string;
   workOrderId: string;
   jobNumber: string;
   /** Lines may change (D15): proposing, quoting and fitting need an open job. */
   open: boolean;
+  /** The job's status: what a not-fitted item on a job that is not open says (R-082). */
+  jobStatus: WorkOrderStatus;
   panel: IndentPanel;
   customer: { firstName: string | null; phone: string | null; email: string | null };
   canOrder: boolean;
@@ -97,6 +116,10 @@ export function IndentCard({
   deposits?: JobDeposit[];
   /** An active admin or manager (D152): may order before the deposit is paid. */
   canOverrideDeposit?: boolean;
+  /** An active admin or manager (D149): may cancel an item on a collected or cancelled job. */
+  canCancelClosed?: boolean;
+  /** Where a never-ordered part is taken from when fitted (add_inventory_line's default). */
+  defaultLocationName?: string | null;
 }) {
   const [sheet, setSheet] = useState<
     null | "part" | "service" | "quote" | "order" | { cancel: PartRequest } | { fit: PartRequest }
@@ -126,6 +149,8 @@ export function IndentCard({
 
   return (
     <Card
+      id={id}
+      className="scroll-mt-4"
       title="Indent parts and quote"
       eyebrow="Customer approval"
       actions={
@@ -154,7 +179,12 @@ export function IndentCard({
       <div className="flex flex-col gap-4">
         {quote ? (
           <p aria-label="Quote status" className="rounded-xl bg-sunken px-4 py-3 text-sm">
-            {quote.state === "open" ? (
+            {quote.state === "open" && !open ? (
+              <>
+                Quote sent {formatDateTime(quote.sentAt)}, not answered. The job is no longer open,
+                so the customer can&apos;t answer it. {unansweredQuoteNote(jobStatus)}
+              </>
+            ) : quote.state === "open" ? (
               <>
                 Quote sent {formatDateTime(quote.sentAt)}
                 {quote.channel === "whatsapp" ? " by WhatsApp" : ""}, waiting for the customer. The
@@ -166,7 +196,10 @@ export function IndentCard({
                 {formatDateTime(quote.answeredAt!)}.
               </>
             ) : quote.state === "expired" ? (
-              <>The last quote expired {formatDateTime(quote.expiresAt)} without an answer.</>
+              <>
+                The last quote expired {formatDateTime(quote.expiresAt)} without an answer.
+                {open ? null : <> {unansweredQuoteNote(jobStatus)}</>}
+              </>
             ) : (
               <>The last quote was withdrawn.</>
             )}
@@ -180,61 +213,68 @@ export function IndentCard({
           </p>
         ) : (
           <ul aria-label="Proposed items" className="flex flex-col divide-y divide-hairline">
-            {live.map((r) => (
-              <li key={r.id} aria-label={r.description} className="flex flex-col gap-2 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <span className="flex min-w-0 flex-col">
-                    <span className="font-medium break-words">{r.description}</span>
-                    <span className="text-sm text-dust-500">
-                      {r.kind === "service" ? "Service" : "Part"} · {formatQuantity(r.quantity)} ×{" "}
-                      {formatMoney(r.unitSalePrice, r.currency)}
-                      {r.purchase?.supplierName ? ` · from ${r.purchase.supplierName}` : ""}
-                      {r.purchase?.expectedUnitCost
-                        ? ` · cost ${formatMoney(r.purchase.expectedUnitCost, r.currency)}`
-                        : ""}
+            {live.map((r) => {
+              const notFitted = !open && isUnfitted(r.status);
+              const badge = requestBadge(r.status, open);
+              const fittable = open && canFit(r.kind, r.status);
+              const cancellable = canCancelRequest(r.status, jobStatus, canCancelClosed);
+              return (
+                <li key={r.id} aria-label={r.description} className="flex flex-col gap-2 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="font-medium break-words">{r.description}</span>
+                      <span className="text-sm text-dust-500">
+                        {r.kind === "service" ? "Service" : "Part"} · {formatQuantity(r.quantity)} ×{" "}
+                        {formatMoney(r.unitSalePrice, r.currency)}
+                        {r.purchase?.supplierName ? ` · from ${r.purchase.supplierName}` : ""}
+                        {r.purchase?.expectedUnitCost
+                          ? ` · cost ${formatMoney(r.purchase.expectedUnitCost, r.currency)}`
+                          : ""}
+                      </span>
                     </span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="font-semibold tabular-nums">
-                      {formatMoney(r.lineTotal, r.currency)}
+                    <span className="flex items-center gap-2">
+                      <span className="font-semibold tabular-nums">
+                        {formatMoney(r.lineTotal, r.currency)}
+                      </span>
+                      <Badge tone={badge.tone}>{badge.label}</Badge>
+                      {depositBadge(r, depositByRequest, !open)}
                     </span>
-                    <Badge tone={PART_REQUEST_TONES[r.status]}>
-                      {PART_REQUEST_LABELS[r.status]}
-                    </Badge>
-                    {depositBadge(r, depositByRequest)}
-                  </span>
-                </div>
-                {r.order ? (
-                  <p className="text-sm text-dust-700">
-                    On {r.order.poNumber} ·{" "}
-                    {r.order.arrived ? (
-                      <Badge tone="done">Arrived</Badge>
-                    ) : (
-                      <span>not arrived yet</span>
-                    )}
-                  </p>
-                ) : null}
-                {open && (canFit(r.kind, r.status) || CANCELLABLE.includes(r.status)) ? (
-                  <div className="flex flex-wrap gap-2">
-                    {canFit(r.kind, r.status) ? (
-                      <Button size="sm" onClick={() => setSheet({ fit: r })}>
-                        {r.kind === "service" ? "Add to job" : "Fit"}
-                      </Button>
-                    ) : null}
-                    {CANCELLABLE.includes(r.status) ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Cancel ${r.description}`}
-                        onClick={() => setSheet({ cancel: r })}
-                      >
-                        Cancel
-                      </Button>
-                    ) : null}
                   </div>
-                ) : null}
-              </li>
-            ))}
+                  {r.order ? (
+                    <p className="text-sm text-dust-700">
+                      On {r.order.poNumber} ·{" "}
+                      {r.order.arrived ? (
+                        <Badge tone="done">Arrived</Badge>
+                      ) : (
+                        <span>not arrived yet</span>
+                      )}
+                    </p>
+                  ) : null}
+                  {notFitted ? (
+                    <p className="text-sm text-danger-deep">{notFittedNote(jobStatus)}</p>
+                  ) : null}
+                  {fittable || cancellable ? (
+                    <div className="flex flex-wrap gap-2">
+                      {fittable ? (
+                        <Button size="sm" onClick={() => setSheet({ fit: r })}>
+                          {r.kind === "service" ? "Add to job" : "Fit"}
+                        </Button>
+                      ) : null}
+                      {cancellable ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Cancel ${r.description}`}
+                          onClick={() => setSheet({ cancel: r })}
+                        >
+                          Cancel
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -299,10 +339,14 @@ export function IndentCard({
         />
       ) : null}
       {sheet && typeof sheet === "object" && "cancel" in sheet ? (
-        <CancelSheet request={sheet.cancel} onClose={close} />
+        <CancelSheet
+          request={sheet.cancel}
+          closed={jobStatus === "collected" || jobStatus === "cancelled"}
+          onClose={close}
+        />
       ) : null}
       {sheet && typeof sheet === "object" && "fit" in sheet ? (
-        <FitSheet request={sheet.fit} onClose={close} />
+        <FitSheet request={sheet.fit} locationName={defaultLocationName} onClose={close} />
       ) : null}
       {sent ? (
         <QuoteSentSheet
@@ -322,11 +366,20 @@ export function IndentCard({
   );
 }
 
-/** "Deposit due", "Being confirmed" or "Deposit refunded" on an approved or ordered part (D152). */
-function depositBadge(r: PartRequest, depositByRequest: ReadonlyMap<string, DepositState>) {
+/**
+ * "Deposit due", "Being confirmed" or "Deposit refunded" on an approved or
+ * ordered part (D152); "Deposit paid" too with `showPaid`, on a job that is
+ * no longer open, where the money is held for a part not on the bill
+ * (R-082).
+ */
+function depositBadge(
+  r: PartRequest,
+  depositByRequest: ReadonlyMap<string, DepositState>,
+  showPaid = false,
+) {
   if (r.kind !== "part" || (r.status !== "approved" && r.status !== "ordered")) return null;
   const state = depositByRequest.get(r.id);
-  if (state === undefined || state === "paid" || state === "none") return null;
+  if (state === undefined || state === "none" || (state === "paid" && !showPaid)) return null;
   return <Badge tone={DEPOSIT_STATE_TONES[state]}>{DEPOSIT_STATE_LABELS[state]}</Badge>;
 }
 
@@ -994,13 +1047,29 @@ function OrderSheet({
   );
 }
 
-/** Put an approved or ordered item on the job as an ordinary line (D146). */
-function FitSheet({ request, onClose }: { request: PartRequest; onClose: () => void }) {
+/**
+ * Put an approved or ordered item on the job as an ordinary line (D146).
+ * For a part it warns before the fit: an order not received yet, a part
+ * never ordered in BICII (it comes out of the default location's stock,
+ * which may go below zero, D23), and, for cost holders, a product with no
+ * cost (D24: Fit would be refused with part_cost_missing).
+ */
+function FitSheet({
+  request,
+  locationName,
+  onClose,
+}: {
+  request: PartRequest;
+  locationName: string | null;
+  onClose: () => void;
+}) {
   const { toast } = useToast();
   const [lineId] = useState(newId);
   const [result, setResult] = useState<ActionResult<{ lineId: string }> | null>(null);
   const [pending, start] = useTransition();
   const notArrived = request.kind === "part" && request.order !== null && !request.order.arrived;
+  const neverOrdered = request.kind === "part" && request.order === null;
+  const costMissing = request.kind === "part" && request.costMissing === true;
 
   const submit = () =>
     start(async () => {
@@ -1032,7 +1101,7 @@ function FitSheet({ request, onClose }: { request: PartRequest; onClose: () => v
           <Button variant="outline" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
-          <Button onClick={submit} pending={pending} pendingLabel="Adding…">
+          <Button onClick={submit} pending={pending} pendingLabel="Adding…" disabled={costMissing}>
             {request.kind === "service" ? "Add to job" : "Fit part"}
           </Button>
         </>
@@ -1049,10 +1118,25 @@ function FitSheet({ request, onClose }: { request: PartRequest; onClose: () => v
           {formatMoney(request.unitSalePrice, request.currency)} ={" "}
           <strong>{formatMoney(request.lineTotal, request.currency)}</strong>
         </p>
+        {costMissing ? (
+          <p role="alert" className="rounded-xl bg-danger-soft p-3 text-sm text-danger-deep">
+            {COST_MISSING_NOTE}{" "}
+            {request.productId ? (
+              <a href={`/products/${request.productId}`} className="font-medium underline">
+                Open the product
+              </a>
+            ) : null}
+          </p>
+        ) : null}
         {notArrived ? (
           <p role="status" className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
             Its order ({request.order!.poNumber}) has not been received yet. Fitting it now may take
             the stock count below zero.
+          </p>
+        ) : null}
+        {neverOrdered ? (
+          <p role="status" className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
+            {neverOrderedNote(locationName)}
           </p>
         ) : null}
       </div>
@@ -1060,8 +1144,20 @@ function FitSheet({ request, onClose }: { request: PartRequest; onClose: () => v
   );
 }
 
-/** Cancel a proposed, answered or ordered item, with a reason. */
-function CancelSheet({ request, onClose }: { request: PartRequest; onClose: () => void }) {
+/**
+ * Cancel a proposed, answered or ordered item, with a reason; on a collected
+ * or cancelled job (`closed`, admins and managers only, D149) it also says
+ * to refund any deposit in Stripe.
+ */
+function CancelSheet({
+  request,
+  closed,
+  onClose,
+}: {
+  request: PartRequest;
+  closed: boolean;
+  onClose: () => void;
+}) {
   const { toast } = useToast();
   const [reason, setReason] = useState("");
   const [result, setResult] = useState<ActionResult<null> | null>(null);
@@ -1073,7 +1169,13 @@ function CancelSheet({ request, onClose }: { request: PartRequest; onClose: () =
       const r = await cancelPartRequestAction({ requestId: request.id, reason });
       setResult(r);
       if (r.ok) {
-        toast({ title: `${request.description} cancelled.`, tone: "success" });
+        toast({
+          title:
+            request.status === "quoted"
+              ? `${request.description} cancelled. The quote was withdrawn.`
+              : `${request.description} cancelled.`,
+          tone: "success",
+        });
         onClose();
       }
     });
@@ -1085,9 +1187,12 @@ function CancelSheet({ request, onClose }: { request: PartRequest; onClose: () =
       dismissible={!pending}
       title={`Cancel ${request.description}`}
       description={
-        request.status === "ordered"
+        (request.status === "ordered"
           ? "It stays on its purchase order: change the order in Purchasing if needed."
-          : "It is removed from the proposed items. The reason is kept in the timeline."
+          : request.status === "quoted"
+            ? "It is on the quote the customer can no longer answer: cancelling it withdraws that quote (its link stops working) and its other items go back to Proposed. The reason is kept in the timeline."
+            : "It is removed from the proposed items. The reason is kept in the timeline.") +
+        (closed ? " The job is closed and stays closed; refund any deposit for it in Stripe." : "")
       }
       footer={
         <>

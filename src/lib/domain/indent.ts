@@ -2,6 +2,7 @@ import "server-only";
 
 import { unwrap } from "@/lib/db-errors";
 import type { PartRequestKind, PartRequestStatus, QuoteChannel, QuoteState } from "@/lib/indent";
+import { logger } from "@/lib/logger";
 import { toMoneyString } from "@/lib/money";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
@@ -44,6 +45,12 @@ export type PartRequest = {
     supplierId: string | null;
     supplierName: string | null;
   };
+  /**
+   * View costs holders only (D24, D30): the part's product has no cost, so
+   * Fit would be refused (part_cost_missing). Absent for everyone else and
+   * for services.
+   */
+  costMissing?: boolean;
 };
 
 export type JobQuote = {
@@ -72,11 +79,15 @@ function returned<T>(value: T | null, what: string): T {
   return value;
 }
 
-/** The job's indent requests (oldest first) and its latest quote. */
+/**
+ * The job's indent requests (oldest first) and its latest quote. With
+ * `viewCosts`, each part says whether its product has a cost (Fit needs
+ * one, D24), read from public.product_costs (view_costs only).
+ */
 export async function getIndentPanel(
   supabase: ServerSupabase,
   workOrderId: string,
-  { purchaseData }: { purchaseData: boolean },
+  { purchaseData, viewCosts = false }: { purchaseData: boolean; viewCosts?: boolean },
 ): Promise<IndentPanel> {
   const [requests, quotes, arrivals] = await Promise.all([
     supabase
@@ -117,6 +128,24 @@ export async function getIndentPanel(
           ),
       ) ?? [];
     purchase = new Map(staffRows.map((r) => [r.id!, r]));
+  }
+
+  const productIds = [
+    ...new Set(rows.flatMap((r) => (r.kind === "part" && r.product_id ? [r.product_id] : []))),
+  ];
+  let withoutCost: Set<string> | null = null;
+  if (viewCosts && productIds.length > 0) {
+    const costRows =
+      unwrap(
+        await supabase
+          .from("product_costs")
+          .select("product_id, default_direct_cost")
+          .in("product_id", productIds),
+      ) ?? [];
+    const known = new Set(
+      costRows.filter((c) => c.default_direct_cost !== null).map((c) => c.product_id),
+    );
+    withoutCost = new Set(productIds.filter((id) => !known.has(id)));
   }
 
   const q = (unwrap(quotes) ?? [])[0];
@@ -170,8 +199,43 @@ export async function getIndentPanel(
               },
             }
           : {}),
+        ...(withoutCost && r.kind === "part" && r.product_id
+          ? { costMissing: withoutCost.has(r.product_id) }
+          : {}),
       };
     }),
+  };
+}
+
+/** The job's approved items not on the bill yet (R-082), as Postgres counted and totalled them. */
+export type UnfittedSummary = { itemCount: number; quotedTotal: string; currency: string };
+
+/**
+ * public.work_order_unfitted_requests for one job (any active staff
+ * member; no cost): how many approved or ordered items are not on the bill
+ * and their quoted total, summed in Postgres (D140: a memo, never part of
+ * the total). Null when there are none; a read error is logged and gives
+ * null, so the job page never breaks over a memo.
+ */
+export async function getUnfittedSummary(
+  supabase: ServerSupabase,
+  workOrderId: string,
+): Promise<UnfittedSummary | null> {
+  const { data, error } = await supabase
+    .from("work_order_unfitted_requests")
+    .select("item_count, quoted_total, currency")
+    .eq("work_order_id", workOrderId);
+  if (error) {
+    logger.error({ workOrderId, code: error.code }, "unfitted indent read failed");
+    return null;
+  }
+  // One row per currency; a job's requests are in its own currency.
+  const row = (data ?? []).find((r) => (r.item_count ?? 0) > 0);
+  if (!row || row.quoted_total === null) return null;
+  return {
+    itemCount: row.item_count ?? 0,
+    quotedTotal: toMoneyString(row.quoted_total),
+    currency: row.currency ?? "SGD",
   };
 }
 

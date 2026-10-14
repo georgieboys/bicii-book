@@ -164,6 +164,8 @@ export const PAYMENT_STATUS_TONES: Readonly<Record<PaymentStatus, StatusTone>> =
  * paid a deposit. Null when nothing is held online (net 0) or there are no
  * totals. `stillToPay` and `paidAhead` are null once the job is closed or
  * outside SGD (work_order_payment_totals); `paidAhead` is null when 0.
+ * `moreThanBill` (R-082) is what a collected or cancelled job holds above
+ * its bill (held_over_total), null while the job is open or when 0.
  * Formatting only: every figure is Postgres's.
  */
 export function paidOnlineSummary(
@@ -172,17 +174,81 @@ export function paidOnlineSummary(
     netPaidOnline: string;
     balanceDue: string | null;
     paidAhead: string | null;
+    heldOverTotal?: string | null;
   } | null,
-): { paid: string; stillToPay: string | null; paidAhead: string | null } | null {
+): {
+  paid: string;
+  stillToPay: string | null;
+  paidAhead: string | null;
+  moreThanBill: string | null;
+} | null {
   if (!totals || Number(totals.netPaidOnline) === 0) return null;
   const money = (v: string) => formatMoney(v, totals.currency);
   const ahead =
     totals.paidAhead !== null && Number(totals.paidAhead) !== 0 ? money(totals.paidAhead) : null;
+  const held = totals.heldOverTotal ?? null;
   return {
     paid: money(totals.netPaidOnline),
     stillToPay: totals.balanceDue === null ? null : money(totals.balanceDue),
     paidAhead: ahead,
+    moreThanBill:
+      totals.balanceDue === null && held !== null && Number(held) !== 0 ? money(held) : null,
   };
+}
+
+/** An approved indent item not on the bill (R-082): its name and quoted total, formatted. */
+export type UnfittedItem = { description: string; total: string };
+
+function listOf(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * The Collected confirmation's sentences, on both paths (the Collected
+ * button and Change status), before "Collected is final" (D154, R-082):
+ * what was paid online and what to take; and the approved indent items that
+ * are not on the bill. When money is paid ahead and such items exist, the
+ * paid-ahead money is tied to them instead of "take nothing more".
+ */
+export function collectedNotes(
+  paidOnline: ReturnType<typeof paidOnlineSummary>,
+  unfitted: readonly UnfittedItem[],
+): string[] {
+  const notes: string[] = [];
+  if (paidOnline) {
+    const rest = paidOnline.paidAhead
+      ? unfitted.length > 0
+        ? `That is ${paidOnline.paidAhead} more than the job total, paid for parts that are not on the bill.`
+        : `That is ${paidOnline.paidAhead} more than the job total; take nothing more.`
+      : paidOnline.stillToPay
+        ? `Take only ${paidOnline.stillToPay}.`
+        : "Take only what is left of the job total.";
+    notes.push(`${paidOnline.paid} was paid online. ${rest}`);
+  }
+  if (unfitted.length > 0) {
+    const them = unfitted.length === 1 ? "it" : "them";
+    notes.push(
+      `Not on the bill: ${listOf(unfitted.map((i) => `${i.description} ${i.total}`))}, approved and not fitted. To bill ${them}, reopen the job and fit ${them}; otherwise cancel ${them} and refund any deposit in Stripe.`,
+    );
+  }
+  return notes;
+}
+
+/**
+ * The Customer payments card on a collected or cancelled job that holds
+ * more than its bill (R-082, held_over_total); null otherwise.
+ */
+export function heldOverSentence(totals: {
+  currency: string;
+  jobTotal: string;
+  balanceDue: string | null;
+  heldOverTotal?: string | null;
+}): string | null {
+  const held = totals.heldOverTotal ?? null;
+  if (totals.balanceDue !== null || held === null || Number(held) === 0) return null;
+  const money = (v: string) => formatMoney(v, totals.currency);
+  return `${money(held)} was paid online above this job's bill of ${money(totals.jobTotal)}. Refund it in Stripe if it is due back, or agree with the customer how it counts.`;
 }
 
 /** A Stripe PaymentIntent id, as config.ts's PAYMENT_INTENT_ID (that module is server-only). */

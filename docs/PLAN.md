@@ -941,6 +941,74 @@ and any sign in the Admin that a customer has a website login.
 After the printer models are known. Adds one adapter behind the existing
 interface; no changes elsewhere.
 
+### Phase 13 — Indent parts and customer quotes
+
+The owner's addition of 2026-10-14 (D140–D148,
+[ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md)): a part
+the shop does not stock is proposed on a job, quoted to the customer, who
+approves or declines each item from a private link, then ordered, received
+and fitted. It lifts SPEC §7.1's offline approval and SPEC §30's exclusions
+for quotes only (D148). Migrations sort after everything live.
+
+**Step 1, database.** `job_part_requests` (D140: product, quantity, price
+shown, expected cost and supplier, state; no movement, no line until fit),
+`quotes` and `quote_items` (D141: snapshot, 7-day expiry, SHA-256 of a
+32-byte token, one open quote per job), RPCs `propose_part`,
+`propose_service`, `cancel_part_request`, `send_quote` (returns the token
+once), `withdraw_quote`, `order_part_requests` (D145, `manage_purchasing`:
+the supplier's draft purchase order, linked lines), `fit_part_request`
+(D146: `add_inventory_line` from the receiving location) and, for anon by
+token only, `quote_by_token` and `answer_quote` (D142, D143: per-item
+answers once, the job's approval flag and note, timeline events). RLS on
+every table in the same migration; costs only to `view_costs` or
+`manage_purchasing` (D147). Tests first: no movement or line before fit;
+totals unchanged until fit; a token answers once, only its own quote,
+never after expiry or withdrawal, and the hash alone answers nothing;
+anon reads nothing else; ordering raises the right purchase order line;
+arrival follows receipts first requested first covered; fit records one
+`job_consumption` movement through D23 and D24; a two-connection race
+answers once.
+
+**Step 2, staff screens.** On the job: an Indent parts card (propose an
+existing product or a new one, cancel), Send quote (WhatsApp, email when
+configured, copy link, D144), the quote's state and answers, Order (with
+Waiting on parts) and Fit. The product page shows quantities reserved for
+jobs. E2E: propose, send, answer, order, receive, fit on phone and iPad.
+
+**Step 3, the quote page and email.** `/quote/[token]` (D143), outside
+the staff routes: items, total, per-item answers, name, the deposit when
+Phase 14 is on; not indexed, no referrer, rate-limited. Email through
+Resend's API (`RESEND_API_KEY`, `EMAIL_FROM`), off until both are set.
+
+Not in Phase 13: hard reservation of arrived stock
+([R-080](RISKS.md#r-080--arrived-indent-stock-is-not-held-for-its-job)),
+quotes on the public site, messages other than quotes.
+
+### Phase 14 — Customer payments through Stripe
+
+The owner's decision of 2026-10-14 (D150–D156,
+[ADR-025](decisions/ADR-025-stripe-payments.md)): deposits on quotes
+first, then balance links. Needs the owner's Stripe account (Singapore,
+PayNow on) and keys; built and tested against an in-memory fake first.
+
+**Step 1, database and adapter.** `payments` (D153), `stripe_events`
+(every delivery once by event id, rejected ones without a body), the
+service-role RPCs that apply Checkout and refund events (D155),
+`src/lib/integrations/stripe/` (the adapter, the fake, Checkout session
+creation with the job and quote in metadata), `POST /api/stripe/webhooks`
+(signature on the raw body). Tests: a payment changes only from a verified
+event; a replayed event changes nothing; amounts are numeric and equal
+Stripe's in cents; refunds and partial refunds; nothing in job totals or
+reports' sales changes (D154).
+
+**Step 2, deposits.** `shop_settings.indent_deposit_percent` (D151,
+admin), the deposit on the quote page and Checkout after answering, the
+job's Payments card and "Deposit due", ordering after the deposit or an
+override with a reason (D152).
+
+**Step 3, balance links and reporting.** Send a payment link for the
+balance (D156); payments and deposits held in Reports (D154).
+
 ## 3. First milestone — the vertical slice (SPEC §35)
 
 The first milestone is Phase 0 plus the minimum of Phases 1, 3 and 4 needed
@@ -1022,10 +1090,12 @@ orchestrator's allocation of 2026-10-06), never "the next free": D43–D59
 main line (Phase 6 D44–D55, labels D56–D59), D60–D69 purchasing (Phase 7),
 D70–D79 staff email sign-in, D80–D89 Shopify (Phase 10), D90–D99 staff
 roles, D100–D119 reporting (Phase 9), D120–D139 public site (Phase 11),
-D140 and up later. Decision records follow the same plan: ADR-017
-labels, ADR-018 purchasing, ADR-019 email sign-in, ADR-020 Shopify,
-ADR-021 staff roles, ADR-022 reporting, ADR-023 public site. A phase
-uses only its own range.
+D140–D149 indent parts and quotes (Phase 13), D150–D159 Stripe payments
+(Phase 14), D160 and up later. Decision records follow the same plan:
+ADR-017 labels, ADR-018 purchasing, ADR-019 email sign-in, ADR-020
+Shopify, ADR-021 staff roles, ADR-022 reporting, ADR-023 public site,
+ADR-024 indent parts and quotes, ADR-025 Stripe payments. A phase uses
+only its own range.
 
 | ID | Decision | Default in plan | Used from | Status (2026-10-05) | Record |
 |---|---|---|---|---|---|
@@ -1128,8 +1198,28 @@ uses only its own range.
 | D106 | STOCK-RECONCILIATION | There is no `inventory_balances` cache in the MVP: the movement ledger sum (`reporting.stock_levels`) is the stock, and Phase 9 measured it fast enough (DATA-MODEL §14). Reconciliation compares the ledger with the state the database caches today: each unique unit's status and location (through the disposition of its latest non-transfer movement), each consignment item's status, and unit counts per product and location. It is read-only. The fix is always an existing guarded flow (adjust stock with a reason, restock, settle, void, return), reached by a link, never an automatic fix; an issue that persists after the right fix is an RPC defect, reported with the unit's movement history. A future cache must be a trigger-maintained projection added to these views (SPEC §12, §26). | Phase 9 (2026-10-06): `20261006001200_stock_reconciliation`, `…1300_operational_exceptions` | Accepted: build default, owner to confirm | [ADR-022](decisions/ADR-022-reporting.md) |
 | D107 | UNSETTLED-CONSIGNMENT-ALERT | When a consignor's money is overdue: a consignment item is listed when its outstanding amount is above 0 (`reporting.consignor_item_ledger`: owed − paid, D46) and its LATEST sale (`last_sale_at`) is more than N shop days ago. N = `shop_settings.consignment_settlement_alert_days`, default 30, 1–365. Only an admin may change it, through `set_consignment_settlement_alert_days`; the column is never directly writable, and the change is recorded in the schedule history like other shop settings. Exceptions are computed live, never stored or dismissed, and clear when the cause is fixed (settled, restocked or returned). | Phase 9 (2026-10-06): `20261006001200_stock_reconciliation`, `…1300_operational_exceptions` | Accepted: build default, owner to confirm | [ADR-022](decisions/ADR-022-reporting.md) |
 | D108 | EXCEPTION-VISIBILITY | Who sees which operational exception. One function, `private.exception_visible(kind)`, decides it for the list, the counts and Today's `exceptions_now` alike. Phase 5's kinds (overdue_job, uncollected_job, negative_stock, unit_hold_stale, currency_mismatch) and unit_state_mismatch: every active staff member (stock and jobs are staff-visible, D30 operational counts). unsettled_consignment: `private.can_view_consignment_money()`, which is manage_consignments or view_costs (D48). integration_failed: admins only (`private.is_admin()`, the same rule as Phase 10's D86). | Phase 9 (2026-10-06): `20261006001200_stock_reconciliation`, `…1300_operational_exceptions` | Accepted: build default, owner to confirm | [ADR-022](decisions/ADR-022-reporting.md) |
+| D140 | INDENT-ITEM: what an indent part is on a job | A part request on an open job (`job_part_requests`): a shop-owned, quantity-tracked, active product (existing or created from the job), quantity, the sale price shown to the customer and, for `view_costs` holders, expected cost and supplier; state proposed, quoted, approved, declined, ordered, fitted or cancelled. No stock movement and no job line until fitted; fitting adds an ordinary part line through `add_inventory_line` (D15, D23, D24), so totals, yield and Cult Commons change only then | Phase 13 | Owner decision 2026-10-14 (workflow); details build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D141 | QUOTE: what a quote is | A snapshot of chosen proposed items (part requests and catalogue services for fitting) for one job, with names, quantities, prices and total, valid 7 days; one open quote per job (sending another withdraws it); reached by a link holding a 32-byte random token whose SHA-256 alone is stored, shown to staff only when sent | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D142 | QUOTE-ANSWER: how the customer answers | Per item approve or decline, a typed name, submitted once and final (a change is a new quote); approved part requests become approved, declined ones declined; approved services are added by staff; the job's approval flag is set with a note of what was approved online, by whom and when, and the timeline records it | Phase 13 | Owner decision 2026-10-14 (per item); rest build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D143 | QUOTE-PAGE: what the anonymous quote page shows | `/quote/[token]` in the Admin: shop name, job number, bike, the customer's first name, items, prices, total, expiry and (Phase 14) the deposit; never costs, notes, staff names, contact details or other jobs; not indexed, no referrer, rate-limited per client | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D144 | QUOTE-DELIVERY: how a quote reaches the customer | WhatsApp (`wa.me` to the customer's phone with message and link; an 8-digit Singapore number gets +65), email sent by the Admin through Resend when `RESEND_API_KEY` is set and the customer has an email, or a copied link; the channel is recorded | Phase 13 | Owner decision 2026-10-14 | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D145 | INDENT-ORDER: how approved parts are ordered | `manage_purchasing` holders add them to the supplier's open draft purchase order (or a new one), raising that product's line, each request linked to the line; optionally moving the job to Waiting on parts | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D146 | INDENT-FIT: when a part has arrived and how it is fitted | Arrived when receipts on its purchase order line cover it, first requested first covered; Fit adds the part line from the receiving location and marks it fitted; arrived stock shows as reserved for the job but is not held | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D147 | INDENT-ACCESS: who does what | Any active staff member proposes and sends quotes on an open job; ordering needs `manage_purchasing`; costs and suppliers need `view_costs` or `manage_purchasing` (D60); customers reach a quote only by its link | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D148 | INDENT-SCOPE: what changes in the brief | SPEC §7.1's offline approval and SPEC §30's exclusion of customer approval and automated messaging are lifted for quotes only; ordinary parts and services are still added straight to jobs with the internal flag | Phase 13 | Owner decision 2026-10-14 | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| D150 | PAYMENTS-PROVIDER: how customers pay | Stripe's hosted Checkout (cards and PayNow, SGD); no card data in BICII; secret key and webhook secret server-only (Production live, Preview test or none); one adapter with an in-memory fake for tests | Phase 14 | Owner decision 2026-10-14 (Stripe); rest build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D151 | DEPOSIT: the deposit on a quote | 50% of the approved indent parts' total (admin setting `indent_deposit_percent`, 0 for none), rounded to the cent in Postgres, offered through Checkout after the customer answers; the approval stands unpaid, shown as "Deposit due" | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D152 | ORDER-AFTER-DEPOSIT: ordering before the deposit | Only once the deposit is paid, unless an admin or manager orders anyway with a recorded reason | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D153 | PAYMENT-RECORD: how a payment is recorded | A `payments` row created with the Checkout session and changed only by Stripe's verified webhook (signature on the raw body, each event stored once by id, rejected deliveries kept without a body) through a service-role RPC; staff never type one | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D154 | PAYMENT-MEANING: what a payment changes | Nothing in recognition, totals, yield or Cult Commons; the job shows paid and balance due (total less paid, net of refunds); reports list payments and deposits held on open jobs apart from sales | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D155 | REFUNDS: how refunds happen | In the Stripe dashboard, recorded from Stripe's refund events; none started in the Admin | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D156 | BALANCE-LINK: paying the rest | Staff send a Checkout link for the balance due by WhatsApp or email; paying it does not collect the job | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 
 ## 7. Out of scope (restated from SPEC §30)
+
+Changed by the owner on 2026-10-14: customer approval and messages for
+quotes (Phase 13, D148) and customer payments through Stripe (Phase 14,
+D150) are now in scope; the rest stands.
 
 Payments, accounting ledger, automated customer approval, Shopify SSO,
 customer mechanic selection, labour time clock, bulk→unique conversion

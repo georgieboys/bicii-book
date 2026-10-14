@@ -1,11 +1,13 @@
 # Current state
 
-Updated: 2026-10-12 SGT by the go-live session (GO-LIVE, see `HANDOVER.md`
-on `handover/go-live`), on `claude/brave-clarke-kfqhgt` from `main` 7a32010
-(the go-live checkpoint, PR #19). Production is live and the owner is
-testing it. This branch adds Settings → Product categories (the owner
-found no way to create one) and records the Data API fix (Inventory failed
-until the hosted project exposed `reporting`, RUNBOOK step 4). Evidence checked: `git fetch` and `git log`; the
+Updated: 2026-10-14 SGT by the go-live session, on
+`claude/brave-clarke-kfqhgt` from `main` 511aac6 (Product categories, PR
+#20). The owner asked for indent parts with customer approval and for
+Stripe payments: this branch adds their design (PLAN Phases 13 and 14,
+D140–D156, ADR-024, ADR-025); nothing of it is built yet. The owner also
+loaded the service catalogue and product categories into production on
+2026-10-12–14 (19 services, 20 categories, through `create_service` as
+the owner's admin login). Evidence checked: `git fetch` and `git log`; the
 hosted project read-only (migration history, `public.staff`, Auth's
 sessions, the Auth log); GitHub Actions (`migrate.yml` run 10); the Vercel
 production deployment of `main`. Earlier rows keep the evidence of their
@@ -44,12 +46,21 @@ own phase.
     variables, a staging project
     ([R-001](docs/RISKS.md#r-001--nothing-is-deployed)), an exercised
     backup ([R-002](docs/RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery)).
-- Current objective: the owner tests the live Admin; then staff and the
-  public site (Phase 11 step 2,
+- Current objective: Phase 13, indent parts and customer quotes
+  ([PLAN Phase 13](docs/PLAN.md#phase-13--indent-parts-and-customer-quotes),
+  D140–D148, [ADR-024](docs/decisions/ADR-024-indent-parts-and-customer-quotes.md)),
+  then Phase 14, Stripe payments
+  ([PLAN Phase 14](docs/PLAN.md#phase-14--customer-payments-through-stripe),
+  D150–D156, [ADR-025](docs/decisions/ADR-025-stripe-payments.md)). Also
+  waiting: staff and the public site (Phase 11 step 2,
   [PLAN Phase 11](docs/PLAN.md#phase-11--public-site-integration-in-the-bicii-repo),
   D120–D125, [ADR-023](docs/decisions/ADR-023-public-site.md)), whose
   screens wait as a draft pull request in repository `bicii`.
 - Next action:
+  0. Build Phase 13 step 1 (the database: part requests, quotes, answers
+     by token, ordering and fitting, tests first). The owner creates the
+     Stripe account (Singapore, PayNow on) before Phase 14 goes live
+     (PRODUCT question 32).
   1. Owner: finish Resend's domain verification, set the shop's address as
      the Auth sender, send a code to a second address, then invite staff
      from Settings → Staff.
@@ -175,7 +186,8 @@ own phase.
   ([R-075](docs/RISKS.md#r-075--label-output-is-unverified-on-a-real-label-printer-and-on-ios));
   print success is confirmed by hand
   ([R-076](docs/RISKS.md#r-076--print-success-is-confirmed-by-hand)).
-- Owner questions: 12 (refund netting; D102 is the build default), 18
+- Owner questions: 31 (indent parts defaults), 32 (Stripe defaults and
+  account), 12 (refund netting; D102 is the build default), 18
   (D70–D72), 19 (the sender address, after Resend's domain verification), 20 (D92, D93), 21 (the label defaults
   D56–D59), 23–25 (Shopify: D89's tax basis and POS, the defaults
   D80–D88), 26–27 (the reporting defaults D100–D108) and 30 (the

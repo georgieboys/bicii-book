@@ -616,6 +616,13 @@ export type Database = {
             foreignKeyName: "consignment_item_charges_work_order_id_fkey";
             columns: ["work_order_id"];
             isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "consignment_item_charges_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
             referencedRelation: "work_order_totals";
             referencedColumns: ["work_order_id"];
           },
@@ -1503,6 +1510,13 @@ export type Database = {
             foreignKeyName: "inventory_movements_work_order_id_fkey";
             columns: ["work_order_id"];
             isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "inventory_movements_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
             referencedRelation: "work_order_totals";
             referencedColumns: ["work_order_id"];
           },
@@ -1877,6 +1891,13 @@ export type Database = {
             foreignKeyName: "job_part_requests_work_order_id_fkey";
             columns: ["work_order_id"];
             isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
             referencedRelation: "work_order_totals";
             referencedColumns: ["work_order_id"];
           },
@@ -2051,6 +2072,13 @@ export type Database = {
             foreignKeyName: "payment_refunds_payment_id_fkey";
             columns: ["payment_id"];
             isOneToOne: false;
+            referencedRelation: "payment_issues";
+            referencedColumns: ["payment_id"];
+          },
+          {
+            foreignKeyName: "payment_refunds_payment_id_fkey";
+            columns: ["payment_id"];
+            isOneToOne: false;
             referencedRelation: "payments";
             referencedColumns: ["id"];
           },
@@ -2141,8 +2169,22 @@ export type Database = {
             foreignKeyName: "payments_quote_id_fkey";
             columns: ["quote_id"];
             isOneToOne: false;
+            referencedRelation: "quote_deposits";
+            referencedColumns: ["quote_id"];
+          },
+          {
+            foreignKeyName: "payments_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
             referencedRelation: "quotes";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
           },
           {
             foreignKeyName: "payments_work_order_id_fkey";
@@ -2954,6 +2996,13 @@ export type Database = {
             foreignKeyName: "quote_items_quote_id_fkey";
             columns: ["quote_id"];
             isOneToOne: false;
+            referencedRelation: "quote_deposits";
+            referencedColumns: ["quote_id"];
+          },
+          {
+            foreignKeyName: "quote_items_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
             referencedRelation: "quotes";
             referencedColumns: ["id"];
           },
@@ -2965,6 +3014,8 @@ export type Database = {
           answered_name: string | null;
           channel: Database["public"]["Enums"]["quote_channel"];
           currency: string;
+          deposit_amount: number | null;
+          deposit_percent: number | null;
           expires_at: string;
           id: string;
           sent_at: string;
@@ -2981,6 +3032,8 @@ export type Database = {
           answered_name?: string | null;
           channel: Database["public"]["Enums"]["quote_channel"];
           currency: string;
+          deposit_amount?: number | null;
+          deposit_percent?: number | null;
           expires_at: string;
           id: string;
           sent_at?: string;
@@ -2997,6 +3050,8 @@ export type Database = {
           answered_name?: string | null;
           channel?: Database["public"]["Enums"]["quote_channel"];
           currency?: string;
+          deposit_amount?: number | null;
+          deposit_percent?: number | null;
           expires_at?: string;
           id?: string;
           sent_at?: string;
@@ -3022,6 +3077,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "staff";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "quotes_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
           },
           {
             foreignKeyName: "quotes_work_order_id_fkey";
@@ -3316,6 +3378,13 @@ export type Database = {
             foreignKeyName: "sales_work_order_id_fkey";
             columns: ["work_order_id"];
             isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "sales_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
             referencedRelation: "work_order_totals";
             referencedColumns: ["work_order_id"];
           },
@@ -3519,6 +3588,7 @@ export type Database = {
           customer_max_active_bookings: number;
           default_currency: string;
           id: number;
+          indent_deposit_percent: number;
           intake_capacity_units: number;
           intake_slot_minutes: number;
           public_site_url: string | null;
@@ -3534,6 +3604,7 @@ export type Database = {
           customer_max_active_bookings?: number;
           default_currency?: string;
           id?: number;
+          indent_deposit_percent?: number;
           intake_capacity_units?: number;
           intake_slot_minutes?: number;
           public_site_url?: string | null;
@@ -3549,6 +3620,7 @@ export type Database = {
           customer_max_active_bookings?: number;
           default_currency?: string;
           id?: number;
+          indent_deposit_percent?: number;
           intake_capacity_units?: number;
           intake_slot_minutes?: number;
           public_site_url?: string | null;
@@ -3897,8 +3969,22 @@ export type Database = {
             foreignKeyName: "stripe_events_payment_fk";
             columns: ["payment_id"];
             isOneToOne: false;
+            referencedRelation: "payment_issues";
+            referencedColumns: ["payment_id"];
+          },
+          {
+            foreignKeyName: "stripe_events_payment_fk";
+            columns: ["payment_id"];
+            isOneToOne: false;
             referencedRelation: "payments";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stripe_events_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
           },
           {
             foreignKeyName: "stripe_events_work_order_id_fkey";
@@ -4089,6 +4175,13 @@ export type Database = {
             foreignKeyName: "work_order_assignments_work_order_id_fkey";
             columns: ["work_order_id"];
             isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_assignments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
             referencedRelation: "work_order_totals";
             referencedColumns: ["work_order_id"];
           },
@@ -4146,6 +4239,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "staff";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_events_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
           },
           {
             foreignKeyName: "work_order_events_work_order_id_fkey";
@@ -4312,6 +4412,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "staff";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_line_items_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
           },
           {
             foreignKeyName: "work_order_line_items_work_order_id_fkey";
@@ -4508,6 +4615,13 @@ export type Database = {
             foreignKeyName: "job_part_requests_work_order_id_fkey";
             columns: ["work_order_id"];
             isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
             referencedRelation: "work_order_totals";
             referencedColumns: ["work_order_id"];
           },
@@ -4520,6 +4634,61 @@ export type Database = {
           },
           {
             foreignKeyName: "job_part_requests_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payment_issues: {
+        Row: {
+          issue: string | null;
+          message: string | null;
+          payment_id: string | null;
+          quote_id: string | null;
+          severity: string | null;
+          since: string | null;
+          work_order_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payments_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quote_deposits";
+            referencedColumns: ["quote_id"];
+          },
+          {
+            foreignKeyName: "payments_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quotes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
             columns: ["work_order_id"];
             isOneToOne: false;
             referencedRelation: "work_orders";
@@ -4616,6 +4785,71 @@ export type Database = {
             columns: ["purchase_receipt_id"];
             isOneToOne: false;
             referencedRelation: "purchase_receipts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      quote_deposits: {
+        Row: {
+          answered_at: string | null;
+          currency: string | null;
+          deposit_amount: number | null;
+          deposit_percent: number | null;
+          part_request_ids: string[] | null;
+          quote_id: string | null;
+          sent_at: string | null;
+          state: string | null;
+          work_order_id: string | null;
+        };
+        Insert: {
+          answered_at?: string | null;
+          currency?: string | null;
+          deposit_amount?: number | null;
+          deposit_percent?: number | null;
+          part_request_ids?: never;
+          quote_id?: string | null;
+          sent_at?: string | null;
+          state?: never;
+          work_order_id?: string | null;
+        };
+        Update: {
+          answered_at?: string | null;
+          currency?: string | null;
+          deposit_amount?: number | null;
+          deposit_percent?: number | null;
+          part_request_ids?: never;
+          quote_id?: string | null;
+          sent_at?: string | null;
+          state?: never;
+          work_order_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "quotes_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "quotes_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "quotes_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "quotes_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
             referencedColumns: ["id"];
           },
         ];
@@ -4878,6 +5112,13 @@ export type Database = {
             foreignKeyName: "work_order_line_items_work_order_id_fkey";
             columns: ["work_order_id"];
             isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_line_items_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
             referencedRelation: "work_order_totals";
             referencedColumns: ["work_order_id"];
           },
@@ -4896,6 +5137,19 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      work_order_payment_totals: {
+        Row: {
+          balance_due: number | null;
+          currency: string | null;
+          job_total: number | null;
+          net_paid_online: number | null;
+          paid_ahead: number | null;
+          paid_online: number | null;
+          refunded_online: number | null;
+          work_order_id: string | null;
+        };
+        Relationships: [];
       };
       work_order_totals: {
         Row: {
@@ -6026,6 +6280,7 @@ export type Database = {
       order_part_requests: {
         Args: {
           move_to_waiting?: boolean;
+          override_reason?: string;
           purchase_order_id: string;
           request_ids: string[];
           supplier_id: string;
@@ -6040,6 +6295,21 @@ export type Database = {
           po_number: string;
           purchase_order_id: string;
           request_id: string;
+        }[];
+      };
+      prepare_deposit_checkout: {
+        Args: { token: string };
+        Returns: {
+          amount: unknown;
+          amount_cents: number;
+          currency: string;
+          expires_at: number;
+          job_number: string;
+          outcome: string;
+          payment_id: string;
+          quote_id: string;
+          stripe_checkout_session_id: string;
+          work_order_id: string;
         }[];
       };
       process_shopify_event: {
@@ -6213,6 +6483,14 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      record_deposit_checkout: {
+        Args: { p_payment_id: string; p_quote_id: string; session: Json };
+        Returns: {
+          outcome: string;
+          payment_id: string;
+          stripe_checkout_session_id: string;
+        }[];
       };
       record_product_sync_result: {
         Args: {
@@ -6977,6 +7255,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      set_indent_deposit_percent: { Args: { p_percent: number }; Returns: number };
       set_print_job_status: {
         Args: {
           error?: string;
@@ -7554,6 +7833,7 @@ export type Database = {
           customer_max_active_bookings: number;
           default_currency: string;
           id: number;
+          indent_deposit_percent: number;
           intake_capacity_units: number;
           intake_slot_minutes: number;
           public_site_url: string | null;

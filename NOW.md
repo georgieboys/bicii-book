@@ -11,9 +11,17 @@ locally; `20261014000300_payment_enum_values` and
 `20261014000400_stripe_payments`), proved by its database tests, then
 the Stripe adapter (live over fetch and an in-memory fake), `stripeConfig`
 and the signed webhook route `/api/stripe/webhooks`; a third commit
-hardens both after independent review (no blocking findings). Stripe is built
-against a fake and off in production: no account, key or `ADMIN_ORIGIN`
-exists, so the route would answer 503. The owner also loaded the service
+hardens both after independent review (no blocking findings). Phase 14
+step 2 has started on the same branch, also local only: its database
+commit (`20261014000500_indent_deposits`, 61 migrations locally: the
+deposit setting at 0, the quote snapshot, `quote_deposits`,
+`payment_issues`, `work_order_payment_totals`, the quote page's `deposit`
+key, the two service-role Checkout RPCs, the D152 gate on
+`order_part_requests` and the `payment_attention` and `stripe_attention`
+exceptions), proved by `tests/db/indent-deposits.test.ts`; its screens
+are the next two commits. Stripe is built against a fake and off in
+production: no account, key or `ADMIN_ORIGIN` exists, so the route would
+answer 503. The owner also loaded the service
 catalogue and product categories into production on 2026-10-12–14
 (through `create_service` as the owner's admin login). Evidence checked:
 `git fetch` and `git log`; the hosted project read-only (migration
@@ -68,10 +76,13 @@ deployment of `main`. Earlier rows keep the evidence of their own phase.
 - Next action:
   0. Push Phase 14 step 1 (three local commits) as PR A and merge it after
      review (`migrate.yml` applies the two migrations; production has no
-     Stripe variables, so nothing else changes). Then step 2, indent
-     deposits (PLAN Phase 14; migration `20261014000500_indent_deposits`,
-     the quote page's Pay deposit, the Customer payments card, the D152
-     gate). The owner creates the Stripe account and restricted key and
+     Stripe variables, so nothing else changes). Step 2's database commit
+     is local after them; next, its screens (spec commit 4: the quote
+     page's Pay deposit, Stripe Checkout and Settings → Customer payments,
+     calling `record_deposit_checkout` with `p_payment_id` and
+     `p_quote_id`; commit 5: the Customer payments card, the ordering
+     override on screen and `payments.spec.ts`), then PR B. Merging step 2
+     changes nothing in production while the percent stays 0. The owner creates the Stripe account and restricted key and
      answers question 32 (D151–D159, GST time of supply, the privacy
      notice). Phase 13 steps 2 and 3 are merged (PR #23). Quote
      emails stay off until the owner verifies the Resend domain and sets
@@ -285,6 +296,7 @@ Deployed column keeps each row's state when the row was written.
 | Stripe payments, database (Phase 14 step 1, first commit: D150, D153, D155, D157–D159; `stripe_events`, `payments`, `payment_refunds`; `record_stripe_event` and `record_stripe_read`, service role only; the provenance guards for every role; the allow-listed projection; the forward-only state machines; refunds per Stripe Refund; the owner's purge) | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): `supabase/migrations/20261014000300_payment_enum_values.sql`, `20261014000400_stripe_payments.sql`, `database.types.ts`, `db-errors.ts`, `workshop-timeline.ts` (the three payment entries), `tests/fixtures/stripe.ts`, `tests/db/stripe-payments.test.ts`, api-surface, meta, customer-access, unit tests; DATA-MODEL (authority, §15, §16, new §19, the Stripe lock order), TESTING, RISKS (R-001, R-085) | Locally on 2026-10-14: `npm run check` pass (typegen, tsc, eslint, prettier); `npm run check:types` pass (no diff); `npm test` pass, 161 files and 2,435 tests (one run right after `db:reset` failed `stack.smoke.test.ts` with Auth's "Database error finding user", passed alone and in a full rerun) (`tests/db/stripe-payments.test.ts` 27 tests, written first and failing before the migration); `npm run db:reset` applied all 60 files (`60\|20261014000400`). No E2E touched (not run) | Not deployed; nothing calls it; no Stripe account or key |
 | Stripe adapter and signed webhook route (Phase 14 step 1, second commit: D150, D153, D157, D159; `stripeConfig` off reasons; the live adapter over fetch, no SDK, pinned to `2026-09-30.endive`; the in-memory fake; the signature check on the raw bytes; `POST /api/stripe/webhooks` storing and applying in one transaction, 500 so Stripe retries; the limiter shared with Shopify; logger redaction) | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): `src/lib/env.ts`, `.env.example`, `src/lib/payments.ts` (the off reasons), `src/lib/integrations/limiter.ts`, `src/lib/integrations/stripe/` (config, form, gateway, signature, http-gateway, fake-gateway, client, deps, records, webhooks, limits), `src/app/api/stripe/webhooks/route.ts`, `src/proxy.ts`, `src/lib/logger.ts`; unit tests (signature, form, http-gateway, fake-gateway, config, env, webhook handler and route, fixtures, proxy matcher, logger); PLAN (§4, §6 D157–D159, §7, Phase 14), ADR-025 and its README row, ARCHITECTURE, RUNBOOK "Stripe payments", OPERATIONS, ENGINEERING, TESTING, DATA-MODEL (status), PRODUCT q32, RISKS (R-085, R-086, new R-088, R-089) | Locally on 2026-10-14: `npm run check` pass (typegen, tsc, eslint, prettier); `npm test` pass, 169 files and 2,536 tests (the Stripe unit files and `logger.test.ts`: 9 files, 101 tests); `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test tests/e2e/shopify.spec.ts` pass, 10 tests on phone and tablet (the limiter move touches the Shopify webhook path; it reset `bicii_dev`). `npm run check:types` not run (no migration or type change in this commit). No other E2E run | Not deployed; no Stripe account, key or `ADMIN_ORIGIN` |
 | Stripe step 1 hardened after review (Phase 14 step 1, third commit: D153, D155, D159a, D159c, D159d; the review's ten minor points) | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed). `20261014000400_stripe_payments.sql` edited in place (it is applied nowhere hosted): the deferred constraint trigger `stripe_events_settled` refuses to commit a row still `received`; `payment_refunds.livemode` and `private.payment_refund_total` (only succeeded refunds in the payment's currency and mode count); a refund of another mode or currency is recorded, linked and `livemode_mismatch` / `currency_mismatch`, never netted; the session identity checks follow spec 2.5 (session, mode, payment intent). App: `signature.ts` is never `ok` with a non-finite clock or tolerance; `http-gateway.ts` waits 250–500 ms (jittered, injectable) before its single retry after 409 or 429. Tests: `stripe-payments.test.ts` (+4, and `paid_at` bounded on a read), new `stripe-limits.test.ts`, signature, gateway and handler (a real allow-list check). Docs: DATA-MODEL §19, TESTING (Stripe off in CI and E2E until step 2), RISKS (R-085 says exactly what is compared, R-088 return URLs moved to step 2, R-089), ARCHITECTURE, RUNBOOK | Locally on 2026-10-14: `npm run check` pass; `npm run check:types` pass (types regenerated for `payment_refunds.livemode`); `npm test` pass, 170 files and 2,549 tests (a first run right after `db:reset` failed only `stack.smoke.test.ts` with Auth's "Database error finding user", the known race; it passed alone, and the full rerun after a second `db:reset` passed); `tests/db/stripe-payments.test.ts` 31 tests. No E2E run (no screen or route changed) | Not deployed; no Stripe account or key |
+| Indent deposits in Postgres (Phase 14 step 2, first commit: D151, D152, D154, D157, D158, D159b; the deposit setting at 0 and its admin setter; the quote snapshot trigger; `quote_deposits`, `payment_issues`, `work_order_payment_totals`; the quote page's `deposit` key; `prepare_deposit_checkout` and `record_deposit_checkout`, service role only; the D152 gate with `override_reason` on `order_part_requests`; `payment_attention` and `stripe_attention`) | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): `supabase/migrations/20261014000500_indent_deposits.sql`, `database.types.ts`, `db-errors.ts`, `src/lib/domain/indent.ts` (`overrideReason` passed through, nothing calls it yet), `tests/db/indent-fixtures.ts` (extracted), `tests/db/indent-deposits.test.ts`, edits to `indent-parts`, `stripe-payments` (the `payment_issues` checks step 1 left for this view), `operational-exceptions` and `customer-access` tests, api-surface; DATA-MODEL (authority, status, §3, §5 "Indent deposits", §14, §15, §16, §19, the lock order), TESTING | Locally on 2026-10-14: `npm run db:reset` applied all 61 files (`61\|20261014000500`); `npm run check` pass (typegen, tsc, eslint, prettier); `npm run check:types` pass (types staged, no diff); `npm test` pass, 171 files and 2,569 tests (`indent-deposits.test.ts` 20 tests, `stripe-payments.test.ts` 31); `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test tests/e2e/indent.spec.ts tests/e2e/exceptions.spec.ts tests/e2e/today.spec.ts` pass, 24 tests on phone and tablet (unchanged at 0%; it reset `bicii_dev`). No other E2E run | Not deployed; no screen calls the new RPCs yet; the percent ships at 0 |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
@@ -295,8 +307,8 @@ Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
   what production runs. The local `main` ref is stale; use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted
   from `main` after each merge (PRs #14–#18, #22, #23); this checkpoint
-  (Phase 14 step 1's three commits, on `main` 20b33ae) is committed
-  locally and not pushed.
+  (Phase 14 step 1's three commits and step 2's database commit, on
+  `main` 20b33ae) is committed locally and not pushed.
 - The build session's branches, paused for the handover: `feat/p8-labels`
   (3f09d22) and `wip/feat/p8-labels` (01cb3da), merged through PR #16;
   `wip/feat/p10-shopify` (8dbe6c4: 3b5341c, merged through PR #17, plus

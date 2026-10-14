@@ -45,10 +45,10 @@ This section was added by the documentation retrofit (2026-10-05, inspected
 at `c6bf6d0`). The numbered sections below are never renumbered; code and
 migration comments cite them as "DATA-MODEL §n".
 
-**Authority.** The schema source is the 60 files in
+**Authority.** The schema source is the 61 files in
 [supabase/migrations/](../supabase/migrations/), from
 `20261004000100_foundation.sql` to
-`20261014000400_stripe_payments.sql` (Phase 6 added `20261004003300` to
+`20261014000500_indent_deposits.sql` (Phase 6 added `20261004003300` to
 `20261004003700`; Phase 8, labels, added `20261004003800_labels.sql` and
 Phase 10, Shopify, `20261004003900_shopify_integration.sql`,
 `20261004004000_shopify_order_processing.sql` and
@@ -87,7 +87,15 @@ creates only new objects (§5 "Indent parts and quotes"), D140–D147;
 Phase 14 step 1 added `20261014000300_payment_enum_values` (three
 `work_order_event_type` values, on their own for the same reason) and
 `20261014000400_stripe_payments`, which creates only new objects (§19),
-D150, D153, D155, D157–D159). The labels and Shopify
+D150, D153, D155, D157–D159; Phase 14 step 2 added
+`20261014000500_indent_deposits`, which adds
+`shop_settings.indent_deposit_percent` and `quotes.deposit_percent` and
+`deposit_amount` (with the `quotes_deposit_snapshot` trigger), replaces
+with the same signatures `private.quote_view`,
+`private.integration_exceptions` and `private.exception_visible`, drops
+and creates again `public.order_part_requests` with `override_reason`, and
+otherwise creates new objects (§5 "Indent deposits", §19), D151, D152,
+D154, D157, D158). The labels and Shopify
 migrations sort before the purchasing, sign-in, roles, reporting and
 public-site ones, and no function, view, policy, grant, trigger or type
 that `20261004003800_labels.sql` or `20261004003900` to `20261004004100`
@@ -128,10 +136,10 @@ document is corrected.
 **Applied state.**
 
 - Local: on 2026-10-14, after `npm run db:reset` on
-  `claude/brave-clarke-kfqhgt` with Phase 14 step 1's migrations
+  `claude/brave-clarke-kfqhgt` with Phase 14 step 2's migration
   (`npm run test:e2e` resets the same database),
   `psql postgresql://postgres:postgres@127.0.0.1:5432/bicii_dev -Atc "select count(*), max(version) from supabase_migrations.schema_migrations"`
-  printed `60|20261014000400` (every file applied).
+  printed `61|20261014000500` (every file applied).
 - CI: the `check` job diffs the generated types against a throwaway
   database built from the migrations, and the `test` and E2E jobs run
   `npm run db:reset` (migrations, then the seed) before testing
@@ -164,11 +172,11 @@ the `20261004` prefix; Phase 7's keep `20261005`). For planned tables, the rows 
 | §11 QR identity and publication | Partly | Built: short IDs, publication rules, `reporting.public_items`, staff `/q/[shortId]`, scanner (`002100_inventory_publication`); the database QR base and payload (`private.qr_payload`, `003800_labels`, D9); the Admin's QR display and scan bases on the database base (`src/lib/qr.ts`, Phase 8 step 2). `C-` resolves to the consignment item page since Phase 6 step 3, `S-` to the sale page since step 4, `PO-` to the purchase order since Phase 7. Missing: the public `/q` route (Phase 11) |
 | §12 Label printing | Partly | Database built (`003800_labels`, Phase 8 step 1: templates, printer profiles, print jobs, label content, RPCs, built-in rows); `src/lib/printing/`, `src/lib/domain/labels.ts`, the print view, the PDF route and the print history (step 2); the record pages' Labels card and the settings screens are steps 3–4; hardware adapters Phase 12 |
 | §13 Shopify integration | Partly | Inbound built (Phase 10 step 1: `003900_shopify_integration`, `004000_shopify_order_processing`: settings, sync rows, events, the queue, the audit trail, webhook recording, order and refund processing, retry, dismiss and the links; D80–D89). Outbound database built (step 2: `004100_shopify_product_sync`: the online price, Publish online, Sync now, the settings RPC, the deferred enqueue triggers, the sync worker's state and result RPCs, `reporting.shopify_sync_status`, `public_items.buy_online_url`). Service layer built (step 3: `src/lib/integrations/shopify/`, the webhook and cron routes; no schema change). Screens built (step 4: the product page's Online card, `/shopify` and its queue, products, events and inspector, `src/lib/domain/shopify.ts`; no schema change). Not verified against a real store ([R-047](RISKS.md#r-047--the-live-shopify-adapter-is-unverified-against-a-real-store)) |
-| §14 Reporting views | Partly | Built: `stock_levels`, `product_stock`, `low_stock`, `public_items`, `financial_lines`, `daily_summary`, `work_order_activity`, `operational_exceptions`, `appointment_daily`, and `work_order_totals` / `work_order_totals_staff` (in `public`). `consignment_item_position`, `consignor_item_ledger`, `consignor_ledger` (Phase 6; no API grant; the consignor ledgers are built and read through `list_consignors` and `consignor_statement`); `financial_lines` has its sale branch and `daily_summary` its consignment columns since `003700_consignment_reporting`. `purchase_order_progress` and `product_on_order` (Phase 7). `operational_exceptions` has its `integration_failed` rows since `004000_shopify_order_processing` (admins only, D86). `shopify_sync_status` and `public_items.buy_online_url` since `004100_shopify_product_sync` (Phase 10 step 2). `report_lines` and the period-report helpers (Phase 9 step 1, `20261006001000_report_periods`, `…1100_report_stock_value`; `financial_lines` gained only the `sa.source <> 'work_order'` exclusion). `unit_ledger_disposition`, `unit_reconciliation`, `stock_reconciliation` and the extended `operational_exceptions` (Phase 9 step 3, `…1200_stock_reconciliation`, `…1300_operational_exceptions`, which keeps Phase 10's `integration_failed` rows). Nothing listed here is missing since reporting joined `main`; there is no `inventory_balances` cache by design (D106) |
-| §15 Row-level security matrix | Partly | Rows for every built table are implemented and tested, including consignment (Phase 6 step 1), sales and settlements (step 2, D48), purchasing (Phase 7, D60), labels (Phase 8 step 1) and the Shopify integration tables (Phase 10 step 1, D86); the rows of later phases are design |
-| §16 RPC catalogue | Partly | Rows marked "Built" exist, including the five consignment item RPCs (Phase 6 step 1) and the five sale and settlement write RPCs and six read RPCs (step 2), all with screens since steps 3 and 4 (deviations from the original rows: `record_retail_sale`, `restock_unit(unit_id, sale_line_id, location_id, reason)`, `return_consignment_item(return_id, item_id, reason, quantity, location_id)`), the fourteen purchasing RPCs (Phase 7, `receive_purchase(purchase_order_id, idempotency_key, lines, reference, received_at, notes)` among them), the five label RPCs (Phase 8 step 1), the five Shopify service-role RPCs and four staff RPCs (Phase 10 step 1), the two sync-worker RPCs and three staff RPCs of the outbound sync (step 2), the seven period-report RPCs (Phase 9 step 1: `report_period_summary`, `report_period_series`, `report_breakdown`, `report_line_items`, `report_activity`, `report_activity_by_mechanic`, `report_stock_value`), the four reconciliation and exception RPCs (Phase 9 step 3: `report_stock_reconciliation`, `report_unit_reconciliation`, `report_exception_counts`, `set_consignment_settlement_alert_days`; `operational_exceptions` gained columns) and Phase 11's `claim_my_customer` and `bookable_slots`; the rows of later phases are design |
+| §14 Reporting views | Partly | Built: `stock_levels`, `product_stock`, `low_stock`, `public_items`, `financial_lines`, `daily_summary`, `work_order_activity`, `operational_exceptions`, `appointment_daily`, and `work_order_totals` / `work_order_totals_staff` (in `public`). `consignment_item_position`, `consignor_item_ledger`, `consignor_ledger` (Phase 6; no API grant; the consignor ledgers are built and read through `list_consignors` and `consignor_statement`); `financial_lines` has its sale branch and `daily_summary` its consignment columns since `003700_consignment_reporting`. `purchase_order_progress` and `product_on_order` (Phase 7). `operational_exceptions` has its `integration_failed` rows since `004000_shopify_order_processing` (admins only, D86). `shopify_sync_status` and `public_items.buy_online_url` since `004100_shopify_product_sync` (Phase 10 step 2). `report_lines` and the period-report helpers (Phase 9 step 1, `20261006001000_report_periods`, `…1100_report_stock_value`; `financial_lines` gained only the `sa.source <> 'work_order'` exclusion). `unit_ledger_disposition`, `unit_reconciliation`, `stock_reconciliation` and the extended `operational_exceptions` (Phase 9 step 3, `…1200_stock_reconciliation`, `…1300_operational_exceptions`, which keeps Phase 10's `integration_failed` rows). `operational_exceptions` has its `payment_attention` and `stripe_attention` rows since `20261014000500_indent_deposits` (Phase 14 step 2, through `private.integration_exceptions()`, D159b). Nothing listed here is missing since reporting joined `main`; there is no `inventory_balances` cache by design (D106) |
+| §15 Row-level security matrix | Partly | Rows for every built table are implemented and tested, including consignment (Phase 6 step 1), sales and settlements (step 2, D48), purchasing (Phase 7, D60), labels (Phase 8 step 1), the Shopify integration tables (Phase 10 step 1, D86), and the Stripe tables and the deposit views (Phase 14 steps 1 and 2); the rows of later phases are design |
+| §16 RPC catalogue | Partly | Rows marked "Built" exist, including the five consignment item RPCs (Phase 6 step 1) and the five sale and settlement write RPCs and six read RPCs (step 2), all with screens since steps 3 and 4 (deviations from the original rows: `record_retail_sale`, `restock_unit(unit_id, sale_line_id, location_id, reason)`, `return_consignment_item(return_id, item_id, reason, quantity, location_id)`), the fourteen purchasing RPCs (Phase 7, `receive_purchase(purchase_order_id, idempotency_key, lines, reference, received_at, notes)` among them), the five label RPCs (Phase 8 step 1), the five Shopify service-role RPCs and four staff RPCs (Phase 10 step 1), the two sync-worker RPCs and three staff RPCs of the outbound sync (step 2), the seven period-report RPCs (Phase 9 step 1: `report_period_summary`, `report_period_series`, `report_breakdown`, `report_line_items`, `report_activity`, `report_activity_by_mechanic`, `report_stock_value`), the four reconciliation and exception RPCs (Phase 9 step 3: `report_stock_reconciliation`, `report_unit_reconciliation`, `report_exception_counts`, `set_consignment_settlement_alert_days`; `operational_exceptions` gained columns) Phase 11's `claim_my_customer` and `bookable_slots`, and Phase 14's `record_stripe_event`, `record_stripe_read` (step 1), `set_indent_deposit_percent`, `prepare_deposit_checkout`, `record_deposit_checkout` and `order_part_requests` with `override_reason` (step 2); the rows of later phases are design |
 | §17 Sequences and short IDs | Implemented | `000100_foundation` (all seven prefixes); C is used from Phase 6 step 1 (`consignment_items`), S from step 2 (`sales`), PO from Phase 7 (`purchase_orders`) |
-| §19 Customer payments (Stripe) | Partly | Step 1's database built (`20261014000300_payment_enum_values`, `20261014000400_stripe_payments`: `stripe_events`, `payments`, `payment_refunds`, the guards, the apply paths, `record_stripe_event`, `record_stripe_read`, the owner's purge; D150, D153, D155, D159), proved by `tests/db/stripe-payments.test.ts`; called by the webhook route and the adapter (`src/lib/integrations/stripe/`, step 1's second commit; no schema change). Missing: step 2's deposit snapshot, Checkout RPCs, views, D152 gate and exception kinds |
+| §19 Customer payments (Stripe) | Partly | Step 1's database built (`20261014000300_payment_enum_values`, `20261014000400_stripe_payments`: `stripe_events`, `payments`, `payment_refunds`, the guards, the apply paths, `record_stripe_event`, `record_stripe_read`, the owner's purge; D150, D153, D155, D159), proved by `tests/db/stripe-payments.test.ts`; called by the webhook route and the adapter (`src/lib/integrations/stripe/`, step 1's second commit; no schema change). Step 2's database built (`20261014000500_indent_deposits`: the deposit setting and snapshot, `quote_deposits`, `payment_issues`, `work_order_payment_totals`, the quote page's `deposit` key, `prepare_deposit_checkout`, `record_deposit_checkout`, the D152 gate, `payment_attention` and `stripe_attention`; D151, D152, D154, D158), proved by `tests/db/indent-deposits.test.ts`. Missing: step 2's screens (the quote page's Pay deposit, Settings → Customer payments, the job's Customer payments card and the ordering override on screen) and step 3 (balances, reports) |
 | §18 Seed data | Implemented | Phase 1–5, Phase 2, Phase 6, Phase 7, Phase 8 and Phase 10 parts are in `supabase/seed.sql`, in that order (Phase 10's last) |
 
 **Access summary.** The matrix is [§15](#15-row-level-security-matrix) and
@@ -601,6 +609,15 @@ shop_settings (single row: id smallint = 1, check shop_settings_singleton;
                                                     -- shop_settings_consignment_settlement_alert_days_check);
                                                     -- D107, Phase 9 step 3; written only by
                                                     -- set_consignment_settlement_alert_days (admin)
+  indent_deposit_percent integer not null default 0 -- 0..100 (check
+                                                    -- shop_settings_indent_deposit_percent_check);
+                                                    -- D151/D157, Phase 14 step 2: the percent of a
+                                                    -- quote's approved indent parts asked as a
+                                                    -- deposit; 0 asks none and gates nothing (ships
+                                                    -- at 0); written only by
+                                                    -- set_indent_deposit_percent (admin), history in
+                                                    -- schedule_events; copied onto each quote when
+                                                    -- it is sent (§5)
   updated_at, updated_by -> staff                   -- updated_by = the caller's staff id
 
 shop_hours
@@ -1135,6 +1152,14 @@ quotes
   currency char(3), total money_amount   -- snapshot
   expires_at timestamptz           -- sent_at + 1–30 days (7 by default)
   sent_by, sent_at, answered_at, answered_name (1–100), withdrawn_at, withdrawn_by
+  deposit_percent integer null     -- Phase 14 step 2 (D158a): the shop's percent when
+                                   -- sent (0 unless SGD, the shop currency); null for a
+                                   -- quote sent before step 2; never changes
+  deposit_amount money_amount null -- D151, D158a/b: set when answered; null = no deposit
+                                   -- asked, no D152 gate
+  checks: quotes_deposit_percent_check (0..100), quotes_deposit_amount_check
+    (0.50..999,999.99), quotes_deposit_shape (an amount ⇒ answered, percent 1..100, SGD)
+  -- quotes_deposit_snapshot (BEFORE INSERT OR UPDATE, every role): quote_deposit_immutable
 
 quote_items
   id uuid pk, quote_id fk quotes, part_request_id fk job_part_requests
@@ -1165,6 +1190,58 @@ quantities, counts and purchase order numbers, never a price or cost;
 them). Lock order: the job (`private.lock_work_order`) before its requests
 and quotes; `order_part_requests` locks every job in id order, then calls
 the purchasing RPCs, which lock purchase orders and never jobs.
+
+### Indent deposits (Phase 14 step 2)
+
+`20261014000500_indent_deposits` (D151, D152, D157, D158,
+[ADR-025](decisions/ADR-025-stripe-payments.md); the payments themselves
+are §19).
+
+**The snapshot (D158a, b).** The `quotes_deposit_snapshot` trigger copies
+`shop_settings.indent_deposit_percent` onto a quote when it is inserted
+(`send_quote`), or 0 when the quote is not in SGD, the shop currency. When
+the quote moves from open to answered (`answer_quote`, which writes the
+items' decisions before the quote's status) it computes `deposit_amount =
+round(sum(line_total of the approved part items) × deposit_percent / 100,
+2)` in Postgres: services and declined items are excluded, and an amount
+under S$0.50 (Stripe's minimum) or over S$999,999.99 is not asked (null;
+never rounded up). Otherwise neither column changes, for every role
+(`quote_deposit_immutable`). So a later change of the setting never moves a
+sent or answered quote, and quotes sent before step 2 (percent null) ask
+nothing. Worked figures (`tests/db/indent-deposits.test.ts`): 2 × 120.00
+plus a 25.00 service at 50% → 120.00; 33.33 → 16.67; 0.99 → 0.50; 0.80 →
+none.
+
+**`public.quote_deposits`** (security invoker; staff through RLS; the
+definer RPCs read it as owner) is the one definition of a deposit's state,
+one row per answered quote with a `deposit_amount`: `paid` (a deposit
+payment paid or partly refunded, D158e), else `refunded` (fully refunded:
+unpaid again and never offered again), else `processing` (Checkout complete,
+Stripe still confirming), else `due` (an approved part of the quote is still
+approved, ordered or fitted), else `none` (every approved part cancelled);
+with `part_request_ids`, the approved parts.
+
+**The quote page** (`private.quote_view`, through `quote_by_token` and
+`answer_quote`) gains a twelfth key, `deposit`: null, or `{percent,
+amount, status}` with status `on_answer` (open, the percent only, when the
+quote has a part), `due` (only while the job is open, D158c),
+`processing`, `paid` or `refunded`. No Stripe id or URL reaches the page.
+
+**The D152 gate.** `order_part_requests` (dropped and created again with
+`override_reason text = null`) checks, under the job locks it already
+holds and after `part_request_not_approved`, every requested part whose
+answered quote is in `quote_deposits` with a state other than `paid`.
+Without a non-blank reason: `deposit_unpaid`. With one, the caller must be
+an active admin or manager (`private.can_record_refunds()`, a role check:
+`manage_purchasing` as extra access does not include it; 42501), and the
+trimmed reason (`reason_too_long` over 500) is recorded on each affected
+job's `part_ordered` entry as `deposit_override {reason, quote_ids}`, with
+the event's `actor_staff_id`. A reason given when nothing is unpaid is
+ignored. The replay of an ordered set comes before the gate, so it returns
+the purchase order even after a refund. **Fitting is not gated**
+(`fit_part_request` is unchanged): an approved part already in stock can be
+fitted before its deposit is paid. Every writer of `payments` holds the
+job's lock, so ordering and applying a payment serialise.
 
 ## 6. Catalog and inventory
 
@@ -1515,7 +1592,11 @@ any other path), then 1 (`private.lock_work_order`), then the payment row
 FOR UPDATE, `payment_refunds` rows, `work_order_events` inserts and last
 the `stripe_events` decision UPDATE (its FK KEY SHARE on the job comes
 after the FOR UPDATE). `record_stripe_read`'s mismatch path takes 1
-without the advisory lock and takes none after it.
+without the advisory lock and takes none after it. Step 2's
+`record_deposit_checkout` takes 1, then the quote FOR UPDATE, then inserts
+the payment (no advisory lock); `prepare_deposit_checkout` takes no lock;
+`order_part_requests`' D152 gate reads `payments` under the job locks it
+already holds.
 
 Phase 6 adds, outside and before this order: step 0, the request's own
 idempotency lock (`create_consignment_item`'s
@@ -2659,7 +2740,7 @@ never exposed.
 | `daily_summary` | Built (Phase 5). One row per shop day from the earliest activity day (check-in, recognised entry or movement; today when none) to `private.shop_today()`, zero-filled; columns fixed in this order: 1 `day`; 2–7 `jobs_checked_in`, `jobs_started`, `jobs_completed`, `jobs_ready_for_collection`, `jobs_collected`, `jobs_cancelled` (flows: jobs whose CURRENT stamp falls that day, D31); 8 `currency` (`private.shop_currency()`); 9 `lines_recognised`; 10–14 `gross_sales`, `cogs`, `yield_total`, `cult_commons_share` (Σ entry shares, D1), `bicii_yield_after_cc` (shop-currency `financial_lines` by `recognized_day`); 15 `loss_lines`, 16 `loss_total` (≤ 0); 17 `parts_consumed_qty`, 18 `parts_consumed_lines`, 19 `parts_returned_qty` (reversals of job consumptions); 20 `stock_adjustments`, 21 `significant_stock_adjustments` (D33); 22 `appointments_scheduled`, 23 `appointments_arrived`, 24 `appointments_no_show` (Built, Phase 2 `…3200`, D41: `appointment_daily`'s `booked`, `arrived` and `no_shows` of that day, 0 when none; the series also starts at the earliest appointment's shop day and still ends at `private.shop_today()`); 25 `consignment_sales` integer, 26 `consignment_sales_total` numeric, 27 `new_consignor_liability` numeric (Built, Phase 6 step 2, zero-filled: over that day's shop-currency `financial_lines` entries with a `consignment_item_id`, i.e. sale lines and completed jobs' lines that sold consigned stock: the number of distinct documents, Σ their `sale_total`, and Σ round(quantity × the source line's `consignor_payout_snapshot`, 2)). Retail sales reach the money columns 9–16 through `financial_lines`; the reconcile invariants hold (the day's money columns are its entries' sums). Integer counts and numeric money with explicit casts; Phase 9 appends new measures only after column 27. |
 | `appointment_daily` | Built (Phase 2, D41 APPT-COUNTS). One row per shop day that has appointments, by SCHEDULED day (`private.shop_day(starts_at)`) and CURRENT status: `day`, `booked` (not cancelled), `expected` (booked or confirmed), `arrived` (arrived, checked_in or completed), `checked_in` (checked_in or completed), `no_shows`, `cancelled`, all integer. security_invoker, granted to no API role (it calls `private.shop_day`); read through `public.appointment_daily` (zero-filled) and daily_summary's columns 22–24. Phase 9's activity report reads it. |
 | `work_order_activity` | Built (Phase 5). One row per job: `work_order_id`, `job_number`, `status` (enum), `customer_id`, `bike_id`, `lead_mechanic_id`, `appointment_id`, `currency` text; the CURRENT stamps `checked_in_at`, `started_at`, `completed_at`, `ready_for_collection_at`, `collected_at`, `cancelled_at` and their shop days `checked_in_day`, `started_day`, `completed_day`, `ready_day`, `collected_day`, `cancelled_day`; `is_open`; `is_overdue` (D20: open and `now() - checked_in_at > interval '7 days'`); `age_days` (open: today − check-in day; else completion or cancellation day − check-in day); `days_to_start`, `days_to_complete`; `days_awaiting_collection` (completed/ready: today − completion day; collected: collection day − completion day); `time_to_complete` interval. Integer days and intervals only. A reopened job's completion stamps are its latest ones (D15). |
-| `operational_exceptions` | Built (Phase 5, D34; extended by Phase 9 step 3, D106–D108, `20261006001300_operational_exceptions`). Columns in order: Phase 5's nine, unchanged: `kind`, `severity` ('danger' \| 'warning'), `entity_type` ('work_order', 'product', 'inventory_unit', 'work_order_line'; Phase 9 adds 'sale' and 'consignment_item'; Phase 10 'integration_job'), `entity_id`, `entity_label` (job number, P-/U-/C- short ID or S- sale number), `subject_label` (customer · bike, or the product name, with the location for negative stock), `days`, `quantity`, `since`; then appended by Phase 9: `issue` text (the kind, or the reconciliation code; `negative_on_hand` for negative_stock), `short_id` text, `title` text, `detail` text (one plain sentence), `amount` numeric (unsettled_consignment's outstanding, else NULL), `currency` text. Phase 5's branches keep their rows and values and fill short_id = entity_label, title = entity_label, detail = subject_label. Kinds: `overdue_job` (warning, which only orders it after danger rows: the UI shows Overdue in the danger tone, as everywhere else; exactly D20, 7 = `OVERDUE_AFTER_DAYS`, strictly more than 7 × 24 h), `uncollected_job` (warning; completed or ready, completed ≥ 7 shop days ago), `negative_stock` (danger; `stock_levels.on_hand < 0`, quantity = on-hand), `unit_hold_stale` (danger; a held_for_customer unit with no live inventory line on an open job; since = its last status change), `currency_mismatch` (danger; a would-be-recognised workshop line not in the shop currency, entity `work_order_line`; since Phase 9 also every line of a sale that is not voided (nor of the reserved source work_order) in another currency, entity `sale`, since = `recognized_at`: exactly the lines the period reports exclude on the sale basis, D104), `unit_state_mismatch` (danger, D106: one row per `unit_reconciliation` issue, entity `inventory_unit`, detail = `issue_detail`, since = last movement; one per `stock_reconciliation` issue `unit_count_mismatch` or `unique_movement_without_unit`, entity `product`; never for `negative_on_hand`, which is `negative_stock`, and not for a held unit that `unit_hold_stale` lists), `unsettled_consignment` (warning, D107: `consignor_item_ledger.outstanding > 0` and `private.shop_today() − private.shop_day(last_sale_at)` > `shop_settings.consignment_settlement_alert_days`; entity `consignment_item`, label and short_id the C- ID, subject and title with the consignor's display name, days since that sale, amount = outstanding, currency the item's), `integration_failed` (the rows of `private.integration_exceptions()`, built by Phase 10 step 1 in `…4000_shopify_order_processing` in Phase 5's nine-column shape: one row (danger, `entity_type` 'integration_job', the job id, the event subject or the product's short ID, `subject_label` = the human message ≤ 300, days since the job was created) per `needs_attention` job, for admins only, D86; this view fills the six appended columns for those rows itself, `issue` = the kind, `title` = `entity_label`, `detail` = `subject_label`, so the function keeps nine columns, [R-043](RISKS.md#r-043--phase-9-must-widen-the-integration-exceptions-function) resolved, [R-058](RISKS.md#r-058--phase-9s-exceptions-migration-must-be-re-verified-when-phase-10-merges)). Not filtered per caller: the RPCs apply `private.exception_visible(kind)` (D108, §15). Computed live, never stored or dismissed. |
+| `operational_exceptions` | Built (Phase 5, D34; extended by Phase 9 step 3, D106–D108, `20261006001300_operational_exceptions`). Columns in order: Phase 5's nine, unchanged: `kind`, `severity` ('danger' \| 'warning'), `entity_type` ('work_order', 'product', 'inventory_unit', 'work_order_line'; Phase 9 adds 'sale' and 'consignment_item'; Phase 10 'integration_job'), `entity_id`, `entity_label` (job number, P-/U-/C- short ID or S- sale number), `subject_label` (customer · bike, or the product name, with the location for negative stock), `days`, `quantity`, `since`; then appended by Phase 9: `issue` text (the kind, or the reconciliation code; `negative_on_hand` for negative_stock), `short_id` text, `title` text, `detail` text (one plain sentence), `amount` numeric (unsettled_consignment's outstanding, else NULL), `currency` text. Phase 5's branches keep their rows and values and fill short_id = entity_label, title = entity_label, detail = subject_label. Kinds: `overdue_job` (warning, which only orders it after danger rows: the UI shows Overdue in the danger tone, as everywhere else; exactly D20, 7 = `OVERDUE_AFTER_DAYS`, strictly more than 7 × 24 h), `uncollected_job` (warning; completed or ready, completed ≥ 7 shop days ago), `negative_stock` (danger; `stock_levels.on_hand < 0`, quantity = on-hand), `unit_hold_stale` (danger; a held_for_customer unit with no live inventory line on an open job; since = its last status change), `currency_mismatch` (danger; a would-be-recognised workshop line not in the shop currency, entity `work_order_line`; since Phase 9 also every line of a sale that is not voided (nor of the reserved source work_order) in another currency, entity `sale`, since = `recognized_at`: exactly the lines the period reports exclude on the sale basis, D104), `unit_state_mismatch` (danger, D106: one row per `unit_reconciliation` issue, entity `inventory_unit`, detail = `issue_detail`, since = last movement; one per `stock_reconciliation` issue `unit_count_mismatch` or `unique_movement_without_unit`, entity `product`; never for `negative_on_hand`, which is `negative_stock`, and not for a held unit that `unit_hold_stale` lists), `unsettled_consignment` (warning, D107: `consignor_item_ledger.outstanding > 0` and `private.shop_today() − private.shop_day(last_sale_at)` > `shop_settings.consignment_settlement_alert_days`; entity `consignment_item`, label and short_id the C- ID, subject and title with the consignor's display name, days since that sale, amount = outstanding, currency the item's), `integration_failed` (the rows of `private.integration_exceptions()`, built by Phase 10 step 1 in `…4000_shopify_order_processing` in Phase 5's nine-column shape: one row (danger, `entity_type` 'integration_job', the job id, the event subject or the product's short ID, `subject_label` = the human message ≤ 300, days since the job was created) per `needs_attention` job, for admins only, D86; this view fills the six appended columns for those rows itself, `issue` = the kind, `title` = `entity_label`, `detail` = `subject_label`, so the function keeps nine columns, [R-043](RISKS.md#r-043--phase-9-must-widen-the-integration-exceptions-function) resolved, [R-058](RISKS.md#r-058--phase-9s-exceptions-migration-must-be-re-verified-when-phase-10-merges)), and since Phase 14 step 2 (`20261014000500_indent_deposits`, D159b) two more kinds from the same function, mapped the same way: `payment_attention` (one row per `public.payment_issues` row: its severity, entity `work_order`, label the job number, subject = the issue's sentence ≤ 300, since = the issue's time; for active admins and managers, `private.can_record_refunds()`) and `stripe_attention` (danger: a `stripe_events` row left `needs_attention` in the last 30 days, or a `not_recorded` rejection last delivered in the last 3 days that no stored retry of the same body (same `body_sha256`, not rejected) has cleared; entity the job when the event names one, else `stripe_event` (the event id, label "Stripe"); subject = a sentence per outcome; admins only, D86). Not filtered per caller: the RPCs apply `private.exception_visible(kind)` (D108, §15). Computed live, never stored or dismissed. |
 | `work_order_totals` / `work_order_totals_staff` | Running totals per job; the staff variant includes cost and yield. |
 | `stock_levels` | Built (Phase 4): on-hand (`sum(quantity_delta)`) and `last_movement_at` per product and location from the ledger. security_invoker, SELECT to authenticated (staff rows only through RLS). |
 | `product_stock` | Built (Phase 4): every product with on-hand across locations (0 when none), available and held units, `negative_locations` (locations below zero) and `below_reorder` (quantity product, reorder point set, on_hand <= reorder_point). security_invoker. |
@@ -2880,7 +2961,7 @@ written out, e.g. `A, M or P(view_costs)`.
 | attachment_events | S | triggers only | never | never |
 | storage `media-internal` | S; C the objects of their own customer- or public-visible bike photos (current, non-archived bikes) and job photos (jobs not cancelled), policy `media_internal_select_customer` over `private.customer_can_read_media` (Phase 11, D124) | S | — | S, only objects no attachment points at |
 | storage `media-public` | S (everyone else only by public URL; nobody lists it) | S | — | S, only objects no attachment points at |
-| shop_settings | S; nobody else (anon/C read none of it) | — (one row, inserted by the migration) | RPC `update_shop_settings` (A); `consignment_settlement_alert_days` only through RPC `set_consignment_settlement_alert_days` (A, D107; authenticated has no UPDATE on the table, so a direct write is 42501 even for an admin) | never (`shop_settings_required`) |
+| shop_settings | S; nobody else (anon/C read none of it) | — (one row, inserted by the migration) | RPC `update_shop_settings` (A); `consignment_settlement_alert_days` only through RPC `set_consignment_settlement_alert_days` (A, D107; authenticated has no UPDATE on the table, so a direct write is 42501 even for an admin); `indent_deposit_percent` only through RPC `set_indent_deposit_percent` (A, D151, D157) | never (`shop_settings_required`) |
 | shop_hours | S; anon/C active weekly rows via `public_shop_hours()` | RPC `set_shop_hours` (A) | RPC `set_shop_hours` (A) | RPC `set_shop_hours` (A) |
 | closure_overrides | S (anon/C: never listed; `available_slots` leaves closures out) | RPC `save_closure_override` (A) | RPC `save_closure_override` (A) | RPC `delete_closure_override` (A, reason) |
 | appointment_types | S; anon/C active + public types (no capacity units) via `public_appointment_types()` | RPC `save_appointment_type` (A) | RPC `save_appointment_type` (A) | — (deactivate) |
@@ -2891,7 +2972,7 @@ written out, e.g. `A, M or P(view_costs)`.
 | work_order_assignments | S | RPC `assign_staff` (S, D22) | RPC `unassign_staff` (closes the row) | — |
 | work_order_events | S; C own job's check-in, customer-status changes and customer-visible photos via `my_work_order_timeline()` (D8, D17) | triggers and `add_work_order_note` only | never | never |
 | job_part_requests | S, except `expected_unit_cost` and `supplier_id` (D60, D147: `job_part_requests_staff`, view_costs or manage_purchasing) | RPC `propose_part`, `propose_service` (S; a cost or supplier needs view_costs or manage_purchasing) | RPC `send_quote`, `answer_quote`, `order_part_requests` (manage_purchasing), `fit_part_request`, `cancel_part_request` | never |
-| quotes | S, except `token_hash` (never granted); anyone holding a link reads one quote's customer view through `quote_by_token` (D143) | RPC `send_quote` (S) | RPC `withdraw_quote` (S), `answer_quote` (anyone with the link, once) | never |
+| quotes | S, except `token_hash` (never granted; `deposit_percent` and `deposit_amount` granted since Phase 14 step 2); anyone holding a link reads one quote's customer view through `quote_by_token` (D143) | RPC `send_quote` (S) | RPC `withdraw_quote` (S), `answer_quote` (anyone with the link, once); the deposit columns only by the `quotes_deposit_snapshot` trigger (`quote_deposit_immutable`) | never |
 | quote_items | S | RPC `send_quote` | RPC `answer_quote` (the decision, once) | never |
 | categories | S | P(manage_inventory) (A included) | P(manage_inventory) | — (archive) |
 | services | S, every column except `default_direct_cost`; P(view_costs) everything via `services_staff`; anon/C listing in Phase 11 through a separate projection | RPC `create_service` (P(manage_inventory); a cost needs P(view_costs)) | RPC `update_service`, `set_service_archived` (same) | — (archive) |
@@ -2926,13 +3007,14 @@ written out, e.g. `A, M or P(view_costs)`.
 | print_jobs | Built (Phase 8 step 1): S; C and anon none | RPC `create_print_job` (S) | RPC `set_print_job_status` (S; status columns only, D59) | never (`print_job_immutable`) |
 | integration_events, integration_retry_queue, integration_audit_events | A (D86: payloads and messages name customers); service role SELECT | RPC only: `record_shopify_webhook` (service role); jobs also `claim_integration_jobs`, the processors, `retry_integration_job`, `dismiss_integration_job`; audit rows by the staff RPCs | RPC only; events immutable except processing columns (`integration_event_immutable`), audit append-only | never (events: only `private.purge_integration_events`, owner by hand, rejected rows ≥ 30 days old, D88) |
 | stripe_events (Phase 14, D86) | A (delivery evidence); C and anon none | RPC only: `record_stripe_event`, `record_stripe_read` (service role) | RPC only; immutable except the delivery count and, while `received`, the decision (`stripe_event_immutable`) | never (only `private.purge_stripe_events`, owner by hand, rejected rows ≥ 30 days old, D88) |
-| payments (Phase 14, D153, D154) | S (what was paid on a job); service role SELECT; C and anon none | RPC only (step 2's Checkout RPCs; the guard allows only a pending row) | RPC only, citing the Stripe event being applied (`payment_immutable`) | never (`payment_immutable`) |
+| payments (Phase 14, D153, D154) | S (what was paid on a job); service role SELECT; C and anon none | RPC only: `record_deposit_checkout` (service role, step 2; the guard allows only a pending row) | RPC only, citing the Stripe event being applied (`payment_immutable`) | never (`payment_immutable`) |
 | payment_refunds (Phase 14, D155) | S for rows matched to a payment; A also unmatched rows (another sale of the Stripe account); C and anon none | RPC only (the apply paths) | RPC only; status only up in rank (`payment_refund_immutable`) | never (`payment_refund_immutable`) |
+| quote_deposits, payment_issues, work_order_payment_totals (Phase 14 step 2, D151, D154, D159b; security invoker views) | S, through the RLS of `quotes`, `quote_items`, `job_part_requests`, `payments`, `payment_refunds` and `work_orders` (`payment_issues` reads the refund-failure time through `private.payment_refund_failed_at`, a definer helper that answers null to a signed-in non-staff caller); C reads 0 rows; anon none | — | — | — |
 | shopify_settings, shopify_product_sync | S (sync status and the online location, D86); service role SELECT | seed; RPC `set_shopify_settings` (A; creates the row when absent), `set_publish_online` (P(manage_inventory)), `link_shopify_variant` (A) | RPC `set_shopify_settings` (A; `accept_test_orders` only with a reason, D89), `set_publish_online`, `request_product_sync` (P(manage_inventory)), `record_product_sync_result` (service role), the deferred enqueue triggers (`sync_status` pending) | never |
 | reporting.shopify_sync_status | S (security_invoker; job columns admins only through the queue's RLS) | — | — | — |
 | reporting.* financial views (financial_lines, daily_summary, work_order_activity, operational_exceptions) | no grants (not even SELECT to authenticated); via RPCs: S for counts; P(view_financial_reports) for money rows; cost columns P(view_costs) (FIN-ACCESS D30) | — | — | — |
 | reporting.report_lines and the Phase 9 report RPCs (D100–D105) | the view: no grants; `report_period_summary`, `report_period_series`, `report_breakdown`, `report_line_items` and `report_stock_value`: A, M or P(view_financial_reports) (42501 otherwise), every cost-derived column also A, M or P(view_costs), NULL otherwise (D30; `manage_purchasing` alone never shows a cost here, D60); `report_activity` and `report_activity_by_mechanic`: S, no money; C and anon: none (no EXECUTE for anon; 42501 for a customer) | — | — | — |
-| reporting.unit_ledger_disposition, unit_reconciliation, stock_reconciliation and the operational exceptions (D106–D108) | the views: no grants; `report_stock_reconciliation`, `report_unit_reconciliation`: S (stock is staff-visible; no cost column); `operational_exceptions`, `report_exception_counts` and `today_dashboard.exceptions_now`: S, each row filtered by `private.exception_visible(kind)` (D108): Phase 5's kinds and unit_state_mismatch S, unsettled_consignment A, M or P(manage_consignments) or P(view_costs) (`private.can_view_consignment_money()`, D48), integration_failed A (`private.is_admin()`, D86); C and anon: none | — | `set_consignment_settlement_alert_days` A (42501 otherwise, even with manage_consignments) | — |
+| reporting.unit_ledger_disposition, unit_reconciliation, stock_reconciliation and the operational exceptions (D106–D108) | the views: no grants; `report_stock_reconciliation`, `report_unit_reconciliation`: S (stock is staff-visible; no cost column); `operational_exceptions`, `report_exception_counts` and `today_dashboard.exceptions_now`: S, each row filtered by `private.exception_visible(kind)` (D108): Phase 5's kinds and unit_state_mismatch S, unsettled_consignment A, M or P(manage_consignments) or P(view_costs) (`private.can_view_consignment_money()`, D48), integration_failed A (`private.is_admin()`, D86), payment_attention A or M (`private.can_record_refunds()`, D159b), stripe_attention A (D86, D159b); C and anon: none | — | `set_consignment_settlement_alert_days` A (42501 otherwise, even with manage_consignments) | — |
 | reporting.public_items | everyone: anon and authenticated (definer view, published rows and public columns only; the only anonymous inventory surface; anon has USAGE on `reporting` for it and EXECUTE on `private.selling_price`, which it calls) | — | — | — |
 
 **Customer access pattern (Phase 1, binding for every later phase).** Staff
@@ -3035,9 +3117,9 @@ and would print the hidden columns (costs) to any caller through PostgREST.
 | `cancel_part_request(request_id, reason)` → uuid | S | Locks the job; replay: a cancelled request is returned; `work_order_closed`; `part_request_quoted` (withdraw the quote first), `part_request_fitted`; `reason_required`, `reason_too_long`; an ordered part stays on its purchase order; event `part_request_cancelled` |
 | `send_quote(quote_id, work_order_id, request_ids uuid[], channel quote_channel, valid_days int = 7)` → text | S | D141: locks the job; `quote_already_sent` for a known id (the token cannot be shown again); open job; `quote_validity_invalid` (1–30), `quote_items_invalid` (1–50 distinct); withdraws the job's open quote first; `part_request_not_proposed`; returns the 43-character base64url token of 32 random bytes and stores only its SHA-256; items snapshot; requests → quoted; event `quote_sent` |
 | `withdraw_quote(quote_id)` → uuid | S | Locks the job; replay: withdrawn returned; `quote_answered`; items → proposed; event `quote_withdrawn` |
-| `quote_by_token(token)` → jsonb | anon, S, C | D143: null for anything that is not a known token; withdrawn or expired → `{status, job_number}` only; otherwise status, job number, bike, the customer's first name, currency, total, sent, expires, answered at and by, and the items with their decisions. Never costs, notes, staff or contact details |
-| `answer_quote(token, decisions jsonb, name)` → jsonb | anon, S, C | D142: `quote_not_found` (P0002); locks the job, then the quote; `quote_not_open` (answered, withdrawn or the job closed), `quote_expired`, `quote_name_required` (1–100), `quote_answer_incomplete` (exactly one `{item_id, approve boolean}` per item); requests → approved or declined; quote answered; the job's approval flag and note; event `quote_answered`; returns the page's data |
-| `order_part_requests(request_ids uuid[], supplier_id, purchase_order_id, move_to_waiting boolean = true)` → uuid | manage_purchasing | D145: locks the jobs in id order; replay when all are ordered (their purchase order); `order_items_invalid`, `part_request_not_approved` (approved parts only), `supplier_unavailable`; the supplier's newest draft or `create_purchase_order(purchase_order_id, supplier_id)`; each product's line raised through `set_purchase_order_line` (cost: the line's, else the expected cost, else `purchase_cost_defaults`, else 0; a new line notes "For J-…"); requests → ordered and linked; event `part_ordered`; optionally `set_work_order_status(…, 'awaiting_parts')` where allowed |
+| `quote_by_token(token)` → jsonb | anon, S, C | D143: null for anything that is not a known token; withdrawn or expired → `{status, job_number}` only; otherwise status, job number, bike, the customer's first name, currency, total, sent, expires, answered at and by, the items with their decisions, and (Phase 14 step 2, D151, D158) `deposit`: null or `{percent, amount, status}`, status `on_answer` (open; amount null), `due` (job open), `processing`, `paid` or `refunded` (§5 "Indent deposits"). Never costs, notes, staff, contact details or any Stripe id or URL |
+| `answer_quote(token, decisions jsonb, name)` → jsonb | anon, S, C | D142: `quote_not_found` (P0002); locks the job, then the quote; `quote_not_open` (answered, withdrawn or the job closed), `quote_expired`, `quote_name_required` (1–100), `quote_answer_incomplete` (exactly one `{item_id, approve boolean}` per item); requests → approved or declined; quote answered (the snapshot trigger fixes `deposit_amount`, Phase 14 step 2); the job's approval flag and note; event `quote_answered`; returns the page's data, its `deposit` key included |
+| `order_part_requests(request_ids uuid[], supplier_id, purchase_order_id, move_to_waiting boolean = true, override_reason text = null)` → uuid | manage_purchasing; a part whose deposit is not paid also A or M with a reason | D145: locks the jobs in id order; replay when all are ordered (their purchase order); `order_items_invalid`, `part_request_not_approved` (approved parts only); the D152 gate (Phase 14 step 2, dropped and created again with `override_reason`): a part whose quote's deposit is not `paid` in `quote_deposits` → `deposit_unpaid` without a non-blank reason, 42501 unless an active admin or manager (`private.can_record_refunds()`), `reason_too_long`; then `supplier_unavailable`; the supplier's newest draft or `create_purchase_order(purchase_order_id, supplier_id)`; each product's line raised through `set_purchase_order_line` (cost: the line's, else the expected cost, else `purchase_cost_defaults`, else 0; a new line notes "For J-…"); requests → ordered and linked; event `part_ordered` (with `deposit_override {reason, quote_ids}` on each job the reason covered); optionally `set_work_order_status(…, 'awaiting_parts')` where allowed |
 | `part_request_arrivals(work_order_id)` → table(request_id, arrived, location_id, purchase_order_id, po_number) | S | D146: the job's ordered and fitted requests; arrived when receipts on the line cover it, first requested first covered; location of the line's latest receipt |
 | `indent_reservations(product_id)` → table(work_order_id, job_number, quantity) | S | D146: arrived, unfitted quantities by job (reserved, not held) |
 | `fit_part_request(request_id, line_id, location_id = null)` → uuid | S | D140, D146: locks the job, then the request; replay by `line_id`; `part_request_fitted`, `part_request_not_approved` (approved, or ordered for a part); open job; a part through `add_inventory_line(line_id, …, quantity, location_id ?? where it arrived, null, quoted price)` (D23, D24), a service through `add_service_line`; request → fitted; event `part_fitted` |
@@ -3064,12 +3146,13 @@ and would print the hidden columns (costs) to any caller through PostgREST.
 | `today_dashboard(on_day date = null)` → `day, is_today, generated_at, can_see_financials, can_see_costs`, daily_summary columns 2–27, `received_now, waiting_now, ready_to_start_now, in_progress_now, awaiting_collection_now, open_jobs_now, overdue_now, low_stock_now, exceptions_now, cost_pending_lines` | S | Built (Phase 5). Null = today; a future day → `report_range_invalid`. Reads `public.daily_summary(d, d)` (gating in one place). The `*_now` snapshot (D31; BOARD_GROUPS: received+diagnosing, awaiting_customer+awaiting_parts+paused, ready_to_start, in_progress, completed+ready_for_collection, open, D20 overdue, `reporting.low_stock` rows, `operational_exceptions` rows the caller may see: since Phase 9 step 3 (D108) the count is filtered by `private.exception_visible(kind)`, so it equals the length of `operational_exceptions(200)` for each caller below the cap; re-bodied with `create or replace`, same signature, return type and grants, nothing else changed) only when d is today, else NULL. `cost_pending_lines` = d's shop-currency entries with `cost_pending` (D14), NULL without view_financial_reports. |
 | `work_order_activity_on(on_day date = null)` → `work_order_id, job_number, status, customer_id, customer_label, bike_id, bike_title, lead_mechanic_name, checked_in_at, started_at, completed_at, ready_for_collection_at, collected_at, cancelled_at, checked_in_on_day, started_on_day, completed_on_day, ready_on_day, collected_on_day, cancelled_on_day, is_open, is_overdue, age_days, sale_total, currency` | S | Built (Phase 5). Jobs with at least one current stamp on that shop day (null = today), by job number; `customer_label` = `private.customer_label`, `bike_title` = brand model variant (bikeTitle rule), `sale_total` sale only (`work_order_totals`). |
 | `stock_adjustments_on(on_day date = null)` → `movement_id, created_at, movement_type, product_id, product_short_id, product_name, inventory_unit_id, unit_short_id, location_name, quantity_delta, reason, actor_name, significant, value_at_cost, currency` | S; value_at_cost P(view_costs) | Built (Phase 5). `stock_adjustment` and `damaged` movements of that shop day (null = today), newest first; `significant` per D33 for every staff member; `value_at_cost` = \|delta\| × coalesce(snapshot, product default, 0), NULL without view_costs (D30). |
-| `operational_exceptions(max_rows integer = 50)` → `kind, severity, entity_type, entity_id, entity_label, subject_label, days, quantity, since` | S | Built (Phase 5, D34). Danger first, then oldest `since`; max_rows clamped to 1..200. Phase 9 drops and recreates it with appended columns. Since Phase 10 step 1 the view also carries `integration_failed` rows, for admins only (D86). |
+| `operational_exceptions(max_rows integer = 50)` → `kind, severity, entity_type, entity_id, entity_label, subject_label, days, quantity, since` | S | Built (Phase 5, D34). Danger first, then oldest `since`; max_rows clamped to 1..200. Phase 9 drops and recreates it with appended columns. Since Phase 10 step 1 the view also carries `integration_failed` rows, for admins only (D86); since Phase 14 step 2 `payment_attention` (admins and managers) and `stripe_attention` (admins only) rows (D159b, §14). |
 | `operational_exceptions(max_rows integer = 50)` → `kind, severity, entity_type, entity_id, entity_label, subject_label, days, quantity, since, issue, short_id, title, detail, amount, currency` | S | Built (Phase 5, D34); dropped and recreated by Phase 9 step 3 (`…1300_operational_exceptions`, D106–D108) with the same name, argument, default, ordering and clamp and the six appended columns: Danger first, then oldest `since`, then kind, entity_label, entity_id; max_rows clamped to 1..200; only the kinds `private.exception_visible` allows the caller (D108). `jit = off`. |
 | `report_exception_counts()` → `kind, severity, count` | S | Built (Phase 9 step 3, D108). The same visible rows counted per kind and severity, danger first, then kind; their sum is what `operational_exceptions` returns below its cap. `jit = off`. |
 | `report_stock_reconciliation(p_only_issues boolean = true, p_product_id uuid = null, p_max_rows integer = 500)` → `product_id, product_short_id, product_name, tracking_type, location_id, location_name, ledger_on_hand, units_in_stock, issue` | S | Built (Phase 9 step 3, D106). `reporting.stock_reconciliation` with names; issues first, then product name, location name; max_rows clamped to 1..1000. Read-only, no cost column, `jit = off`. |
 | `report_unit_reconciliation(p_only_issues boolean = true, p_product_id uuid = null, p_max_rows integer = 500)` → `unit_id, unit_short_id, product_id, product_name, status, location_id, location_name, ledger_on_hand, ledger_location_id, ledger_location_name, expected_on_hand, disposition, disposition_ref, issue, issue_detail, last_movement_at` | S | Built (Phase 9 step 3, D106). `reporting.unit_reconciliation` with names; issues first, then product name, location name, unit short ID; max_rows clamped to 1..1000. Read-only, no cost column, `jit = off`. |
 | `set_consignment_settlement_alert_days(p_days integer)` → integer | A | Built (Phase 9 step 3, D107). 1..365, else `alert_days_out_of_range` (null too); the current value again changes nothing (no history row) and returns it; a change updates `shop_settings` (its triggers stamp `updated_by`/`updated_at` and append `schedule_events`). |
+| `set_indent_deposit_percent(p_percent integer)` → integer | A | Built (Phase 14 step 2, D151, D157). 0..100, else `deposit_percent_out_of_range` (null too); the current value again changes nothing (no history row) and returns it; a change updates `shop_settings` (history in `schedule_events` as `{indent_deposit_percent: {from, to}}`). The Admin refuses a value above 0 while Stripe is off (the database cannot see the environment). |
 | `financial_lines(from_day date, to_day date)` → the 32 `reporting.financial_lines` columns in order | P(view_financial_reports) (42501 otherwise) | Built (Phase 5). Null bounds as daily_summary; at most 31 days inclusive (`report_range_invalid`); PostgREST returns ≤ 1000 rows, so callers page with `.range()`. Without view_costs `unit_direct_cost`, `cult_commons_rate`, `cost_total`, `yield_total`, `cult_commons_share`, `bicii_yield_after_cc`, `is_loss` are NULL. By recognized_at, document_number, source_line_id. |
 | `work_order_yield(target_work_order_id uuid)` → `work_order_id, job_number, status, currency, line_count, sale_total, cost_total, yield_total, cult_commons_share, bicii_yield_after_cc, loss_line_count, loss_total, cult_commons_rates numeric[], recognized_at, recognized_day, cost_pending_count` | P(view_costs) (42501 otherwise) | Built (Phase 5). The job's live lines whether or not it is completed (running economics; equals `work_order_totals_staff`); rates = distinct snapshot rates ascending; recognized_at = `completed_at` (NULL while open, cancelled or reopened, D32). Unknown job P0002. |
 | `report_period_summary(p_from date, p_to date, p_basis report_date_basis = 'sale')` → `basis, from_date, to_date, currency, line_count, job_count, sale_count, loss_line_count*, sale_total, cost_total*, yield_total*, cult_commons_share*, yield_after_cc*, cost_pending_lines, refunds_total, refund_count, consignment_sales, consignment_sales_total, new_consignor_liability*, settlements_paid_total*, purchases_received_total*, excluded_foreign_line_count` (one row) | P(view_financial_reports); * also P(view_costs), NULL otherwise | Built (Phase 9 step 1, D100–D105). Guard first, then `report_range_invalid` (NULL bound, from > to) / `report_range_too_long` (> 731 days); NULL basis = sale. Totals over `private.report_rows` in the shop currency (D104); Cult Commons = Σ line shares (D1); `yield_after_cc` = Σ yield − Σ share. job_count / sale_count = distinct documents. Sale basis only (NULL otherwise): `refunds_total` / `refund_count` (D102, `sale_refunds.created_at`, never netted), `consignment_sales` / `consignment_sales_total` / `new_consignor_liability` (daily_summary's definitions), `settlements_paid_total` (not reversed), `purchases_received_total` (D105). Zeros (0.00) when empty. |
@@ -3124,6 +3207,8 @@ and would print the hidden columns (costs) to any caller through PostgREST.
 | `private.integration_exceptions()` → P5's nine exception columns | no API role | Built (Phase 10 step 1, D86): §14. |
 | `record_stripe_event(payload jsonb, headers jsonb, body_sha256 text, body_bytes integer, rejection_reason stripe_rejection_reason, correlation_id text)` → `event_id, duplicate, event_status, outcome, payment_id` | service role only | Built (Phase 14 step 1, D153, D159; §19). 22004 without the SHA or size; 22023 on a bad SHA, a negative size or non-object headers; headers capped as Shopify's. Rejected → one row per (reason, body sha), no payload, no event id. Verified → 22023 unless `payload` has an `evt_` id, a type and a boolean livemode; dedupe on the `evt_` id (a repeat counts the delivery and returns the stored decision); a new one is stored as its projection and applied in the same transaction (§19's tables); an error rolls everything back. |
 | `record_stripe_read(payment_id uuid, object jsonb, correlation_id text)` → `event_id, event_status, outcome, payment_status` | service role only | Built (Phase 14 step 1, D159a; §19). 22004 on nulls; 22023 unless a `checkout.session` (`cs_` id) or a `refund` (`re_`/`pyr_` id); P0002 for an unknown payment. Stores an `api_read` row, applies it like a webhook (or `read_mismatch` when the id is not the payment's) and stamps `checked_at`. Not deduplicated. |
+| `prepare_deposit_checkout(token text)` → `outcome, payment_id, work_order_id, quote_id, job_number, amount, amount_cents, currency, stripe_checkout_session_id, expires_at` | service role only | Built (Phase 14 step 2, D151, D158; §19). No locks. `quote_not_found` (P0002) for a malformed or unknown token; `deposit_not_due` unless answered with a `deposit_amount`; `paid`, `refunded` or `processing` (the newest such payment); `deposit_parts_cancelled` (state none); `deposit_job_closed`; `check` with the pending payment and its session; else `create` with a fresh `payment_id`, the amount and `amount_cents` computed here, `SGD` and `expires_at` = now (to the second) + 60 minutes as Unix seconds. |
+| `record_deposit_checkout(p_payment_id uuid, p_quote_id uuid, session jsonb)` → `outcome, payment_id, stripe_checkout_session_id` | service role only | Built (Phase 14 step 2, D153, D158d; §19). 22004 on nulls; P0002 for an unknown quote; locks the job, then the quote. A known payment id: `existing` with the same session, else `checkout_session_conflict`. Then `deposit_not_due`; `paid`, `refunded` or `processing` (no row; the app expires the new session); `deposit_parts_cancelled`; `deposit_job_closed`; another pending deposit → `existing` with its id and session. `checkout_session_mismatch` unless Stripe's echo is a `checkout.session` with a `cs_` id, status open, `amount_total` = the deposit in cents, currency sgd, `bicii_payment_id`, `bicii_quote_id` and `client_reference_id` matching, a boolean `livemode` and a future `expires_at`; `checkout_session_conflict` when another payment has the session. Inserts the pending payment: `created`. No timeline entry. The input names carry `p_` because the result has a `payment_id` column. |
 | `private.purge_stripe_events(older_than interval)` → integer | owner only, by hand (no API role, no cron) | Built (Phase 14 step 1, D88). 22023 when null or under 30 days; deletes rejected deliveries last delivered before then. |
 | `private.purge_integration_events(older_than interval)` → `rejected_deleted, payloads_purged` | owner only, by hand (no API role, no cron) | Built (Phase 10 step 1, D88). 22023 under 30 days; deletes rejected rows last delivered before then; clears the payload of processed/skipped events processed before then (`payload_purged_at`), never failed, pending or open-job events. |
 | `set_publish_online(product_id, publish)` → `shopify_publish_result (product_id, publish_online, sync_status, job_id)` | P(manage_inventory) | Built (Phase 10 step 2, D84, D86). A composite result (a `returns table` cannot reuse the argument name). Locks the product (P0002). Publishing: `shopify_product_archived`, `shopify_not_saleable` (customer-owned), `shopify_requires_public`, `shopify_price_missing` (`private.shopify_online_price` NULL; 0 is a price), in that order. Same value: the current state, `job_id` NULL, no job, no audit. Otherwise upserts the sync row and queues the product; `job_id` is the queued job this call created or reused (the app runs exactly that one); unpublishing a never-pushed product is `not_synced`, its queued job dismissed, `job_id` NULL. One `publish_online_changed {from, to}` audit row. |
@@ -3626,10 +3711,14 @@ Phase 14 (PLAN Phase 14, D150–D159, [ADR-025](decisions/ADR-025-stripe-payment
 Step 1 is built in `20261014000300_payment_enum_values.sql` (the three
 payment timeline types, in their own file) and
 `20261014000400_stripe_payments.sql`: the tables, the guards, the apply
-paths and the two service-role RPCs below. Nothing calls them yet: the
-Stripe adapter and the signed webhook route come in step 1's second
-commit, and step 2 adds the indent deposit (the quote snapshot, the
-Checkout RPCs, the views, the D152 gate and the exception kinds).
+paths and the two service-role RPCs below, called by the Stripe adapter
+and the signed webhook route (`src/lib/integrations/stripe/`). Step 2's
+database is built in `20261014000500_indent_deposits.sql`: the deposit
+setting and the quote snapshot, `quote_deposits` and the D152 gate (§5
+"Indent deposits"), the views and the Checkout RPCs below, and the
+exception kinds (§14). Step 2's screens (the quote page's Pay deposit,
+Settings → Customer payments, the job's Customer payments card) come in
+its later commits.
 
 **Money held, not revenue (D154).** A payment is money the shop holds for
 a job. It is not a branch of `financial_lines`, `report_lines` or
@@ -3827,8 +3916,8 @@ payment: `ignored` / `refund_unmatched` (the row waits). (6)
 linked to the payment but never netted, on this event and every later
 one. A mismatched refund that arrived before its payment is adopted by the
 completion without a flag on that event, so step 2's `payment_issues`
-(not built yet) must also list linked refunds whose currency or mode
-differs from the payment's.
+also lists linked refunds whose currency or mode differs from the
+payment's (`refund_not_counted`, below).
 (8) Otherwise `refund_recorded` when the row or the payment changed,
 else `refund_unchanged`.
 
@@ -3887,3 +3976,62 @@ no advisory lock after it.
 **Purge.** `private.purge_stripe_events(older_than)` (owner only, by hand,
 at least 30 days) deletes rejected deliveries last delivered before then.
 Verified events and reads hold no personal data and are kept.
+
+**Starting Checkout (step 2; service role only, anon gains nothing).** The
+quote page reaches the database's payment side only through
+`src/lib/integrations/stripe/`. `prepare_deposit_checkout(token)` takes no
+locks and decides what Pay does: `create` (a fresh payment id, the amount
+and its cents computed in Postgres, an expiry 60 minutes ahead as Unix
+seconds), `check` (the one pending deposit payment, to re-read at Stripe),
+or `paid`, `refunded` or `processing`; it refuses `quote_not_found`,
+`deposit_not_due`, `deposit_parts_cancelled` and `deposit_job_closed`.
+`record_deposit_checkout(p_payment_id, p_quote_id, session)` records the
+session Stripe has just created: under the job lock, then the quote FOR
+UPDATE, it re-checks the deposit, answers `existing` for a replay or when
+another attempt won (`payments_one_open_deposit` backs it), refuses an
+echo that does not match what was asked (`checkout_session_mismatch`:
+object, `cs_` id, open, `amount_total` in cents, `sgd`, the `bicii_*`
+metadata, `client_reference_id`, a boolean `livemode`, a future
+`expires_at`) and inserts the pending payment (`created`). It writes no
+timeline entry (anon can repeat it); only Stripe's data moves the row
+afterwards (the step 1 guard).
+
+**The views (step 2; security invoker, staff through RLS, customers 0
+rows, anon no grant).**
+
+- `quote_deposits`: §5 "Indent deposits".
+- `payment_issues` (D159b): the payment conditions needing an admin or
+  manager, derived live and never stored, so each clears when its cause
+  clears. Columns `payment_id, work_order_id, quote_id, issue, severity,
+  since, message`; the message is the sentence the job card and
+  Exceptions show (money as Postgres prints it, `SGD 120.00`). Issues
+  (danger unless stated): `paid_job_cancelled` (paid or partly refunded,
+  the job cancelled), `paid_parts_cancelled` (a deposit paid or partly
+  refunded, the job not cancelled, no approved part of its quote still
+  approved, ordered or fitted), `paid_twice` (a later second paid deposit
+  of the same quote), `amount_mismatch` (paid, `amount_received` not the
+  amount asked, or null: another currency), `refund_failed` (not fully
+  refunded, and the counted refund whose outcome Stripe reported last
+  failed: a failure stands until a later refund succeeds; ordered by the
+  applying event's `processed_at` through
+  `private.payment_refund_failed_at`, because `stripe_events` is admins
+  only), `refund_not_counted` (a linked refund, not failed or canceled, in
+  another currency or mode than the payment), `refund_exceeds_payment`
+  (`refunded_amount` above what was received) and `pending_unconfirmed`
+  (warning: still pending 15 minutes after the session expired).
+- `work_order_payment_totals` (D154): per job with a payment,
+  `paid_online` (Stripe's amounts of the paid group), `refunded_online`,
+  `net_paid_online`, `job_total` (the live-lines sale total, as
+  `work_order_totals`), and while the job is open (not collected or
+  cancelled) and in SGD, `balance_due` and `paid_ahead`, never negative
+  (null otherwise: counter payments are not recorded). Indent parts join
+  the job total only once fitted (D140), so a paid deposit usually shows as
+  paid ahead. No report reads it.
+
+**Lock order, step 2.** `record_deposit_checkout`: the job
+(`private.lock_work_order`), the quote FOR UPDATE, then the payment insert,
+whose FK KEY SHARE locks come after those FOR UPDATEs.
+`prepare_deposit_checkout` takes none. `order_part_requests` reads
+`quote_deposits` (so `payments`) under the job locks it already holds;
+`answer_quote`, `cancel_part_request`, `order_part_requests` and
+`fit_part_request` take job locks and never a Stripe advisory lock.

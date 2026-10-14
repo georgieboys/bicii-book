@@ -11,9 +11,9 @@
  * pending and only Stripe moves it. Stripe objects come from
  * tests/fixtures/stripe.ts. Every id a test uses is fresh (tag()). The
  * service-role RPCs are called as service_role, as the webhook route and
- * the Checkout code will call them. The "needs attention" issues
- * (payment_issues) are step 2's view; here the columns they derive from
- * are asserted instead.
+ * the Checkout code will call them. The "needs attention" issues they
+ * leave are asserted through step 2's public.payment_issues view
+ * (20261014000500_indent_deposits; indent-deposits.test.ts covers the rest).
  */
 import { createHash, randomUUID } from "node:crypto";
 
@@ -322,6 +322,16 @@ const paymentEvents = (tx: pg.Client, workOrderId: string) =>
   });
 
 const unixNow = () => Math.floor(Date.now() / 1000);
+
+/** The payment's live "needs attention" issues (step 2's payment_issues), sorted. */
+const issuesOf = (tx: pg.Client, paymentId: string) =>
+  readAsOwner(tx, async () => {
+    const { rows } = await tx.query<{ issue: string }>(
+      "select issue from public.payment_issues where payment_id = $1 order by issue",
+      [paymentId],
+    );
+    return rows.map((r) => r.issue);
+  });
 
 // ---------------------------------------------------------------------------
 // 1. Who can reach it
@@ -680,6 +690,7 @@ describe("Paid, with exact amounts in cents (D153, D159d)", () => {
         expect(timeline.map((e) => [e.event_type, e.amount])).toEqual([
           ["payment_received", received],
         ]);
+        expect(await issuesOf(tx, p.id), JSON.stringify(override)).toEqual(["amount_mismatch"]);
       }
     });
   });
@@ -900,6 +911,7 @@ describe("Refunds and partial refunds (D155, D159c)", () => {
         status: "partially_refunded",
         refunded_amount: "50.00",
       });
+      expect(await issuesOf(tx, p.id)).toEqual([]);
 
       await deliver(tx, "refund.updated", refund(p, r2, 7000, "succeeded"));
       expect(await paymentRow(tx, p.id)).toMatchObject({
@@ -916,6 +928,8 @@ describe("Refunds and partial refunds (D155, D159c)", () => {
         status: "partially_refunded",
         refunded_amount: "70.00",
       });
+      // Flagged live until a later refund succeeds (D159b).
+      expect(await issuesOf(tx, p.id)).toEqual(["refund_failed"]);
 
       // A canceled refund never counts; a stale succeeded snapshot after failed changes nothing.
       await deliver(tx, "refund.updated", refund(p, r3, 1000, "canceled"));
@@ -929,6 +943,8 @@ describe("Refunds and partial refunds (D155, D159c)", () => {
         status: "partially_refunded",
         refunded_amount: "70.00",
       });
+      // Neither a canceled refund nor a stale snapshot clears the failure.
+      expect(await issuesOf(tx, p.id)).toEqual(["refund_failed"]);
 
       const rows = await refundRows(tx, p.pi);
       expect(
@@ -1014,6 +1030,7 @@ describe("Refunds and partial refunds (D155, D159c)", () => {
         refunded_amount: "130.00",
         amount_received: "120.00",
       });
+      expect(await issuesOf(tx, p.id)).toEqual(["refund_exceeds_payment"]);
     });
   });
 
@@ -1087,6 +1104,9 @@ describe("Refunds and partial refunds (D155, D159c)", () => {
         ["payment_received", "120.00"],
         ["payment_refunded", "20.00"],
       ]);
+      // Flagged live while the uncounted USD refund stands (step 2; the
+      // failed live-mode one moved no money).
+      expect(await issuesOf(tx, p.id)).toEqual(["refund_not_counted"]);
     });
   });
 
@@ -1121,6 +1141,8 @@ describe("Refunds and partial refunds (D155, D159c)", () => {
         refunded_amount: "40.00",
       });
       expect((await refundRows(tx, p.pi)).map((r) => r.payment_id)).toEqual([p.id, p.id]);
+      // The completion's event carries no flag; the live issue does (step 2).
+      expect(await issuesOf(tx, p.id)).toEqual(["refund_not_counted"]);
     });
   });
 });
@@ -1777,5 +1799,14 @@ describe.skipIf(!isolatedDatabase())("Concurrency (DATA-MODEL §19 lock order)",
         p.workOrderId,
       ]),
     ).toBe("cancelled");
+    // Recorded, then flagged live (D159b).
+    expect(
+      (
+        await conn.query<{ issue: string }>(
+          "select issue from public.payment_issues where payment_id = $1",
+          [p.id],
+        )
+      ).rows.map((r) => r.issue),
+    ).toEqual(["paid_job_cancelled"]);
   });
 });

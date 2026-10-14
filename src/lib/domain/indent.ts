@@ -361,7 +361,12 @@ export async function withdrawQuote(supabase: ServerSupabase, quoteId: string): 
   unwrap(await supabase.rpc("withdraw_quote", { quote_id: quoteId }));
 }
 
-/** order_part_requests (D145, manage_purchasing): returns the purchase order id. */
+/**
+ * order_part_requests (D145, manage_purchasing): returns the purchase order
+ * id. A part whose quote's deposit is not paid (D152) needs an active admin
+ * or manager and `overrideReason`, recorded on the job's timeline; without
+ * one the database refuses with deposit_unpaid.
+ */
 export async function orderPartRequests(
   supabase: ServerSupabase,
   input: {
@@ -369,6 +374,7 @@ export async function orderPartRequests(
     supplierId: string;
     purchaseOrderId: string;
     moveToWaiting: boolean;
+    overrideReason?: string | null;
   },
 ): Promise<string> {
   return returned(
@@ -378,6 +384,7 @@ export async function orderPartRequests(
         supplier_id: input.supplierId,
         purchase_order_id: input.purchaseOrderId,
         move_to_waiting: input.moveToWaiting,
+        ...(input.overrideReason ? { override_reason: input.overrideReason } : {}),
       }),
     ),
     "RPC",

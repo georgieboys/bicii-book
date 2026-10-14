@@ -409,6 +409,17 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   payment_immutable: "A customer payment changes only when Stripe confirms it.",
   payment_refund_immutable: "A refund changes only when Stripe reports it.",
   stripe_event_immutable: "A received Stripe event is kept as evidence and can't be changed.",
+  // Indent deposits (Phase 14 step 2, D151, D152, D157, D158): the setting,
+  // the quote's snapshot, starting Checkout and the ordering gate.
+  deposit_percent_out_of_range: "Choose a deposit from 0 to 100%.",
+  quote_deposit_immutable: "A quote's deposit is fixed when it is sent and answered.",
+  deposit_not_due: "There's no deposit to pay on this quote.",
+  deposit_job_closed: "This job is closed. Ask the shop about the deposit.",
+  deposit_parts_cancelled: "The parts this deposit was for were cancelled. Ask the shop.",
+  checkout_session_mismatch: "Online payment couldn't be started. Try again in a minute.",
+  checkout_session_conflict: "Online payment couldn't be started. Try again in a minute.",
+  deposit_unpaid:
+    "The customer hasn't paid the deposit for these parts yet. An admin or manager can order them anyway with a reason.",
 };
 
 /** 23505 unique violations by constraint name. */
@@ -920,6 +931,11 @@ export const CHECK_ERRORS: Record<string, string> = {
   payment_refunds_amount_check: "A refund must be more than zero.",
   payment_refunds_currency_check: "Use a three-letter currency code.",
   payment_refunds_text_check: "That refund's reason is too long.",
+  // Indent deposits (Phase 14 step 2, D151, D157, D158).
+  shop_settings_indent_deposit_percent_check: "Choose a deposit from 0 to 100%.",
+  quotes_deposit_percent_check: "Choose a deposit from 0 to 100%.",
+  quotes_deposit_amount_check: `A deposit must be between ${formatMoney("0.50")} and ${formatMoney("999999.99")}.`,
+  quotes_deposit_shape: "Only an answered quote in Singapore dollars asks a deposit.",
 };
 
 /** Other fixed SQLSTATEs our RPCs raise on purpose. */

@@ -221,6 +221,10 @@ describe("a signed-in customer and the base tables", () => {
           "stripe_events",
           "payments",
           "payment_refunds",
+          // Indent deposits (Phase 14 step 2): staff views over them
+          "quote_deposits",
+          "payment_issues",
+          "work_order_payment_totals",
         ]) {
           expect(await scalar(tx, `select count(*)::int from public.${table}`)).toBe(0);
         }

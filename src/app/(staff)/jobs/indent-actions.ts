@@ -278,7 +278,14 @@ export const withdrawQuoteAction = staffAction(
   },
 );
 
-/** Order approved parts from one supplier (D145, Manage purchasing). */
+/**
+ * Order approved parts from one supplier (D145, Manage purchasing). A part
+ * whose deposit is not paid (D152) needs overrideReason and an active
+ * admin or manager; the reason is recorded on the job's timeline. The RPC
+ * decides: without a reason it answers deposit_unpaid (P0001); with one,
+ * anyone but an active admin or manager is refused (42501), so Manage
+ * purchasing alone never orders such a part.
+ */
 export const orderPartRequestsAction = staffAction(
   z.object({
     requestIds: z
@@ -288,6 +295,14 @@ export const orderPartRequestsAction = staffAction(
     supplierId: z.uuid({ error: "Choose a supplier." }),
     purchaseOrderId: z.uuid({ error: "Open the form again." }),
     moveToWaiting: z.boolean(),
+    overrideReason: z
+      .string()
+      .trim()
+      .max(REASON_MAX_LENGTH, {
+        error: `Keep the reason under ${REASON_MAX_LENGTH} characters.`,
+      })
+      .optional()
+      .transform((v) => v || undefined),
   }),
   { name: "indent.order", permission: "manage_purchasing" },
   async (input, { supabase }) => {

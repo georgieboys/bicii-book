@@ -3,15 +3,20 @@ import type { Metadata } from "next";
 import { Card } from "@/components/ui/card";
 import { noteQuoteAttempt } from "@/lib/admin/quote-throttle";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { stripeIsOn } from "@/lib/integrations/stripe/client";
 import { formatMoney, formatQuantity, sumMoney } from "@/lib/money";
 import {
+  answeredNext,
   approvedSummary,
+  depositReturn,
   isQuoteToken,
   parseQuoteView,
+  type DepositReturn,
   type OpenOrAnsweredQuote,
 } from "@/lib/quote-page";
 import { createAnonClient } from "@/lib/supabase/anon";
 
+import { DepositCard } from "./deposit-card";
 import { QuoteForm } from "./quote-form";
 
 /**
@@ -21,7 +26,16 @@ import { QuoteForm } from "./quote-form";
  * opens it; nothing else of the shop's data is reachable from here. Not
  * indexed, no referrer (next.config.ts sends both as headers too), never
  * cached.
+ *
+ * Phase 14 step 2 (D151, D153, D158): an open quote says what deposit
+ * the shop will ask (the percent only); an answered one shows the deposit
+ * and Pay deposit, which goes to Stripe Checkout. `?deposit=returned` or
+ * `cancelled` (Stripe's return) only changes the words: what is paid is
+ * what Stripe's data says.
  */
+
+/** Pay deposit can make up to four Stripe calls, each with its own timeout. */
+export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: { absolute: "Your quote · BICII" },
@@ -29,8 +43,9 @@ export const metadata: Metadata = {
   referrer: "no-referrer",
 };
 
-export default async function QuotePage({ params }: PageProps<"/quote/[token]">) {
+export default async function QuotePage({ params, searchParams }: PageProps<"/quote/[token]">) {
   const { token } = await params;
+  const returning = depositReturn((await searchParams).deposit);
   if (!isQuoteToken(token)) return <Notice title="This link is not valid" body={ASK_AGAIN} />;
 
   if ((await noteQuoteAttempt("view", token)) === "limited") {
@@ -68,6 +83,9 @@ export default async function QuotePage({ params }: PageProps<"/quote/[token]">)
     );
   }
 
+  // Reads the environment only, never a secret; never throws (D157c).
+  const payOnline = stripeIsOn();
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
@@ -80,9 +98,9 @@ export default async function QuotePage({ params }: PageProps<"/quote/[token]">)
         </h1>
       </header>
       {quote.status === "answered" ? (
-        <Answered quote={quote} />
+        <Answered quote={quote} token={token} payOnline={payOnline} returning={returning} />
       ) : (
-        <Open quote={quote} token={token} />
+        <Open quote={quote} token={token} payOnline={payOnline} />
       )}
     </div>
   );
@@ -99,13 +117,28 @@ function Notice({ title, body }: { title: string; body: string }) {
   );
 }
 
-function Open({ quote, token }: { quote: OpenOrAnsweredQuote; token: string }) {
+function Open({
+  quote,
+  token,
+  payOnline,
+}: {
+  quote: OpenOrAnsweredQuote;
+  token: string;
+  payOnline: boolean;
+}) {
   return (
     <>
       <p className="text-dust-700">
         Approve or decline each item, type your name and send your answer. The shop orders only what
         you approve. You can answer once; this link works until {formatDateTime(quote.expires_at)}.
       </p>
+      {quote.deposit?.status === "on_answer" ? (
+        <p className="text-dust-700">
+          After you answer, the shop asks for a deposit of {quote.deposit.percent}% of the parts you
+          approve (not labour){payOnline ? ", paid online by card or PayNow" : ""}. Your approval
+          stands either way; the shop orders your parts once the deposit is paid.
+        </p>
+      ) : null}
       <QuoteForm
         token={token}
         currency={quote.currency}
@@ -123,8 +156,20 @@ function Open({ quote, token }: { quote: OpenOrAnsweredQuote; token: string }) {
   );
 }
 
-function Answered({ quote }: { quote: OpenOrAnsweredQuote }) {
+function Answered({
+  quote,
+  token,
+  payOnline,
+  returning,
+}: {
+  quote: OpenOrAnsweredQuote;
+  token: string;
+  payOnline: boolean;
+  returning: DepositReturn;
+}) {
   const { approved, of } = approvedSummary(quote.items);
+  const deposit = quote.deposit;
+  const next = answeredNext(deposit);
   const approvedTotal = sumMoney(
     quote.items.filter((i) => i.decision === "approved").map((i) => i.line_total),
   );
@@ -133,9 +178,17 @@ function Answered({ quote }: { quote: OpenOrAnsweredQuote }) {
       <p role="status" className="rounded-xl bg-done-soft p-4 text-done-deep">
         Thank you{quote.answered_name ? `, ${quote.answered_name}` : ""}. You approved {approved} of{" "}
         {of} {of === 1 ? "item" : "items"}
-        {quote.answered_at ? ` on ${formatDate(quote.answered_at)}` : ""}. The shop will be in
-        touch.
+        {quote.answered_at ? ` on ${formatDate(quote.answered_at)}` : ""}. {next}
       </p>
+      {deposit ? (
+        <DepositCard
+          token={token}
+          deposit={deposit}
+          currency={quote.currency}
+          payOnline={payOnline}
+          returning={returning}
+        />
+      ) : null}
       <Card title="Your answer">
         <ul aria-label="Your answer" className="flex flex-col divide-y divide-hairline">
           {quote.items.map((i) => (

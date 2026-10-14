@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/toast";
 import { useArmed, useArmedAfter } from "@/components/ui/use-armed";
 import { cn } from "@/lib/cn";
 import { reopenUnitNote } from "@/lib/inventory";
+import type { paidOnlineSummary } from "@/lib/payments";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import {
   STATUS_LABELS,
@@ -40,11 +41,17 @@ export function JobStatusActions({
   customerLabel,
   status,
   heldUnits = [],
+  paidOnline = null,
 }: {
   workOrderId: string;
   jobNumber: string;
   customerLabel: string;
   status: WorkOrderStatus;
+  /**
+   * D154: money the customer already paid online (paidOnlineSummary), which
+   * the Collected confirmation says, so staff take only what is left.
+   */
+  paidOnline?: ReturnType<typeof paidOnlineSummary>;
   /**
    * U- numbers of the unique units on the job's live part lines: a reopen
    * puts them back on hold for the job (D25), which the reopen says.
@@ -81,6 +88,7 @@ export function JobStatusActions({
       <CollectedConfirm
         jobNumber={jobNumber}
         customerLabel={customerLabel}
+        paidOnline={paidOnline}
         pending={pending}
         onBack={() => setConfirmingCollected(false)}
         onConfirm={() => move("collected")}
@@ -122,18 +130,21 @@ export function JobStatusActions({
 
 /**
  * "Collected" is final (D15: no reopen, the job locks): a second step that
- * names the job and who collects it, focus on Back, and a confirm button
- * that ignores presses for CONFIRM_GUARD_MS.
+ * names the job and who collects it, what the customer already paid online
+ * (D154), focus on Back, and a confirm button that ignores presses for
+ * CONFIRM_GUARD_MS.
  */
 function CollectedConfirm({
   jobNumber,
   customerLabel,
+  paidOnline,
   pending,
   onBack,
   onConfirm,
 }: {
   jobNumber: string;
   customerLabel: string;
+  paidOnline: ReturnType<typeof paidOnlineSummary>;
   pending: boolean;
   onBack: () => void;
   onConfirm: () => void;
@@ -152,6 +163,16 @@ function CollectedConfirm({
       <p id={titleId} className="font-medium text-waiting-deep">
         Mark {jobNumber} collected by {customerLabel}?
       </p>
+      {paidOnline ? (
+        <p className="text-sm font-semibold text-waiting-deep">
+          {paidOnline.paid} was paid online.{" "}
+          {paidOnline.paidAhead
+            ? `That is ${paidOnline.paidAhead} more than the job total; take nothing more.`
+            : paidOnline.stillToPay
+              ? `Take only ${paidOnline.stillToPay}.`
+              : "Take only what is left of the job total."}
+        </p>
+      ) : null}
       <p className="text-sm text-waiting-deep">
         Collected is final: the job can&apos;t be reopened, and its lines and people are locked.
       </p>

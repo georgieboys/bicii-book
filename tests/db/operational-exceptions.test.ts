@@ -470,7 +470,10 @@ describe("Exception visibility is one rule (D108)", () => {
       expect(needsAttention).toBeGreaterThan(0);
       await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(ADMIN)]);
       expect(
-        await scalar<number>(tx, "select count(*)::int from private.integration_exceptions()"),
+        await scalar<number>(
+          tx,
+          "select count(*)::int from private.integration_exceptions() where kind = 'integration_failed'",
+        ),
       ).toBe(needsAttention);
       expect(
         await scalar<number>(
@@ -486,7 +489,10 @@ describe("Exception visibility is one rule (D108)", () => {
         JSON.stringify(MECHANIC2),
       ]);
       expect(
-        await scalar<number>(tx, "select count(*)::int from private.integration_exceptions()"),
+        await scalar<number>(
+          tx,
+          "select count(*)::int from private.integration_exceptions() where kind = 'integration_failed'",
+        ),
       ).toBe(0);
       await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(ADMIN)]);
       // The visibility rule per kind, as the admin and as mechanic2.
@@ -495,11 +501,22 @@ describe("Exception visibility is one rule (D108)", () => {
       expect(await visible("integration_failed")).toBe(true);
       expect(await visible("unsettled_consignment")).toBe(true);
       expect(await visible("unit_state_mismatch")).toBe(true);
+      // Phase 14 step 2 (D159b): payment conditions for admins and
+      // managers, Stripe event problems for admins only.
+      expect(await visible("payment_attention")).toBe(true);
+      expect(await visible("stripe_attention")).toBe(true);
+      await tx.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify(MANAGER),
+      ]);
+      expect(await visible("payment_attention")).toBe(true);
+      expect(await visible("stripe_attention")).toBe(false);
       await tx.query("select set_config('request.jwt.claims', $1, true)", [
         JSON.stringify(MECHANIC2),
       ]);
       expect(await visible("integration_failed")).toBe(false);
       expect(await visible("unsettled_consignment")).toBe(false);
+      expect(await visible("payment_attention")).toBe(false);
+      expect(await visible("stripe_attention")).toBe(false);
       for (const kind of [...PHASE5_KINDS, "unit_state_mismatch"])
         expect(await visible(kind)).toBe(true);
     });

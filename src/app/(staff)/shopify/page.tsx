@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { requireAdmin } from "@/lib/auth/session";
 import { getShopifyOverview } from "@/lib/domain/shopify";
+import { runbookHref } from "@/lib/docs-links";
 import { getServerEnv } from "@/lib/env";
 import { shopifyConnection } from "@/lib/integrations/shopify/client";
 import { connectionLabel, connectionTone, TEST_ORDERS_WARNING } from "@/lib/shopify";
@@ -144,7 +145,7 @@ export default async function ShopifyPage() {
           <p className="mt-3 text-sm text-dust-700">
             Setup and recovery are in the{" "}
             <Link
-              href="https://github.com/abhishekcheriangeorge-ops/bicii-book/blob/main/docs/RUNBOOK.md#shopify"
+              href={runbookHref("shopify")}
               className="font-semibold underline underline-offset-4"
             >
               runbook

@@ -404,6 +404,22 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   quote_answer_incomplete: "Answer every item before sending.",
   order_items_invalid: "Choose 1 to 50 different parts to order.",
   part_request_not_approved: "Only approved items can be ordered or put on the job.",
+  // Stripe payments (Phase 14 step 1, D153, D155, D159): the guards. Only
+  // Stripe's verified word moves a payment, a refund or an event.
+  payment_immutable: "A customer payment changes only when Stripe confirms it.",
+  payment_refund_immutable: "A refund changes only when Stripe reports it.",
+  stripe_event_immutable: "A received Stripe event is kept as evidence and can't be changed.",
+  // Indent deposits (Phase 14 step 2, D151, D152, D157, D158): the setting,
+  // the quote's snapshot, starting Checkout and the ordering gate.
+  deposit_percent_out_of_range: "Choose a deposit from 0 to 100%.",
+  quote_deposit_immutable: "A quote's deposit is fixed when it is sent and answered.",
+  deposit_not_due: "There's no deposit to pay on this quote.",
+  deposit_job_closed: "This job is closed. Ask the shop about the deposit.",
+  deposit_parts_cancelled: "The parts this deposit was for were cancelled. Ask the shop.",
+  checkout_session_mismatch: "Online payment couldn't be started. Try again in a minute.",
+  checkout_session_conflict: "Online payment couldn't be started. Try again in a minute.",
+  deposit_unpaid:
+    "The customer hasn't paid the deposit for these parts yet. An admin or manager can order them anyway with a reason.",
 };
 
 /** 23505 unique violations by constraint name. */
@@ -524,6 +540,15 @@ export const UNIQUE_ERRORS: Record<string, string> = {
   // Indent parts and quotes (Phase 13)
   job_part_requests_line_key: "That item is already on the job.",
   quotes_one_open_per_job: "This job already has an open quote. Withdraw it or send again.",
+  // Stripe payments (Phase 14)
+  stripe_events_pkey: "That Stripe event has already been recorded.",
+  stripe_events_event_id_key: "That Stripe event has already been recorded.",
+  stripe_events_rejected_body_key: "That rejected delivery has already been recorded.",
+  payments_pkey: "That payment has already been started.",
+  payments_checkout_session_key: "That Checkout session is already recorded.",
+  payments_one_open_deposit: "A payment for this deposit is already open.",
+  payment_refunds_pkey: "That refund has already been recorded.",
+  payment_refunds_refund_key: "That refund has already been recorded.",
 };
 
 /** 23514 check violations by constraint name. */
@@ -875,6 +900,42 @@ export const CHECK_ERRORS: Record<string, string> = {
   quotes_withdrawn_fields: "A withdrawn quote needs the time it was withdrawn.",
   quotes_answered_name_check: "Type your name (up to 100 characters).",
   quote_items_decision_check: "Approve or decline each item.",
+  // Stripe payments (Phase 14 step 1): the RPCs write only Stripe's
+  // projected data; the constraints are the last line of defence.
+  stripe_events_rejected_shape: "A rejected Stripe delivery keeps no body.",
+  stripe_events_event_id_shape: "Only a verified Stripe webhook carries an event id.",
+  stripe_events_event_id_check: "That is not a valid Stripe event id.",
+  stripe_events_payload_check: "A recorded Stripe event keeps its allow-listed copy.",
+  stripe_events_headers_check: "That Stripe delivery's headers are not consistent.",
+  stripe_events_evidence_check: "A Stripe webhook keeps its size and checksum.",
+  stripe_events_body_sha256_check: "That Stripe delivery's checksum is not valid.",
+  stripe_events_body_bytes_check: "That Stripe delivery's size is not valid.",
+  stripe_events_event_type_check: "That Stripe event has no type.",
+  stripe_events_api_version_check: "That Stripe API version is too long.",
+  stripe_events_object_check: "That Stripe object's id is too long.",
+  stripe_events_delivery_count_check: "That Stripe delivery's count is not valid.",
+  stripe_events_decided_check: "That Stripe event's decision is not consistent.",
+  stripe_events_outcome_check: "That Stripe event's outcome is not valid.",
+  stripe_events_correlation_id_check: "That correlation id is too long.",
+  payments_kind_quote: "A deposit belongs to a quote; a balance does not.",
+  payments_amount_check: `A payment must be between ${formatMoney("0.50")} and ${formatMoney("999999.99")}.`,
+  payments_currency_check: "Online payments are in Singapore dollars.",
+  payments_amount_received_check: "The amount received can't be negative.",
+  payments_refunded_amount_check: "The amount refunded can't be negative.",
+  payments_paid_shape: "A paid payment needs the time Stripe confirmed it.",
+  payments_closed_shape: "A failed or expired payment needs the time it closed.",
+  payments_session_id_check: "That is not a valid Stripe Checkout session id.",
+  payments_payment_intent_id_check: "That is not a valid Stripe payment id.",
+  payment_refunds_refund_id_check: "That is not a valid Stripe refund id.",
+  payment_refunds_payment_intent_id_check: "That is not a valid Stripe payment id.",
+  payment_refunds_amount_check: "A refund must be more than zero.",
+  payment_refunds_currency_check: "Use a three-letter currency code.",
+  payment_refunds_text_check: "That refund's reason is too long.",
+  // Indent deposits (Phase 14 step 2, D151, D157, D158).
+  shop_settings_indent_deposit_percent_check: "Choose a deposit from 0 to 100%.",
+  quotes_deposit_percent_check: "Choose a deposit from 0 to 100%.",
+  quotes_deposit_amount_check: `A deposit must be between ${formatMoney("0.50")} and ${formatMoney("999999.99")}.`,
+  quotes_deposit_shape: "Only an answered quote in Singapore dollars asks a deposit.",
 };
 
 /** Other fixed SQLSTATEs our RPCs raise on purpose. */

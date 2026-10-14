@@ -69,6 +69,18 @@ the Next.js 16 differences (`proxy.ts`, async request APIs, Turbopack):
   `/api/cron/integrations` with `Authorization: Bearer <value>`. E2E sets
   all four itself (`playwright.config.mts`). The live adapter and its
   variables: [RUNBOOK "Shopify"](RUNBOOK.md#shopify).
+- Stripe (Phase 14) needs no account locally. With no `STRIPE_*` variable
+  set, Stripe is off (the webhook answers 503). For the in-memory Stripe
+  add `STRIPE_ADAPTER=fake`, a local `STRIPE_WEBHOOK_SECRET=whsec_…` (any
+  test value, e.g. `STRIPE_TEST_WEBHOOK_SECRET` in
+  `tests/fixtures/stripe.ts`) and `ADMIN_ORIGIN=http://localhost:3000`
+  to `.env.local`; post events signed with that file's `signStripeBody`
+  to `/api/stripe/webhooks`. The fake is refused with a key and in
+  production. Or use **test** keys with the Stripe CLI (`stripe listen
+  --forward-to localhost:3000/api/stripe/webhooks --latest`); a live key
+  keeps Stripe off outside production. Why Stripe is off is logged once
+  (`stripe off`, with the reason). Details:
+  [RUNBOOK "Stripe payments"](RUNBOOK.md#stripe-payments).
 
 ## Clean checkout to running application
 
@@ -210,7 +222,12 @@ from the code:
   order, so each track has its own allocated prefix range (2026-10-06):
   `20261004…` main line (through labels, and Shopify on its branch), `20261005…`
   purchasing and staff email sign-in, `20261006000100`–`20261006000900`
-  staff roles, `20261006001000` and up reporting, `20261007…` public site.
+  staff roles, `20261006001000` and up reporting, `20261007…` public site,
+  `20261014000100`–`20261014000200` indent parts and quotes (Phase 13) and
+  `20261014000300` and up Stripe payments (Phase 14). Main and the hosted
+  project end at `20261014000200_indent_parts.sql`, so a new file must sort
+  after it (hosted migrations are append-only; `migrate.yml` never uses
+  `--include-all`).
   The latest file on `feat/p9-reporting` is
   `20261006001300_operational_exceptions.sql` (Phase 9, after the staff
   roles' `20261006000100`–`20261006000300`; it applies before or after
@@ -274,6 +291,23 @@ from the code:
   and `handleCronRequest`. The pinned Admin API version is
   `SHOPIFY_API_VERSION` in `config.ts` (upgrade:
   [RUNBOOK](RUNBOOK.md#shopify-api-version-upgrade)).
+- **Stripe** (Phase 14, ADR-025). Every Stripe API call lives in
+  [`src/lib/integrations/stripe`](../src/lib/integrations/stripe) behind
+  the `StripeGateway` interface (`http-gateway.ts` live over fetch,
+  `fake-gateway.ts` in memory; `client.ts` picks one through
+  `stripeConfig`). No SDK. The API version is pinned
+  (`STRIPE_API_VERSION` in `config.ts`) and `payment_method_types` is never
+  sent. Routes are thin: `src/app/api/stripe/webhooks/route.ts` calls
+  `handleStripeWebhook`, which takes its dependencies so tests inject
+  them. TypeScript computes no money: the cents sent to Checkout come from
+  Postgres, and Stripe's cents are converted back in Postgres. Payments
+  change only through `record_stripe_event` and `record_stripe_read`
+  (`records.ts`); the service-role client is imported only under
+  `src/lib/integrations/`. Stripe modules log only correlation id, op,
+  payment id, `evt_` id, event type, outcome, HTTP status, `StripeError`
+  code, Stripe's error code and `payment_method_types`: never a URL (it
+  carries the quote token), a token, a body, a payload, a signature header
+  or a Stripe error message; the logger also redacts those keys.
 - **Tests.** DB tests run on per-file clones; E2E specs run on both the
   phone and iPad projects and give every record a unique tag
   (`tagFor(testInfo)`), never counting rows in the shared database.
@@ -288,8 +322,9 @@ from the code:
 
 Pull requests: CI runs `check`, `test (unit + db)` and `build` on every
 pull request; add the `e2e` label to run Playwright
-([RUNBOOK "CI"](RUNBOOK.md#ci)). Nothing is deployed; there is no release
-process yet ([OPERATIONS.md](OPERATIONS.md#releases)).
+([RUNBOOK "CI"](RUNBOOK.md#ci)). Production runs on Vercel from `main`,
+and merging migrations runs `migrate.yml` against the hosted project; the
+release process is in [OPERATIONS.md](OPERATIONS.md#releases).
 
 ## Debugging and common setup failures
 

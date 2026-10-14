@@ -211,6 +211,11 @@ export const EXCEPTION_SECTIONS = [
   { id: "negative", title: "Stock below zero", kinds: ["negative_stock"] },
   { id: "impossible", title: "Items in an impossible state", kinds: ["unit_state_mismatch"] },
   { id: "integration", title: "Shopify needs attention", kinds: ["integration_failed"] },
+  {
+    id: "payments",
+    title: "Customer payments",
+    kinds: ["payment_attention", "stripe_attention"],
+  },
   { id: "currency", title: "Lines in another currency", kinds: ["currency_mismatch"] },
   { id: "consignment", title: "Unsettled consignments", kinds: ["unsettled_consignment"] },
   { id: "overdue", title: "Overdue jobs", kinds: ["overdue_job"] },

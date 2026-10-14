@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import { quoteEmail } from "@/lib/indent";
 import { RESEND_ENDPOINT, emailConfig, sendEmail } from "@/lib/integrations/email/resend";
 import { QUOTE_LIMITS, quoteBuckets } from "@/lib/quote-limits";
-import { approvedSummary, isQuoteToken, parseQuoteView } from "@/lib/quote-page";
+import {
+  answeredNext,
+  approvedSummary,
+  depositReturn,
+  isQuoteToken,
+  parseQuoteView,
+} from "@/lib/quote-page";
 
 const TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde";
 
@@ -88,6 +94,106 @@ describe("parseQuoteView (D143)", () => {
   });
 });
 
+describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
+  const answered = {
+    ...openQuote,
+    status: "answered",
+    answered_at: "2026-10-15T02:00:00+00:00",
+    answered_name: "Chloe Tan",
+    items: [item({ decision: "approved" })],
+  };
+
+  it("parses a payload without the key (before the migration) as no deposit", () => {
+    const view = parseQuoteView(openQuote);
+    if (view?.status !== "open") throw new Error("expected an open quote");
+    expect(view.deposit).toBeNull();
+    const nulled = parseQuoteView({ ...answered, deposit: null });
+    if (nulled?.status !== "answered") throw new Error("expected an answered quote");
+    expect(nulled.deposit).toBeNull();
+  });
+
+  it("reads each status, with the amount as a string and none while open", () => {
+    const open = parseQuoteView({
+      ...openQuote,
+      deposit: { percent: 50, amount: null, status: "on_answer" },
+    });
+    if (open?.status !== "open") throw new Error("expected an open quote");
+    expect(open.deposit).toEqual({
+      percent: 50,
+      amount: null,
+      status: "on_answer",
+      parts_ordered: false,
+    });
+    for (const status of ["due", "processing", "paid", "refunded"] as const) {
+      const view = parseQuoteView({
+        ...answered,
+        deposit: { percent: 50, amount: "120.00", status, parts_ordered: status === "due" },
+      });
+      if (view?.status !== "answered") throw new Error(`expected an answered quote (${status})`);
+      expect(view.deposit).toEqual({
+        percent: 50,
+        amount: "120.00",
+        status,
+        parts_ordered: status === "due",
+      });
+    }
+    const numeric = parseQuoteView({
+      ...answered,
+      deposit: { percent: 50, amount: 120, status: "due" },
+    });
+    if (numeric?.status !== "answered") throw new Error("expected an answered quote");
+    expect(numeric.deposit?.amount).toBe("120");
+  });
+
+  it("refuses a deposit it does not know", () => {
+    for (const deposit of [
+      { percent: 50, amount: "120.00", status: "owed" },
+      { percent: 0, amount: "120.00", status: "due" },
+      { percent: 101, amount: "120.00", status: "due" },
+      { percent: 12.5, amount: "120.00", status: "due" },
+      { percent: 50, amount: "120.00", status: "due", parts_ordered: "yes" },
+    ]) {
+      expect(parseQuoteView({ ...answered, deposit }), JSON.stringify(deposit)).toBeNull();
+    }
+  });
+
+  it("says the parts wait for the deposit only until the shop has ordered them (D152)", () => {
+    const d = (status: "due" | "processing" | "paid" | "refunded", ordered: boolean) => ({
+      percent: 50,
+      amount: "120.00",
+      status,
+      parts_ordered: ordered,
+    });
+    expect(answeredNext(d("due", false))).toBe(
+      "The shop orders your parts once the deposit is paid.",
+    );
+    expect(answeredNext(d("due", true))).toBe(
+      "The shop has ordered your parts. Ask the shop if you still need to pay the deposit.",
+    );
+    expect(answeredNext(d("processing", false))).toBe(
+      "The shop orders your parts once the deposit is paid.",
+    );
+    expect(answeredNext(d("processing", true))).toBe("The shop has ordered your parts.");
+    expect(answeredNext(d("paid", false))).toBe(
+      "Your deposit is paid, so the shop will order your parts.",
+    );
+    expect(answeredNext(d("paid", true))).toBe(
+      "Your deposit is paid and the shop has ordered your parts.",
+    );
+    expect(answeredNext(d("refunded", false))).toBe("The shop will be in touch.");
+    expect(answeredNext(null)).toBe("The shop will be in touch.");
+  });
+
+  it("depositReturn takes Stripe's two returns only (display, never proof of payment)", () => {
+    expect(depositReturn("returned")).toBe("returned");
+    expect(depositReturn("cancelled")).toBe("cancelled");
+    expect(depositReturn("paid")).toBeNull();
+    expect(depositReturn("")).toBeNull();
+    expect(depositReturn(undefined)).toBeNull();
+    expect(depositReturn(["returned", "cancelled"])).toBeNull();
+  });
+});
+
 describe("quoteBuckets (D143)", () => {
   it("counts per client and per token, never either in clear", () => {
     const buckets = quoteBuckets("answer", "203.0.113.9", TOKEN);
@@ -111,6 +217,16 @@ describe("quoteBuckets (D143)", () => {
     expect(quoteBuckets("view", "1.2.3.4", TOKEN, 1000)[0].limit).toBe(
       QUOTE_LIMITS.view.client * 1000,
     );
+  });
+
+  it("counts Pay deposit and the return's check under their own quote-pay keys", () => {
+    const buckets = quoteBuckets("pay", "203.0.113.9", TOKEN);
+    expect(QUOTE_LIMITS.pay).toEqual({ client: 10, token: 10 });
+    expect(buckets.map((b) => b.limit)).toEqual([10, 10]);
+    expect(buckets[0].key).toMatch(/^quote-pay:client:[0-9a-f]{64}$/);
+    expect(buckets[1].key).toMatch(/^quote-pay:token:[0-9a-f]{64}$/);
+    expect(buckets[1].key).not.toBe(quoteBuckets("answer", "203.0.113.9", TOKEN)[1].key);
+    expect(buckets[1].key).not.toContain(TOKEN);
   });
 });
 

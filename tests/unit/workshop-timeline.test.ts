@@ -303,6 +303,24 @@ describe("describeEvent", () => {
       detail: null,
       tone: "info",
     });
+    // D152: ordered before the deposit was paid, with the reason.
+    expect(
+      d({
+        type: "part_ordered",
+        payload: {
+          purchase_order: "PO-000007",
+          items: [],
+          deposit_override: { reason: "Customer is paying at the counter", quote_ids: ["q"] },
+        },
+      }),
+    ).toEqual({
+      title: "Parts ordered on PO-000007",
+      detail: "Ordered before the deposit was paid: Customer is paying at the counter",
+      tone: "waiting",
+    });
+    expect(
+      d({ type: "part_ordered", payload: { purchase_order: "PO-000008", deposit_override: "x" } }),
+    ).toEqual({ title: "Parts ordered on PO-000008", detail: null, tone: "info" });
     expect(
       d({
         type: "part_request_cancelled",
@@ -316,5 +334,71 @@ describe("describeEvent", () => {
     expect(d({ type: "part_fitted", payload: { description: "Shimano chain" } }).title).toBe(
       "Fitted Shimano chain",
     );
+  });
+
+  it("customer payments read in the customer's money, with the mismatch and refund details (Phase 14)", () => {
+    const base = { payment_id: "x", currency: "SGD" };
+    expect(
+      d({
+        type: "payment_received",
+        payload: { ...base, kind: "deposit", quote_id: "q", amount: 120, asked: 120 },
+      }),
+    ).toEqual({ title: "Deposit of $120.00 paid online", detail: null, tone: "done" });
+    expect(
+      d({
+        type: "payment_received",
+        payload: { ...base, kind: "balance", amount: "80.50", asked: "80.50" },
+      }).title,
+    ).toBe("Payment of $80.50 paid online");
+    expect(
+      d({
+        type: "payment_received",
+        payload: { ...base, kind: "deposit", amount: 119.99, asked: 120 },
+      }),
+    ).toEqual({
+      title: "Deposit of $119.99 paid online",
+      detail: "Stripe's amount differs from the $120.00 asked",
+      tone: "done",
+    });
+    expect(
+      d({
+        type: "payment_received",
+        payload: { ...base, kind: "deposit", amount: null, asked: 120 },
+      }),
+    ).toEqual({
+      title: "Deposit paid online",
+      detail: "Stripe's amount differs from the $120.00 asked",
+      tone: "done",
+    });
+    expect(
+      d({
+        type: "payment_refunded",
+        payload: { ...base, kind: "deposit", refunded: 50, refunded_total: 50, full: false },
+      }),
+    ).toEqual({
+      title: "$50.00 refunded in Stripe",
+      detail: "$50.00 refunded in total",
+      tone: "info",
+    });
+    expect(
+      d({
+        type: "payment_refunded",
+        payload: { ...base, kind: "deposit", refunded: 70, refunded_total: 120, full: true },
+      }),
+    ).toEqual({
+      title: "$70.00 refunded in Stripe",
+      detail: "The whole payment is refunded",
+      tone: "info",
+    });
+    expect(
+      d({
+        type: "payment_refund_failed",
+        payload: { ...base, kind: "deposit", amount: 50, refunded_total: 70 },
+      }),
+    ).toEqual({
+      title: "A refund of $50.00 failed in Stripe",
+      detail: "$70.00 refunded in total",
+      tone: "danger",
+    });
   });
 });

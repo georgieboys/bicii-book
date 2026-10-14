@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 
 import {
   cancelPartRequestAction,
@@ -32,6 +32,7 @@ import { useToast } from "@/components/ui/toast";
 import type { ActionResult } from "@/lib/actions";
 import { formatDateTime } from "@/lib/dates";
 import type { IndentPanel, IndentProductOption, PartRequest } from "@/lib/domain/indent";
+import type { JobDeposit } from "@/lib/domain/payments";
 import {
   CANCELLABLE,
   PART_REQUEST_LABELS,
@@ -42,6 +43,14 @@ import {
   whatsappHref,
 } from "@/lib/indent";
 import { formatMoney, formatQuantity, sumMoney } from "@/lib/money";
+import {
+  DEPOSIT_STATE_LABELS,
+  DEPOSIT_STATE_TONES,
+  depositBlockedIds,
+  depositStates,
+  type DepositState,
+} from "@/lib/payments";
+import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
 
 import { CopyText } from "./copy-text";
@@ -56,6 +65,9 @@ const errorsOf = (r: ActionResult<unknown> | null): Errors =>
  * they are quoted to the customer (WhatsApp or a copied link), answered per
  * item, ordered from a supplier (Manage purchasing) and fitted, which adds
  * the ordinary job line. Costs and suppliers only for cost holders.
+ * From Phase 14 (D152), a part whose answered quote asked a deposit that is
+ * not paid shows the deposit's state and starts unticked in the order
+ * sheet; only an admin or manager orders it, with a reason.
  */
 export function IndentCard({
   workOrderId,
@@ -67,6 +79,8 @@ export function IndentCard({
   purchaseData,
   canCreateProduct,
   emailEnabled,
+  deposits = [],
+  canOverrideDeposit = false,
 }: {
   workOrderId: string;
   jobNumber: string;
@@ -79,6 +93,10 @@ export function IndentCard({
   canCreateProduct: boolean;
   /** RESEND_API_KEY and EMAIL_FROM are set (D144). */
   emailEnabled: boolean;
+  /** Answered quotes that asked a deposit (public.quote_deposits, D151). */
+  deposits?: JobDeposit[];
+  /** An active admin or manager (D152): may order before the deposit is paid. */
+  canOverrideDeposit?: boolean;
 }) {
   const [sheet, setSheet] = useState<
     null | "part" | "service" | "quote" | "order" | { cancel: PartRequest } | { fit: PartRequest }
@@ -93,6 +111,7 @@ export function IndentCard({
   const approvedParts = live.filter((r) => r.kind === "part" && r.status === "approved");
   const quote = panel.quote;
   const close = () => setSheet(null);
+  const depositByRequest = useMemo(() => depositStates(deposits), [deposits]);
 
   const withdraw = () =>
     startWithdraw(async () => {
@@ -182,6 +201,7 @@ export function IndentCard({
                     <Badge tone={PART_REQUEST_TONES[r.status]}>
                       {PART_REQUEST_LABELS[r.status]}
                     </Badge>
+                    {depositBadge(r, depositByRequest)}
                   </span>
                 </div>
                 {r.order ? (
@@ -270,7 +290,14 @@ export function IndentCard({
           onClose={close}
         />
       ) : null}
-      {sheet === "order" ? <OrderSheet items={approvedParts} onClose={close} /> : null}
+      {sheet === "order" ? (
+        <OrderSheet
+          items={approvedParts}
+          depositByRequest={depositByRequest}
+          canOverrideDeposit={canOverrideDeposit}
+          onClose={close}
+        />
+      ) : null}
       {sheet && typeof sheet === "object" && "cancel" in sheet ? (
         <CancelSheet request={sheet.cancel} onClose={close} />
       ) : null}
@@ -293,6 +320,14 @@ export function IndentCard({
       ) : null}
     </Card>
   );
+}
+
+/** "Deposit due", "Being confirmed" or "Deposit refunded" on an approved or ordered part (D152). */
+function depositBadge(r: PartRequest, depositByRequest: ReadonlyMap<string, DepositState>) {
+  if (r.kind !== "part" || (r.status !== "approved" && r.status !== "ordered")) return null;
+  const state = depositByRequest.get(r.id);
+  if (state === undefined || state === "paid" || state === "none") return null;
+  return <Badge tone={DEPOSIT_STATE_TONES[state]}>{DEPOSIT_STATE_LABELS[state]}</Badge>;
 }
 
 type ProductPick = PickerOption & { product: IndentProductOption };
@@ -790,10 +825,39 @@ function QuoteSentSheet({
 }
 
 /** Order approved parts from one supplier (D145), optionally moving the job to Waiting on parts. */
-function OrderSheet({ items, onClose }: { items: PartRequest[]; onClose: () => void }) {
+function OrderSheet({
+  items,
+  depositByRequest,
+  canOverrideDeposit,
+  onClose,
+}: {
+  items: PartRequest[];
+  depositByRequest: ReadonlyMap<string, DepositState>;
+  /** An active admin or manager (D152). */
+  canOverrideDeposit: boolean;
+  onClose: () => void;
+}) {
   const { toast } = useToast();
   const [purchaseOrderId] = useState(newId);
-  const [chosen, setChosen] = useState<Set<string>>(() => new Set(items.map((i) => i.id)));
+  // D152: parts whose deposit isn't paid start unticked, so the default order never needs a reason.
+  const [blocked] = useState(
+    () =>
+      new Set(
+        depositBlockedIds(
+          items.map((i) => i.id),
+          depositByRequest,
+        ),
+      ),
+  );
+  const [chosen, setChosen] = useState<Set<string>>(
+    () => new Set(items.filter((i) => !blocked.has(i.id)).map((i) => i.id)),
+  );
+  const [reason, setReason] = useState("");
+  const [reasonMissing, setReasonMissing] = useState(false);
+  // The note under the parts says why a disabled one can't be ticked.
+  const blockedNoteId = useId();
+  const showBlockedNote = blocked.size > 0 && !canOverrideDeposit;
+  const unpaidChosen = items.filter((i) => chosen.has(i.id) && blocked.has(i.id)).length;
   const preset = items.find((i) => i.purchase?.supplierId)?.purchase?.supplierId ?? "";
   const [supplierId, setSupplierId] = useState(preset);
   const [moveToWaiting, setMoveToWaiting] = useState(true);
@@ -804,15 +868,29 @@ function OrderSheet({ items, onClose }: { items: PartRequest[]; onClose: () => v
 
   const submit = () =>
     start(async () => {
+      // The two-step reason rule (DESIGN): this sheet is the confirm step.
+      if (unpaidChosen > 0 && reason.trim() === "") {
+        setReasonMissing(true);
+        return;
+      }
+      setReasonMissing(false);
       const r = await orderPartRequestsAction({
         requestIds: items.filter((i) => chosen.has(i.id)).map((i) => i.id),
         supplierId,
         purchaseOrderId,
         moveToWaiting,
+        // Only when a part whose deposit isn't paid is chosen (D152).
+        ...(unpaidChosen > 0 ? { overrideReason: reason } : {}),
       });
       setResult(r);
       if (r.ok) {
-        toast({ title: "Added to the supplier's draft order.", tone: "success" });
+        toast({
+          title:
+            unpaidChosen > 0
+              ? "Added to the supplier's draft order without the deposit."
+              : "Added to the supplier's draft order.",
+          tone: "success",
+        });
         onClose();
       }
     });
@@ -835,7 +913,7 @@ function OrderSheet({ items, onClose }: { items: PartRequest[]; onClose: () => v
             pendingLabel="Ordering…"
             disabled={chosen.size === 0}
           >
-            Add to order
+            {unpaidChosen > 0 ? "Order without deposit" : "Add to order"}
           </Button>
         </>
       }
@@ -853,8 +931,10 @@ function OrderSheet({ items, onClose }: { items: PartRequest[]; onClose: () => v
           {items.map((i) => (
             <Checkbox
               key={i.id}
-              label={`${formatQuantity(i.quantity)} × ${i.description}`}
+              label={`${formatQuantity(i.quantity)} × ${i.description}${blocked.has(i.id) ? " (deposit not paid)" : ""}`}
               checked={chosen.has(i.id)}
+              disabled={blocked.has(i.id) && !canOverrideDeposit}
+              aria-describedby={blocked.has(i.id) && showBlockedNote ? blockedNoteId : undefined}
               onChange={(e) => {
                 const next = new Set(chosen);
                 if (e.target.checked) next.add(i.id);
@@ -863,7 +943,37 @@ function OrderSheet({ items, onClose }: { items: PartRequest[]; onClose: () => v
               }}
             />
           ))}
+          {showBlockedNote ? (
+            <p id={blockedNoteId} className="text-sm text-dust-700">
+              Parts whose deposit isn&apos;t paid can be ordered once the customer pays, or by an
+              admin or manager.
+            </p>
+          ) : null}
         </fieldset>
+        {unpaidChosen > 0 ? (
+          <>
+            <p role="status" className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
+              The customer hasn&apos;t paid the deposit for {unpaidChosen} of these parts.
+            </p>
+            <Field
+              label="Why order before the deposit is paid?"
+              hint="Recorded on the job's timeline."
+              error={
+                reasonMissing
+                  ? "Say why the parts are ordered before the deposit is paid."
+                  : errors?.overrideReason?.[0]
+              }
+              required
+            >
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                maxLength={REASON_MAX_LENGTH}
+              />
+            </Field>
+          </>
+        ) : null}
         <Field label="Supplier" error={errors?.supplierId?.[0]} required>
           <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
             <option value="">Choose a supplier</option>

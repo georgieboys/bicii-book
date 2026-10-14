@@ -350,6 +350,35 @@ describe("mapDbError", () => {
     ).toBe("Stock from a supplier is received through its purchase order.");
   });
 
+  it("maps the Stripe payment errors, keys and checks (Phase 14)", () => {
+    expect(mapDbError(pgrst("P0001", "payment_immutable"))).toMatchObject({
+      kind: "business",
+      reason: "payment_immutable",
+      message: "A customer payment changes only when Stripe confirms it.",
+    });
+    expect(mapDbError(pgrst("P0001", "payment_refund_immutable")).message).toBe(
+      "A refund changes only when Stripe reports it.",
+    );
+    expect(mapDbError(pgrst("P0001", "stripe_event_immutable")).message).toBe(
+      "A received Stripe event is kept as evidence and can't be changed.",
+    );
+    expect(
+      mapDbError({ code: "23505", message: "dup", constraint: "payments_one_open_deposit" }),
+    ).toMatchObject({ kind: "duplicate", message: "A payment for this deposit is already open." });
+    expect(
+      mapDbError(
+        pgrst(
+          "23514",
+          'new row for relation "payments" violates check constraint "payments_amount_check"',
+        ),
+      ).message,
+    ).toMatch(/^A payment must be between \S*0\.50 and \S*999,999\.99\.$/);
+    expect(
+      mapDbError({ code: "23514", message: "check", constraint: "stripe_events_rejected_shape" })
+        .message,
+    ).toBe("A rejected Stripe delivery keeps no body.");
+  });
+
   it("maps numeric overflow (22003) to a plain message", () => {
     expect(mapDbError(pgrst("22003", "numeric field overflow"))).toEqual({
       message: "That amount is too large.",

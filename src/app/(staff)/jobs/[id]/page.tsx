@@ -7,6 +7,7 @@ import { AddServiceButton } from "@/components/domain/add-service-sheet";
 import { AssignmentsCard } from "@/components/domain/assignments-card";
 import { IndentCard } from "@/components/domain/indent-card";
 import { ApprovalSwitch, EditDetailsButton, NoteButtons } from "@/components/domain/job-notes";
+import { PaymentsCard } from "@/components/domain/payments-card";
 import { Timeline } from "@/components/domain/job-timeline";
 import { JobStatusActions } from "@/components/domain/job-status-actions";
 import { LineTable } from "@/components/domain/line-table";
@@ -21,11 +22,14 @@ import { CalendarIcon, CheckIcon } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatAppointmentMoment } from "@/lib/appointments/format";
 import { quoteEmailEnabled } from "@/lib/integrations/email/quote";
-import { hasPermission } from "@/lib/auth/permissions";
+import { stripeIsOn } from "@/lib/integrations/stripe/client";
+import { canOverrideDeposit, canRecordRefund, hasPermission } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, shopDaysBetween } from "@/lib/dates";
 import { listPhotos } from "@/lib/domain/attachments";
 import { getIndentPanel } from "@/lib/domain/indent";
+import { getJobPayments } from "@/lib/domain/payments";
+import { paidOnlineSummary } from "@/lib/payments";
 import { listLocations } from "@/lib/domain/inventory";
 import { getWorkOrderYield } from "@/lib/domain/reports";
 import {
@@ -80,8 +84,10 @@ function sharedRate(job: WorkOrderDetail): string | null {
  * One job (SPEC §7, §21, §22): its number, status and the next steps
  * first; then what the customer asked for, the lines with running totals
  * (services, parts from stock and manual lines; costs, yield and Cult
- * Commons only with view_costs: the DTO has none otherwise), photos, the
- * people on it, notes and the timeline. A job checked in from an
+ * Commons only with view_costs: the DTO has none otherwise), the indent
+ * parts and quote (Phase 13), the Customer payments card once a deposit
+ * or an online payment exists (Phase 14, D154; hidden if its read fails),
+ * photos, the people on it, notes and the timeline. A job checked in from an
  * appointment (D40) links back to it under the header. Straight after intake (`?intake=photos`) the intake photos come first: the job
  * has to exist before a photo can be recorded against it. The timeline
  * shows its newest events; `?events=all` shows up to TIMELINE_ALL_ROWS.
@@ -98,7 +104,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   // D60, D147: expected costs and suppliers on indent parts.
   const purchaseData = viewCosts || canOrder;
   const supabase = await createClient();
-  const [job, photos, activeStaff, locations, report, indent] = await Promise.all([
+  const [job, photos, activeStaff, locations, report, indent, payments] = await Promise.all([
     getWorkOrder(supabase, id, {
       viewCosts,
       ...(allEvents ? { timelineRows: TIMELINE_ALL_ROWS } : {}),
@@ -110,6 +116,8 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
     viewCosts ? getWorkOrderYield(supabase, id) : Promise.resolve(null),
     // Indent parts and the customer's quote (Phase 13, D140-D147).
     getIndentPanel(supabase, id, { purchaseData }),
+    // Deposits and online payments (Phase 14, D151-D159); null when the read fails.
+    getJobPayments(supabase, id),
   ]);
   if (!job) notFound();
   // Units on live part lines: a reopen puts them back on hold (D25).
@@ -122,6 +130,9 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   const closed = isClosedStatus(job.status);
   const overdue = isOverdue({ status: job.status, checkedInAt: job.stamps.checkedInAt }, now);
   const tel = telHref(job.customer.phone);
+  const stripeOn = stripeIsOn();
+  // D154 at the counter: a deposit paid online, shown by the total and on Collected.
+  const paidOnline = paidOnlineSummary(payments?.totals ?? null);
   const target = { entityType: "work_order" as const, entityId: job.id };
   const lockedReason = open
     ? null
@@ -192,6 +203,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
         customerLabel={job.customer.label}
         status={job.status}
         heldUnits={heldUnits}
+        paidOnline={paidOnline}
       />
 
       {intake ? (
@@ -277,6 +289,20 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             <div className="mt-3">
               <TotalsSummary totals={job.totals} ccRate={sharedRate(job)} report={report} />
             </div>
+            {paidOnline ? (
+              // D154 where the counter looks: the deposit paid online is
+              // not in the total above (money held, not a sale).
+              <p className="flex flex-wrap gap-x-2 border-t border-hairline px-4 py-3 text-sm font-semibold sm:px-5">
+                <a href="#customer-payments" className="underline underline-offset-4">
+                  Paid online {paidOnline.paid}
+                </a>
+                {paidOnline.paidAhead ? (
+                  <span>· Paid ahead {paidOnline.paidAhead}</span>
+                ) : paidOnline.stillToPay ? (
+                  <span>· Still to pay {paidOnline.stillToPay}</span>
+                ) : null}
+              </p>
+            ) : null}
           </Card>
 
           <IndentCard
@@ -293,7 +319,19 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             purchaseData={purchaseData}
             canCreateProduct={hasPermission(staff, "manage_inventory")}
             emailEnabled={quoteEmailEnabled()}
+            deposits={payments?.deposits ?? []}
+            canOverrideDeposit={canOverrideDeposit(staff)}
           />
+
+          {payments && (payments.deposits.length > 0 || payments.payments.length > 0) ? (
+            <PaymentsCard
+              id="customer-payments"
+              payments={payments}
+              canCheck={stripeOn}
+              canOpenStripe={canRecordRefund(staff)}
+              payOnline={stripeOn}
+            />
+          ) : null}
 
           {intake ? null : (
             <Card title="Photos">

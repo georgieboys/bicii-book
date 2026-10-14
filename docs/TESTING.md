@@ -212,8 +212,22 @@ role can read to be `security_invoker` unless it is listed as a definer
 view. anon may execute exactly `ANON_PRIVATE_FUNCTIONS` in `private`
 (`private.selling_price`, which `public_items` calls as the caller) and
 holds USAGE on `reporting` but never on `private`; PUBLIC holds nothing on
-either schema. A new RPC or table means a new line in that fixture, in the
-same PR.
+either schema. The service role may execute exactly
+`SERVICE_ROLE_FUNCTIONS` in `public` and nothing in `private`. Phase 14
+added four service-role RPCs, `record_stripe_event` and
+`record_stripe_read` (step 1), `prepare_deposit_checkout(text)` and
+`record_deposit_checkout(uuid, uuid, jsonb)` (step 2); to
+`AUTHENTICATED_FUNCTIONS` `set_indent_deposit_percent(integer)` and
+`order_part_requests` with its fifth argument, `override_reason`
+(replacing the four-argument one); and to `AUTHENTICATED_RELATIONS` SELECT
+on the three security-invoker views `quote_deposits`, `payment_issues`
+and `work_order_payment_totals`, and on the tables `payments`,
+`payment_refunds` and `stripe_events`. anon is unchanged. The owner-only
+purges (`purge_integration_events`, `purge_stripe_events`),
+`private.integration_exceptions` and every private function Phase 14
+added (the apply paths, guards, helpers and `quotes_deposit_snapshot`)
+are executable by no API role (meta.test.ts, which finds them by name). A new RPC or table
+means a new line in that fixture, in the same PR.
 
 ### Devstack commands
 
@@ -948,6 +962,158 @@ never Resend's message; off unless both variables are set);
 shape); `auth-helpers.test.ts` that `/quote/<token>` is public and
 `/quote`, `/quotes/…` and `/jobs/quote/…` are not.
 
+Phase 14 step 1 (the Stripe service layer, `src/lib/integrations/stripe`;
+every file `// @vitest-environment node`, `server-only` mocked, fetch,
+clock, dependencies and loggers injected; no Stripe account, no key):
+`stripe-signature.test.ts` (the exact bytes pass, multibyte UTF-8
+included, and a re-serialised body fails; one flipped byte, another
+secret, an empty secret, a missing, empty, garbled or oversized header, two
+timestamps, an upper-case or non-hex `v1` and a `v0` alone are `invalid`;
+either `v1` passes during a secret roll; 301 s in the past or ahead is
+`expired`, 300 s passes; a genuine header with a NaN or infinite clock is
+`expired` and a non-finite tolerance falls back to 300 s, never `ok`; a
+forged stale header stays `invalid`; 500 random headers never throw); `stripe-form.test.ts` (the exact Checkout Session
+body for a deposit, with literal brackets, `unit_amount=12000`, `sgd`,
+both metadata blocks with `bicii_*` ids only, `expires_at` and encoded
+URLs, in a fixed order; a balance's name and no null quote; never
+`payment_method_types`, `allowed_payment_method_types`, `customer_email`,
+`ui_mode` or `locale`; 49 cents, 100,000,000 cents, 120.5, a fractional
+expiry and a 251-character name throw); `stripe-http-gateway.test.ts`
+(the URL, method and headers: Bearer key, `Stripe-Version:
+2026-09-30.endive`, `Idempotency-Key: bicii-checkout-<id>`, the form
+content type, `redirect: "error"`, `no-store` and a timeout signal; one
+retry with identical bytes and key after a network error, a 409, a 429,
+a GET's 5xx or a 5xx marked `Stripe-Should-Retry: true`, and none for a
+POST's other 5xx (Stripe would replay the saved 500 for the same key) or
+a non-retriable error; after a 409 or a 429 one injected wait of
+250–500 ms (jittered, between the two requests), and none otherwise; an
+expiry outside 30 minutes to 24 hours refused before any call; every
+row of the error table, including a livemode mismatch and a wrong object
+→ `stripe_bad_response`; Stripe's code kept, its message and param and
+the key never in the error; retrieve and expire validate and encode the
+id, expire sends `bicii-expire-<id>-<nonce>`, a fresh key per call kept
+by its own retry, and maps any 400 to `stripe_session_not_open`; list
+refunds validates the payment intent and keeps refund objects only;
+`retrievePaymentIntent` validates the id and checks the object and its
+mode); `stripe-fake-gateway.test.ts` (on an injected clock: ids from the
+payment id, the same key and body → the same session and another body →
+a conflict, `url === successUrl`, unknown ids not found, `complete`,
+`expire`, a session read as expired once its time has passed, an expiry
+Stripe would refuse, a PaymentIntent per completed session that
+`failAsyncPayment` returns to `requires_payment_method`, `addRefund`,
+`listRefunds`, `failNext`, `calls` and `reset`); `stripe-form.test.ts`
+also refuses an `expires_at` outside Stripe's 30-minute to 24-hour window
+against the caller's clock;
+`stripe-config.test.ts` (the full `stripeConfig` matrix: on in test mode
+locally and live in production, the fake with livemode false; off for
+preview, no key, a malformed key, a test key in production, a live key
+locally or in development, a missing or malformed webhook secret, no
+service-role key, and an origin with a path, query, hash, credentials, a
+non-https scheme or http other than localhost, or a loopback host in
+production; the reasons in their listed order; no key or secret in an
+off result; `stripeCheckBucket` never holds the payment id;
+`stripeIsOn()` answers false, logging the error's name only, when the
+server environment does not parse); `env.test.ts` "Stripe variables (Phase
+14)" (all optional, blanks unset; the fake with a key and the fake in
+production refused; a malformed key, a live key outside production and a
+malformed origin parse, because `stripeConfig` turns Stripe off instead);
+`stripe-webhook-handler.test.ts` (413 by header and by size and 400
+unreadable, none stored; 503 while off, stored as `stripe_off` without the
+body; 400 `signature_invalid`, `signature_expired`, `body_not_json`,
+`event_shape_invalid` and `livemode_mismatch`, each stored with only
+allow-listed header names (every stored key is in
+`WEBHOOK_HEADER_ALLOWLIST`) and the `stripe-signature` exactly as sent,
+size and SHA-256 and no payload; the 31st rejection in a minute
+not stored; 200 new with the payload and 200 `duplicate: true`; 500 when
+storing fails, followed by a `not_recorded` evidence call with the same
+SHA-256, and still 500 when that fails too; responses carry `no-store`
+and never the payer's details; captured logs never contain
+`stripe-signature`, `whsec_`, `/quote/`, `cs_test_`, `v1=` or the
+payload); `stripe-limits.test.ts` (`noteStripeCheck`, with the env, the service
+client and the logger mocked: one `note_sign_in_attempt` call with the
+hashed `stripeCheckBucket` and a 300 s window, never the payment id in
+clear; ok up to `STRIPE_CHECK_LIMIT`, limited above it, the multiplier
+raising it; ok without the service-role key (no call), on an RPC error or
+no data, and when the call throws, logging the code or the error's class
+only); `stripe-webhook-route.test.ts` (exports exactly `POST`,
+`maxDuration` and `runtime`; `nodejs`; 30 s); `stripe-fixtures.test.ts`
+(the fixtures' shapes, and the adapter's verifier, parsers and
+`stripeConfig` accept them); `proxy-matcher.test.ts`
+(`/api/stripe/webhooks` is outside the proxy); `logger.test.ts` (with the
+production options on a captured stream, `url`, `successUrl`,
+`cancelUrl`, `checkoutUrl`, `secretKey`, `webhookSecret` and
+`headers["stripe-signature"]` are `[redacted]` at the top level and one
+level down, and the earlier paths still are); the Shopify webhook handler
+test still imports `SlidingWindowLimiter` from `shopify/webhooks.ts`,
+which re-exports it from `src/lib/integrations/limiter.ts`.
+
+Phase 14 step 2, the quote page's deposit and Settings → Customer
+payments: `stripe-checkout.test.ts` (the Checkout flows with the
+in-memory Stripe and scripted RPCs through a stub service client:
+`create` records the new session and redirects to the validated success
+URL, with `bicii-checkout-<payment id>` as the key and the return URLs
+from the configured origin; `check` re-reads an open session and reuses
+its URL with no new session; within the 2-minute margin it expires and
+records the old session, then creates; an expire Stripe answers "not
+open" is followed by a retrieve and a read; a read that says paid, partly
+refunded, refunded or completed returns that instead of a redirect;
+`existing` from the record expires the new session and reuses the
+winner's; `checkout_session_mismatch` expires it and is unavailable;
+`deposit_job_closed` and `paid` from the record expire it too; paid,
+processing and refunded from prepare never call Stripe; prepare's
+refusals map to their sentences and an unknown link to "This link is not
+valid…"; a Stripe failure, Stripe off, no gateway or no service client
+are unavailable, the last three with no RPC; in live mode only
+`https://checkout.stripe.com` is followed (`validateRedirect`, with the
+fake's own rule); three attempts at most; a pending session Stripe
+cannot find is unavailable with no new session (logged); no Stripe step
+starts after `PAY_DEADLINE_MS`; `confirmDepositReturn` never
+creates and reports Stripe's state; `refreshPaymentFromStripe` re-reads
+the session, the PaymentIntent only when Checkout completed unpaid (a
+lost async failure is recorded from it), and each listed refund, says
+whether anything changed and whether it is still being confirmed,
+reports an unreadable intent or refund list as `incomplete`, and covers
+`not_found`, `other_mode`, `session_missing` and `unavailable`; logs
+never carry the token, a URL or `/quote/`); `quote-page.test.ts` (the
+`deposit` key absent, null and in every status with `parts_ordered`,
+unknown statuses, percents and flags refused, `answeredNext`'s sentence
+per status with and without the parts ordered, `depositReturn`, and the
+`quote-pay:` buckets at 10 per client and per token);
+`deposit-components.test.tsx` (Pay deposit resets on a `pageshow` from
+the back-forward cache; the return drops `?deposit=returned` once the
+check settles it or the minute is up, and its last sentence depends on
+whether Stripe is on); `job-payments.test.ts` (`getJobPayments` over a
+stub client: the five reads filtered by the job, money formatted as
+Postgres sent it, processing, unknown states and a missing totals row,
+and null with the error's code logged when a read fails);
+`docs-links.test.ts` (the runbook link is `georgieboys/bicii-book` and
+names headings the runbook has); `job-status-actions.test.tsx` (the
+Collected confirmation says what was paid online and what to take);
+`payments.test.ts` (every payment, refund and event status,
+rejection reason and deposit state has words and a tone where shown;
+every outcome `stripe_events_outcome_check` allows has words; each
+Stripe off reason has a sentence that names no value; the connection and
+percent labels; `depositBlockedIds`, the SQL gate's mirror: due,
+processing, refunded and none block, paid and unknown do not;
+`depositStates` (a request on a paid and a due quote is due, either
+order); `depositPercentRefusal` (D157a: above 0 refused while Stripe is
+off, 0 always allowed); `paidOnlineSummary` (paid online, still to pay,
+paid ahead, nothing when the net is 0); and `stripeDashboardHref` in
+live and test mode and for a non-`pi_` id). Step 2's third commit also
+extends `exception-kinds.test.ts` (`payment_attention` "Customer payment"
+with a fixed "Open the job's Customer payments" under the database's
+sentence, so the row never repeats it, and its tone, `stripe_attention`
+"Stripe needs attention" always danger with "Check Stripe deliveries in
+Settings → Customer payments", a
+`stripe_event` row linking to Settings → Customer payments' deliveries,
+and the "Customer payments" section after Shopify's in
+`groupExceptions`), `reconciliation.test.ts` (the section order and
+kinds), `workshop-timeline.test.ts` (`part_ordered` with
+`deposit_override`: "Ordered before the deposit was paid: <reason>",
+waiting; a malformed override is ignored) and `consignment.test.ts`
+(`canOverrideDeposit`: active admins and managers only, never a mechanic
+with Manage purchasing, D152).
+
 ### Database (SPEC §27.2 and §23)
 
 Each invariant from SPEC §23 has at least one test, named after it:
@@ -1001,7 +1167,9 @@ Each invariant from SPEC §23 has at least one test, named after it:
 | Attachments describe real objects | `record_attachment` rejects a path that is not `{entity_type}/{entity_id}/{id}.{ext}`, a missing object, the wrong bucket, a non-photo, an unknown entity; replay-safe; delete needs a reason and is kept in `attachment_events`; an undecoded original (no dimensions) is never public; `attachment_stray_objects` lists only what no row points at and is old enough (`attachments.test.ts`). |
 | Anonymous cannot read costs/notes | every table in the RLS matrix: anon select returns 0 rows or is denied. |
 | Public site backend (Phase 11 step 1; D121–D124; SPEC §4.1, §4.2, §18, §23) | `public-site.test.ts`: `claim_my_customer` refuses anon (42501) and an unconfirmed login (`customer_email_unconfirmed`); without a booking it returns nothing and creates nothing; at the first booking it creates one record with the login's email, trimmed name and phone, and a repeat returns that row; a first name is required and names and phone have length limits; it links the one unlinked record with the same email in any case without changing staff data or returning `internal_notes`; two such records link nothing (`customer_link_ambiguous`); archived records and records with another login are never linked; a login whose own record is archived is refused (`customer_archived`); a linked login keeps its record after either email changes; two simultaneous first bookings by one login (two committed connections) make one record. `bookable_slots` equals `available_slots` day by day for anon, a customer and staff over eight days, tags each start with its shop day, follows D37 for non-public types, takes at most 31 days and refuses reversed or null bounds. The customer Storage policy lists exactly the caller's customer-visible bike and job photos in `media-internal` (not internal ones, other customers', the customer record's or the public bucket), drops them when the job is cancelled or the bike archived, gives anon and a login without a record nothing, and lets customers write nothing. Every short-ID column the Admin's `/q` resolves holds well-formed, unique IDs readable by staff. |
-| Indent parts and quotes (Phase 13 step 1; D140–D147) | `indent-parts.test.ts`: proposing a part or service adds a request with no movement and no line (the job's lines and the product's movements unchanged), at the product's selling price, replay-safe, and refuses unique, inactive and unpriced products, a zero quantity, a conflicting replay and a completed job; any staff member proposes, but a cost or supplier needs view_costs or manage_purchasing (42501 for mechanic2). Staff read requests and quotes but not `expected_unit_cost`, `supplier_id` or `token_hash` (42501); `job_part_requests_staff` returns the cost only to view_costs; anon reads no table and no staff RPC, and `quote_by_token` returns null for unknown or malformed tokens. `send_quote` returns a 43-character token, stores exactly its SHA-256 and nowhere the token, refuses a replayed id (`quote_already_sent`), foreign or non-proposed items, duplicates and validity over 30 days; a second quote withdraws the first (its link shows only `{status: withdrawn, job_number}` and cannot be answered; its items return to proposed). The page shows exactly eleven keys and no cost, supplier, email, phone or note; an expired quote shows `expired` and refuses answers. `answer_quote` records each item once, sets the job's approval flag and note (not the flag when all are declined), refuses a second answer, incomplete, duplicated, foreign, non-boolean and malformed answers, a blank name, an unknown token and a closed job; two committed connections answering at once give one answer and one `quote_not_open`. `order_part_requests` needs manage_purchasing (mechanic1 refused; mechanic2 with the grant allowed) and approved parts; it creates the supplier's draft at the expected cost with "For J-…", links the request, moves the job to Waiting on parts and replays to the same order; a second job's request raises the same line. Receiving two of three covers the first job's two and not the later one; `indent_reservations` shows them until fitted. Fitting adds one inventory line at the quoted price with one `job_consumption` movement, replay-safe; an approved service fits as a service line; proposed items cannot be fitted. Cancelling needs a reason and refuses quoted and fitted items. |
+| Indent parts and quotes (Phase 13 step 1; D140–D147) | `indent-parts.test.ts`: proposing a part or service adds a request with no movement and no line (the job's lines and the product's movements unchanged), at the product's selling price, replay-safe, and refuses unique, inactive and unpriced products, a zero quantity, a conflicting replay and a completed job; any staff member proposes, but a cost or supplier needs view_costs or manage_purchasing (42501 for mechanic2). Staff read requests and quotes but not `expected_unit_cost`, `supplier_id` or `token_hash` (42501); `job_part_requests_staff` returns the cost only to view_costs; anon reads no table and no staff RPC, and `quote_by_token` returns null for unknown or malformed tokens. `send_quote` returns a 43-character token, stores exactly its SHA-256 and nowhere the token, refuses a replayed id (`quote_already_sent`), foreign or non-proposed items, duplicates and validity over 30 days; a second quote withdraws the first (its link shows only `{status: withdrawn, job_number}` and cannot be answered; its items return to proposed). The page shows exactly twelve keys (`deposit` since Phase 14 step 2, null at the shipped 0%) and no cost, supplier, email, phone, note, Stripe id or URL; the helpers are shared with the deposit tests through `tests/db/indent-fixtures.ts`; an expired quote shows `expired` and refuses answers. `answer_quote` records each item once, sets the job's approval flag and note (not the flag when all are declined), refuses a second answer, incomplete, duplicated, foreign, non-boolean and malformed answers, a blank name, an unknown token and a closed job; two committed connections answering at once give one answer and one `quote_not_open`. `order_part_requests` needs manage_purchasing (mechanic1 refused; mechanic2 with the grant allowed) and approved parts; it creates the supplier's draft at the expected cost with "For J-…", links the request, moves the job to Waiting on parts and replays to the same order; a second job's request raises the same line. Receiving two of three covers the first job's two and not the later one; `indent_reservations` shows them until fitted. Fitting adds one inventory line at the quoted price with one `job_consumption` movement, replay-safe; an approved service fits as a service line; proposed items cannot be fitted. Cancelling needs a reason and refuses quoted and fitted items. |
+| Stripe payments are Stripe's word only (Phase 14 step 1; D150, D153, D155, D157–D159; DATA-MODEL §19) | `stripe-payments.test.ts`, with pending payments inserted as the owner (step 2's Checkout RPCs stand in later) and events from `tests/fixtures/stripe.ts`. **Who can reach it:** anon, a mechanic, the manager and the admin get 42501 from `record_stripe_event` and `record_stripe_read`; the admin cannot insert, update or delete any of the three tables; a mechanic reads payments and matched refunds but not unmatched refunds or events, the admin reads all three, a linked customer reads none and anon is refused. **Provenance (D153):** a rejected delivery of a paid body leaves the payment pending, stores no payload and no event id; a verified call without an `evt_` id, a boolean livemode or an object body is 22023. **The guards, for the owner too:** marking a payment paid, changing its amount, deleting it, inserting it paid, citing an already decided event or moving the citation alone are `payment_immutable`, while `checked_at` alone changes; a refund cannot be deleted, change its amount, go down in rank (even citing a received event) or be inserted without a received event (`payment_refund_immutable`). **Paid in exact cents:** a completed paid session sets paid, `paid_at` = the event's `created`, `amount_received` 120.00, the payment intent and `checkout_completed_at`, cites the event, and writes one `payment_received`; `amount_cents` is 12000, 12001, 99999999 and 50 for 120.00, 120.01, 999,999.99 and 0.50, and 0.49 and 1,000,000.00 are refused. **Mismatch recorded, never refused (D159b):** 11999 cents, `usd`, 12000.5 and the string "12000" are each paid with `paid_amount_mismatch` and `amount_received` 119.99 or null, and each is flagged `amount_mismatch` by step 2's `payment_issues`. **Replays:** the same `evt_` twice is a duplicate with `delivery_count` 2 and no change; a second Event object for the same change is `already_paid`, with one timeline entry. **Out of order:** async succeeded before completed (unpaid), expired after paid, completed (unpaid) then async failed (processing, then failed), async failed then completed, paid after expired (`expired_at` kept) and after failed, an open read (`still_open`), and `refund.updated` (succeeded) before `refund.created` (pending). **Refunds (D155, D159c):** pending counts nothing; succeeded 50.00 → partially refunded; a second 70.00 → refunded (full); the first failing afterwards → partially refunded, 70.00, `payment_refund_failed` and the `refund_failed` issue (none before it), which neither a canceled refund nor a stale snapshot clears; canceled never counts; a stale succeeded after failed changes nothing; each row keeps Stripe's `created`. A refund before its payment is kept unmatched (admins only) and adopted by the completion in the same update, with both timeline entries; an over-refund (130.00 of 120.00) is recorded and flagged `refund_exceeds_payment`. A refund whose event is in live mode for a test payment (`livemode_mismatch`, also on its later `refund.failed`) or whose currency is USD (`currency_mismatch`) needs attention, is kept and linked, and is never netted (the payment stays paid at 0.00 and cites its completion until an SGD 20.00 refund makes it partially refunded); a USD and an SGD refund that arrive before their payment are both adopted by the completion, and only the SGD one counts (40.00); in both cases the uncounted USD refund is flagged `refund_not_counted`. **Identity:** unknown payment (attention when paid, ignored otherwise), another session, another mode, not ours, `charge.refunded` and `charge.dispute.created` (stored as projections), `no_payment_required`, malformed sessions and refunds, and a refund without a payment intent change nothing; the checks run in the order of spec 2.5 step 6: another session wins over another mode and payment intent (`session_mismatch`), another mode over another payment intent (`livemode_mismatch`), and another payment intent alone is `session_mismatch`. **Projection (D159e):** customer details, emails, URLs with the quote token and foreign metadata are never stored; ids, amounts and `bicii_*` metadata are, with the raw body's SHA-256. **Evidence (D88):** one row per bad body with a delivery count, 17 headers capped to 16 plus the marker, a later verified delivery of the same id accepted, events immutable for the owner, no row left `received`; with a committed transaction, the owner's commit of a row still `received` is refused by the deferred `stripe_events_settled` (`stripe_event_immutable`) and leaves nothing, `SET CONSTRAINTS … IMMEDIATE` raises at once, and a row decided in the same transaction passes; the purge refuses under 30 days and deletes only aged rejected rows. **Reads (D159a):** a read pays a pending payment at the read time (`paid_at` between the database clock read just before and just after the call, D159d) with an `api_read` row; a second read is `already_paid` with new evidence and a later `checked_at`; a refund read records the refund; another session or payment intent is `read_mismatch`; a non-session, a bad id, an unknown payment and a null object are refused; a PaymentIntent read (R-086) of a payment completed unpaid, after its session read stays `already_processing`, records `processing` as nothing new and `requires_payment_method` or `canceled` as `payment_failed` (a `read.payment_intent` row whose stored copy drops `last_payment_error`), then `already_failed`, and `stale` once a later paid event wins; an open Checkout's payment (no intent), another intent and the other mode are `read_mismatch`, an unknown intent status `object_invalid`, and a malformed id 22023. A refund's `status_changed_at` moves only with its status (`payment_refund_immutable`). **D154:** a paid, partly, fully and failed-refunded balance payment on a completed job with a service and a part line leaves `financial_lines`, `report_lines`, both totals views, `work_order_yield`, `daily_summary`, `report_period_summary` for every basis, the job's status and stamps and the line, sale and refund counts unchanged. **Concurrency** (committed, its own database; each case holds the first call's locks in an open transaction and proves the second waits on a lock in `pg_stat_activity` before committing the first, `tests/db/lock-race.ts`): the same `evt_` on two connections (the second waits on the dedupe key: one applied, one duplicate, one timeline entry); a refund and the completion in either order (waits on the payment intent's advisory lock; partially refunded, 50.00); a webhook and a read of the same session in either order (one transition, `payment_paid` then `already_paid`); a paid webhook and cancelling the job in either order (waits on the job; both commit, the money is recorded and flagged `paid_job_cancelled`). |
+| Indent deposits in Postgres (Phase 14 step 2; D151, D152, D154, D157, D158, D159b; DATA-MODEL §5 "Indent deposits", §19) | `indent-deposits.test.ts`, with quotes from `tests/db/indent-fixtures.ts` at a percent set as the owner, deposit payments created through `record_deposit_checkout` as the service role and moved only by Stripe events (`tests/fixtures/stripe.ts`). **The setting:** 0 by default; the admin's setter returns 0, 50, 100 and 37, the same value writes no `schedule_events` row and a change writes one `{indent_deposit_percent: {from, to}}`; -1, 101 and null are `deposit_percent_out_of_range`; the manager, mechanic2 and anon get 42501, and so does a direct UPDATE as the admin. **The snapshot:** sent at 50% keeps 50 after the setting moves to 30; answering 2 × 120.00 plus a 25.00 service gives 120.00 (not 132.50); a declined part, percent 0 and only services give none; 33.33 → 16.67, 0.99 → 0.50, 0.80 → none; a USD quote gets percent 0 and no amount; a quote with a null percent (sent before step 2) answers with none and is ordered freely; an owner update of either column after answering is `quote_deposit_immutable`. **The quote page:** twelve keys; `on_answer` while open, then `due` 120.00 with `parts_ordered` false, `processing` (completed unpaid), `paid`, still `paid` when partly refunded, `refunded`; `parts_ordered` true once an admin orders the part with a reason (still `due`) and once it is fitted; no cost, contact, Stripe id or URL; null on a cancelled job, when every part is cancelled and at 0%; withdrawn and expired quotes keep two keys. **`prepare_deposit_checkout`:** service role only (anon, the admin and a mechanic 42501); unknown and malformed tokens `quote_not_found`; open and depositless quotes `deposit_not_due`; `create` with 120.00, 12000 cents, SGD, a fresh payment id per call and an expiry about an hour ahead; then `check` with the recorded session, `processing`, `paid` and `refunded`; `deposit_job_closed` and `deposit_parts_cancelled`. **`record_deposit_checkout`:** service role only; `created` with a pending row (amount, cents, mode, session, expiry); a replay `existing`; the same id with another session, or the same id and session replayed for another quote, `checkout_session_conflict`; another attempt while one is pending `existing` with the first; no timeline entry; a direct second pending deposit is 23505 `payments_one_open_deposit`; 13250 cents, `usd`, a wrong payment, quote or client reference, a complete or expired session, an expiry more than 61 minutes ahead, a string `livemode` and a malformed id are `checkout_session_mismatch` and leave no row; a paid quote answers `paid` and records nothing. **The D152 gate:** with the deposit due, the admin without a reason or with blanks gets `deposit_unpaid`; mechanic2 with manage_purchasing gets 42501 with a reason and `deposit_unpaid` without; 501 characters are `reason_too_long`; the manager orders with a reason, recorded trimmed as `deposit_override {reason, quote_ids}` with the manager as actor, and a replay returns the order; paid and partly refunded deposits order without a reason and record nothing, fully refunded and processing ones are `deposit_unpaid`; 0% is never gated and an unneeded reason is not recorded; a replay after a full refund still returns the order; an unapproved request is `part_request_not_approved` first; ordering a paid and an unpaid job together records the override on the unpaid job only; an approved part in stock is fitted while its deposit is due. **The views:** a mechanic reads `quote_deposits` (state, part ids); a linked customer reads none of the three views and anon is refused; `payment_issues` raises and clears `paid_job_cancelled` (cleared by a full refund), `paid_parts_cancelled` (its sentence with the amount held as the screens print money, $120.00 then $70.00), `paid_twice` (an expired session paid after another; cleared by refunding it), `amount_mismatch` ("Stripe received $119.99, not the $120.00 asked."), `refund_failed` (cleared by a later succeeded refund; also raised when refunds pending, succeeded and then one failed were all decided before the completion adopted them, ordered by each refund's own `status_changed_at`), `refund_exceeds_payment` and `pending_unconfirmed` (warning, "Press Check with Stripe" before Checkout completed and "look the payment up in the Stripe Dashboard" after it; cleared when Stripe expires it); `work_order_payment_totals` shows 120.00 paid ahead with a 0.00 job total (equal to `work_order_totals`) and no balance once collected or cancelled. **Exceptions (D108):** an amount mismatch is one `payment_attention` row (job number, the sentence) for the admin and the manager, none for mechanic2; a `payment_not_found` event and a `not_recorded` delivery are `stripe_attention` for the admin only, and the second clears once the retry of the same body is stored; `report_exception_counts` and `today_dashboard(null).exceptions_now` agree with the list per caller; a full refund clears the payment row; a linked refund in another currency is one `payment_attention` row (`refund_not_counted`) and no `stripe_attention`. **Concurrency** (committed, its own database; each case proves the second call waits on a lock before the first commits, `tests/db/lock-race.ts`): two `record_deposit_checkout` calls for one quote (the second waits on the job: one created, one existing with the first's id, one pending row); ordering without a reason while a paid webhook still holds the job waits and then orders (a gate read before the lock would refuse it); a paid webhook while an override order holds the job waits and is then recorded, with one `deposit_override`; `record_deposit_checkout` and cancelling the part in either order (created then cancelled, or cancelled then `deposit_parts_cancelled`). `operational-exceptions.test.ts` counts `integration_failed` rows by kind and checks the visibility of the two kinds (admin both, manager `payment_attention` only, mechanic2 neither); `customer-access.test.ts` adds the three views to the customer's zero-row list. |
 | Anonymous sees public appointment types only (PLAN Phase 2, D37) | `appointment-customer-access.test.ts`: as anon, `public_appointment_types()` lists active public types only, with exactly `id, name, description, duration_minutes` (no capacity units); `public_shop_hours()` the active weekly rows in order; `available_slots` works for a public type and is empty for a non-public one; every staff, admin and my_* appointment RPC and every appointment and schedule table → 42501. |
 | Mechanic permission boundaries | staff without `view_costs` cannot select cost columns; without `adjust_stock` cannot call `adjust_stock`; admin can. Phase 3: mechanic2 `select cost_total` / `unit_direct_cost_snapshot` / `cult_commons_share` / `*` on `work_order_line_items` → 42501, `work_order_line_items_staff` and `work_order_totals_staff` → 0 rows, `work_order_totals` → sale columns only; mechanic1 sees costs, yield and Cult Commons. |
 | Consignment sale yields correctly | $1,000 sale, $500 owed → yield 500, CC 150. Built in Phase 6 step 2: `sales.test.ts` "Consignment sale creates correct liability and yield" (cost 500.00, yield 500.00, CC 150.00, payout 500.00, liability 500.00, item sold with one active→sold event, no settlement written; a 120.00 shop charge → 620.00 / 380.00 / 114.00; a 45.00 consignor charge leaves the line and lowers owed) and the seeded S-000003 in `consignment-reporting.test.ts`. |
@@ -1108,7 +1276,7 @@ Each invariant from SPEC §23 has at least one test, named after it:
 | Report arguments and access (Phase 9; D30, D91, D92) | `period-reports.test.ts`: reversed or NULL bounds `report_range_invalid`, 732 days `report_range_too_long` (731 pass) on all six ranged RPCs; bad keys, keys of another dimension and half or conflicting cursors `report_key_invalid`; a mechanic with only `view_financial_reports` as an exception (granted by the admin) gets gross, counts, refunds and consignment counts with every cost column NULL, full figures with `view_costs` added, as do a manager and the admin; mechanic1 (view_costs only) and mechanic2 get 42501 from the financial RPCs and may read activity; a customer gets 42501 from all seven; anon has no EXECUTE; no report RPC returns a float; each period-report column leads a valid index |
 | The app's report reads and export pagers (Phase 9 step 2; D30, D100) | `period-report-exports.stack.test.ts` (through PostgREST on the devstack, as the app calls it): walking `report_breakdown` two groups at a time with the cursor passed back as received visits every group once, in one page's order (job, product and mechanic); the breakdown export's groups add up to the summary's `line_count` and end with the summary's own TOTAL row; the lines export of the period and of J-000013 number their counts, newest first; mechanic1 (View costs only) and mechanic2 get 42501 from the summary; the by-mechanic rows are for any staff, the lead-less one "Unassigned" |
 | Stock reconciles with the ledger (Phase 9 step 3; SPEC §12, §23, §26; D106) | `stock-reconciliation.test.ts`: the seed has no unit or stock issue (no seeded negative_on_hand) and every unit's ledger equals the on-hand its status implies; running both RPCs and the exceptions writes nothing (movement, unit, unit-event and consignment row counts and stamps unchanged); the exact columns, none a cost, the 1..1000 clamp. Every RPC-reachable unit state reconciles after EVERY step, with the expected disposition: unit 1 held (`add_inventory_line`), voided back to available, held again, sold at completion, reopened to held (D25), sold again; unit 2 sold by `record_retail_sale`, refunded (still sold_by_sale, D7), restocked (in_stock while the old sale line still names it), transferred (ledger location = the new one); unit 3 held, voided, job cancelled (D16); unit 4 a consigned unit sold on a job (D44, item sold); unit 5 consigned and returned; unit 6 written off; none of them is an exception, and Phase 4's deferred check agrees. Each corruption, written as the owner with `session_replication_role = replica` and rolled back, gives exactly its code and the same `issue` in `operational_exceptions` (as the admin): an extra +1 at a second location `ledger_out_of_range`; a sold unit set available `sale_without_sold_status`; a sold unit given a later +1 `sold_without_sale`; a held unit whose job is cancelled without a void `held_without_open_job`, listed once as Phase 5's `unit_hold_stale`; an available unit given −1 `in_stock_without_ledger`; set written_off without a movement `ledger_without_stock_status`; location changed without movements `location_mismatch`; the item set sold while its unit is available `consignment_status_mismatch`; a quantity product below zero `negative_on_hand`, mirrored by exactly one `negative_stock` row; a unitless unique-product movement `unique_movement_without_unit` (the unit itself still clean); a moved unit `unit_count_mismatch` at both locations. `unit_expected_on_hand` equals `assert_unit_consistent`'s rule for all six statuses (consistent at net 1 exactly when it says 1, at net 0 exactly when it says 0). Access: every seeded staff member may call both RPCs; a customer gets 42501, anon has no EXECUTE, no API role selects the three views; a mechanic without `view_costs` reads the same unit row as the admin. |
-| Operational exceptions, extended (Phase 9 step 3; D34, D104, D107, D108) | `operational-exceptions.test.ts`: with one row of each Phase 5 kind, the first nine columns of `reporting.operational_exceptions` for Phase 5's kinds equal exactly what Phase 5's own view body (read from `20261004002500_daily_summary.sql`) returns, and the appended columns are `issue` (the kind; `negative_on_hand` for negative_stock), `short_id` = `title` = `entity_label`, `detail` = `subject_label`, `amount` and `currency` NULL; the RPC returns `OPERATIONAL_EXCEPTIONS_COLUMNS` (Phase 5's nine, then the six appended). D107: an item received 60 and sold 45 shop days ago is raised for the admin with amount 300.00, currency SGD, days 45, since = the sale and the consignor's name in subject and title; the threshold hides it at 60 and 45 and shows it at 44 and 30; the current value again writes no `schedule_events` row and a change writes one with `{from, to}`; 0, 366 and NULL are `alert_days_out_of_range`; a direct UPDATE as the admin is 42501 and changes nothing; a mechanic with `manage_consignments`, mechanic2, mechanic1 and the manager get 42501; a partial settlement leaves 200.00, a full one clears it, a restock clears another item, and a sale 5 days ago is not raised. D108: the admin, the manager, mechanic1 (`view_costs`) and a mechanic with `manage_consignments` see the unsettled row, a mechanic with only `view_financial_reports` and mechanic2 do not; everyone sees a `unit_state_mismatch`; for each of the six, `report_exception_counts` per kind equals the list per kind and `today_dashboard(null).exceptions_now` its length. `private.integration_exceptions()` has exactly Phase 10's nine-column signature (from the catalogue), is definer, stable, `search_path=""`, executable by no API role, and is Phase 10's body (since reporting joined `main`): the admin sees each seeded `needs_attention` job once, as `integration_failed` with `issue`, `title` and `detail` filled by the view, and mechanic2 sees none (R-058); `exception_visible` gives the per-kind rule for the admin and mechanic2. D104: an owner-written USD work-order line and a two-line USD sale are listed (`work_order_line` and `sale`, with S- number, description · USD and since = `recognized_at`), and they are exactly the documents `private.report_rows(…, true)` returns and `excluded_foreign_line_count` counts (1, 2 and 3). |
+| Operational exceptions, extended (Phase 9 step 3; D34, D104, D107, D108) | `operational-exceptions.test.ts`: with one row of each Phase 5 kind, the first nine columns of `reporting.operational_exceptions` for Phase 5's kinds equal exactly what Phase 5's own view body (read from `20261004002500_daily_summary.sql`) returns, and the appended columns are `issue` (the kind; `negative_on_hand` for negative_stock), `short_id` = `title` = `entity_label`, `detail` = `subject_label`, `amount` and `currency` NULL; the RPC returns `OPERATIONAL_EXCEPTIONS_COLUMNS` (Phase 5's nine, then the six appended). D107: an item received 60 and sold 45 shop days ago is raised for the admin with amount 300.00, currency SGD, days 45, since = the sale and the consignor's name in subject and title; the threshold hides it at 60 and 45 and shows it at 44 and 30; the current value again writes no `schedule_events` row and a change writes one with `{from, to}`; 0, 366 and NULL are `alert_days_out_of_range`; a direct UPDATE as the admin is 42501 and changes nothing; a mechanic with `manage_consignments`, mechanic2, mechanic1 and the manager get 42501; a partial settlement leaves 200.00, a full one clears it, a restock clears another item, and a sale 5 days ago is not raised. D108: the admin, the manager, mechanic1 (`view_costs`) and a mechanic with `manage_consignments` see the unsettled row, a mechanic with only `view_financial_reports` and mechanic2 do not; everyone sees a `unit_state_mismatch`; for each of the six, `report_exception_counts` per kind equals the list per kind and `today_dashboard(null).exceptions_now` its length. `private.integration_exceptions()` has exactly Phase 10's nine-column signature (from the catalogue), is definer, stable, `search_path=""`, executable by no API role, and is Phase 10's body (since reporting joined `main`): the admin sees each seeded `needs_attention` job once, as `integration_failed` with `issue`, `title` and `detail` filled by the view, and mechanic2 sees none (R-058); `exception_visible` gives the per-kind rule for the admin, the manager and mechanic2 (since Phase 14 step 2 also `payment_attention` and `stripe_attention`; the integration count is by kind). D104: an owner-written USD work-order line and a two-line USD sale are listed (`work_order_line` and `sale`, with S- number, description · USD and since = `recognized_at`), and they are exactly the documents `private.report_rows(…, true)` returns and `excluded_foreign_line_count` counts (1, 2 and 3). |
 
 ### End-to-end (SPEC §27.3)
 
@@ -1846,6 +2014,66 @@ it as "Reserved for jobs" (the job number, × 2), **Fit** ($240.00) puts it
 on the job and **Add to job** the service: both are then in Lines, and the
 product page no longer lists it as reserved.
 
+Customer payments (`payments.spec.ts`, Phase 14 step 2; D151–D159,
+ADR-025), on a phone and an iPad, against the in-memory Stripe
+(`STRIPE_ADAPTER=fake`, above). Every spec shares the one reset database,
+so the spec sets the deposit back to 0 straight after each quote is sent
+(the quote already holds its 50% snapshot, D158a) and again in
+`afterEach`: `indent.spec.ts` and the rest never see a deposit. Ids carry
+`tagFor(testInfo)` and the project name. Test 1, "deposit: asked, paid
+through Stripe (fake) and a signed webhook, then ordered": the admin opens
+Settings → Customer payments ("Fake Stripe (development and tests only)",
+the `/api/stripe/webhooks` endpoint) and sets 50% (the toast "Customers
+pay 50% of the approved indent parts after answering"); a supplier,
+product (120.00) and job, 2 × the part and Wheel True proposed and quoted;
+the customer, signed out, sees "a deposit of 50% of the parts you
+approve", approves both and gets the Deposit card ($120.00, "50% of the
+parts you approved", **Pay $120.00 deposit**: the part only, not the
+fitting). On the job, Customer payments says Deposit due, the part row
+has the Deposit due badge, and the order sheet lists it unticked as
+"(deposit not paid)" with **Add to order** disabled; ticking it shows
+"Why order before the deposit is paid?" and **Order without deposit**.
+Pay returns at once (the fake's session URL is the success URL) to
+`?deposit=returned` with `Referrer-Policy: no-referrer` and
+`Cache-Control: private, no-store`, showing "We're confirming your payment
+with Stripe…"; SQL shows one pending payment of 12000 cents. A
+`checkout.session.completed` for that session, signed with the fixtures'
+secret (`tests/fixtures/stripe.ts`) and carrying customer details and a
+success URL, is posted twice (200 `duplicate: false`, then `duplicate:
+true`) and once signed with another secret (400 `signature_invalid`); SQL
+shows the payment paid, exactly one `payment_received`, and a stored
+payload without `customer_details`, `success_url` or the email. The
+customer's page then reads "Deposit of $120.00 paid. Thank you." and
+"Your deposit is paid, so the shop will order your parts."; the job shows
+Deposit paid, "Paid online" $120.00 with "Paid ahead", the timeline "Deposit
+of $120.00 paid online", and the order sheet lists the part ticked with
+no callout: **Add to order** orders it with no override on the timeline.
+A signed `refund.updated` (succeeded, 5000) shows "Partly refunded", "of
+which $50.00 refunded" and "$50.00 refunded in Stripe". Test 2, "an admin
+orders before the deposit is paid, with a reason": the sheet's callout
+says "The customer hasn't paid the deposit for 1 of these parts.", **Order
+without deposit** with no reason asks for one, and with "Customer is
+paying at the counter" it orders ("…without the deposit"); the timeline
+shows "Parts ordered on PO-…" with "Ordered before the deposit was paid:
+Customer is paying at the counter", and the deposit is still due; the
+customer's page then reads "The shop has ordered your parts. Ask the shop
+if you still need to pay the deposit." (not "…once the deposit is
+paid"), the Deposit card warns "If you paid the deposit another way, ask
+the shop before paying here." and still offers Pay. Test 3,
+"a cancelled Checkout can be paid later with the same session":
+`?deposit=cancelled` says "Payment not finished. Nothing was charged.";
+Pay again returns to the same URL and SQL still has the one pending
+payment with the same session; the job shows "Checkout open" and **Check
+with Stripe** toasts "Nothing new from Stripe."; a signed completion for
+11999 cents then shows "Stripe received $119.99, not the $120.00 asked."
+as the card's problem, a "Paid online $119.99" link under the Lines
+total, and on Exceptions one row for the job whose sentence appears once,
+with "Open the job's Customer payments" under it. `E2E_REUSE_SERVER=1`
+reuses a server started elsewhere, so `playwright.config.mts`'s Stripe
+variables do not apply to it: start that server with the same
+`STRIPE_ADAPTER`, `STRIPE_WEBHOOK_SECRET` and `ADMIN_ORIGIN`, or
+`payments.spec.ts` fails.
+
 Critical journeys, added with the phases that build them, against the seeded
 database, signed in as the seeded admin and mechanic:
 
@@ -1879,6 +2107,12 @@ database, signed in as the seeded admin and mechanic:
    its fitting → send the quote → the customer approves on the quote page,
    signed out (step 3) → order onto the supplier's draft (job Waiting on
    parts) → receive → fit → both are job lines.
+8. Stripe deposit (`payments.spec.ts` since Phase 14 step 2): the deposit
+   set to 50% → quote → the customer answers and pays through Stripe
+   Checkout (the fake) → a signed webhook marks it paid (a replay changes
+   nothing; a forged signature is refused) → the job shows it paid and
+   paid ahead → the part orders without a reason → a partial refund shows;
+   an admin orders an unpaid part with a reason, on the timeline.
 
 ## Seed data
 
@@ -2017,4 +2251,12 @@ fine).
 
 Secrets in CI: none. E2E runs against the devstack (real Supabase Auth,
 PostgREST and Storage with the local demo keys), not staging, so it works
-on forks and needs no staging credentials.
+on forks and needs no staging credentials. Stripe likewise never gets a
+key: CI's unit and database jobs set no Stripe variable (the unit tests
+inject the fake and the fixtures' signing secret directly), and
+`playwright.config.mts` gives the E2E server `STRIPE_ADAPTER=fake`, the
+fixtures' signing secret (`whsec_biciiE2eNotARealSecret`, never a real
+value), `ADMIN_ORIGIN` = the E2E base URL and a blank `STRIPE_SECRET_KEY`
+(so a key in `.env.local` never meets the fake: env.ts refuses the fake
+together with a key). Stripe is therefore on, as the fake, in every E2E
+spec; the deposit still ships at 0, so only `payments.spec.ts` sees one.

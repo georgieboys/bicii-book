@@ -230,13 +230,17 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.cancel_part_request(uuid, text)",
   "public.fit_part_request(uuid, uuid, uuid)",
   "public.indent_reservations(uuid)",
-  "public.order_part_requests(uuid[], uuid, uuid, boolean)",
+  "public.order_part_requests(uuid[], uuid, uuid, boolean, text)",
   "public.part_request_arrivals(uuid)",
   "public.propose_part(uuid, uuid, uuid, integer, money_amount, money_amount, uuid)",
   "public.propose_service(uuid, uuid, uuid, line_quantity, money_amount)",
   "public.quote_by_token(text)",
   "public.send_quote(uuid, uuid, uuid[], quote_channel, integer)",
   "public.withdraw_quote(uuid)",
+  // Indent deposits (Phase 14 step 2, D151, D152, D157): the deposit
+  // percent is admin only; ordering a part whose deposit is not paid needs
+  // an active admin or manager and a reason (order_part_requests above)
+  "public.set_indent_deposit_percent(integer)",
 ];
 
 /**
@@ -366,6 +370,18 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.job_part_requests_staff": ["SELECT"],
   "public.quote_items": ["SELECT"],
   "public.quotes": ["SELECT"],
+  // Stripe payments (Phase 14 step 1, D150-D159): read-only; every write
+  // is a service-role RPC. Payments are readable by active staff, matched
+  // refunds by active staff and unmatched ones by admins, the delivery
+  // evidence by admins only (D86)
+  "public.payment_refunds": ["SELECT"],
+  "public.payments": ["SELECT"],
+  "public.stripe_events": ["SELECT"],
+  // Indent deposits (Phase 14 step 2, D151, D154, D158, D159b): security
+  // invoker views over the tables above, read through their RLS
+  "public.payment_issues": ["SELECT"],
+  "public.quote_deposits": ["SELECT"],
+  "public.work_order_payment_totals": ["SELECT"],
 };
 
 /**
@@ -375,7 +391,12 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
  * Phase 10 added exactly the Shopify webhook and queue RPCs, which the
  * webhook route and the cron call with the service-role key, and the
  * product sync's state and result RPCs the sync worker calls
- * (DATA-MODEL §16). Nothing in `private`.
+ * (DATA-MODEL §16). Phase 14 (D150-D159, ADR-025) adds the Stripe RPCs,
+ * called only from src/lib/integrations/stripe/: the webhook's
+ * record_stripe_event and the server's own reads, record_stripe_read
+ * (step 1), and the quote page's Checkout start, prepare_deposit_checkout
+ * and record_deposit_checkout (step 2; anon gains nothing). Nothing in
+ * `private` (the Stripe purge is owner-only).
  */
 export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.note_sign_in_attempt(text[], integer)",
@@ -386,6 +407,11 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.product_sync_state(uuid)",
   "public.record_product_sync_result(uuid, uuid, text, text, text, text, text, integer, money_amount, text, text, text, text, boolean)",
   "public.record_shopify_webhook(text, text, text, text, text, timestamp with time zone, jsonb, jsonb, text, integer, boolean, integration_rejection_reason, text)",
+  // Stripe payments (Phase 14, D150-D159)
+  "public.record_stripe_event(jsonb, jsonb, text, integer, stripe_rejection_reason, text)",
+  "public.record_stripe_read(uuid, jsonb, text)",
+  "public.prepare_deposit_checkout(text)",
+  "public.record_deposit_checkout(uuid, uuid, jsonb)",
 ];
 
 /**

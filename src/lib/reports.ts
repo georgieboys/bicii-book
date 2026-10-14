@@ -449,6 +449,9 @@ const EXCEPTION_LABELS: Readonly<Record<string, string>> = {
   unsettled_consignment: "Unsettled consignment",
   currency_mismatch: "Other currency",
   integration_failed: "Shopify needs attention",
+  // Phase 14 (D159b): customer payments (admins and managers) and Stripe deliveries (admins).
+  payment_attention: "Customer payment",
+  stripe_attention: "Stripe needs attention",
 };
 
 /** The pill text for an exception kind ("Needs attention" for kinds this build does not know). */
@@ -515,6 +518,15 @@ export function exceptionCopy(
       // Phase 10 (D86, admins only): the human message is the row's subject
       // line; the fix happens in the Shopify queue.
       return { text: "Fix it in the Shopify queue", tone: "danger" };
+    case "payment_attention":
+      // Phase 14 (D159b): the row's subject line is the sentence
+      // public.payment_issues computed (the job card's words); this is
+      // where to act, so the list never says the same thing twice.
+      return { text: "Open the job's Customer payments", tone: exceptionTone(row.severity) };
+    case "stripe_attention":
+      // Phase 14 (D86, D159b, admins only): a delivery BICII could not apply
+      // or store; its subject line says what, this where to look.
+      return { text: "Check Stripe deliveries in Settings → Customer payments", tone: "danger" };
     default: {
       const what = [row.entityLabel, row.subjectLabel].filter(Boolean).join(" · ");
       return { text: what ? `Check ${what}` : "Something needs checking", tone };
@@ -568,6 +580,9 @@ export function exceptionHref(
     case "integration_job":
       // Phase 10: the queue with that job's sheet open (admins only, D86).
       return `/shopify/queue?job=${encodeURIComponent(row.entityId)}`;
+    case "stripe_event":
+      // Phase 14: a Stripe delivery with no job, listed in Settings (admins only, D86).
+      return "/settings/payments#deliveries";
     default:
       return null;
   }

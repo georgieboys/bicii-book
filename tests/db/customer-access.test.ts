@@ -217,6 +217,14 @@ describe("a signed-in customer and the base tables", () => {
           "purchase_receipts",
           "purchase_receipt_lines",
           "purchase_receipt_lines_staff",
+          // Stripe payments (Phase 14 step 1): staff and admins only
+          "stripe_events",
+          "payments",
+          "payment_refunds",
+          // Indent deposits (Phase 14 step 2): staff views over them
+          "quote_deposits",
+          "payment_issues",
+          "work_order_payment_totals",
         ]) {
           expect(await scalar(tx, `select count(*)::int from public.${table}`)).toBe(0);
         }

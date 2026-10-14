@@ -1,4 +1,4 @@
-import pino, { type Logger } from "pino";
+import pino, { type Logger, type LoggerOptions } from "pino";
 
 /**
  * Structured JSON logs (ADR-001 A8). Server only: pino is in Next's default
@@ -11,7 +11,11 @@ import pino, { type Logger } from "pino";
  */
 const level = process.env.LOG_LEVEL ?? (process.env.NODE_ENV === "test" ? "silent" : "info");
 
-export const logger: Logger = pino({
+/**
+ * The options every log line is written with; exported so
+ * tests/unit/logger.test.ts checks the redaction against a captured stream.
+ */
+export const loggerOptions: LoggerOptions = {
   level,
   base: { app: "bicii-admin" },
   timestamp: pino.stdTimeFunctions.isoTime,
@@ -29,10 +33,28 @@ export const logger: Logger = pino({
       "*.authorization",
       "headers.cookie",
       "serviceRoleKey",
+      // Stripe (Phase 14): URLs carry the quote token; keys, secrets and
+      // signatures never reach a log line even by mistake.
+      "url",
+      "*.url",
+      "successUrl",
+      "*.successUrl",
+      "cancelUrl",
+      "*.cancelUrl",
+      "checkoutUrl",
+      "*.checkoutUrl",
+      "secretKey",
+      "*.secretKey",
+      "webhookSecret",
+      "*.webhookSecret",
+      'headers["stripe-signature"]',
+      '*.headers["stripe-signature"]',
     ],
     censor: "[redacted]",
   },
-});
+};
+
+export const logger: Logger = pino(loggerOptions);
 
 /**
  * Logger bound to one request's correlation ID (the `x-request-id` set by

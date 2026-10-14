@@ -84,9 +84,10 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Everything except static assets, the PWA files, health checks,
-    // Shopify webhooks (authenticated by HMAC, not by session) and the
-    // integration cron (a bearer secret; a signed-out GET must reach the
-    // route, not be redirected to /login).
-    "/((?!_next/static|_next/image|favicon\\.ico|sw\\.js|manifest\\.webmanifest|icons/|apple-touch-icon|logo\\.svg|api/health|api/shopify/webhooks|api/cron).*)",
+    // Shopify webhooks (authenticated by HMAC, not by session), Stripe
+    // webhooks (authenticated by signature) and the integration cron (a
+    // bearer secret; a signed-out GET must reach the route, not be
+    // redirected to /login).
+    "/((?!_next/static|_next/image|favicon\\.ico|sw\\.js|manifest\\.webmanifest|icons/|apple-touch-icon|logo\\.svg|api/health|api/shopify/webhooks|api/stripe/webhooks|api/cron).*)",
   ],
 };

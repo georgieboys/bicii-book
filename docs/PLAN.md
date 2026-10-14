@@ -987,24 +987,40 @@ quotes on the public site, messages other than quotes.
 ### Phase 14 — Customer payments through Stripe
 
 The owner's decision of 2026-10-14 (D150–D156,
-[ADR-025](decisions/ADR-025-stripe-payments.md)): deposits on quotes
-first, then balance links. Needs the owner's Stripe account (Singapore,
-PayNow on) and keys; built and tested against an in-memory fake first.
+[ADR-025](decisions/ADR-025-stripe-payments.md)), with the build defaults
+D157–D159 (rollout, deposit rules, what changes a payment): deposits on
+quotes first, then balance links. Needs the owner's Stripe account
+(Singapore, PayNow on) and keys; built and tested against an in-memory
+fake first, and off in production until D157's conditions hold.
 
-**Step 1, database and adapter.** `payments` (D153), `stripe_events`
-(every delivery once by event id, rejected ones without a body), the
-service-role RPCs that apply Checkout and refund events (D155),
-`src/lib/integrations/stripe/` (the adapter, the fake, Checkout session
-creation with the job and quote in metadata), `POST /api/stripe/webhooks`
-(signature on the raw body). Tests: a payment changes only from a verified
-event; a replayed event changes nothing; amounts are numeric and equal
-Stripe's in cents; refunds and partial refunds; nothing in job totals or
-reports' sales changes (D154).
+**Step 1, database and adapter (built).** Migrations
+`20261014000300_payment_enum_values.sql` (the three timeline types on
+their own) and `20261014000400_stripe_payments.sql`: `payments` (D153),
+`stripe_events` (every delivery once by event id and every server read,
+rejected ones without a body), `payment_refunds` (one row per Stripe
+Refund, D155), and the service-role RPCs `record_stripe_event` and
+`record_stripe_read` that store and apply in one transaction (D159).
+`src/lib/integrations/stripe/` (the adapter over fetch, no SDK; the fake;
+`stripeConfig`, which keeps Stripe off with a reason unless every variable
+is right for the deployment, D157) and `POST /api/stripe/webhooks`
+(signature on the raw body; 500 so Stripe retries when storing fails).
+Checkout session creation with the job and quote in metadata is in the
+adapter; the flows that call it come with step 2. Tests: a payment changes
+only from a verified event; a replayed event changes nothing; amounts are
+numeric and equal Stripe's in cents; refunds and partial refunds; nothing
+in job totals or reports' sales changes (D154); the signature, the
+configuration matrix, the adapter's requests and errors, and the route.
 
-**Step 2, deposits.** `shop_settings.indent_deposit_percent` (D151,
-admin), the deposit on the quote page and Checkout after answering, the
-job's Payments card and "Deposit due", ordering after the deposit or an
-override with a reason (D152).
+**Step 2, deposits (built, against the fake).** Migration
+`20261014000500_indent_deposits.sql`: `shop_settings.indent_deposit_percent`
+(D151, admin; ships at 0, D157), the deposit snapshotted on the quote when
+sent and answered (D158), the deposit on the quote page and Checkout after
+answering, Settings → Customer payments, the job's Customer payments card
+with Check with Stripe and "Deposit due", ordering after the deposit or an
+override with a reason (D152; the order sheet starts unpaid parts
+unticked), and "needs attention" issues on the job and in Exceptions
+(D159). Tests: `tests/db/indent-deposits.test.ts`, the unit tests and
+`tests/e2e/payments.spec.ts` (journey 8).
 
 **Step 3, balance links and reporting.** Send a payment link for the
 balance (D156); payments and deposits held in Reports (D154).
@@ -1044,6 +1060,10 @@ collected with distinct timestamps, and see all of it on Today.
 | `SHOPIFY_ADAPTER` | unset in Production and Preview | `fake` only locally, in CI and in E2E (env.ts refuses it in production) |
 | `CRON_SECRET` | Vercel (Production, Preview) | Sensitive; the bearer of `/api/cron/integrations` (D87); unset = the route answers 503 |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Vercel Production (Phase 13 step 3) | quote emails through Resend's API (D144); the key Sensitive; either unset = no Email option |
+| `STRIPE_SECRET_KEY` | Vercel Production only (Phase 14): a restricted live key, Sensitive; Preview **unset** (D157); locally a test key or unset | Checkout Sessions write, Refunds read; a test key in Production or a live key elsewhere keeps Stripe off |
+| `STRIPE_WEBHOOK_SECRET` | the same placement as the key | the endpoint's signing secret (`whsec_…`), Sensitive; unset = Stripe off and `/api/stripe/webhooks` answers 503 |
+| `STRIPE_ADAPTER` | unset in Production and Preview | `fake` only locally, in CI and in E2E (env.ts refuses it with a key or in production) |
+| `ADMIN_ORIGIN` | Vercel Production `https://<admin host>`; locally `http://localhost:3000` | not secret; where Stripe returns customers (never the request's Host); invalid or unset = Stripe off |
 | `LOG_LEVEL` | app (optional) | `info` in Production, `debug` in Preview |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Vercel | stable across instances |
 
@@ -1208,13 +1228,16 @@ only its own range.
 | D146 | INDENT-FIT: when a part has arrived and how it is fitted | Arrived when receipts on its purchase order line cover it, first requested first covered; Fit adds the part line from the receiving location and marks it fitted; arrived stock shows as reserved for the job but is not held | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
 | D147 | INDENT-ACCESS: who does what | Any active staff member proposes and sends quotes on an open job; ordering needs `manage_purchasing`; costs and suppliers need `view_costs` or `manage_purchasing` (D60); customers reach a quote only by its link | Phase 13 | Build default | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
 | D148 | INDENT-SCOPE: what changes in the brief | SPEC §7.1's offline approval and SPEC §30's exclusion of customer approval and automated messaging are lifted for quotes only; ordinary parts and services are still added straight to jobs with the internal flag | Phase 13 | Owner decision 2026-10-14 | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
-| D150 | PAYMENTS-PROVIDER: how customers pay | Stripe's hosted Checkout (cards and PayNow, SGD); no card data in BICII; secret key and webhook secret server-only (Production live, Preview test or none); one adapter with an in-memory fake for tests | Phase 14 | Owner decision 2026-10-14 (Stripe); rest build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
-| D151 | DEPOSIT: the deposit on a quote | 50% of the approved indent parts' total (admin setting `indent_deposit_percent`, 0 for none), rounded to the cent in Postgres, offered through Checkout after the customer answers; the approval stands unpaid, shown as "Deposit due" | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
-| D152 | ORDER-AFTER-DEPOSIT: ordering before the deposit | Only once the deposit is paid, unless an admin or manager orders anyway with a recorded reason | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
-| D153 | PAYMENT-RECORD: how a payment is recorded | A `payments` row created with the Checkout session and changed only by Stripe's verified webhook (signature on the raw body, each event stored once by id, rejected deliveries kept without a body) through a service-role RPC; staff never type one | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
-| D154 | PAYMENT-MEANING: what a payment changes | Nothing in recognition, totals, yield or Cult Commons; the job shows paid and balance due (total less paid, net of refunds); reports list payments and deposits held on open jobs apart from sales | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
-| D155 | REFUNDS: how refunds happen | In the Stripe dashboard, recorded from Stripe's refund events; none started in the Admin | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D150 | PAYMENTS-PROVIDER: how customers pay | Stripe's hosted Checkout (cards and PayNow, SGD); no card data in BICII; secret key and webhook secret server-only (Production live, Preview test or none); one adapter with an in-memory fake for tests | Phase 14 | Owner decision 2026-10-14 (Stripe); rest build default; Preview amended by D157: none until a staging project exists; built in step 1 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D151 | DEPOSIT: the deposit on a quote | 50% of the approved indent parts' total (admin setting `indent_deposit_percent`, 0 for none), rounded to the cent in Postgres, offered through Checkout after the customer answers; the approval stands unpaid, shown as "Deposit due" | Phase 14 | Build default; built in step 2 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D152 | ORDER-AFTER-DEPOSIT: ordering before the deposit | Only once the deposit is paid, unless an admin or manager orders anyway with a recorded reason | Phase 14 | Build default; built in step 2 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D153 | PAYMENT-RECORD: how a payment is recorded | A `payments` row created with the Checkout session and changed only by Stripe's verified webhook (signature on the raw body, each event stored once by id, rejected deliveries kept without a body) through a service-role RPC; staff never type one | Phase 14 | Build default; built in step 1 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D154 | PAYMENT-MEANING: what a payment changes | Nothing in recognition, totals, yield or Cult Commons; the job shows paid and balance due (total less paid, net of refunds); reports list payments and deposits held on open jobs apart from sales | Phase 14 | Build default; built in step 2 (the job's Customer payments card: paid online, still to pay, paid ahead; and under the Lines total and in the Collected confirmation); Reports in step 3 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D155 | REFUNDS: how refunds happen | In the Stripe dashboard, recorded from Stripe's refund events; none started in the Admin | Phase 14 | Build default; built in step 1 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D156 | BALANCE-LINK: paying the rest | Staff send a Checkout link for the balance due by WhatsApp or email; paying it does not collect the job | Phase 14 | Build default | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D157 | PAYMENTS-ROLLOUT: when Stripe and deposits switch on | `shop_settings.indent_deposit_percent` ships at 0 in every database (no deposit asked, nothing gated) and is refused above 0 while Stripe is off; an admin raises it in Settings → Customer payments. Stripe is on only when every variable is valid for the deployment: never in a Vercel Preview; a `sk_`/`rk_` key whose mode matches (live only when `VERCEL_ENV=production`, test only outside it); `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` and `ADMIN_ORIGIN` set and well-formed; the fake only outside production. A missing, malformed or wrong-mode value turns Stripe off and names the reason, never stopping the app. Switching off: the percent to 0 first, then remove the keys | Phase 14 steps 1-2 | Build default, owner to confirm; built in steps 1–2 (`stripeConfig`, the setting and its rollout guard) | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D158 | DEPOSIT-RULES: which quotes ask a deposit, how much, how Checkout is offered | The quote stores the shop percent when sent and the amount when answered (`round(approved part lines × percent / 100, 2)` in Postgres; services and declined items excluded; later setting changes never move it; quotes sent before Phase 14 ask nothing). Only SGD quotes; under S$0.50 or over S$999,999.99 nothing is asked (never rounded up). Offered online only while the job is open and an approved part is still approved, ordered or fitted. One Checkout session per quote at a time, 60 minutes, reused until 2 minutes before it expires. Paid or partly refunded counts as paid for D152; fully refunded counts as unpaid and is never offered again | Phase 14 step 2 | Build default, owner to confirm; built in step 2 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D159 | PAYMENT-TRUTH: what changes a payment, and disagreements | Only verified data: a webhook whose signature is valid on the raw body, or the server's own read with the secret key (customers and staff only trigger it). Whatever Stripe confirms is recorded with Stripe's own amount, even on a cancelled job or part, a second payment or a different amount or currency, and flagged as needing attention; BICII never refunds on its own (D155). Refunds per Stripe Refund; only succeeded ones count, and one that fails after succeeding puts the amount back. `paid_at` is Stripe's time. Stored Stripe objects are an allow-listed projection without customer details or URLs. Card disputes are not handled (a known gap, R-089) | Phase 14 steps 1-2 | Build default, owner to confirm; built in step 1 (recording) and step 2 (flags) | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 
 ## 7. Out of scope (restated from SPEC §30)
 
@@ -1222,7 +1245,7 @@ Changed by the owner on 2026-10-14: customer approval and messages for
 quotes (Phase 13, D148) and customer payments through Stripe (Phase 14,
 D150) are now in scope; the rest stands.
 
-Payments, accounting ledger, automated customer approval, Shopify SSO,
-customer mechanic selection, labour time clock, bulk→unique conversion
-machinery, multi-location optimisation, native apps, hard-coded Bluetooth
-printing, marketing CRM.
+Payments other than Stripe Checkout (D150), accounting ledger, automated
+customer approval, Shopify SSO, customer mechanic selection, labour time
+clock, bulk→unique conversion machinery, multi-location optimisation,
+native apps, hard-coded Bluetooth printing, marketing CRM.

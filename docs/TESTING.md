@@ -921,6 +921,17 @@ close the item, and Cancel in the link form returns focus to the line's
 with Publish online on is not listed, and "Listed on the Shopify store"
 when it is).
 
+Indent parts and quotes (Phase 13 step 2, D140–D147):
+`tests/unit/indent.test.ts` covers the words and links the job page shares
+with the coming quote page (`src/lib/indent.ts`): `whatsappNumber` adds 65
+to an 8-digit Singapore number however it is spaced, keeps a number given
+with `+` or `00`, and gives null for anything WhatsApp could not use (no
+button then); `quoteMessage` greets by first name (or "Hi,"), names the
+job and carries the link and validity ("1 day", "7 days"); `whatsappHref`
+encodes the message for `wa.me`; every database `part_request_status` has
+a label; `canFit` allows approved items and ordered parts only, and
+`CANCELLABLE` never holds quoted or fitted items.
+
 ### Database (SPEC §27.2 and §23)
 
 Each invariant from SPEC §23 has at least one test, named after it:
@@ -1794,6 +1805,21 @@ saving without a reason shows the field error and saves nothing;
 `/shopify/products` lists P-000027 Synced; `/shopify/queue?view=recent`
 marks Recent.
 
+Indent parts (`indent.spec.ts`, Phase 13 step 2; D140–D147, ADR-024), on a
+phone and an iPad: the admin creates a product and a job, proposes 2 of the
+part with its supplier and the seeded Wheel True service (nothing reaches
+the job's lines), sends the quote (the total $275.00; the link is
+`/quote/` plus 43 characters, the message names the job; the card then
+offers **Send again (2 items)**), and the customer's answer is made as
+anon through `quote_by_token` and `answer_quote` (the quote page is step
+3). The card shows "Quote answered by …" and Approved; **Order approved
+parts** adds the part to the supplier's draft and the job's header shows
+Waiting on parts; the order is submitted and received in SQL as the admin
+(`receive_purchase`), the part shows Arrived and the product page lists
+it as "Reserved for jobs" (the job number, × 2), **Fit** ($240.00) puts it
+on the job and **Add to job** the service: both are then in Lines, and the
+product page no longer lists it as reserved.
+
 Critical journeys, added with the phases that build them, against the seeded
 database, signed in as the seeded admin and mechanic:
 
@@ -1823,6 +1849,10 @@ database, signed in as the seeded admin and mechanic:
    under another) → stock −1 once → the events show one recorded sale and
    one duplicate → a refund moves no stock.
 6. (Later, in the public-site repo) customer sign-in sees only own data.
+7. Indent part (`indent.spec.ts` since Phase 13 step 2): propose a part and
+   its fitting → send the quote → the customer approves (as anon in SQL
+   until step 3's page) → order onto the supplier's draft (job Waiting on
+   parts) → receive → fit → both are job lines.
 
 ## Seed data
 

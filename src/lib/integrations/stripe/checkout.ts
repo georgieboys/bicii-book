@@ -1,7 +1,7 @@
 import "server-only";
 
 import { mapDbError } from "@/lib/db-errors";
-import type { DepositState, PaymentStatus } from "@/lib/payments";
+import type { DepositState, IncompleteCheck, PaymentStatus } from "@/lib/payments";
 
 import { CHECKOUT_HOST, REUSE_MARGIN_SECONDS, checkoutIdempotencyKey } from "./config";
 import { StripeError, type CheckoutSession } from "./gateway";
@@ -57,17 +57,48 @@ export type RefreshResult =
       processing: boolean;
       changed: boolean;
       /**
-       * The session was read and recorded, but its PaymentIntent or refunds
-       * could not be (most often the restricted key lacks a permission,
-       * RUNBOOK "Stripe: restricted key").
+       * Null when every read was recorded. Otherwise the session was read
+       * and recorded, but its PaymentIntent or refunds could not be:
+       * `permission` when Stripe refused the key (stripe_auth_failed: the
+       * restricted key lacks a permission, RUNBOOK "Stripe: restricted
+       * key"), `unavailable` when Stripe was not reached or was busy
+       * (network error or timeout, 409, 5xx, 429), `error` when Stripe answered but BICII could
+       * not use it (400, not found, a bad response). When both reads fail
+       * differently the worse wins: permission, then error (neither is
+       * fixed by a retry), then unavailable.
        */
-      incomplete: boolean;
+      incomplete: IncompleteCheck | null;
     }
   | { kind: "unavailable" }
   | { kind: "not_found" }
   | { kind: "other_mode" }
   /** Stripe has no such Checkout under this key (another account, or the fake restarted). */
   | { kind: "session_missing" };
+
+/**
+ * What a failed Stripe read means for Check with Stripe: the key refused,
+ * Stripe not reached or busy, or an answer BICII could not use.
+ */
+export function incompleteCheckKind(error: StripeError): IncompleteCheck {
+  switch (error.code) {
+    case "stripe_auth_failed":
+      return "permission";
+    case "stripe_unavailable":
+    case "stripe_rate_limited":
+      return "unavailable";
+    default:
+      return "error";
+  }
+}
+
+/** Worse first: permission and error (a retry cannot fix them) over unavailable. */
+const INCOMPLETE_ORDER: readonly IncompleteCheck[] = ["permission", "error", "unavailable"];
+
+/** The worse of two incomplete reads. */
+function worseIncomplete(a: IncompleteCheck | null, b: IncompleteCheck): IncompleteCheck {
+  if (a === null) return b;
+  return INCOMPLETE_ORDER.indexOf(a) <= INCOMPLETE_ORDER.indexOf(b) ? a : b;
+}
 
 /** A pay attempt prepares at most this many times (a replaced or lost session loops once or twice). */
 const MAX_ATTEMPTS = 3;
@@ -409,8 +440,10 @@ export async function confirmDepositReturn(
  * failure whose webhook was lost shows only there), then its refunds,
  * recording each through record_stripe_read. Staff supply only the payment
  * id; every value comes from Stripe. Once the session is recorded, a
- * failure to read the intent or the refunds is reported as `incomplete`,
- * not as Stripe being unreachable.
+ * failure to read the intent or the refunds is reported as `incomplete`
+ * (with its kind: the key's permission, an answer BICII could not use, or
+ * Stripe not reached; the worse when both reads fail), not as the whole
+ * check failing.
  */
 export async function refreshPaymentFromStripe(
   paymentId: string,
@@ -445,7 +478,7 @@ export async function refreshPaymentFromStripe(
       throw error;
     }
     const recorded = await read(r, paymentId, session.raw);
-    let incomplete = false;
+    let incomplete: IncompleteCheck | null = null;
     const pi = session.paymentIntent ?? row.stripe_payment_intent_id;
     if (
       pi &&
@@ -459,7 +492,7 @@ export async function refreshPaymentFromStripe(
       } catch (error) {
         if (!(error instanceof StripeError)) throw error;
         logStripeError(deps, "refresh_intent", paymentId, error);
-        incomplete = true;
+        incomplete = worseIncomplete(incomplete, incompleteCheckKind(error));
       }
     }
     if (pi) {
@@ -470,7 +503,7 @@ export async function refreshPaymentFromStripe(
       } catch (error) {
         if (!(error instanceof StripeError)) throw error;
         logStripeError(deps, "refresh_refunds", paymentId, error);
-        incomplete = true;
+        incomplete = worseIncomplete(incomplete, incompleteCheckKind(error));
       }
     }
 

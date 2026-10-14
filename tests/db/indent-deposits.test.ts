@@ -266,9 +266,10 @@ async function deliver(
   type: string,
   object: Record<string, unknown>,
   created?: number,
+  livemode = false,
 ): Promise<EventResult> {
   await actAs(tx, SERVICE);
-  return callRecordEvent(tx, stripeEvent({ id: `evt_${tag()}`, type, object, created }));
+  return callRecordEvent(tx, stripeEvent({ id: `evt_${tag()}`, type, object, created, livemode }));
 }
 
 /** The payment's Checkout Session as Stripe sends it once paid (12000 cents by default). */
@@ -1473,6 +1474,208 @@ describe("Exceptions: payment_attention and stripe_attention (D108, D159b)", () 
         "payment_attention",
       ]);
       expect(await issuesOf(tx, pu.paymentId)).toEqual(["refund_not_counted"]);
+    });
+  });
+
+  it("a mismatched refund is listed exactly once: refund_not_counted, or one stripe_attention row when failed, canceled or counted", async () => {
+    await inTransaction(conn, async (tx) => {
+      const jobRows = async (workOrderId: string) =>
+        (await listed(tx, ADMIN))
+          .filter((r) => r.entity_id === workOrderId)
+          .map((r) => [r.kind, r.detail]);
+      const notCounted =
+        "Stripe reported a refund of this payment in another currency or mode (test or live), and BICII did not count it. Check it in Stripe.";
+      const otherMode =
+        "Stripe data from the other mode (test or live) was not applied. Check the Stripe keys.";
+      const otherCurrency =
+        "Stripe reported a refund in another currency, and BICII did not count it. Check it in Stripe.";
+
+      // 1. A linked refund from the other mode, succeeded: payment_attention
+      // lists it (refund_not_counted); stripe_attention does not repeat it.
+      const a = await answered(tx);
+      const pa = await startCheckout(tx, a);
+      await payDeposit(tx, pa);
+      const live = await deliver(
+        tx,
+        "refund.updated",
+        refundObject({
+          id: `re_${tag()}`,
+          paymentIntent: pa.pi,
+          amountCents: 1000,
+          status: "succeeded",
+        }),
+        undefined,
+        true,
+      );
+      expect(live).toMatchObject({ event_status: "needs_attention", outcome: "livemode_mismatch" });
+      expect(await issuesOf(tx, pa.paymentId)).toEqual(["refund_not_counted"]);
+      expect(await jobRows(a.job.id)).toEqual([["payment_attention", notCounted]]);
+
+      // 2. A failed refund in another currency and a canceled one from the
+      // other mode: refund_not_counted leaves both out (nothing to count),
+      // so each keeps its stripe_attention row and is still listed.
+      const b = await answered(tx);
+      const pb = await startCheckout(tx, b);
+      await payDeposit(tx, pb);
+      const failedUsd = await deliver(
+        tx,
+        "refund.failed",
+        refundObject({
+          id: `re_${tag()}`,
+          paymentIntent: pb.pi,
+          amountCents: 1000,
+          status: "failed",
+          currency: "usd",
+          failureReason: "expired_or_canceled_card",
+        }),
+      );
+      expect(failedUsd).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "currency_mismatch",
+      });
+      const canceledLive = await deliver(
+        tx,
+        "refund.updated",
+        refundObject({
+          id: `re_${tag()}`,
+          paymentIntent: pb.pi,
+          amountCents: 2000,
+          status: "canceled",
+        }),
+        undefined,
+        true,
+      );
+      expect(canceledLive).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "livemode_mismatch",
+      });
+      expect(await issuesOf(tx, pb.paymentId)).toEqual([]);
+      expect((await jobRows(b.job.id)).sort()).toEqual(
+        [
+          ["stripe_attention", otherCurrency],
+          ["stripe_attention", otherMode],
+        ].sort(),
+      );
+
+      // 3. An event from the other mode about a refund stored in the
+      // payment's own mode (counted): no refund_not_counted, so
+      // stripe_attention keeps the event.
+      const c = await answered(tx);
+      const pc = await startCheckout(tx, c);
+      await payDeposit(tx, pc);
+      const rid = `re_${tag()}`;
+      await refundDeposit(tx, pc, 1000, "succeeded", rid);
+      const replay = await deliver(
+        tx,
+        "refund.updated",
+        refundObject({ id: rid, paymentIntent: pc.pi, amountCents: 1000, status: "succeeded" }),
+        undefined,
+        true,
+      );
+      expect(replay).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "livemode_mismatch",
+      });
+      expect(await issuesOf(tx, pc.paymentId)).toEqual([]);
+      expect(await jobRows(c.job.id)).toEqual([["stripe_attention", otherMode]]);
+
+      // 4. A pending refund in another currency is refund_not_counted's
+      // alone; once it fails, refund_not_counted drops it and it comes back
+      // as stripe_attention, so it never disappears: one row for its
+      // created and failed events and a Check with Stripe read of it.
+      const d = await answered(tx);
+      const pd = await startCheckout(tx, d);
+      await payDeposit(tx, pd);
+      const pendingId = `re_${tag()}`;
+      const usd = (status: string) =>
+        refundObject({
+          id: pendingId,
+          paymentIntent: pd.pi,
+          amountCents: 1000,
+          status,
+          currency: "usd",
+        });
+      expect(await deliver(tx, "refund.created", usd("pending"))).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "currency_mismatch",
+      });
+      expect(await issuesOf(tx, pd.paymentId)).toEqual(["refund_not_counted"]);
+      expect(await jobRows(d.job.id)).toEqual([["payment_attention", notCounted]]);
+      expect(await deliver(tx, "refund.failed", usd("failed"))).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "currency_mismatch",
+      });
+      expect(await issuesOf(tx, pd.paymentId)).toEqual([]);
+      await actAs(tx, SERVICE);
+      const { rows: readRows } = await tx.query<{ event_status: string; outcome: string }>(
+        `select event_status::text, outcome from public.record_stripe_read($1, $2::jsonb, $3)`,
+        [pd.paymentId, JSON.stringify(usd("failed")), `corr-${tag()}`],
+      );
+      expect(readRows[0]).toMatchObject({
+        event_status: "needs_attention",
+        outcome: "currency_mismatch",
+      });
+      expect(
+        await readAsOwner(tx, () =>
+          scalar(
+            tx,
+            `select count(*)::int from public.stripe_events
+              where object_id = $1 and status = 'needs_attention'`,
+            [pendingId],
+          ),
+        ),
+      ).toBe(3);
+      expect(await jobRows(d.job.id)).toEqual([["stripe_attention", otherCurrency]]);
+    });
+  });
+
+  it("one stripe_attention row per Stripe object and outcome: the earliest event in the 30-day window", async () => {
+    await inTransaction(conn, async (tx) => {
+      const d = await answered(tx);
+      const pd = await startCheckout(tx, d);
+      await payDeposit(tx, pd);
+      const rid = `re_${tag()}`;
+      const usd = (status: string) =>
+        refundObject({ id: rid, paymentIntent: pd.pi, amountCents: 1000, status, currency: "usd" });
+      await deliver(tx, "refund.created", usd("pending"));
+      await deliver(tx, "refund.updated", usd("pending"));
+      await deliver(tx, "refund.failed", usd("failed"));
+
+      // Spread the three over time (the guard keeps received_at fixed, so
+      // as the owner with triggers off): 40 days ago, outside the window;
+      // 10 and 2 days ago, inside it.
+      await ownerMode(tx);
+      await tx.query("set local session_replication_role = replica");
+      await tx.query(
+        `update public.stripe_events
+            set received_at = now() - case event_type
+                                        when 'refund.created' then interval '40 days'
+                                        when 'refund.updated' then interval '10 days'
+                                        else interval '2 days' end
+          where object_id = $1`,
+        [rid],
+      );
+      await tx.query("set local session_replication_role = origin");
+      const tenDaysAgo = await scalar<Date>(
+        tx,
+        "select received_at from public.stripe_events where object_id = $1 and event_type = 'refund.updated'",
+        [rid],
+      );
+
+      // One row, dated from the earliest event still in the window: not the
+      // newest (2 days), and not hidden by the one outside the window.
+      await actAs(tx, ADMIN);
+      const { rows } = await tx.query<{ days: number; since: Date; detail: string }>(
+        `select days, since, detail from public.operational_exceptions(200)
+          where kind = 'stripe_attention' and entity_id = $1`,
+        [d.job.id],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].detail).toBe(
+        "Stripe reported a refund in another currency, and BICII did not count it. Check it in Stripe.",
+      );
+      expect(rows[0].days).toBe(10);
+      expect(rows[0].since.getTime()).toBe(tenDaysAgo.getTime());
     });
   });
 });

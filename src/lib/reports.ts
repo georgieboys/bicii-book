@@ -535,6 +535,23 @@ export function exceptionCopy(
 }
 
 /**
+ * Kinds whose subject line is the actionable sentence itself (Phase 14,
+ * D159b): public.payment_issues' words for a customer payment and what a
+ * Stripe delivery could not do. ExceptionList wraps it in full instead of
+ * truncating it, so a phone shows the whole sentence; every other kind's
+ * subject is a name or a place and keeps its single truncated line.
+ */
+const SENTENCE_SUBJECT_KINDS: ReadonlySet<string> = new Set([
+  "payment_attention",
+  "stripe_attention",
+]);
+
+/** Whether an exception's subject line is a sentence to show in full (wrapping) rather than truncate. */
+export function exceptionSubjectIsSentence(kind: string): boolean {
+  return SENTENCE_SUBJECT_KINDS.has(kind);
+}
+
+/**
  * A React key per exception row. The view gives one negative_stock row per
  * product and location under the same product id, so the subject (which
  * carries the location's unique name) is part of the key; a repeat that is

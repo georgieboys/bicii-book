@@ -60,9 +60,9 @@ Admin never replaces the public site.
   approves per item from a link sent by WhatsApp or email (Phase 13,
   D140–D148; built, email off until it is configured), and customer
   payments through Stripe, starting with deposits on those quotes (Phase
-  14, D150–D159; steps 1 and 2 built against an in-memory Stripe, off in
-  production until the owner sets keys, D157; balances and reports are
-  step 3).
+  14, D150–D159; steps 1 and 2 built and deployed on 2026-10-14, the
+  owner's keys set and Stripe on, not yet verified with a live payment, deposits at 0% until then,
+  D157; balances and reports are step 3).
 
 ## Domain rules
 

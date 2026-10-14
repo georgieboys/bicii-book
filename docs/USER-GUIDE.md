@@ -5,10 +5,13 @@ workshop or an iPad at the counter. Admins: shop settings, staff and
 permissions are in [OPERATIONS.md](OPERATIONS.md#product-administration).
 
 Applies to: `main` (production since 2026-10-12, through Phase 13's
-indent parts and quotes) plus Phase 14 steps 1 and 2 on
-`claude/brave-clarke-kfqhgt` (2026-10-14: customer deposits through
-Stripe, built against an in-memory Stripe and not deployed; on a developer
-machine at http://localhost:3000). Staff sign in with an emailed code.
+indent parts and quotes and, since 2026-10-14, Phase 14 steps 1 and 2:
+customer deposits through Stripe, deployed with the deposit percent at 0,
+so no quote asks for one until an admin raises it), plus the recheck on
+`claude/brave-clarke-kfqhgt` (Exceptions sentences in full, each Stripe
+problem listed once, and why *Check with Stripe* could not read
+everything). On a developer machine: http://localhost:3000. Staff sign
+in with an emailed code.
 
 Last walkthrough: not walked through by a person. These flows are exercised
 by the E2E specs in `tests/e2e/` (among them `auth`, `workshop`,
@@ -293,9 +296,15 @@ before it is ordered, and it goes on the job only when it is fitted
     or live) and can't be checked here.", "Stripe has no record of this
     Checkout under the key BICII uses now (another Stripe account?). An
     admin can follow RUNBOOK “Stripe: resolving problems”." or, under a
-    success toast, "Stripe's payment or its refunds couldn't be read. An
-    admin should check the Stripe key's permissions (RUNBOOK “Stripe:
-    restricted key”)."
+    success toast, "Stripe's payment or its refunds couldn't be read:
+    Stripe refused the key. An admin should check the Stripe key's
+    permissions (RUNBOOK “Stripe: restricted key”)." when Stripe refused
+    the key, "Stripe's payment or its refunds couldn't be read: BICII
+    could not use Stripe's answer. An admin should follow RUNBOOK
+    “Stripe: resolving problems”." when Stripe answered with an error or
+    something BICII could not read, or "Stripe's payment or its refunds
+    couldn't be read: Stripe could not be reached; try again in a few
+    minutes." when Stripe timed out or was busy.
   - Fitting before the order is received warns: "Its order (PO-…) has not
     been received yet. Fitting it now may take the stock count below
     zero."

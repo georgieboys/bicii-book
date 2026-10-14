@@ -947,7 +947,8 @@ Nothing else. Copy it once (`rk_live_…`) into Vercel Production as
 but grants far more; prefer the restricted one. A missing Charges or
 PaymentIntents permission does not stop payments (webhooks need no key
 permission), but *Check with Stripe* then says Stripe's payment or its
-refunds couldn't be read; add the permission to the key in the Dashboard.
+refunds couldn't be read because Stripe refused the key; add the
+permission to the key in the Dashboard.
 
 ### Stripe: environment variables and fake mode
 
@@ -995,6 +996,13 @@ fake together with `STRIPE_SECRET_KEY` and when `VERCEL_ENV` is
    locally, if not done already.
 5. Raise the deposit to 50% in Settings → Customer payments (D151): its
    **Change** refuses anything above 0 while Stripe is off.
+6. Make one live deposit yourself before any customer does: on a test
+   job, quote one cheap part to your own phone (the deposit must come to
+   S$0.50 or more), approve it, press Pay deposit and pay. Check that the
+   job's Customer payments card shows it paid, refund it in the
+   Dashboard, and check that the card shows it refunded. Then cancel the
+   test job. If anything is wrong, set the deposit back to 0 (below) and
+   follow [Stripe: resolving problems](#stripe-resolving-problems).
 
 **Switching off:** set the deposit to 0 first (so no quote asks for a
 payment nobody can make), then remove the keys and redeploy.
@@ -1038,8 +1046,27 @@ payment nobody can make), then remove the keys and redeploy.
   production, ask engineering: there is no in-app way to close such a row
   ([R-086](RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)).
 - **"Stripe's payment or its refunds couldn't be read."** The session was
-  checked, but the restricted key lacks Charges: Read or PaymentIntents:
-  Read ([Stripe: restricted key](#stripe-restricted-key)).
+  checked and recorded, but the payment's PaymentIntent or its refunds
+  were not. The rest of the line gives one reason; when both reads
+  failed, the worse of the two (in this order):
+  - "Stripe refused the key. An admin should check the Stripe key's
+    permissions": Stripe answered 401 or 403 (`stripe_auth_failed` in the
+    logs), so the restricted key lacks Charges: Read or PaymentIntents:
+    Read ([Stripe: restricted key](#stripe-restricted-key)); add it in the
+    Dashboard.
+  - "BICII could not use Stripe's answer": Stripe answered, but with a
+    400, a not found or a response BICII could not read
+    (`stripe_request_failed`, `stripe_not_found`, `stripe_bad_response`).
+    Trying again will not help: ask engineering, giving the job number
+    and when *Check with Stripe* was pressed. The screen shows no request
+    id; engineering finds the server log line `stripe call failed` (`op`
+    `refresh_intent` or `refresh_refunds`, with the payment id, the code
+    and the status, never the key).
+  - "Stripe could not be reached; try again in a few minutes": a network
+    error or timeout, a 409, a 5xx or a 429 (`stripe_unavailable`,
+    `stripe_rate_limited`), which a
+    later Check with Stripe usually clears; if it persists, check
+    Stripe's status page and then ask engineering in the same way.
 - **`not_recorded` deliveries.** Storing or applying raised; Stripe
   retries. Look at the logs for the correlation id; once a retry succeeds
   the verified row exists and nothing more is needed.
@@ -1047,11 +1074,17 @@ payment nobody can make), then remove the keys and redeploy.
   `payment_not_found` (paid metadata naming no BICII payment),
   `session_mismatch` (another session for the same payment),
   `livemode_mismatch` (a session or refund of the other mode),
+  `currency_mismatch` (a refund in another currency),
   `read_mismatch` (a read that is not the payment's session or payment),
-  `unexpected_payment_status`. A refund in another currency
-  (`currency_mismatch`) is listed once, as the payment issue below. Each is Stripe's record kept as evidence;
-  check the session in the Dashboard and refund there if the money is not
-  the shop's to keep.
+  `unexpected_payment_status`. Each Stripe object is listed once per
+  problem, however many events or *Check with Stripe* reads repeat it,
+  dated from the first in the last 30 days. A refund in another currency
+  or stored mode that BICII would otherwise count (linked to its payment,
+  not failed or canceled) is listed only as the payment issue below
+  (`refund_not_counted`); once it fails or is canceled it moves here, so
+  it is never dropped. Each is Stripe's record kept as evidence; check
+  the session or refund in the Dashboard and refund there if the money is
+  not the shop's to keep.
 - **Payment issues** (admins and managers, on the job's card and
   Exceptions): paid on a cancelled job or cancelled parts, paid twice, a
   different amount, a refund that failed or exceeds the payment, a refund

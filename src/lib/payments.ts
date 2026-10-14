@@ -122,6 +122,32 @@ export function paymentStatusLabel(payment: {
   }
 }
 
+/**
+ * Why Check with Stripe recorded the session but not the payment's
+ * PaymentIntent or refunds (R-086): `permission` when Stripe refused the
+ * key (401 or 403, stripe_auth_failed: most often the restricted key lacks
+ * a permission); `unavailable` when Stripe was not reached or was busy (a
+ * network error or timeout, a 409, a 5xx, a 429), which a retry may fix;
+ * `error` when Stripe
+ * answered but BICII could not use the answer (a 400, a not found, a
+ * response BICII could not read), which a retry will not fix.
+ */
+export type IncompleteCheck = "permission" | "unavailable" | "error";
+
+const INCOMPLETE_CHECK_NOTES: Readonly<Record<IncompleteCheck, string>> = {
+  permission:
+    "Stripe's payment or its refunds couldn't be read: Stripe refused the key. An admin should check the Stripe key's permissions (RUNBOOK “Stripe: restricted key”).",
+  unavailable:
+    "Stripe's payment or its refunds couldn't be read: Stripe could not be reached; try again in a few minutes.",
+  error:
+    "Stripe's payment or its refunds couldn't be read: BICII could not use Stripe's answer. An admin should follow RUNBOOK “Stripe: resolving problems”.",
+};
+
+/** The toast's second line for an incomplete Check with Stripe: permissions only when Stripe refused the key. */
+export function incompleteCheckNote(kind: IncompleteCheck): string {
+  return INCOMPLETE_CHECK_NOTES[kind];
+}
+
 export const PAYMENT_STATUS_TONES: Readonly<Record<PaymentStatus, StatusTone>> = {
   pending: "waiting",
   paid: "done",

@@ -14,15 +14,13 @@ import { formatMoney } from "@/lib/money";
 import {
   DEPOSIT_STATE_LABELS,
   DEPOSIT_STATE_TONES,
+  incompleteCheckNote,
   PAYMENT_STATUS_TONES,
   paymentStatusLabel,
   stripeDashboardHref,
 } from "@/lib/payments";
 
 const ZERO = "0.00";
-
-const INCOMPLETE_CHECK =
-  "Stripe's payment or its refunds couldn't be read. An admin should check the Stripe key's permissions (RUNBOOK “Stripe: restricted key”).";
 
 /**
  * A job's Customer payments (Phase 14 step 2; D151, D154, D155, D159;
@@ -204,7 +202,8 @@ function PaymentRow({
   const check = () =>
     start(async () => {
       const r = await checkWithStripeAction({ paymentId: p.id });
-      const incomplete = r.ok && r.data.incomplete ? INCOMPLETE_CHECK : undefined;
+      const incomplete =
+        r.ok && r.data.incomplete ? incompleteCheckNote(r.data.incomplete) : undefined;
       if (!r.ok) {
         toast({ title: "Not checked", description: r.error, tone: "error" });
       } else if (r.data.changed) {

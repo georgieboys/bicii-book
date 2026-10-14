@@ -55,10 +55,11 @@ Admin never replaces the public site.
   clock; no complex bulk-to-unique machinery; no multi-location
   optimisation; no native apps; no hard-coded Bluetooth printing before the
   printers are known; no marketing CRM or automated messaging. Changed by
-  the owner on 2026-10-14, not yet built: quotes for indent parts that the
-  customer approves per item from a link sent by WhatsApp or email (Phase
-  13, D140–D148), and customer payments through Stripe, starting with
-  deposits on those quotes (Phase 14, D150–D156).
+  the owner on 2026-10-14: quotes for indent parts that the customer
+  approves per item from a link sent by WhatsApp or email (Phase 13,
+  D140–D148; built, email off until it is configured), and customer
+  payments through Stripe, starting with deposits on those quotes (Phase
+  14, D150–D156; not yet built).
 
 ## Domain rules
 

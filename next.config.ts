@@ -19,6 +19,17 @@ const nextConfig: NextConfig = {
     return [
       { source: "/(.*)", headers: securityHeaders },
       {
+        // The customer's quote page (D143): the token is in the path, so no
+        // referrer leaves it, nothing caches it and search engines skip it.
+        // Later rules override the catch-all's Referrer-Policy.
+        source: "/quote/:token*",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
+      },
+      {
         // Per the PWA guide: never cache the service worker itself, so a new
         // deploy's worker is picked up; it may only load same-origin code.
         source: "/sw.js",

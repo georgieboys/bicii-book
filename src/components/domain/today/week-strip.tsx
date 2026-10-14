@@ -10,7 +10,8 @@ import type { WeekStripDay } from "@/lib/reports";
  * completed and collected and, when the database returned them (D30),
  * gross sales, yield and Cult Commons. Each day links to its Today view;
  * the day shown is marked (aria-current and a bold row, not colour alone).
- * A table from md; stacked rows on a phone.
+ * A table from md (scrolling inside its card where the columns don't fit);
+ * stacked rows on a phone.
  */
 export function WeekStrip({
   days,
@@ -72,7 +73,10 @@ export function WeekStrip({
           </li>
         ))}
       </ul>
-      <div className="hidden rounded-2xl border border-hairline bg-card md:block">
+      {/* Six columns for cost holders need ~600px; on an iPad's ~520px the
+          table scrolls inside its card, never the page (DESIGN: no sideways
+          page scroll). */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-hairline bg-card md:block">
         <table className="w-full text-dense tabular-nums">
           <caption className="sr-only">Last 7 days</caption>
           <thead className="bg-sunken text-left">

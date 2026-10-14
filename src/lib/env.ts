@@ -85,6 +85,20 @@ export const serverEnvSchema = z
     SHOPIFY_ALLOW_PREVIEW: z.enum(["true"]).optional(),
     /** Bearer secret of /api/cron/integrations (the Vercel cron sends it). Secret. */
     CRON_SECRET: nonEmpty.optional(),
+    /**
+     * Phase 13 step 3 (D144): Resend API key for quote emails the Admin sends
+     * itself. With EMAIL_FROM; without both, quotes go by WhatsApp or a
+     * copied link only. Secret.
+     */
+    RESEND_API_KEY: nonEmpty.optional(),
+    /** The quote emails' sender, "BICII <workshop@example.com>", on a domain Resend has verified. */
+    EMAIL_FROM: z
+      .string()
+      .trim()
+      .regex(/^(?:[^<>@]*<[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>|[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)$/, {
+        error: 'must be an address, or a name and an address like "BICII <workshop@example.com>"',
+      })
+      .optional(),
     /** Set by Vercel (production | preview | development); read to refuse the fake in production. */
     VERCEL_ENV: z.string().optional(),
   })

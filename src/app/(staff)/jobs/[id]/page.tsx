@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { AddPartButton } from "@/components/domain/add-part-sheet";
 import { AddServiceButton } from "@/components/domain/add-service-sheet";
 import { AssignmentsCard } from "@/components/domain/assignments-card";
+import { IndentCard } from "@/components/domain/indent-card";
 import { ApprovalSwitch, EditDetailsButton, NoteButtons } from "@/components/domain/job-notes";
 import { Timeline } from "@/components/domain/job-timeline";
 import { JobStatusActions } from "@/components/domain/job-status-actions";
@@ -19,10 +20,12 @@ import { Card } from "@/components/ui/card";
 import { CalendarIcon, CheckIcon } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatAppointmentMoment } from "@/lib/appointments/format";
+import { quoteEmailEnabled } from "@/lib/integrations/email/quote";
 import { hasPermission } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, shopDaysBetween } from "@/lib/dates";
 import { listPhotos } from "@/lib/domain/attachments";
+import { getIndentPanel } from "@/lib/domain/indent";
 import { listLocations } from "@/lib/domain/inventory";
 import { getWorkOrderYield } from "@/lib/domain/reports";
 import {
@@ -91,8 +94,11 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   const intake = query.intake === "photos";
   const allEvents = query.events === "all";
   const viewCosts = hasPermission(staff, "view_costs");
+  const canOrder = hasPermission(staff, "manage_purchasing");
+  // D60, D147: expected costs and suppliers on indent parts.
+  const purchaseData = viewCosts || canOrder;
   const supabase = await createClient();
-  const [job, photos, activeStaff, locations, report] = await Promise.all([
+  const [job, photos, activeStaff, locations, report, indent] = await Promise.all([
     getWorkOrder(supabase, id, {
       viewCosts,
       ...(allEvents ? { timelineRows: TIMELINE_ALL_ROWS } : {}),
@@ -102,6 +108,8 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
     listLocations(supabase),
     // The yield panel's rates, losses and recognition (view_costs only, D30).
     viewCosts ? getWorkOrderYield(supabase, id) : Promise.resolve(null),
+    // Indent parts and the customer's quote (Phase 13, D140-D147).
+    getIndentPanel(supabase, id, { purchaseData }),
   ]);
   if (!job) notFound();
   // Units on live part lines: a reopen puts them back on hold (D25).
@@ -270,6 +278,22 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
               <TotalsSummary totals={job.totals} ccRate={sharedRate(job)} report={report} />
             </div>
           </Card>
+
+          <IndentCard
+            workOrderId={job.id}
+            jobNumber={job.jobNumber}
+            open={open}
+            panel={indent}
+            customer={{
+              firstName: job.customer.firstName,
+              phone: job.customer.phone,
+              email: job.customer.email,
+            }}
+            canOrder={canOrder}
+            purchaseData={purchaseData}
+            canCreateProduct={hasPermission(staff, "manage_inventory")}
+            emailEnabled={quoteEmailEnabled()}
+          />
 
           {intake ? null : (
             <Card title="Photos">

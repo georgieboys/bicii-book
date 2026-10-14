@@ -129,3 +129,22 @@ describe("Shopify and cron variables (Phase 10)", () => {
     });
   });
 });
+
+describe("quote email variables (Phase 13 step 3, D144)", () => {
+  it("are optional, and blank is unset", () => {
+    for (const source of [{}, { RESEND_API_KEY: "", EMAIL_FROM: "" }]) {
+      const env = parseServerEnv(source);
+      expect(env.RESEND_API_KEY).toBeUndefined();
+      expect(env.EMAIL_FROM).toBeUndefined();
+    }
+  });
+
+  it("take an address, or a name and an address, as the sender", () => {
+    for (const from of ["workshop@example.com", "BICII <workshop@example.com>"]) {
+      expect(parseServerEnv({ EMAIL_FROM: from }).EMAIL_FROM).toBe(from);
+    }
+    for (const from of ["workshop", "BICII <workshop>", "a@b", "<a@b.c", "x y@b.c"]) {
+      expect(() => parseServerEnv({ EMAIL_FROM: from }), from).toThrow(/EMAIL_FROM/);
+    }
+  });
+});

@@ -15,7 +15,7 @@ import { PublicationControls } from "@/components/domain/publication-card";
 import { ProductPurchasingCard } from "@/components/domain/purchasing/product-purchasing-card";
 import { RecordSaleButton } from "@/components/domain/record-sale-sheet";
 import { OnlineCard } from "@/components/domain/shopify/online-card";
-import { ShortId } from "@/components/domain/short-id";
+import { ShortId, ShortIdLink } from "@/components/domain/short-id";
 import { SplitToUniqueButton } from "@/components/domain/split-to-unique-sheet";
 import { StockBadge } from "@/components/domain/stock-badge";
 import { StockTransferButton } from "@/components/domain/stock-transfer-sheet";
@@ -30,6 +30,7 @@ import { reconciliationHref } from "@/lib/reconciliation";
 import { requireStaff } from "@/lib/auth/session";
 import { CONSIGNED_STOCK_NOTE, consignmentStatusPill } from "@/lib/consignment";
 import { consignmentsForProduct } from "@/lib/domain/consignment";
+import { getIndentReservations } from "@/lib/domain/indent";
 import { getProduct, listLocations, listProductCategories } from "@/lib/domain/inventory";
 import { getLabelContext, resolvePrintPreset } from "@/lib/domain/labels";
 import { getProductOnline } from "@/lib/domain/shopify";
@@ -95,7 +96,8 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
   // D50: consigned stock moves only through intake, sale, restock, a job,
   // return to the consignor and transfers.
   const consigned = product.ownershipType === "consignment";
-  const [qr, consignments, labels, preset, online] = await Promise.all([
+  const counted = product.trackingType === "quantity";
+  const [qr, consignments, labels, preset, online, reserved] = await Promise.all([
     qrUrl(product.shortId),
     consigned ? consignmentsForProduct(supabase, product.id) : Promise.resolve([]),
     getLabelContext(supabase, { kind: "product", entityId: product.id }),
@@ -103,10 +105,11 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
       resolvePrintPreset(supabase, "product", product.id, parsePrintParams(sp)),
     ),
     getProductOnline(supabase, product.id),
+    // Phase 13 (D146): arrived indent parts waiting to be fitted on a job.
+    counted && !consigned ? getIndentReservations(supabase, product.id) : Promise.resolve([]),
   ]);
 
   const archived = product.archivedAt !== null;
-  const counted = product.trackingType === "quantity";
   const sellable =
     counted &&
     !archived &&
@@ -273,6 +276,25 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
               <Badge tone="waiting">{product.heldUnits} on a job</Badge>
             ) : null}
           </div>
+          {reserved.length > 0 ? (
+            <div className="mt-3 text-sm text-dust-700">
+              <p>
+                <span className="font-semibold text-ink">
+                  {plain(reserved.reduce((n, r) => n + r.quantity, 0))} reserved for jobs:
+                </span>{" "}
+                arrived for these jobs and not fitted yet. They are not held, so don&apos;t sell or
+                use them elsewhere.
+              </p>
+              <ul aria-label="Reserved for jobs" className="mt-1 flex flex-wrap gap-2">
+                {reserved.map((r) => (
+                  <li key={r.workOrderId} className="flex items-center gap-1">
+                    <ShortIdLink href={`/jobs/${r.workOrderId}`} value={r.jobNumber} />
+                    <span className="tabular-nums">× {plain(r.quantity)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {negative.length > 0 ? (
             <p className="mt-3 text-sm text-danger-deep">
               Recount needed at {negative.map((s) => s.name).join(" and ")}: parts used on jobs took

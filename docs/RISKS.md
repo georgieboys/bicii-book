@@ -2019,8 +2019,8 @@ URLs, or customer data in this file.
 ## R-078 — Whoever holds a quote link can answer it
 
 - Category: security concern (non-exploitable summary; D141–D143).
-- Status and owner: open by design; the database limits are built (Phase
-  13 step 1), the page's rate limit is step 3; owner (accepts), build
+- Status and owner: open by design; the database limits (Phase 13 step 1)
+  and the page's rate limit (step 3) are built; owner (accepts), build
   agent (limits).
 - Trigger: a quote link forwarded, shown in a screenshot or read on a
   shared phone.
@@ -2038,10 +2038,19 @@ URLs, or customer data in this file.
   nowhere, a second answer is refused, a resent quote's old link is
   withdrawn, an expired one is refused, and the page's data has no cost or
   contact field.
-- Next action: rate-limit the quote page per client (step 3); the owner
-  confirms the 7-day expiry (PRODUCT question 31).
+- Evidence (2026-10-14, step 3): the page and its action count each view
+  (60) and answer (10) per client address and per token in five minutes
+  before calling the database (`tests/unit/quote-page.test.ts` for the
+  buckets: digests only, never the address or the token); they read and
+  answer as anon even for a signed-in staff member (`createAnonClient`);
+  `tests/e2e/indent.spec.ts` answers on the page signed out, checks the
+  `no-referrer`, `noindex` and `no-store` headers, that the supplier's name
+  is not on the page and that the answered page offers no second answer.
+  The limit fails open (logged) when it cannot be counted, because the
+  token cannot be guessed and a quote answers once.
+- Next action: the owner confirms the 7-day expiry (PRODUCT question 31).
 - Revisit trigger: a disputed answer; customers asked to sign in.
-- Last checked: 2026-10-14, Phase 13 step 1.
+- Last checked: 2026-10-14, Phase 13 step 3.
 
 ## R-079 — Email quotes need the Resend domain and API key
 
@@ -2050,15 +2059,18 @@ URLs, or customer data in this file.
 - Trigger: sending a quote by email.
 - Impact: the Admin sends email through Resend's API, which needs the
   shop's domain verified and `RESEND_API_KEY` and `EMAIL_FROM` set in
-  Vercel. Until then the email button says why it is off and staff use
-  WhatsApp or a copied link. The same domain is pending for Auth codes
+  Vercel. Until then the Send quote sheet has no Email option and says
+  why ("quote emails aren't set up yet"), and staff use WhatsApp or a
+  copied link. Built in step 3: `src/lib/integrations/email/` (unit-tested
+  against a stubbed `fetch`; no real email is sent by any test). The same domain is pending for Auth codes
   ([R-039](#r-039--hosted-email-delivery-and-auth-settings-are-unverified)).
 - Evidence and confidence: high; Resend shows the domain as not verified
   (2026-10-12).
 - Workaround or containment: WhatsApp and the copied link work without it.
 - Next action: owner finishes the domain verification and creates an API
   key restricted to sending; set both variables (names only) in Vercel
-  Production.
+  Production and send a test quote to their own address
+  ([RUNBOOK](RUNBOOK.md#quote-emails)).
 - Revisit trigger: the domain is verified.
 - Last checked: 2026-10-14.
 
@@ -2081,6 +2093,29 @@ URLs, or customer data in this file.
   decision.
 - Revisit trigger: a job short of its arrived part.
 - Last checked: 2026-10-14, design.
+
+## R-081 — Quote links appear in request logs and browser history
+
+- Category: security concern (non-exploitable summary; D141, D143).
+- Status and owner: accepted for the first build; build agent.
+- Trigger: anyone who can read the hosting provider's request logs, or
+  the browser history of a device the link was opened on.
+- Impact: the token is part of the page's path, so it is in the Admin's
+  request logs on the host and in the history of every browser that
+  opened it. Whoever reads it before the quote is answered or expires can
+  answer it ([R-078](#r-078--whoever-holds-a-quote-link-can-answer-it)).
+- Evidence and confidence: high for the mechanism (a path is logged and
+  kept in history by design). The app itself never logs the token: the
+  limit counters hold its salted digest and the email failure log names
+  only the quote id and Resend's status.
+- Workaround or containment: `Referrer-Policy: no-referrer` (the token
+  never leaves in a Referer), `Cache-Control: private, no-store`, a
+  7-day expiry, one answer per quote, and Withdraw or Send again to kill a
+  link at once.
+- Next action: none unless the logs gain wider access; a token in the
+  fragment would need the page to post it from the browser.
+- Revisit trigger: log access granted beyond the owner; a disputed answer.
+- Last checked: 2026-10-14, Phase 13 step 3.
 
 ## R-085 — Stripe keys and the webhook are new hosted secrets
 

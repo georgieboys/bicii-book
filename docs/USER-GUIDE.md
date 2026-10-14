@@ -15,7 +15,7 @@ by the E2E specs in `tests/e2e/` (among them `auth`, `workshop`,
 `workshop-board`, `inventory`, `inventory-publish`, `scan`,
 `appointments`, `appointment-settings`, `today`, `customers-bikes`,
 `staff`, `roles`, `consignment`, `consignment-journey`, `sales`,
-`purchasing`, `print-view`, `labels` and `shopify`), on an iPhone 13 and
+`purchasing`, `print-view`, `labels`, `shopify` and `indent`), on an iPhone 13 and
 an iPad viewport (counts and dates in [NOW.md](../NOW.md)); the latest
 green CI run is
 [PR #7 e2e](https://github.com/abhishekcheriangeorge-ops/bicii-book/actions/runs/37276834195/job/111655595521).
@@ -148,6 +148,87 @@ managers.
     are not offered." Consigned items are offered, marked "Consigned ·
     <consignor>" (see [Use a consigned item on a job](#use-a-consigned-item-on-a-job)).
   - "This job is completed or closed. Reopen it to change its lines."
+
+### Quote and order a part the shop doesn't stock (indent part)
+
+For a part ordered in for one bike: the customer approves it, per item,
+before it is ordered, and it goes on the job only when it is fitted
+([ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md)).
+
+- Before you start: the job is open; the part is a product counted by
+  quantity (an existing one, or a new one if you manage inventory). The
+  customer needs a mobile number for WhatsApp, or an email address for
+  email (once an admin has set up quote emails,
+  [RUNBOOK](RUNBOOK.md#quote-emails)); otherwise copy the link and send it
+  yourself.
+- Steps, on the job's **Indent parts and quote** card:
+  1. **Propose part**: search the **Part** (only shop-owned products
+     counted by quantity are offered), or, with Manage inventory, choose
+     **New product** and give its **Name** and **Selling price**. Set
+     **Quantity**; **Price each for this job** is optional (empty quotes the
+     selling price). Staff with cost access can add the **Expected cost
+     each** and the **Supplier**. Press **Propose part**. Nothing comes out
+     of stock and nothing is on the job yet.
+  2. **Propose service** for the fitting labour, the same way.
+  3. **Send quote (N items)**: tick the items, check the **Quote total**,
+     choose **Send by** **WhatsApp**, **Email** or **Copy link** (the sheet
+     says why WhatsApp or Email is missing), and how many days the **Link
+     works for** (1 to 30, default 7). Press **Create link**. The sheet
+     **Quote ready to send** shows the link and a **Message**: by email it
+     says "Emailed to <address>"; by WhatsApp press **Open WhatsApp** (the
+     message is filled in); otherwise copy them. Then **Done**. The link is
+     shown only this once; if it is lost, press **Send again**, which
+     replaces it (the old link stops working).
+  4. The customer opens the link (no sign-in) and sees the job number, the
+     bike, each item with its price, and the total. They choose
+     **Approve** or **Decline** for every item, type **Your name** and
+     press **Send my answer**; the page then thanks them and shows what
+     they approved. They can answer once. The card then says "Quote
+     answered by <name>" and each item shows **Approved** or **Declined**;
+     the job's approval is ticked with a note of what was approved, and the
+     timeline records it. Anyone with the link can answer, so if in doubt
+     confirm by phone.
+  5. **Order approved parts** (Manage purchasing): choose the **Supplier**
+     (the one proposed is preset) and press **Add to order**. The parts go
+     on that supplier's draft purchase order (a new draft if there is none),
+     with the job number in the line's note; submit the order from
+     Purchasing as usual. **Move the job to Waiting on parts** is on by
+     default.
+  6. When the order is received the item shows **Arrived**, and the
+     product's page says "2 reserved for jobs" with the job numbers. They
+     are not held: don't sell or use them elsewhere. Press **Fit**,
+     check the price, then **Fit part**: the part becomes an ordinary line
+     on the job at the quoted price and comes out of stock. For an approved
+     service press **Add to job**.
+- Success looks like: toasts "Part proposed. Send a quote when you're
+  ready.", "Added to the supplier's draft order." and "<part> is on the
+  job."; the item badges go Proposed → Waiting for the customer → Approved →
+  Ordered → Fitted.
+- Other actions: **Withdraw quote** stops the link working and returns its
+  items to Proposed. **Cancel** on an item asks for a **Reason** (an item on
+  the open quote cannot be cancelled: withdraw the quote first; an ordered
+  part stays on its purchase order).
+- If it fails:
+  - "Only shop-owned products counted by quantity can be ordered for a
+    job."
+  - "It is on the quote the customer has. Withdraw the quote first."
+  - "Only approved items can be ordered or put on the job."
+  - "The customer has already answered this quote."
+  - "That supplier no longer exists or is archived. Choose another."
+  - Fitting before the order is received warns: "Its order (PO-…) has not
+    been received yet. Fitting it now may take the stock count below
+    zero."
+  - Sending by email: "Email isn't set up yet. Send by WhatsApp or copy
+    the link." or "The customer has no email address. Add one, or send by
+    WhatsApp or copy the link." If the email itself fails, the quote is
+    still sent: "The email didn't go out. Copy the link and send it another
+    way."
+- What the customer may see instead of the quote: "This link is not valid"
+  (a cut-off link), "Quote for job J-… replaced" (you sent again or
+  withdrew it), "Quote for job J-… expired", "Too many requests" (wait a
+  few minutes), or, after answering, "This quote has already been answered
+  or replaced."
+  (Email delivery is not covered by an E2E spec; the quote page is.)
 
 ### Receive a consigned item
 

@@ -257,6 +257,7 @@ upload itself, below).
 | `VoidLineControl` | "Void…" on a line: `ReasonConfirm` calling `voidLine`. |
 | `AddServiceButton` / `AddServiceSheet` | `SearchPicker` over active services (price and category shown), quantity with steppers, the price prefilled and editable by anyone (D14), the cost field only with view_costs, a live line-total preview; the sheet's `newId()` line key makes a repeat submit add one line. Disabled with "Completed jobs are locked. Reopen to change lines." once the job is completed. |
 | `ManualLineButton` / `ManualLineSheet` | Description, quantity, unit price and (view_costs only) cost, with the same preview, key and lock. Left without a cost, the line is marked cost pending (D14); the sheet says so (to view_costs holders: "Enter 0 when there is no direct cost"). |
+| `IndentCard` (`indent-card.tsx`) | The job's "Indent parts and quote" card (Phase 13, ADR-024), after the lines: the quote's state in one line ("Quote sent … by WhatsApp, waiting for the customer. The link works until …", "Quote answered by <name> on …", expired, withdrawn), then one row per live request (description, kind, quantity × quoted price, with cost access the expected supplier and cost, the line total and a status `Badge`; an ordered part adds "On PO-… · Arrived / not arrived yet") with Fit / Add to job (`canFit`) and Cancel (`CANCELLABLE`). Under it "Send quote (N items)" (or "Send again" while a quote is open: sending withdraws the open quote first, so its items are offered again), "Withdraw quote", and "Order approved parts" for Manage purchasing. Sheets: Propose part (`SearchPicker` over shop-owned quantity products; "New product" with Manage inventory creates it first through `create_product`; expected cost and `Supplier` select only for cost holders, D60/D147), Propose service, Send quote (checkboxes with an `<output>` total; WhatsApp only when `whatsappNumber` accepts the customer's phone and Email only when quote emails are set up and the customer has an address, each absence said in a line under the control; validity 1–30 days), Quote ready to send (the link once, `CopyText`, the prefilled `quoteMessage`, and "Emailed to …", "The email didn't go out…" or an "Open WhatsApp" `wa.me` link; the link is never stored, D143), Order (supplier preset from the request, "Move the job to Waiting on parts" on), Fit (the quoted total; warns when its order has not arrived) and Cancel (reason). Hidden actions on a closed job. Words and links are pure in `src/lib/indent.ts`. The product page's Stock card lists arrived, unfitted indent quantities as "N reserved for jobs" with `ShortIdLink`s to the jobs (`indent_reservations`, D146: shown, never held). |
 | `TotalsSummary` (server) — the job yield panel | The compact summary row under the lines (SPEC §22, not a modal): the running sale total for everyone; with view_costs also Cost, Yield, Cult Commons (with the rate when every line shares it) and BICII yield after Cult Commons, from `work_order_totals_staff`, marked "Provisional" while a live line has no cost entered (D14), with what to do about it. It is PLAN Phase 5's job yield panel (no second economics block): for view_costs holders the job page also reads `work_order_yield` (`getWorkOrderYield`, in its `Promise.all`) and passes it as `report`, which labels Cult Commons with the lines' snapshot rates ("30%", or "25–30%" when they differ, `formatRateRange`), adds the loss note shared with Today ("1 line sold at a loss: −$15.00. Losses don't reduce Cult Commons on other lines.", D1) and says when the job counts in reports: "Counted in reports on Sat, 3 Oct 2026 (completed)" from its current completion (D32), "Counted in reports once the job is completed" while open or after a reopen, or "Not counted in reports (cancelled)" on a cancelled job (final, D15; never recognised, D32). Without view_costs: the sale total only, and no recognition text anywhere on the page. |
 | `Timeline` (server, `job-timeline.tsx`) | A job's events newest first: `describeEvent` titles (`src/lib/workshop-timeline.ts`), notes and reasons quoted, the actor ("Recorded outside the app" when none) and the time. Payloads carry no costs. The page shows the newest 200 (`?events=all`: 1,000); when older ones exist it says so ("Earlier ones, including the check-in, are not shown") with "Show earlier events". |
 | `PhotoViewer` | Sheet: the photo enlarged (tap for full size), who can see it (`SegmentedControl` Internal / Customer / Public, applied immediately with `useOptimistic` and a toast; each level explained; Public disabled on a customer record, PLAN D13, and on a job, D19; Customer and Public disabled on a consignment item, D52, with "Agreement photos show the consignor's terms, so they stay internal." shown once), caption, and delete with a reason (two steps; Cancel returns focus to "Delete photo…"). A change that went through but could not remove the old copy from Storage is reported as done, with "Finish" (toast and inline), not as a failure; the next showing of the record finishes it anyway. |
@@ -614,7 +615,7 @@ consignor liability" (view_financial_reports and view_costs, D30) to
 - **Job page order** (phone): header (J- number, status, overdue badge,
   bike, customer with tap-to-call, check-in date and age), status actions,
   intake photos (intake only), requested work and condition, lines with
-  totals, photos; then people (`AssignmentsCard`), dates (each stamp its
+  totals, the indent parts and quote card, photos; then people (`AssignmentsCard`), dates (each stamp its
   own row: completed and collected never merge), notes (always shown:
   `ApprovalSwitch`, internal and completion notes, Add note / Add
   diagnosis) and the timeline, a second column on wide screens. "Edit" on
@@ -715,7 +716,7 @@ consignor liability" (view_financial_reports and view_costs, D30) to
 | `LowStockList` | The first 5 of P4's `reporting.low_stock` (largest shortfall first) with `StockBadge`; "See all" opens `/inventory?filter=low`. |
 | `ExceptionList` | D34 exceptions, danger first: pill (tone and words; Overdue is danger, as on the Overdue tile and the board's badge, while Not collected and other warnings are waiting), short ID, subject, `exceptionCopy` sentence; rows link through `exceptionHref` (a line opens its job via `/q/J-…`; an `integration_failed` row, admins only (D86), shows "Shopify needs attention", the order or product, the human message as its subject line and "Fix it in the Shopify queue", and opens `/shopify/queue?job=<id>` with that job's sheet open); unknown kinds render a generic sentence; keyed by `exceptionKeys` (a product below zero at two locations is two rows); Today lists the 20 most urgent and, when there are more, says "Showing the 20 most urgent of 45" under them (Phase 9 makes it a link to `/reports/exceptions`); EmptyState "Nothing needs attention".; rows link through `exceptionHref` (a line opens its job via `/q/J-…`); unknown kinds render a generic sentence; keyed by `exceptionKeys` (a product below zero at two locations is two rows); Today lists the 20 most urgent and, when there are more, says "Showing the 20 most urgent of 45" under them (with `moreHref`, a link to `/reports/exceptions`); EmptyState "Nothing needs attention". Phase 9 adds optional props only (`detailed`, `action`, `label`, `empty`, `moreHref`): without them a row renders exactly as before (a unit test compares the markup). |
 | `FinancialEntries` | `<details id="financial-entries">` "What makes up these figures" (open with `?entries=open`): the day's `financial_lines` grouped by job (J- link), description, quantity, sale, and yield and Cult Commons when visible; "Sold at a loss" and "Cost pending" badges. It adds nothing up. |
-| `WeekStrip` | "Last 7 days" ending at the day shown: completed, collected, and gross sales, yield and Cult Commons when visible; each day links to `/?day=`; the day shown has `aria-current="date"` and a bold row. A table from md, stacked cards on a phone. |
+| `WeekStrip` | "Last 7 days" ending at the day shown: completed, collected, and gross sales, yield and Cult Commons when visible; each day links to `/?day=`; the day shown has `aria-current="date"` and a bold row. A table from md, stacked cards on a phone; on an iPad an admin's six columns (~600px) are wider than the column (~520px), so the table scrolls inside its card, never the page. |
 | `SectionLoader`, `SectionSkeleton`, `SectionError` (`section-loader.tsx`) | The streaming pattern above. |
 
 ### Appointments
@@ -841,6 +842,27 @@ slot functions exactly, `status.ts`, `history.ts`, `time.ts`,
   description, duration, capacity units (at most the shop's), "Public"
   ("Customers can book this on the BICII website"), Active and sort order.
   Types are never deleted, and the page says so.
+
+### The customer's quote page
+
+`/quote/<token>` (Phase 13 step 3, D142, D143) is the Admin's one page for
+customers: the `(customer)` route group's layout is the logo on paper in
+a single column (max-width xl, the page gutter), no shell, no links into
+the Admin. Order: eyebrow "Job J-… · <bike>", the heading "Hi <first
+name>, here is your quote", one line on what to do and until when the
+link works, then the **Items** card: each item a list row (description,
+"Part" or "Labour" · quantity × price, the line total) with an
+Approve / Decline `SegmentedControl` that starts with nothing chosen,
+then "Quote total" and "You approve" (an `<output>` that follows the
+choices). **Your name** (autocomplete `name`) and one large **Send my
+answer**. Sending with an item unanswered says how many still need an
+answer; database refusals come back as one alert in the customer's words
+(expired, already answered, the job closed). Once answered, the page is
+the thank-you status ("Thank you, <name>. You approved 2 of 3 items on
+…") over a read-only **Your answer** list and the approved total. A
+withdrawn, expired or malformed link is a heading and one sentence saying
+what to do (ask the shop for a new link). No costs, no supplier,
+no contact details, no staff names (D143).
 
 ### Photos and images
 

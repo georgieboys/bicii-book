@@ -405,6 +405,7 @@ everywhere it is used, verify, then revoke the old one.
 | SMTP password (sign-in codes) | Supabase Auth's mailer (dashboard only) | Create a new credential at the mail provider, paste it in Authentication → Emails → SMTP Settings, send a code to the owner's address (Users → Send magic link) and check it arrives, then revoke the old credential. Until mail works nobody can sign in. |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Vercel | `openssl rand -base64 32`, set it, redeploy. Open browser tabs holding pages built before the deploy get a failed Server Action once and must reload. |
 | Shopify tokens (Phase 10) | Vercel | Rotate the Admin API token and webhook secret in the Shopify custom app; update Vercel; redeploy. |
+| `RESEND_API_KEY` (quote emails, Phase 13) | Vercel (server only) | Create a new sending-only key in Resend, set it in Vercel, redeploy, send a quote by email to your own address on a test job and check it arrives, then revoke the old key. |
 
 Local devstack keys and the demo JWT secret are public, well-known values
 and are never used outside a developer's machine or CI.
@@ -429,6 +430,7 @@ One Vercel project for the Admin, connected to this repository.
    | `LOG_LEVEL` | `info` | `debug` | optional |
    | `SHOPIFY_*` | see [Shopify](#shopify-environment-variables-and-fake-mode) | **unset**, or a separate Shopify development store's values with `SHOPIFY_ALLOW_PREVIEW=true`; never the live store's | Sensitive; never `SHOPIFY_ADAPTER=fake` in Production |
    | `CRON_SECRET` | own value | own value | Sensitive; the cron route's bearer |
+   | `RESEND_API_KEY`, `EMAIL_FROM` | see [Quote emails](#quote-emails) | unset (no quote emails from previews) | the key Sensitive |
 
    Preview never gets the live store's `SHOPIFY_ADMIN_TOKEN` or
    `SHOPIFY_WEBHOOK_SECRET`. Preview runs on the staging database, whose
@@ -614,6 +616,35 @@ Hosted projects: the public side of a label (an anonymous scan) reads
 `reporting.public_items`, so `reporting` stays in the Data API's exposed
 schemas ([step 4 above](#hosted-supabase-projects-staging-and-production),
 required since Phase 4). Phase 8 adds no other anonymous surface.
+
+## Quote emails
+
+Staff send an indent quote's link by WhatsApp, by copying it, or by email
+(Phase 13 step 3, D144). Email is the Admin's own: it calls Resend's API,
+not Supabase's SMTP settings, so it needs its own two variables in Vercel
+Production. Without both, the Send quote sheet offers no Email and says
+"quote emails aren't set up yet".
+
+1. In Resend, verify the shop's sending domain (the same domain that Auth's
+   sign-in codes wait for,
+   [R-039](RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified)).
+2. Create an API key with sending access only.
+3. In Vercel → `bicii-book` → Settings → Environment Variables, Production:
+   `RESEND_API_KEY` (Sensitive) and `EMAIL_FROM` (the sender on that
+   domain, for example a name and an address such as
+   `BICII <workshop@your-domain>`; env.ts refuses anything that is not an
+   address). Leave both unset in Preview.
+4. Redeploy production.
+5. Verify: on a test job whose customer has your own email address,
+   propose a part, **Send quote** → **Email** → **Create link**. The sheet
+   says "Emailed to …" and the email arrives with the link; open it and
+   check the quote page shows the items.
+
+If an email fails, the quote still exists and the sheet says "The email
+didn't go out. Copy the link and send it another way."; the server log
+has `quote email not sent` with Resend's HTTP status (never the address
+or the link). A 401 or 403 is the key or an unverified domain; a 422 is
+usually `EMAIL_FROM` or the customer's address.
 
 ## Shopify
 

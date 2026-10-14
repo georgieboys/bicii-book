@@ -57,6 +57,8 @@ export type WorkOrderDetail = {
   customer: {
     id: string;
     label: string;
+    /** For greeting the customer in a quote message (Phase 13). */
+    firstName: string | null;
     phone: string | null;
     email: string | null;
     archived: boolean;
@@ -197,6 +199,7 @@ export async function getWorkOrder(
     customer: {
       id: row.customer.id,
       label: labelOf(row.customer),
+      firstName: row.customer.first_name,
       phone: row.customer.phone,
       email: row.customer.email,
       archived: row.customer.archived_at !== null,

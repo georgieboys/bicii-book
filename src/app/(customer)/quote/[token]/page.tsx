@@ -1,0 +1,171 @@
+import type { Metadata } from "next";
+
+import { Card } from "@/components/ui/card";
+import { noteQuoteAttempt } from "@/lib/admin/quote-throttle";
+import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatMoney, formatQuantity, sumMoney } from "@/lib/money";
+import {
+  approvedSummary,
+  isQuoteToken,
+  parseQuoteView,
+  type OpenOrAnsweredQuote,
+} from "@/lib/quote-page";
+import { createAnonClient } from "@/lib/supabase/anon";
+
+import { QuoteForm } from "./quote-form";
+
+/**
+ * The customer's quote (Phase 13 step 3; PLAN D142, D143, ADR-024): the
+ * job, the bike, their first name, the items with prices and the total,
+ * and per-item answers. Read as anon through `quote_by_token`, whoever
+ * opens it; nothing else of the shop's data is reachable from here. Not
+ * indexed, no referrer (next.config.ts sends both as headers too), never
+ * cached.
+ */
+
+export const metadata: Metadata = {
+  title: { absolute: "Your quote · BICII" },
+  robots: { index: false, follow: false, nocache: true },
+  referrer: "no-referrer",
+};
+
+export default async function QuotePage({ params }: PageProps<"/quote/[token]">) {
+  const { token } = await params;
+  if (!isQuoteToken(token)) return <Notice title="This link is not valid" body={ASK_AGAIN} />;
+
+  if ((await noteQuoteAttempt("view", token)) === "limited") {
+    return (
+      <Notice title="Too many requests" body="Wait a few minutes, then open the link again." />
+    );
+  }
+
+  const { data, error } = await createAnonClient().rpc("quote_by_token", { token });
+  if (error) {
+    return (
+      <Notice
+        title="This quote can't be shown right now"
+        body="Try again in a few minutes. If it keeps happening, contact the shop."
+      />
+    );
+  }
+  const quote = parseQuoteView(data);
+  if (!quote) return <Notice title="This link is not valid" body={ASK_AGAIN} />;
+
+  if (quote.status === "withdrawn") {
+    return (
+      <Notice
+        title={`Quote for job ${quote.job_number} replaced`}
+        body="The shop replaced or withdrew this quote. Use the newest link they sent you, or ask them for one."
+      />
+    );
+  }
+  if (quote.status === "expired") {
+    return (
+      <Notice
+        title={`Quote for job ${quote.job_number} expired`}
+        body="This quote's link has expired. Ask the shop for a new one."
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        <p className="eyebrow text-dust-500">
+          Job {quote.job_number}
+          {quote.bike ? ` · ${quote.bike}` : ""}
+        </p>
+        <h1 className="text-3xl">
+          {quote.first_name ? `Hi ${quote.first_name}, here is your quote` : "Your quote"}
+        </h1>
+      </header>
+      {quote.status === "answered" ? (
+        <Answered quote={quote} />
+      ) : (
+        <Open quote={quote} token={token} />
+      )}
+    </div>
+  );
+}
+
+const ASK_AGAIN = "Check you opened the whole link, or ask the shop for a new one.";
+
+function Notice({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <h1 className="text-3xl">{title}</h1>
+      <p className="text-dust-700">{body}</p>
+    </div>
+  );
+}
+
+function Open({ quote, token }: { quote: OpenOrAnsweredQuote; token: string }) {
+  return (
+    <>
+      <p className="text-dust-700">
+        Approve or decline each item, type your name and send your answer. The shop orders only what
+        you approve. You can answer once; this link works until {formatDateTime(quote.expires_at)}.
+      </p>
+      <QuoteForm
+        token={token}
+        currency={quote.currency}
+        total={quote.total}
+        items={quote.items.map((i) => ({
+          id: i.id,
+          kind: i.kind,
+          description: i.description,
+          quantity: formatQuantity(i.quantity),
+          unitPrice: i.unit_sale_price,
+          lineTotal: i.line_total,
+        }))}
+      />
+    </>
+  );
+}
+
+function Answered({ quote }: { quote: OpenOrAnsweredQuote }) {
+  const { approved, of } = approvedSummary(quote.items);
+  const approvedTotal = sumMoney(
+    quote.items.filter((i) => i.decision === "approved").map((i) => i.line_total),
+  );
+  return (
+    <>
+      <p role="status" className="rounded-xl bg-done-soft p-4 text-done-deep">
+        Thank you{quote.answered_name ? `, ${quote.answered_name}` : ""}. You approved {approved} of{" "}
+        {of} {of === 1 ? "item" : "items"}
+        {quote.answered_at ? ` on ${formatDate(quote.answered_at)}` : ""}. The shop will be in
+        touch.
+      </p>
+      <Card title="Your answer">
+        <ul aria-label="Your answer" className="flex flex-col divide-y divide-hairline">
+          {quote.items.map((i) => (
+            <li key={i.id} className="flex items-start justify-between gap-3 py-3">
+              <span className="flex min-w-0 flex-col">
+                <span className="font-medium break-words">{i.description}</span>
+                <span className="text-sm text-dust-500">
+                  {formatQuantity(i.quantity)} × {formatMoney(i.unit_sale_price, quote.currency)}
+                </span>
+              </span>
+              <span className="flex flex-col items-end">
+                <span className="tabular-nums">{formatMoney(i.line_total, quote.currency)}</span>
+                <span
+                  className={
+                    i.decision === "approved"
+                      ? "text-sm font-semibold text-done-deep"
+                      : "text-sm text-dust-500"
+                  }
+                >
+                  {i.decision === "approved" ? "Approved" : "Declined"}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 flex justify-between border-t border-hairline pt-3 font-semibold tabular-nums">
+          <span>Approved total</span>
+          <span>{formatMoney(approvedTotal, quote.currency)}</span>
+        </p>
+      </Card>
+    </>
+  );
+}

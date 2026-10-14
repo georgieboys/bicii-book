@@ -9,6 +9,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import {
   cancelPartRequest,
   fitPartRequest,
+  getQuoteRecipient,
   orderPartRequests,
   proposePart,
   proposeService,
@@ -19,6 +20,7 @@ import {
 import { createProduct } from "@/lib/domain/inventory";
 import { listSuppliers } from "@/lib/domain/suppliers";
 import { QUOTE_DAYS, quotePath } from "@/lib/indent";
+import { quoteEmailEnabled, sendQuoteEmail } from "@/lib/integrations/email/quote";
 import { Decimal, parseMoney, toMoneyString } from "@/lib/money";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 
@@ -211,7 +213,9 @@ async function origin(): Promise<string> {
 /**
  * Send proposed items as a quote (D141, D144). Returns the link, shown to
  * staff this once (only its hash is stored): the sheet then opens WhatsApp
- * or copies it.
+ * or copies it. By email (when RESEND_API_KEY and EMAIL_FROM are set and
+ * the customer has an address) the Admin also emails it; a failed email
+ * keeps the quote, and staff copy the link instead.
  */
 export const sendQuoteAction = staffAction(
   z.object({
@@ -221,7 +225,7 @@ export const sendQuoteAction = staffAction(
       .array(z.uuid({ error: "Unknown item." }))
       .min(1, { error: "Choose at least one item." })
       .max(50, { error: "Send at most 50 items at once." }),
-    channel: z.enum(["whatsapp", "link"], { error: "Choose how to send it." }),
+    channel: z.enum(["whatsapp", "email", "link"], { error: "Choose how to send it." }),
     validDays: z.coerce
       .number()
       .int()
@@ -230,9 +234,36 @@ export const sendQuoteAction = staffAction(
   }),
   { name: "indent.send_quote" },
   async (input, { supabase }) => {
+    const recipient =
+      input.channel === "email" ? await getQuoteRecipient(supabase, input.workOrderId) : null;
+    if (input.channel === "email") {
+      if (!quoteEmailEnabled()) {
+        throw new ActionError("Email isn't set up yet. Send by WhatsApp or copy the link.");
+      }
+      if (!recipient?.email) {
+        throw new ActionError(
+          "The customer has no email address. Add one, or send by WhatsApp or copy the link.",
+        );
+      }
+    }
     const token = await sendQuote(supabase, input);
+    const link = `${await origin()}${quotePath(token)}`;
+    let emailedTo: string | null = null;
+    let emailFailed = false;
+    if (recipient?.email) {
+      const sent = await sendQuoteEmail({
+        quoteId: input.quoteId,
+        to: recipient.email,
+        firstName: recipient.firstName,
+        jobNumber: recipient.jobNumber,
+        link,
+        days: input.validDays,
+      });
+      if (sent.ok) emailedTo = recipient.email;
+      else emailFailed = true;
+    }
     refresh();
-    return { link: `${await origin()}${quotePath(token)}`, validDays: input.validDays };
+    return { link, validDays: input.validDays, emailedTo, emailFailed };
   },
 );
 

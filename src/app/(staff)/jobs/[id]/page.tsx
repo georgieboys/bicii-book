@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/card";
 import { CalendarIcon, CheckIcon } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatAppointmentMoment } from "@/lib/appointments/format";
+import { quoteEmailEnabled } from "@/lib/integrations/email/quote";
 import { hasPermission } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, shopDaysBetween } from "@/lib/dates";
@@ -283,10 +284,15 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             jobNumber={job.jobNumber}
             open={open}
             panel={indent}
-            customer={{ firstName: job.customer.firstName, phone: job.customer.phone }}
+            customer={{
+              firstName: job.customer.firstName,
+              phone: job.customer.phone,
+              email: job.customer.email,
+            }}
             canOrder={canOrder}
             purchaseData={purchaseData}
             canCreateProduct={hasPermission(staff, "manage_inventory")}
+            emailEnabled={quoteEmailEnabled()}
           />
 
           {intake ? null : (

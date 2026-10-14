@@ -6,8 +6,8 @@ Updated: 2026-10-14 SGT by the go-live session, on
 Stripe payments (PLAN Phases 13 and 14, D140–D156, ADR-024, ADR-025).
 Phase 13 step 1 (the database) is merged and on the hosted project (58
 migrations, `migrate.yml`); this branch adds step 2, the job page's
-**Indent parts and quote** card. The customer's quote page (step 3) and
-Stripe (Phase 14) are not built. The owner also loaded the service
+**Indent parts and quote** card (PR #23), and step 3, the customer's
+quote page and quote emails. Stripe (Phase 14) is not built. The owner also loaded the service
 catalogue and product categories into production on 2026-10-12–14
 (through `create_service` as the owner's admin login). Evidence checked:
 `git fetch` and `git log`; the hosted project read-only (migration
@@ -58,12 +58,14 @@ deployment of `main`. Earlier rows keep the evidence of their own phase.
   D120–D125, [ADR-023](docs/decisions/ADR-023-public-site.md)), whose
   screens wait as a draft pull request in repository `bicii`.
 - Next action:
-  0. Phase 13 step 2 (the job's Indent parts card: proposing, sending
-     quotes, ordering and fitting) is on this branch; next, step 3 (the
-     customer's quote page and email). Until step 3 is live, staff must
-     not send quote links to customers (USER-GUIDE says so). The owner
-     creates the Stripe account (Singapore, PayNow on) before Phase 14
-     goes live (PRODUCT question 32).
+  0. Phase 13 steps 2 and 3 are on this branch (step 2 in PR #23, step 3
+     after it): merge both, then Phase 14 (Stripe) against a fake. Quote
+     emails stay off until the owner verifies the Resend domain and sets
+     `RESEND_API_KEY` and `EMAIL_FROM` in Vercel Production
+     ([RUNBOOK](docs/RUNBOOK.md#quote-emails),
+     [R-079](docs/RISKS.md#r-079--email-quotes-need-the-resend-domain-and-api-key)).
+     The owner creates the Stripe account (Singapore, PayNow on) before
+     Phase 14 goes live (PRODUCT question 32).
   1. Owner: finish Resend's domain verification, set the shop's address as
      the Auth sender, send a code to a second address, then invite staff
      from Settings → Staff.
@@ -256,6 +258,7 @@ Deployed column keeps each row's state when the row was written.
 | Product categories in Settings (`/settings/product-categories`: add, rename, archive and bring back categories of kind 'product'; the service-category editor and actions take a `kind`; Edit details keeps an archived category; New product's Category hint) | Yes, `claude/brave-clarke-kfqhgt`, the commit with this update; no migration (the table, per-kind unique names and RLS exist since Phases 3 and 4) | Locally: `npm run check` pass; the new `inventory.spec.ts` test and the rest of `inventory.spec.ts` and `workshop-board.spec.ts` (service categories) on phone and iPad, results in the pull request; docs link check | Not deployed |
 | Indent parts and quotes, database (Phase 13 step 1: D140–D147; part requests, quotes with hashed link tokens, per-item answers for anyone holding the link, ordering onto the supplier's draft, arrival first requested first covered, fitting through `add_inventory_line` / `add_service_line`) | Yes, `main` via PR #22 (2f66032): migrations `20261014000100_indent_enum_values`, `20261014000200_indent_parts`, `tests/db/indent-parts.test.ts`, the API surface fixture, the generated types and the staff timeline's wording; no screens yet | Locally: `npm run db:reset` pass (58 files); `indent-parts.test.ts` 21 passed (the two-connection answer race included); `meta.test.ts` 20 passed; `workshop-timeline.test.ts` 16 passed; the full run is in the pull request | Hosted database: both migrations applied by `migrate.yml` on the merge |
 | Indent parts and quotes, job screens (Phase 13 step 2: D140–D147; the job page's **Indent parts and quote** card: propose an existing or new part and a service, send a quote with a link shown once and a prefilled WhatsApp message, send again, withdraw, order approved parts onto the supplier's draft and move the job to Waiting on parts, fit or add to job, cancel with a reason; the product page lists arrived parts as reserved for jobs) | Yes, `claude/brave-clarke-kfqhgt`: `src/lib/indent.ts`, `src/lib/domain/indent.ts`, `src/app/(staff)/jobs/indent-actions.ts`, `src/components/domain/indent-card.tsx`, the job and product pages, `tests/unit/indent.test.ts`, `tests/e2e/indent.spec.ts`, USER-GUIDE, DESIGN, TESTING; no quote page yet | Locally: `npm run check` pass; `npm test` 158 files, 2386 passed, 0 failed; `indent.spec.ts` passed on phone and tablet (after `npm run db:reset`); the CI run is in the pull request | Not deployed |
+| Indent parts and quotes, the customer's quote page and quote emails (Phase 13 step 3: D142–D144; `/quote/<token>` signed out, per-item Approve / Decline and a name, the answered page; anon reads and answers whoever is signed in; `no-referrer`, `noindex`, `no-store`; per-client and per-token limits in the sign-in counters; Email through Resend's API when configured, with the reason shown when not) | Yes, `claude/brave-clarke-kfqhgt` after step 2: `src/app/(customer)/`, `src/lib/quote-page.ts`, `src/lib/quote-limits.ts`, `src/lib/admin/quote-throttle.ts`, `src/lib/supabase/anon.ts`, `src/lib/integrations/email/`, the send sheet's Email option, `next.config.ts`, `src/lib/auth/routes.ts`, env.ts and `.env.example`, tests; ARCHITECTURE, DESIGN, USER-GUIDE, RUNBOOK, OPERATIONS, DATA-MODEL, PLAN §4, RISKS (R-078, R-079, new R-081), TESTING | Locally: `npm run check` pass; unit tests for the page, limits, email and env pass; `indent.spec.ts` passed on phone and tablet with the customer answering on the page; the full run and CI are in the pull request | Not deployed; no email until the owner sets the two variables |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).

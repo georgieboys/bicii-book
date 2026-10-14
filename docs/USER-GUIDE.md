@@ -157,8 +157,10 @@ before it is ordered, and it goes on the job only when it is fitted
 
 - Before you start: the job is open; the part is a product counted by
   quantity (an existing one, or a new one if you manage inventory). The
-  customer needs a mobile number for WhatsApp; without one you copy the
-  link and send it yourself.
+  customer needs a mobile number for WhatsApp, or an email address for
+  email (once an admin has set up quote emails,
+  [RUNBOOK](RUNBOOK.md#quote-emails)); otherwise copy the link and send it
+  yourself.
 - Steps, on the job's **Indent parts and quote** card:
   1. **Propose part**: search the **Part** (only shop-owned products
      counted by quantity are offered), or, with Manage inventory, choose
@@ -169,15 +171,23 @@ before it is ordered, and it goes on the job only when it is fitted
      of stock and nothing is on the job yet.
   2. **Propose service** for the fitting labour, the same way.
   3. **Send quote (N items)**: tick the items, check the **Quote total**,
-     choose **Send by** **WhatsApp** or **Copy link**, and how many days the
-     **Link works for** (1 to 30, default 7). Press **Create link**. The
-     sheet **Quote ready to send** shows the link and a **Message**; press
-     **Open WhatsApp** (the message is filled in) or copy them, then
-     **Done**. The link is shown only this once; if it is lost, press
-     **Send again**, which replaces it.
-  4. The customer approves or declines each item from the link and types
-     their name. The card then says "Quote answered by <name>" and each item
-     shows **Approved** or **Declined**; the timeline records it.
+     choose **Send by** **WhatsApp**, **Email** or **Copy link** (the sheet
+     says why WhatsApp or Email is missing), and how many days the **Link
+     works for** (1 to 30, default 7). Press **Create link**. The sheet
+     **Quote ready to send** shows the link and a **Message**: by email it
+     says "Emailed to <address>"; by WhatsApp press **Open WhatsApp** (the
+     message is filled in); otherwise copy them. Then **Done**. The link is
+     shown only this once; if it is lost, press **Send again**, which
+     replaces it (the old link stops working).
+  4. The customer opens the link (no sign-in) and sees the job number, the
+     bike, each item with its price, and the total. They choose
+     **Approve** or **Decline** for every item, type **Your name** and
+     press **Send my answer**; the page then thanks them and shows what
+     they approved. They can answer once. The card then says "Quote
+     answered by <name>" and each item shows **Approved** or **Declined**;
+     the job's approval is ticked with a note of what was approved, and the
+     timeline records it. Anyone with the link can answer, so if in doubt
+     confirm by phone.
   5. **Order approved parts** (Manage purchasing): choose the **Supplier**
      (the one proposed is preset) and press **Add to order**. The parts go
      on that supplier's draft purchase order (a new draft if there is none),
@@ -208,9 +218,17 @@ before it is ordered, and it goes on the job only when it is fitted
   - Fitting before the order is received warns: "Its order (PO-…) has not
     been received yet. Fitting it now may take the stock count below
     zero."
-- The customer's quote page is not built yet (PLAN Phase 13 step 3): until
-  it is, a link opens nothing useful, so do not send one to a customer.
-  Quote emails come with that step.
+  - Sending by email: "Email isn't set up yet. Send by WhatsApp or copy
+    the link." or "The customer has no email address. Add one, or send by
+    WhatsApp or copy the link." If the email itself fails, the quote is
+    still sent: "The email didn't go out. Copy the link and send it another
+    way."
+- What the customer may see instead of the quote: "This link is not valid"
+  (a cut-off link), "Quote for job J-… replaced" (you sent again or
+  withdrew it), "Quote for job J-… expired", "Too many requests" (wait a
+  few minutes), or, after answering, "This quote has already been answered
+  or replaced."
+  (Email delivery is not covered by an E2E spec; the quote page is.)
 
 ### Receive a consigned item
 

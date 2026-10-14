@@ -8,9 +8,9 @@ import { createJobViaIntake, createProduct, section, signIn, tagFor, toast } fro
  * Indent parts and quotes (Phase 13 step 2; PLAN D140-D146, ADR-024), on a
  * phone and an iPad: the admin proposes a part the shop doesn't stock and
  * its fitting on a new job, sends a quote and gets the link once; the
- * customer's answer and the supplier's delivery are made in SQL (the
- * customer's quote page is step 3, receiving has its own spec), as the
- * customer (anon) and the admin through the same RPCs; then the admin
+ * customer opens it signed out and approves both items on the quote page;
+ * the supplier's delivery is made in SQL as the admin through the same
+ * RPCs (receiving has its own spec); then the admin
  * orders the approved part onto the supplier's draft (the job moves to
  * Waiting on parts); the arrived parts show as reserved on the product page
  * until the admin fits them and the service, which become the job's lines.
@@ -21,6 +21,7 @@ const VELO_PARTS = "Velo Parts Asia Pte Ltd";
 
 test("indent part: proposed, quoted, answered, ordered, received and fitted", async ({
   page,
+  browser,
 }, testInfo) => {
   test.setTimeout(240_000);
   const tag = tagFor(testInfo);
@@ -81,20 +82,50 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   // A lost link is replaced by sending again, with the same items.
   await expect(card.getByRole("button", { name: "Send again (2 items)" })).toBeVisible();
 
-  // 3. The customer approves both items (step 3's page will do this).
-  const token = link.split("/").at(-1)!;
-  await sqlTransaction(async (query) => {
-    await query("set local role anon");
-    const [{ quote }] = await query<{ quote: { items: { id: string }[] } }>(
-      "select public.quote_by_token($1) as quote",
-      [token],
-    );
-    await query("select public.answer_quote($1, $2::jsonb, $3)", [
-      token,
-      JSON.stringify(quote.items.map((i) => ({ item_id: i.id, approve: true }))),
-      `Intake ${tag}`,
-    ]);
+  // 3. The customer opens the link signed out and approves both items.
+  const customerContext = await browser.newContext({
+    viewport: page.viewportSize() ?? undefined,
   });
+  const customer = await customerContext.newPage();
+  const response = await customer.goto(link);
+  expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
+  expect(response?.headers()["x-robots-tag"]).toContain("noindex");
+  expect(response?.headers()["cache-control"]).toContain("no-store");
+  await expect(customer).toHaveURL(link);
+  await expect(customer.getByRole("heading", { level: 1 })).toHaveText(
+    "Hi Intake, here is your quote",
+  );
+  await expect(customer.getByText(`Job ${job.jobNumber}`)).toBeVisible();
+  const quoteItems = customer.getByRole("list", { name: "Quote items" });
+  await expect(quoteItems.getByRole("listitem")).toHaveCount(2);
+  // Nothing about costs or suppliers reaches the page.
+  await expect(customer.getByRole("main")).not.toContainText(VELO_PARTS);
+  await customer.getByRole("button", { name: "Send my answer" }).click();
+  const customerMain = customer.getByRole("main");
+  await expect(customerMain.getByRole("alert")).toHaveText(
+    "Approve or decline every item (2 still need an answer).",
+  );
+  for (const name of [partName, "Wheel True"]) {
+    await quoteItems
+      .getByRole("listitem", { name })
+      .getByRole("radio", { name: "Approve" })
+      .click();
+  }
+  await expect(customer.getByLabel("Approved total")).toHaveText("$275.00");
+  await expect(customerMain.getByRole("alert")).toHaveCount(0);
+  await customer.getByLabel("Your name").fill(`Intake ${tag}`);
+  await customer.getByRole("button", { name: "Send my answer" }).click();
+  await expect(customerMain.getByRole("status")).toContainText(
+    `Thank you, Intake ${tag}. You approved 2 of 2 items`,
+  );
+  await customer.reload();
+  await expect(customer.getByRole("list", { name: "Your answer" })).toContainText("Approved");
+  await expect(customer.getByRole("button", { name: "Send my answer" })).toHaveCount(0);
+  // A link that is not a quote's shows a notice, not the sign-in page.
+  await customer.goto(`/quote/${"x".repeat(43)}`);
+  await expect(customer.getByRole("heading", { level: 1 })).toHaveText("This link is not valid");
+  await customerContext.close();
+
   await page.reload();
   await expect(card.getByLabel("Quote status")).toContainText(`Quote answered by Intake ${tag}`);
   await expect(items.getByRole("listitem", { name: partName })).toContainText("Approved");

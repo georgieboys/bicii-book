@@ -311,6 +311,26 @@ export async function cancelPartRequest(
   unwrap(await supabase.rpc("cancel_part_request", { request_id: requestId, reason }));
 }
 
+/** Who a quote email goes to (D144): the job's customer, read through staff RLS. */
+export async function getQuoteRecipient(
+  supabase: ServerSupabase,
+  workOrderId: string,
+): Promise<{ jobNumber: string; firstName: string | null; email: string | null } | null> {
+  const row = unwrap(
+    await supabase
+      .from("work_orders")
+      .select("job_number, customer:customers(first_name, email)")
+      .eq("id", workOrderId)
+      .maybeSingle(),
+  );
+  if (!row) return null;
+  return {
+    jobNumber: row.job_number,
+    firstName: row.customer?.first_name ?? null,
+    email: row.customer?.email ?? null,
+  };
+}
+
 /** send_quote (D141): returns the link token, which is never readable again. */
 export async function sendQuote(
   supabase: ServerSupabase,

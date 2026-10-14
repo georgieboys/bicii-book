@@ -66,21 +66,24 @@ export function IndentCard({
   canOrder,
   purchaseData,
   canCreateProduct,
+  emailEnabled,
 }: {
   workOrderId: string;
   jobNumber: string;
   /** Lines may change (D15): proposing, quoting and fitting need an open job. */
   open: boolean;
   panel: IndentPanel;
-  customer: { firstName: string | null; phone: string | null };
+  customer: { firstName: string | null; phone: string | null; email: string | null };
   canOrder: boolean;
   purchaseData: boolean;
   canCreateProduct: boolean;
+  /** RESEND_API_KEY and EMAIL_FROM are set (D144). */
+  emailEnabled: boolean;
 }) {
   const [sheet, setSheet] = useState<
     null | "part" | "service" | "quote" | "order" | { cancel: PartRequest } | { fit: PartRequest }
   >(null);
-  const [sent, setSent] = useState<{ link: string; validDays: number } | null>(null);
+  const [sent, setSent] = useState<QuoteSent | null>(null);
   const { toast } = useToast();
   const [withdrawing, startWithdraw] = useTransition();
 
@@ -258,6 +261,8 @@ export function IndentCard({
           workOrderId={workOrderId}
           items={quotable}
           hasWhatsapp={whatsappHref(customer.phone, "x") !== null}
+          emailEnabled={emailEnabled}
+          emailTo={emailEnabled ? customer.email : null}
           onSent={(result) => {
             setSheet(null);
             setSent(result);
@@ -274,6 +279,7 @@ export function IndentCard({
       ) : null}
       {sent ? (
         <QuoteSentSheet
+          sent={sent}
           link={sent.link}
           message={quoteMessage({
             firstName: customer.firstName,
@@ -290,6 +296,13 @@ export function IndentCard({
 }
 
 type ProductPick = PickerOption & { product: IndentProductOption };
+type SendChannel = "whatsapp" | "email" | "link";
+type QuoteSent = {
+  link: string;
+  validDays: number;
+  emailedTo: string | null;
+  emailFailed: boolean;
+};
 type SupplierOption = { id: string; name: string };
 
 /** Active suppliers, loaded once when the sheet opens (cost holders only; others get none). */
@@ -572,22 +585,27 @@ function SendQuoteSheet({
   workOrderId,
   items,
   hasWhatsapp,
+  emailEnabled,
+  emailTo,
   onSent,
   onClose,
 }: {
   workOrderId: string;
   items: PartRequest[];
   hasWhatsapp: boolean;
-  onSent: (result: { link: string; validDays: number }) => void;
+  emailEnabled: boolean;
+  /** The customer's address when quote emails are on, else null (no Email option). */
+  emailTo: string | null;
+  onSent: (result: QuoteSent) => void;
   onClose: () => void;
 }) {
   const [quoteId] = useState(newId);
   const [chosen, setChosen] = useState<Set<string>>(() => new Set(items.map((i) => i.id)));
-  const [channel, setChannel] = useState<"whatsapp" | "link">(hasWhatsapp ? "whatsapp" : "link");
-  const [days, setDays] = useState(String(QUOTE_DAYS.default));
-  const [result, setResult] = useState<ActionResult<{ link: string; validDays: number }> | null>(
-    null,
+  const [channel, setChannel] = useState<SendChannel>(
+    hasWhatsapp ? "whatsapp" : emailTo ? "email" : "link",
   );
+  const [days, setDays] = useState(String(QUOTE_DAYS.default));
+  const [result, setResult] = useState<ActionResult<QuoteSent> | null>(null);
   const [pending, start] = useTransition();
   const errors = errorsOf(result);
   const currency = items[0]?.currency ?? "SGD";
@@ -670,16 +688,27 @@ function SendQuoteSheet({
             label="Send by"
             name="channel"
             value={channel}
-            onValueChange={(v) => setChannel(v as "whatsapp" | "link")}
+            onValueChange={(v) => setChannel(v as SendChannel)}
             options={[
               ...(hasWhatsapp ? [{ value: "whatsapp", label: "WhatsApp" }] : []),
+              ...(emailTo ? [{ value: "email", label: "Email" }] : []),
               { value: "link", label: "Copy link" },
             ]}
           />
+          {channel === "email" && emailTo ? (
+            <p className="text-sm text-dust-500">The Admin emails the link to {emailTo}.</p>
+          ) : null}
           {!hasWhatsapp ? (
             <p className="text-sm text-dust-500">
-              The customer has no mobile number WhatsApp can use, so copy the link instead.
+              No WhatsApp: the customer has no mobile number it can use.
             </p>
+          ) : null}
+          {!emailEnabled ? (
+            <p className="text-sm text-dust-500">
+              No email: quote emails aren&apos;t set up yet (an admin sets them up).
+            </p>
+          ) : !emailTo ? (
+            <p className="text-sm text-dust-500">No email: the customer has no email address.</p>
           ) : null}
         </div>
         <Field
@@ -703,11 +732,13 @@ function SendQuoteSheet({
 
 /** The link, shown this once (only its hash is stored): open WhatsApp or copy it. */
 function QuoteSentSheet({
+  sent,
   link,
   message,
   phone,
   onClose,
 }: {
+  sent: QuoteSent;
   link: string;
   message: string;
   phone: string | null;
@@ -727,7 +758,17 @@ function QuoteSentSheet({
       }
     >
       <div className="flex flex-col gap-5">
-        {whatsapp ? (
+        {sent.emailedTo ? (
+          <p role="status" className="rounded-xl bg-done-soft p-3 text-sm text-done-deep">
+            Emailed to {sent.emailedTo}.
+          </p>
+        ) : null}
+        {sent.emailFailed ? (
+          <p role="alert" className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
+            The email didn&apos;t go out. Copy the link and send it another way.
+          </p>
+        ) : null}
+        {whatsapp && !sent.emailedTo ? (
           <a
             href={whatsapp}
             target="_blank"

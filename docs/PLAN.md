@@ -1043,6 +1043,7 @@ collected with distinct timestamps, and see all of it on Today.
 | `SHOPIFY_ALLOW_PREVIEW` | Vercel Preview, only with a development store's values | `true` lets the live adapter run in Preview; unset, Shopify is off there |
 | `SHOPIFY_ADAPTER` | unset in Production and Preview | `fake` only locally, in CI and in E2E (env.ts refuses it in production) |
 | `CRON_SECRET` | Vercel (Production, Preview) | Sensitive; the bearer of `/api/cron/integrations` (D87); unset = the route answers 503 |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Vercel Production (Phase 13 step 3) | quote emails through Resend's API (D144); the key Sensitive; either unset = no Email option |
 | `LOG_LEVEL` | app (optional) | `info` in Production, `debug` in Preview |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Vercel | stable across instances |
 

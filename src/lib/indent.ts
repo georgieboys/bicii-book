@@ -96,3 +96,28 @@ export function whatsappHref(phone: string | null | undefined, text: string): st
   const number = whatsappNumber(phone);
   return number ? `https://wa.me/${number}?text=${encodeURIComponent(text)}` : null;
 }
+
+const escapeHtml = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
+
+/** The quote email (D144): the same words as the WhatsApp message, with a button. */
+export function quoteEmail(input: {
+  firstName: string | null;
+  jobNumber: string;
+  link: string;
+  days: number;
+}): { subject: string; text: string; html: string } {
+  const text = quoteMessage(input);
+  const hello = input.firstName ? `Hi ${escapeHtml(input.firstName)},` : "Hi,";
+  const link = escapeHtml(input.link);
+  const html = [
+    `<p>${hello} here is the quote for your bike (job ${escapeHtml(input.jobNumber)}) from BICII.</p>`,
+    `<p><a href="${link}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#111;color:#fff;text-decoration:none;font-weight:bold">Approve or decline each item</a></p>`,
+    `<p>Or open this link: <a href="${link}">${link}</a></p>`,
+    `<p>The link works for ${input.days} ${input.days === 1 ? "day" : "days"}.</p>`,
+  ].join("\n");
+  return { subject: `Your quote from BICII (job ${input.jobNumber})`, text, html };
+}

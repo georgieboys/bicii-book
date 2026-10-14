@@ -932,6 +932,22 @@ encodes the message for `wa.me`; every database `part_request_status` has
 a label; `canFit` allows approved items and ordered parts only, and
 `CANCELLABLE` never holds quoted or fitted items.
 
+The customer's quote page and quote emails (Phase 13 step 3, D142–D144):
+`tests/unit/quote-page.test.ts` checks `isQuoteToken` (43 base64url
+characters only), `parseQuoteView` (open and answered quotes with money
+as strings; withdrawn and expired as state and job only; null for an
+unknown token, a missing field, an unknown status or decision),
+`approvedSummary`, `quoteBuckets` (per client and per token, views and
+answers apart, an unknown client shared, SHA-256 digests only and never
+the address or the token, the multiplier), `quoteEmail` (the WhatsApp
+words, HTML-escaped name and link) and `sendEmail` against a stubbed
+`fetch` (one POST to Resend with the bearer, the sender and the
+idempotency key; 4xx rejected, 429, 5xx and a thrown fetch unavailable,
+never Resend's message; off unless both variables are set);
+`env.test.ts` the two variables (optional, blank unset, the sender's
+shape); `auth-helpers.test.ts` that `/quote/<token>` is public and
+`/quote`, `/quotes/…` and `/jobs/quote/…` are not.
+
 ### Database (SPEC §27.2 and §23)
 
 Each invariant from SPEC §23 has at least one test, named after it:
@@ -1810,9 +1826,16 @@ phone and an iPad: the admin creates a product and a job, proposes 2 of the
 part with its supplier and the seeded Wheel True service (nothing reaches
 the job's lines), sends the quote (the total $275.00; the link is
 `/quote/` plus 43 characters, the message names the job; the card then
-offers **Send again (2 items)**), and the customer's answer is made as
-anon through `quote_by_token` and `answer_quote` (the quote page is step
-3). The card shows "Quote answered by …" and Approved; **Order approved
+offers **Send again (2 items)**). The customer opens the link in a new,
+signed-out browser context: the response carries `Referrer-Policy:
+no-referrer`, `X-Robots-Tag: noindex` and `Cache-Control: no-store`; the
+page greets "Hi Intake", shows the job number and both items and not the
+supplier; sending with nothing chosen says "Approve or decline every item
+(2 still need an answer)."; approving both shows "You approve $275.00";
+with a name the answer is thanked ("You approved 2 of 2 items"), and a
+reload shows the answer with no form; a 43-character link that is no
+quote's says "This link is not valid" (not the sign-in page). The card
+shows "Quote answered by …" and Approved; **Order approved
 parts** adds the part to the supplier's draft and the job's header shows
 Waiting on parts; the order is submitted and received in SQL as the admin
 (`receive_purchase`), the part shows Arrived and the product page lists
@@ -1850,8 +1873,8 @@ database, signed in as the seeded admin and mechanic:
    one duplicate → a refund moves no stock.
 6. (Later, in the public-site repo) customer sign-in sees only own data.
 7. Indent part (`indent.spec.ts` since Phase 13 step 2): propose a part and
-   its fitting → send the quote → the customer approves (as anon in SQL
-   until step 3's page) → order onto the supplier's draft (job Waiting on
+   its fitting → send the quote → the customer approves on the quote page,
+   signed out (step 3) → order onto the supplier's draft (job Waiting on
    parts) → receive → fit → both are job lines.
 
 ## Seed data

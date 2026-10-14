@@ -10,6 +10,7 @@ import { getServerEnv } from "@/lib/env";
 import { child } from "@/lib/logger";
 import { REQUEST_ID_HEADER, requestIdFrom } from "@/lib/request-id";
 
+import { SlidingWindowLimiter } from "../limiter";
 import {
   MAX_REJECTED_PER_MINUTE,
   MAX_WEBHOOK_BYTES,
@@ -19,6 +20,10 @@ import {
 import { defaultDeps, type ServiceSupabase } from "./deps";
 import { verifyShopifyHmac } from "./hmac";
 import { runDueJobs, runJobById } from "./queue";
+
+// Moved to ../limiter (Phase 14: Stripe's webhook route uses it too); still
+// exported from here for the callers and tests that import it from Shopify.
+export { SlidingWindowLimiter } from "../limiter";
 
 /**
  * POST /api/shopify/webhooks (SPEC §17.1, §23, §26; D87, D88; ADR-020):
@@ -68,25 +73,6 @@ export type RecordWebhookResult = {
   event_status: Database["public"]["Enums"]["integration_event_status"];
   job_id: string | null;
 };
-
-/** An in-process sliding one-minute window (per server instance, D88). */
-export class SlidingWindowLimiter {
-  private hits: number[] = [];
-  constructor(
-    private readonly max: number,
-    private readonly windowMs = 60_000,
-    private readonly now: () => number = Date.now,
-  ) {}
-
-  /** True (and counted) while fewer than `max` hits fall in the window. */
-  allow(): boolean {
-    const t = this.now();
-    this.hits = this.hits.filter((h) => t - h < this.windowMs);
-    if (this.hits.length >= this.max) return false;
-    this.hits.push(t);
-    return true;
-  }
-}
 
 const processLimiter = new SlidingWindowLimiter(MAX_REJECTED_PER_MINUTE);
 

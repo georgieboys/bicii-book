@@ -2,11 +2,17 @@
  * The Stripe fixtures (tests/fixtures/stripe.ts) have the shapes BICII reads
  * (DATA-MODEL §19) and sign like Stripe does, so the database tests that use
  * them exercise the real projection and apply paths (TESTING.md "Stripe
- * payments"). Phase 14 step 1 pins the fixtures on their own; the adapter's
- * verifier and parser are checked against them once they exist.
+ * payments"). They are pinned on their own, and the adapter's verifier,
+ * parser and configuration rules accept them.
  */
 import { createHmac } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+const { verifyStripeSignature } = await import("@/lib/integrations/stripe/signature");
+const { parseStripeEvent, toCheckoutSession } = await import("@/lib/integrations/stripe/gateway");
+const { stripeConfig } = await import("@/lib/integrations/stripe/client");
 
 import {
   refundObject,
@@ -135,5 +141,68 @@ describe("refundObject and stripeEvent", () => {
       data: { object: r },
     });
     expect(e.id).toMatch(/^evt_[A-Za-z0-9_]{1,250}$/);
+  });
+});
+
+describe("the adapter accepts the fixtures", () => {
+  it("verifies signStripeBody's header on the same bytes", () => {
+    const raw = JSON.stringify({ id: "evt_1", name: "Zoë" });
+    const t = 1_760_000_000;
+    const header = signStripeBody(raw, { timestamp: t });
+    const bytes = new TextEncoder().encode(raw);
+    expect(verifyStripeSignature(bytes, header, STRIPE_TEST_WEBHOOK_SECRET, t)).toBe("ok");
+    expect(
+      verifyStripeSignature(
+        bytes,
+        stripeWebhookHeaders({ raw, timestamp: t })["stripe-signature"],
+        STRIPE_TEST_WEBHOOK_SECRET,
+        t,
+      ),
+    ).toBe("ok");
+  });
+
+  it("builds events parseStripeEvent accepts, including E2E-style ids", () => {
+    const session = sessionObject({
+      id: "cs_test_e2e_phone_1",
+      paymentId: PAYMENT,
+      workOrderId: JOB,
+      amountCents: 12000,
+    });
+    for (const id of ["evt_1", "evt_e2e_phone_1760000000000"]) {
+      expect(
+        parseStripeEvent(stripeEvent({ id, type: "checkout.session.completed", object: session })),
+      ).toEqual({
+        id,
+        type: "checkout.session.completed",
+        livemode: false,
+      });
+    }
+    const refund = refundObject({
+      id: "re_1",
+      paymentIntent: "pi_1",
+      amountCents: 1,
+      status: "pending",
+    });
+    expect(
+      parseStripeEvent(
+        stripeEvent({ id: "evt_r", type: "refund.created", object: refund, livemode: true }),
+      ),
+    ).toMatchObject({ livemode: true });
+    expect(toCheckoutSession(session, false)).toMatchObject({
+      id: "cs_test_e2e_phone_1",
+      status: "complete",
+      paymentStatus: "paid",
+    });
+  });
+
+  it("uses a webhook secret stripeConfig accepts", () => {
+    expect(
+      stripeConfig({
+        STRIPE_ADAPTER: "fake",
+        STRIPE_WEBHOOK_SECRET: STRIPE_TEST_WEBHOOK_SECRET,
+        SUPABASE_SERVICE_ROLE_KEY: "s",
+        ADMIN_ORIGIN: "http://localhost:3100",
+      }),
+    ).toMatchObject({ state: "on", mode: "fake", webhookSecret: STRIPE_TEST_WEBHOOK_SECRET });
   });
 });

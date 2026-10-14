@@ -17,7 +17,7 @@ are current.
 
 ```mermaid
 flowchart LR
-  staff["Staff phone / iPad<br/>(installable PWA)"] --> app["BICII Admin: Next.js app<br/>(this repo; Vercel planned, not set up)"]
+  staff["Staff phone / iPad<br/>(installable PWA)"] --> app["BICII Admin: Next.js app<br/>(this repo; Vercel, project bicii-book)"]
   app --> auth
   app --> rest
   app --> storage
@@ -40,10 +40,15 @@ flowchart LR
   auth --> mail["Email (SMTP)<br/>sign-in codes; Resend on production"]
   customer["Customer's phone<br/>(quote link, signed out)"] --> app
   app -. "quote emails (HTTPS API,<br/>off until configured)" .-> resend["Resend"]
+  stripe["Stripe Checkout<br/>(Phase 14: built against a fake;<br/>off until keys)"]
+  customer -. "pays (step 2)" .-> stripe
+  app -. "Stripe API (Checkout Sessions,<br/>Refunds read)" .-> stripe
+  stripe -. "webhooks (signature)" .-> app
 ```
 
-Dashed lines are planned or not yet connected (the Shopify layer is
-built and tested only against its in-memory fake). Production runs on
+Dashed lines are planned or not yet connected (the Shopify and Stripe
+layers are built and tested only against their in-memory fakes; Stripe is
+off in production until the owner's keys exist, D157). Production runs on
 Vercel (project `bicii-book`, functions in sin1) against one hosted
 Supabase project (Postgres 17) since 2026-10-12; there is no staging
 project ([R-001](RISKS.md#r-001--nothing-is-deployed)). Locally and in CI the
@@ -282,6 +287,60 @@ Publish online toggle and sync status on the product page in step 4
 runner, and `tests/db/shopify.stack.test.ts` the whole chain through
 PostgREST with the fake Shopify.
 
+## Stripe payment flow
+
+Built in Phase 14 step 1: the database (`20261014000400_stripe_payments.sql`)
+and the service layer (`src/lib/integrations/stripe/`, the route
+`api/stripe/webhooks`); the Checkout flows, the quote page's Pay deposit
+and the staff card come in step 2
+([ADR-025](decisions/ADR-025-stripe-payments.md), D150, D153, D155,
+D157–D159). Stripe is on only when `stripeConfig` finds every variable
+right for the deployment (D157); otherwise it is off with a named reason
+and the route answers 503.
+
+1. **Verify on the raw bytes.** `POST /api/stripe/webhooks` (outside the
+   proxy; `handleStripeWebhook` in `webhooks.ts`) reads the body once as
+   bytes, refuses more than 1 MiB (413, not stored), and checks
+   `Stripe-Signature` (`signature.ts`: HMAC-SHA256 of `${t}.${raw}`, any
+   `v1` during a secret roll, 5 minutes either way) before anything is
+   parsed. Then it checks the body is a JSON object, the event has an
+   `evt_` id, a type and a boolean livemode, and that livemode matches the
+   key's mode. Every rejection is stored as evidence without its body
+   (400; 503 while Stripe is off), up to 30 a minute per instance.
+2. **Store and apply in one transaction.** `record_stripe_event` (service
+   role) stores the delivery, deduplicated on its `evt_` id (a repeat only
+   counts the delivery), and applies it in the same transaction from an
+   allow-listed projection (ids, statuses, amounts, `bicii_*` metadata; no
+   customer details, no URLs, D159e). Transitions only move forward, so
+   replays, duplicate Event objects and out-of-order deliveries are no-ops.
+   A guard lets a payment or refund change only while the event being
+   applied is cited, for every role. The route answers 200 once stored,
+   duplicates included. There is no `after()`: the answer comes within the
+   10 seconds Checkout waits before sending the customer back.
+3. **500 means Stripe retries.** If storing or applying raises (a bug or
+   an outage), everything rolls back, a `not_recorded` row is kept as
+   evidence, and the route answers 500; Stripe retries for up to 3 days.
+   Business problems never raise: whatever Stripe confirms is recorded
+   (D159b).
+4. **Server reads.** `record_stripe_read` stores and applies a Checkout
+   Session or Refund the server read with the secret key
+   (`http-gateway.ts`: no SDK, pinned to `2026-09-30.endive`, 8 s timeout,
+   one retry with the same idempotency key). Step 2 calls it when the
+   customer presses Pay or returns, and when staff press *Check with
+   Stripe*; they only trigger the read.
+5. **Refunds from Refund objects only.** `refund.created`, `.updated` and
+   `.failed` give one `payment_refunds` row per Stripe Refund; only
+   succeeded ones reduce the money held, and a refund that fails after
+   succeeding puts the amount back (D155, D159c).
+6. **Attention is derived live (step 2).** Problems Stripe's data shows
+   (paid on a cancelled job, a different amount, a failed refund, an
+   unmatched event) are computed in views and listed on the job and in
+   Exceptions, never stored as a status of their own.
+
+`tests/db/stripe-payments.test.ts` proves the database steps, including
+concurrent deliveries; `tests/unit/stripe-*.test.ts` the signature, the
+configuration, the adapter, the fake and the route.
+
 ## Component map
 
 | Responsibility | Location | Dependency | Failure consequence |
@@ -306,6 +365,7 @@ PostgREST with the fake Shopify.
 | Service-role use | [src/lib/admin/](../src/lib/admin/) (staff logins via the Auth admin API, created without a password; the sign-in counters) | `SUPABASE_SERVICE_ROLE_KEY` (required in every deployment) | without it, or with a wrong one, nobody can sign in (every code request and verification is counted with it first, D72; sign-in says it is unavailable and the error log names the cause) and staff cannot be invited; bypasses RLS, so imports are restricted by ESLint |
 | Shopify integration layer (Phase 10 step 3; D80–D89, [ADR-020](decisions/ADR-020-shopify.md)) | [src/lib/integrations/shopify/](../src/lib/integrations/shopify/): `config.ts` (pinned API version, topics, limits), `ids.ts` (gids, handles), `hmac.ts`, `admin.ts` (the `ShopifyAdmin` interface and `ShopifyError`), `graphql-admin.ts` (live), `fake-admin.ts` / `fake-ids.ts` (in memory), `client.ts` (`getShopifyAdmin`, `shopifyConnection`), `desired-state.ts` (pure), `deps.ts` (`IntegrationDeps`), `sync.ts` (`runProductSync`), `queue.ts` (`runJob`, `runJobById`, `runDueJobs`), `webhooks.ts` (`handleShopifyWebhook`), `cron.ts` (`handleCronRequest`); routes [api/shopify/webhooks](../src/app/api/shopify/webhooks/route.ts) (POST, HMAC) and [api/cron/integrations](../src/app/api/cron/integrations/route.ts) (GET, bearer), both Node runtime with `maxDuration` 60, both outside the proxy matcher; [vercel.json](../vercel.json) cron every 5 minutes | the service-role client and the Shopify RPCs (DATA-MODEL §16); `SHOPIFY_*`, `CRON_SECRET` | webhooks are refused or not stored (Shopify retries for a while); syncs wait in the queue with a human message; no sale or stock is ever recorded outside the RPCs |
 | Shopify screens (Phase 10 step 4; D84, D86) | [src/lib/domain/shopify.ts](../src/lib/domain/shopify.ts) (reads over the RLS client: `getProductOnline` for any staff, `getShopifyOverview`, `listSyncedProducts`, `listQueue`, `getQueueJob`, `listEvents`, `getEvent` for admins; writes only through the staff RPCs; `describeRun` reads back a job's result for the toast); [src/lib/shopify.ts](../src/lib/shopify.ts) (pure words and tones) and [shopify-forms.ts](../src/lib/shopify-forms.ts); Publish online and Sync now in `src/app/(staff)/inventory/actions.ts` (manage_inventory) and the admin actions in `src/app/(staff)/shopify/actions.ts`, which run only the job id an RPC returned through `runJobById` with the service-role deps; the product page's `OnlineCard`; `/shopify`, `/shopify/queue`, `/shopify/products`, `/shopify/events`, `/shopify/events/[id]` (admins only, no `loading.tsx`); components in `src/components/domain/shopify/`; Today's `integration_failed` row through `src/lib/reports.ts` | RLS-scoped client and the staff RPCs; the integration layer for running a job | the screens error; online orders keep being stored and processed by the routes and the cron |
+| Stripe integration layer (Phase 14; D150–D159, [ADR-025](decisions/ADR-025-stripe-payments.md)) | [src/lib/integrations/stripe/](../src/lib/integrations/stripe/): `config.ts` (pinned API version, the 7 event types, limits, id shapes, idempotency keys), `form.ts` (the Checkout Session body), `gateway.ts` (the `StripeGateway` interface, `StripeError`, the parsers), `signature.ts`, `http-gateway.ts` (live, over fetch), `fake-gateway.ts` (in memory), `client.ts` (`stripeConfig`, `getStripeGateway`, `stripeConnection`), `deps.ts`, `records.ts` (the RPC wrappers), `webhooks.ts` (`handleStripeWebhook`), `limits.ts` (*Check with Stripe*'s counter); route [api/stripe/webhooks](../src/app/api/stripe/webhooks/route.ts) (POST, signature, Node runtime, `maxDuration` 30, outside the proxy matcher); the shared [limiter.ts](../src/lib/integrations/limiter.ts) | the service-role client and `record_stripe_event` / `record_stripe_read` (DATA-MODEL §16, §19); `STRIPE_*`, `ADMIN_ORIGIN` | Stripe off: the route answers 503 (kept as evidence). A failed store answers 500 and Stripe retries; the payment stays pending meanwhile ([R-086](RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)) |
 | Error mapping | [src/lib/db-errors.ts](../src/lib/db-errors.ts) | P0001 codes, constraint names | users see the generic error |
 | Logging and server errors | [src/instrumentation.ts](../src/instrumentation.ts), [src/lib/logger.ts](../src/lib/logger.ts) | pino to stdout | no trace of failures (no retention or alerting, [R-002](RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery)) |
 | PWA shell | [public/sw.js](../public/sw.js), [src/app/manifest.ts](../src/app/manifest.ts) | browser | no install or offline page |
@@ -338,6 +398,8 @@ reasoning is ADR-001's; the "small team" point is inferred.
 | Staff sign in with emailed one-time codes; deactivation ends sessions; the Admin's own sign-in limits | [ADR-019](decisions/ADR-019-staff-email-sign-in.md) |
 | Three staff roles (admin, manager, mechanic) with per-person exceptions; refunds for admins and managers | [ADR-021](decisions/ADR-021-staff-roles.md) |
 | The public site signs customers in with codes, links them to their record by email, and reads only the customer RPCs, the anonymous projections and the customer Storage policy | [ADR-023](decisions/ADR-023-public-site.md) |
+| Indent parts proposed on a job, quoted by a private link, answered per item, then ordered and fitted | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md) |
+| Customer payments through Stripe Checkout, recorded only from verified Stripe data, stored and applied in one transaction, off until the keys are right for the deployment | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 
 All records: [decisions/README.md](decisions/README.md).
 
@@ -366,7 +428,10 @@ All records: [decisions/README.md](decisions/README.md).
   `public_appointment_types`, `public_shop_hours`, `available_slots`,
   `bookable_slots` and, holding a quote's link, `quote_by_token` and
   `answer_quote` (Phase 13); the service role only in `src/lib/admin/`
-  ([ADR-003](decisions/ADR-003-customer-access.md),
+  and `src/lib/integrations/` (Shopify, quote emails and, from Phase 14,
+  the Stripe RPCs; step 2's quote page reaches the service role only
+  through `src/lib/integrations/stripe/checkout.ts`, and anon gains
+  nothing) ([ADR-003](decisions/ADR-003-customer-access.md),
   [DATA-MODEL §15](DATA-MODEL.md#15-row-level-security-matrix)).
 - Storage: bucket `media-internal` is private (staff policies, plus a
   customer's read of their own customer-visible bike and job photos,
@@ -375,7 +440,10 @@ All records: [decisions/README.md](decisions/README.md).
   users ([20261004000800_media_storage.sql](../supabase/migrations/20261004000800_media_storage.sql)).
 - Money: `numeric` domains in Postgres do the authoritative arithmetic;
   `decimal.js` in [src/lib/money.ts](../src/lib/money.ts) only formats and
-  previews.
+  previews. Customer payments (Phase 14) are money held against a job, not
+  revenue: they are not a branch of recognition, totals, yield or Cult
+  Commons (D154); Stripe's integer cents are converted in Postgres, and the
+  amount sent to Checkout comes from Postgres too.
 - Time: every shop-day computation goes through `private.shop_day()` /
   `private.shop_today()` (Asia/Singapore, D35); the TypeScript mirror is
   [src/lib/dates.ts](../src/lib/dates.ts).

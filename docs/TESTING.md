@@ -952,6 +952,68 @@ never Resend's message; off unless both variables are set);
 shape); `auth-helpers.test.ts` that `/quote/<token>` is public and
 `/quote`, `/quotes/…` and `/jobs/quote/…` are not.
 
+Phase 14 step 1 (the Stripe service layer, `src/lib/integrations/stripe`;
+every file `// @vitest-environment node`, `server-only` mocked, fetch,
+clock, dependencies and loggers injected; no Stripe account, no key):
+`stripe-signature.test.ts` (the exact bytes pass, multibyte UTF-8
+included, and a re-serialised body fails; one flipped byte, another
+secret, an empty secret, a missing, empty, garbled or oversized header, two
+timestamps, an upper-case or non-hex `v1` and a `v0` alone are `invalid`;
+either `v1` passes during a secret roll; 301 s in the past or ahead is
+`expired`, 300 s passes; a forged stale header stays `invalid`; 500 random
+headers never throw); `stripe-form.test.ts` (the exact Checkout Session
+body for a deposit, with literal brackets, `unit_amount=12000`, `sgd`,
+both metadata blocks with `bicii_*` ids only, `expires_at` and encoded
+URLs, in a fixed order; a balance's name and no null quote; never
+`payment_method_types`, `allowed_payment_method_types`, `customer_email`,
+`ui_mode` or `locale`; 49 cents, 100,000,000 cents, 120.5, a fractional
+expiry and a 251-character name throw); `stripe-http-gateway.test.ts`
+(the URL, method and headers: Bearer key, `Stripe-Version:
+2026-09-30.endive`, `Idempotency-Key: bicii-checkout-<id>`, the form
+content type, `redirect: "error"`, `no-store` and a timeout signal; one
+retry with identical bytes and key, none for a non-retriable error; every
+row of the error table, including a livemode mismatch and a wrong object
+→ `stripe_bad_response`; Stripe's code kept, its message and param and
+the key never in the error; retrieve and expire validate and encode the
+id, expire sends `bicii-expire-<id>` and maps any 400 to
+`stripe_session_not_open`; list refunds validates the payment intent and
+keeps refund objects only); `stripe-fake-gateway.test.ts` (ids from the
+payment id, the same key and body → the same session and another body →
+a conflict, `url === successUrl`, unknown ids not found, `complete`,
+`expire`, `addRefund`, `listRefunds`, `failNext`, `calls` and `reset`);
+`stripe-config.test.ts` (the full `stripeConfig` matrix: on in test mode
+locally and live in production, the fake with livemode false; off for
+preview, no key, a malformed key, a test key in production, a live key
+locally or in development, a missing or malformed webhook secret, no
+service-role key, and an origin with a path, query, hash, credentials, a
+non-https scheme or http other than localhost; the reasons in their
+listed order; no key or secret in an off result; `stripeCheckBucket`
+never holds the payment id); `env.test.ts` "Stripe variables (Phase
+14)" (all optional, blanks unset; the fake with a key and the fake in
+production refused; a malformed key, a live key outside production and a
+malformed origin parse, because `stripeConfig` turns Stripe off instead);
+`stripe-webhook-handler.test.ts` (413 by header and by size and 400
+unreadable, none stored; 503 while off, stored as `stripe_off` without the
+body; 400 `signature_invalid`, `signature_expired`, `body_not_json`,
+`event_shape_invalid` and `livemode_mismatch`, each stored with allow-listed
+headers, size and SHA-256 and no payload; the 31st rejection in a minute
+not stored; 200 new with the payload and 200 `duplicate: true`; 500 when
+storing fails, followed by a `not_recorded` evidence call with the same
+SHA-256, and still 500 when that fails too; responses carry `no-store`
+and never the payer's details; captured logs never contain
+`stripe-signature`, `whsec_`, `/quote/`, `cs_test_`, `v1=` or the
+payload); `stripe-webhook-route.test.ts` (exports exactly `POST`,
+`maxDuration` and `runtime`; `nodejs`; 30 s); `stripe-fixtures.test.ts`
+(the fixtures' shapes, and the adapter's verifier, parsers and
+`stripeConfig` accept them); `proxy-matcher.test.ts`
+(`/api/stripe/webhooks` is outside the proxy); `logger.test.ts` (with the
+production options on a captured stream, `url`, `successUrl`,
+`cancelUrl`, `checkoutUrl`, `secretKey`, `webhookSecret` and
+`headers["stripe-signature"]` are `[redacted]` at the top level and one
+level down, and the earlier paths still are); the Shopify webhook handler
+test still imports `SlidingWindowLimiter` from `shopify/webhooks.ts`,
+which re-exports it from `src/lib/integrations/limiter.ts`.
+
 ### Database (SPEC §27.2 and §23)
 
 Each invariant from SPEC §23 has at least one test, named after it:
@@ -2022,4 +2084,6 @@ fine).
 
 Secrets in CI: none. E2E runs against the devstack (real Supabase Auth,
 PostgREST and Storage with the local demo keys), not staging, so it works
-on forks and needs no staging credentials.
+on forks and needs no staging credentials. Stripe likewise: CI and E2E use
+the in-memory fake (`STRIPE_ADAPTER=fake`) and the fixtures' signing
+secret, never a Stripe key; env.ts refuses the fake together with a key.

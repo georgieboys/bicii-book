@@ -99,7 +99,27 @@ export const serverEnvSchema = z
         error: 'must be an address, or a name and an address like "BICII <workshop@example.com>"',
       })
       .optional(),
-    /** Set by Vercel (production | preview | development); read to refuse the fake in production. */
+    /**
+     * Phase 14 (RUNBOOK "Stripe payments"): a secret or restricted key,
+     * sk_/rk_, test or live. Secret. Its shape and mode are checked by
+     * stripeConfig (src/lib/integrations/stripe/client.ts), never here: a
+     * wrong one turns Stripe off with a reason and never stops the app (D157c).
+     */
+    STRIPE_SECRET_KEY: nonEmpty.optional(),
+    /** The webhook endpoint's signing secret (whsec_…), checked on /api/stripe/webhooks. Secret. */
+    STRIPE_WEBHOOK_SECRET: nonEmpty.optional(),
+    /**
+     * 'fake' = the in-memory Stripe (local development, CI, E2E; never
+     * production). Unset = the key decides.
+     */
+    STRIPE_ADAPTER: z.enum(["fake"]).optional(),
+    /**
+     * The Admin's own origin, e.g. https://admin.example.com (no path):
+     * where Stripe sends customers back (D157b). Not secret. Never derived
+     * from the request's Host.
+     */
+    ADMIN_ORIGIN: nonEmpty.optional(),
+    /** Set by Vercel (production | preview | development); read to refuse the fakes in production and by stripeConfig. */
     VERCEL_ENV: z.string().optional(),
   })
   .superRefine((env, ctx) => {
@@ -115,6 +135,24 @@ export const serverEnvSchema = z
         code: "custom",
         path: ["SHOPIFY_ADAPTER"],
         message: "the fake Shopify must never run in production",
+      });
+    }
+    // Stripe (D157): only the dangerous combinations are errors. A malformed
+    // or wrong-mode key, webhook secret or ADMIN_ORIGIN turns Stripe off with
+    // a reason instead (stripeConfig), so a payments typo never breaks
+    // getServerEnv() and, with it, staff sign-in (D72).
+    if (env.STRIPE_ADAPTER === "fake" && env.STRIPE_SECRET_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["STRIPE_ADAPTER"],
+        message: "fake cannot be combined with STRIPE_SECRET_KEY; unset one of them",
+      });
+    }
+    if (env.STRIPE_ADAPTER === "fake" && env.VERCEL_ENV === "production") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["STRIPE_ADAPTER"],
+        message: "the fake Stripe must never run in production",
       });
     }
     if (env.SHOPIFY_ADAPTER === "live") {

@@ -148,3 +148,52 @@ describe("quote email variables (Phase 13 step 3, D144)", () => {
     }
   });
 });
+
+describe("Stripe variables (Phase 14)", () => {
+  const KEYS = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_ADAPTER", "ADMIN_ORIGIN"];
+
+  it("are all optional, and blank is unset", () => {
+    for (const source of [{}, Object.fromEntries(KEYS.map((k) => [k, ""]))]) {
+      const env = parseServerEnv(source);
+      for (const key of KEYS) expect(env[key as keyof typeof env]).toBeUndefined();
+    }
+  });
+
+  it("accept the fake for local development, CI and E2E", () => {
+    expect(
+      parseServerEnv({ STRIPE_ADAPTER: "fake", STRIPE_WEBHOOK_SECRET: "whsec_x" }).STRIPE_ADAPTER,
+    ).toBe("fake");
+    expect(() => parseServerEnv({ STRIPE_ADAPTER: "live" })).toThrow(/STRIPE_ADAPTER/);
+  });
+
+  it("refuse the fake together with a key", () => {
+    expect(() =>
+      parseServerEnv({ STRIPE_ADAPTER: "fake", STRIPE_SECRET_KEY: "sk_test_abc" }),
+    ).toThrow(/STRIPE_ADAPTER: fake cannot be combined with STRIPE_SECRET_KEY/);
+  });
+
+  it("refuse the fake in Vercel production, not in preview", () => {
+    expect(() => parseServerEnv({ STRIPE_ADAPTER: "fake", VERCEL_ENV: "production" })).toThrow(
+      /the fake Stripe must never run in production/,
+    );
+    expect(parseServerEnv({ STRIPE_ADAPTER: "fake", VERCEL_ENV: "preview" }).STRIPE_ADAPTER).toBe(
+      "fake",
+    );
+  });
+
+  it("parse a malformed key, a live key outside production and a malformed origin (soft: stripeConfig turns Stripe off)", () => {
+    const env = parseServerEnv({
+      STRIPE_SECRET_KEY: "not-a-key",
+      STRIPE_WEBHOOK_SECRET: "nope",
+      ADMIN_ORIGIN: "admin.example.com/path",
+    });
+    expect(env.STRIPE_SECRET_KEY).toBe("not-a-key");
+    expect(env.ADMIN_ORIGIN).toBe("admin.example.com/path");
+    expect(
+      parseServerEnv({ STRIPE_SECRET_KEY: "sk_live_abc", VERCEL_ENV: "preview" }).STRIPE_SECRET_KEY,
+    ).toBe("sk_live_abc");
+    expect(
+      parseServerEnv({ STRIPE_SECRET_KEY: "sk_test_abc", VERCEL_ENV: "production" }),
+    ).toBeTruthy();
+  });
+});

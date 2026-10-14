@@ -2,8 +2,9 @@
 /**
  * Which paths proxy.ts runs on (ADR-001 A3): every page, but not the
  * routes that authenticate without a session (the Shopify webhooks by
- * HMAC, the integration cron by bearer) or static assets. A signed-out GET
- * of the cron must reach the route, not be redirected to /login.
+ * HMAC, the Stripe webhooks by signature, the integration cron by bearer)
+ * or static assets. A signed-out GET of the cron must reach the route, not
+ * be redirected to /login.
  */
 import * as testing from "next/experimental/testing/server";
 import { describe, expect, it } from "vitest";
@@ -25,6 +26,7 @@ describe("proxy matcher", () => {
   it.each([
     "/api/cron/integrations",
     "/api/shopify/webhooks",
+    "/api/stripe/webhooks",
     "/api/health",
     "/_next/static/chunk.js",
     "/sw.js",
@@ -32,10 +34,15 @@ describe("proxy matcher", () => {
     expect(matches(url)).toBe(false);
   });
 
-  it.each(["/", "/shopify", "/products/x", "/login", "/api/labels/x/pdf", "/settings/shopify"])(
-    "runs on %s",
-    (url) => {
-      expect(matches(url)).toBe(true);
-    },
-  );
+  it.each([
+    "/",
+    "/shopify",
+    "/products/x",
+    "/login",
+    "/api/labels/x/pdf",
+    "/settings/shopify",
+    "/api/stripe",
+  ])("runs on %s", (url) => {
+    expect(matches(url)).toBe(true);
+  });
 });

@@ -9,6 +9,46 @@ to confirm
 Decision owner: Abhishek Cherian George (owner) for business meaning;
 defaults proposed by the build agent.
 
+Status update 2026-10-14 (Phase 14 step 1, built against a fake): the
+database and the adapter of D150, D153 and D155 are built, with the build
+defaults D157–D159 added below. Status stays proposed until question 32
+is answered.
+
+- **Migrations.** `supabase/migrations/20261014000300_payment_enum_values.sql`
+  (the job timeline types `payment_received`, `payment_refunded`,
+  `payment_refund_failed`, on their own) and
+  `20261014000400_stripe_payments.sql`: `stripe_events`, `payments`,
+  `payment_refunds`, their guards, RLS and grants, and the service-role
+  RPCs `record_stripe_event` and `record_stripe_read`
+  ([DATA-MODEL §19](../DATA-MODEL.md)). Tested first by
+  `tests/db/stripe-payments.test.ts`.
+- **Adapter and route.** `src/lib/integrations/stripe/` (no SDK: a live
+  adapter over fetch pinned to API version `2026-09-30.endive`, an
+  in-memory fake, the signature check, `stripeConfig`, the RPC wrappers)
+  and `POST /api/stripe/webhooks`, outside the proxy. Tested by the
+  `tests/unit/stripe-*.test.ts` files ([TESTING.md](../TESTING.md)).
+- **Store and apply in one transaction.** A verified delivery is stored
+  and applied by one RPC before the answer; an error rolls both back and
+  the route answers 500, so Stripe retries for up to 3 days, and a
+  `not_recorded` row is kept as evidence. Rejected deliveries are kept
+  without a body (as D88).
+- **Allow-listed projection.** A stored Stripe object keeps ids, statuses,
+  amounts and `bicii_*` metadata only: no customer details and no URLs
+  (the return URLs carry the quote token) (D159e).
+- **Verified data (D159a).** A webhook whose signature is valid on the raw
+  body, or a read the server makes with the secret key, is Stripe's word
+  for D153. Staff and customers only trigger a read; they never supply the
+  data.
+- **Provenance guard.** For every role, the owner included, a change to a
+  Stripe-owned column must cite the `stripe_events` row being applied in
+  the same transaction.
+- **The payment row** is created once the Checkout session exists (step 2,
+  `record_deposit_checkout`), with a fresh id and idempotency key per
+  attempt.
+- **Off until D157 holds.** Production has no Stripe variables, so Stripe
+  is off there: the webhook answers 503 (kept as evidence) and nothing
+  else changes.
+
 ## Context
 
 Asked whether indent parts should take a deposit, the owner answered on
@@ -36,9 +76,12 @@ S$0.50; to be confirmed on Stripe's own pricing page before go-live).
 | D154 | PAYMENT-MEANING: a payment is money held against a job, not revenue: recognition (D3, D30–D34), job totals, yield and Cult Commons do not change. The job shows what was paid and the balance due (job total less paid, net of refunds). Reports list payments and the deposits held on open jobs separately from sales | Build default | Phase 14 steps 2 and 3 |
 | D155 | REFUNDS: refunds are made in the Stripe dashboard and recorded from Stripe's refund events; the Admin starts no refund in the first build | Build default | Phase 14 step 1 |
 | D156 | BALANCE-LINK: staff can send a payment link for a job's balance due by WhatsApp or email (the same Checkout, kind balance); paying it does not collect the job | Build default | Phase 14 step 3 |
+| D157 | PAYMENTS-ROLLOUT: the deposit percent ships at 0 in every database and is refused above 0 while Stripe is off. Stripe is on only when every variable is valid for the deployment: never in a Vercel Preview; a key whose mode matches (live only in Production, test only elsewhere); the webhook secret, the service-role key and `ADMIN_ORIGIN` set and well-formed; the fake only outside production. Anything else turns Stripe off with a named reason and never stops the app. Switch off by setting the percent to 0, then removing the keys | Build default, owner to confirm | Phase 14 step 1 (`stripeConfig`); step 2 (the setting) |
+| D158 | DEPOSIT-RULES: the quote stores the percent when sent and the amount when answered (approved part lines only, in Postgres); SGD only; nothing asked under S$0.50 or over S$999,999.99; offered while the job is open and an approved part is still live; one 60-minute Checkout session per quote, reused until 2 minutes before expiry; partly refunded counts as paid, fully refunded as unpaid | Build default, owner to confirm | Phase 14 step 2 |
+| D159 | PAYMENT-TRUTH: only verified data changes a payment (a signed webhook or the server's own read). What Stripe confirms is recorded with Stripe's amount, even when it looks wrong, and flagged; BICII never refunds on its own. Refunds per Stripe Refund, only succeeded ones count. `paid_at` is Stripe's time. Stored objects are an allow-listed projection. Disputes are not handled (R-089) | Build default, owner to confirm | Phase 14 step 1 (recording); step 2 (flags) |
 
 Full text: [PLAN §6](../PLAN.md#6-open-decisions-for-the-owner), rows
-D150–D156.
+D150–D159.
 
 ## Alternatives actually considered
 
@@ -49,6 +92,13 @@ D150–D156.
 | Take the deposit through Shopify checkout | Rejected: Shopify sells catalogue products online (Phase 10); a deposit on one customer's quote is not a product, and its order would become an online sale (D80) |
 | Staff record deposits taken at the counter | Not now: the owner asked for Stripe; a counter payment can be a later decision with its own record |
 | Count a deposit as revenue when paid | Rejected: the part is not sold until it is fitted and the job is completed (D3); counting deposits would double the revenue in reports |
+| Reuse `integration_events` and the Shopify queue for Stripe deliveries | Rejected: those tables, the job kinds and the queue runner are wired to Shopify (a provider check, a kind enum, a runner that syncs products); Stripe has its own `stripe_events`, applied in the same transaction |
+| `charge.refunded` as the source of refunds | Rejected: it carries the charge, not each Refund; `refund.created`, `refund.updated` and `refund.failed` give one row per Refund with its own status, which PayNow refunds need (they can fail after succeeding) |
+| The Stripe Node SDK | Rejected: four form-encoded calls do not need it; a fetch adapter pins the API version, never logs, and keeps the dependency surface small |
+| A cron sweep that re-reads pending payments | Rejected: the 60-second integration cron belongs to Shopify; store and apply are synchronous, Stripe retries for 3 days, and the customer's return and staff's *Check with Stripe* re-read the session (R-086) |
+| Answer 200 when applying fails, and log the bug | Rejected: Stripe would stop retrying and the money would be lost; an error rolls back, answers 500, and leaves `not_recorded` evidence |
+| Store the Checkout URL | Rejected: a Pay click on an existing session re-reads it at Stripe and redirects to the URL Stripe returns, after checking its host |
+| Return URLs built from the request's Host | Rejected: the anonymous Pay action hands Stripe URLs that carry the quote token, so their origin comes from `ADMIN_ORIGIN` only |
 
 ## Consequences
 
@@ -58,6 +108,18 @@ D150–D156.
   retries ([R-086](../RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)).
 - Refunds are done by hand in Stripe
   ([R-087](../RISKS.md#r-087--refunds-are-made-by-hand-in-stripe)).
+- The quote link becomes a payment capability, and the return URLs that
+  carry it are stored by Stripe
+  ([R-088](../RISKS.md#r-088--the-quote-link-is-a-payment-capability-that-reaches-stripe)).
+- Card disputes, fees, payouts and payments outside BICII's Checkout are
+  not recorded
+  ([R-089](../RISKS.md#r-089--what-bicii-does-not-record-or-cannot-apply-from-stripe)).
+- Design risks without an R number: step 2's deposit amount is computed by
+  a trigger that relies on `answer_quote` writing item decisions before the
+  quote's status (its snapshot test fails loudly if that changes); and
+  these Stripe facts are unverified on a live account and on the go-live
+  list: PayNow's `payment_status` at completion, `pyr_` refund ids, and
+  whether Adaptive Pricing off keeps `amount_total` in SGD.
 - The Admin starts holding customer money records; payments taken in the
   shop by other means are not in it.
 

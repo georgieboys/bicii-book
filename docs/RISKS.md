@@ -48,8 +48,9 @@ URLs, or customer data in this file.
   `supabase/seed.sql` off the hosted project (it never runs there:
   `migrate.yml` has no seed step). A migration added from now on must sort
   after the newest file on `main` (`HANDOVER.md` "Migrations after
-  go-live"); since Phase 13 that is `20261014000200_indent_parts.sql`, and
-  Phase 14's files (`20261014000300` onward) sort after it.
+  go-live"); since Phase 14 steps 1 and 2 that is
+  `20261014000500_indent_deposits.sql` (`20261014000600` once the recheck
+  merges).
 - Next action: the owner decides whether to create a staging project
   before staff and customers use production; until then each migration
   is dry-run by `migrate.yml` before it applies.
@@ -2123,9 +2124,13 @@ URLs, or customer data in this file.
 
 - Category: operational gap / security concern (non-exploitable summary;
   D150, D153, D157).
-- Status and owner: built against the fake (Phase 14 step 1); off in
-  production until D157's conditions hold; owner (Stripe account and
-  keys), build agent (procedure).
+- Status and owner: built against the fake (Phase 14 step 1); merged and
+  deployed on 2026-10-14 (PR #24); the owner set the restricted key, the
+  webhook secret and `ADMIN_ORIGIN` in Vercel Production the same day,
+  and Stripe is on in production since the Admin's own domain served
+  (2026-10-15 SGT), not yet verified with a real event or payment; the
+  deposit percent is 0; owner (Stripe account and keys), build
+  agent (procedure).
 - Trigger: going live with Stripe; rotating a key; a leaked key.
 - Impact: a secret key can create or expire Checkout Sessions and read
   refunds; a webhook secret proves events come from Stripe. Both live only
@@ -2172,7 +2177,11 @@ URLs, or customer data in this file.
   rotating both. The review of 2026-10-14 corrected the permission
   previously named "Refunds: Read": Stripe files `GET /v1/refunds` under
   Charges, and a key without it makes *Check with Stripe* report the
-  refunds unreadable (`incomplete`), not fail the payment flow (webhooks
+  refunds unreadable (`incomplete: "permission"`, worded as the key's
+  permissions only then; a network error, timeout, 409, 5xx or 429 says
+  Stripe could not be reached, and any other answer that BICII could not use says so and
+  points to the RUNBOOK),
+  not fail the payment flow (webhooks
   need no key permission). `ADMIN_ORIGIN` may not be a loopback host in
   Production (`origin_invalid`), and the quote and job pages read
   Stripe's state through `stripeIsOn()`, which answers off rather than
@@ -2183,10 +2192,11 @@ URLs, or customer data in this file.
   gate with no real deposit; detection is *Check with Stripe* (step 2),
   which shows Stripe's truth, and the response is rolling the secret. A
   leaked live key could create or expire Checkout Sessions.
-- Next action: the owner creates the account and keys and does a
-  rotation drill at go-live (RUNBOOK "Stripe: rotating keys").
+- Next action: verify per RUNBOOK "Stripe:
+  switching on" (Live, the test delivery, one live deposit paid and
+  refunded), then a rotation drill (RUNBOOK "Stripe: rotating keys").
 - Revisit trigger: go-live; any key exposure.
-- Last checked: 2026-10-14, Phase 14 final review (fix commit).
+- Last checked: 2026-10-14, the recheck of the Phase 14 fixes.
 
 ## R-086 — A payment stays pending until Stripe's webhook arrives
 
@@ -2379,7 +2389,9 @@ URLs, or customer data in this file.
   differs from the payment's. Built in step 2 as `refund_not_counted`
   (`tests/db/indent-deposits.test.ts`); a linked refund in another
   currency is listed once on Exceptions, as that payment issue, not also
-  as a `currency_mismatch` Stripe event. A refund first recorded by a
+  as a `currency_mismatch` Stripe event, and once it fails or is
+  canceled, as one Stripe event row however many events repeat it
+  (`20261014000600_payment_exception_dedupe`). A refund first recorded by a
   server read has no mode (a Refund object carries none) and counts;
   should a webhook of the other mode later arrive for the same refund id,
   that event is flagged `livemode_mismatch` but the row keeps its null

@@ -24,6 +24,7 @@ import {
   depositPercentLabel,
   depositPercentRefusal,
   depositStates,
+  incompleteCheckNote,
   paidOnlineSummary,
   paymentStatusLabel,
   stripeConnectionLabel,
@@ -206,5 +207,20 @@ describe("Stripe's state on Settings (D157)", () => {
     expect(stripeConnectionLabel({ state: "off", mode: null, reason: "preview" })).toBe(
       `Off: ${STRIPE_OFF_REASONS.preview}`,
     );
+  });
+});
+
+describe("Check with Stripe, incomplete (R-086)", () => {
+  it("names the key's permissions only when Stripe refused the key", () => {
+    const permission = incompleteCheckNote("permission");
+    expect(permission).toContain("permissions");
+    expect(permission).toContain("RUNBOOK “Stripe: restricted key”");
+    const unavailable = incompleteCheckNote("unavailable");
+    expect(unavailable).toContain("Stripe could not be reached; try again");
+    expect(unavailable).not.toMatch(/permission|key/i);
+    const error = incompleteCheckNote("error");
+    expect(error).toContain("could not use Stripe's answer");
+    expect(error).toContain("RUNBOOK “Stripe: resolving problems”");
+    expect(error).not.toMatch(/permission|key|try again/i);
   });
 });

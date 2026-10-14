@@ -444,6 +444,22 @@ test("a cancelled Checkout can be paid later with the same session", async ({
   await page.goto("/reports/exceptions");
   const row = page.getByRole("link").filter({ hasText: q.job.jobNumber });
   await expect(row).toHaveCount(1);
-  await expect(row.getByText(sentence, { exact: true })).toHaveCount(1);
+  const subject = row.getByText(sentence, { exact: true });
+  await expect(subject).toHaveCount(1);
   await expect(row).toContainText("Open the job's Customer payments");
+  // The sentence is what to do, so it wraps in full rather than being cut
+  // off with an ellipsis (on a phone in particular): nothing is clipped.
+  await expect(subject).toBeVisible();
+  const clipped = await subject.evaluate((el) => ({
+    overflow: getComputedStyle(el).textOverflow,
+    hidden: el.scrollWidth > el.clientWidth + 1,
+  }));
+  expect(clipped).toEqual({ overflow: "clip", hidden: false });
+  if (testInfo.project.name === "phone") {
+    // On a phone this sentence cannot fit one line: it really wraps.
+    const lines = await subject.evaluate((el) =>
+      Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)),
+    );
+    expect(lines).toBeGreaterThan(1);
+  }
 });

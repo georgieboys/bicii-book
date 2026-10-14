@@ -14,6 +14,7 @@ import {
   exceptionKeys,
   exceptionLabel,
   exceptionsShownNote,
+  exceptionSubjectIsSentence,
   type OperationalException,
 } from "@/lib/reports";
 
@@ -89,7 +90,7 @@ export function ExceptionList({
                 )
               ) : null}
             </div>
-            {r.subjectLabel ? <p className="truncate text-sm">{r.subjectLabel}</p> : null}
+            {r.subjectLabel ? <SubjectLine kind={r.kind} text={r.subjectLabel} /> : null}
             <p className="text-sm text-dust-700">{text}</p>
           </div>
         );
@@ -140,6 +141,19 @@ export function ExceptionList({
   );
 }
 
+/**
+ * The row's subject: one truncated line (a name or a place), except for the
+ * kinds whose subject is the actionable sentence (customer payments and
+ * Stripe deliveries), which wrap so the whole sentence shows on a phone.
+ */
+function SubjectLine({ kind, text }: { kind: string; text: string }) {
+  return exceptionSubjectIsSentence(kind) ? (
+    <p className="text-sm break-words">{text}</p>
+  ) : (
+    <p className="truncate text-sm">{text}</p>
+  );
+}
+
 /** The /reports/exceptions row: severity, short ID and title, the sentence, the detail and the age. */
 function DetailedBody({
   row,
@@ -175,7 +189,7 @@ function DetailedBody({
         ) : null}
         {title ? <span className="font-medium">{title}</span> : null}
       </div>
-      {row.subjectLabel ? <p className="truncate text-sm">{row.subjectLabel}</p> : null}
+      {row.subjectLabel ? <SubjectLine kind={row.kind} text={row.subjectLabel} /> : null}
       <p className="text-sm text-dust-700">{text}</p>
       {detail ? <p className="text-sm text-dust-500">{detail}</p> : null}
       {row.since && age !== null ? (

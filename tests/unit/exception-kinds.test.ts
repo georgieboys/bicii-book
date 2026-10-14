@@ -5,6 +5,7 @@ import {
   exceptionCopy,
   exceptionHref,
   exceptionLabel,
+  exceptionSubjectIsSentence,
   type OperationalException,
 } from "@/lib/reports";
 
@@ -127,7 +128,8 @@ describe("exception kinds (D34, D106–D108)", () => {
       subjectLabel: message,
       issue: "payment_attention",
     });
-    // Never the subject line again (ExceptionList shows both lines).
+    // Never the subject line again (ExceptionList shows both lines, the
+    // subject in full: exceptionSubjectIsSentence).
     expect(exceptionCopy("payment_attention", payment)).toEqual({
       text: "Open the job's Customer payments",
       tone: "danger",
@@ -142,6 +144,26 @@ describe("exception kinds (D34, D106–D108)", () => {
     expect(
       exceptionCopy("stripe_attention", row({ kind: "stripe_attention", subjectLabel: null })),
     ).toEqual({ text: "Check Stripe deliveries in Settings → Customer payments", tone: "danger" });
+  });
+
+  it("shows the payment and Stripe sentences in full; every other subject stays one line (Phase 14, D159b)", () => {
+    // ExceptionList wraps these subjects instead of truncating them: the
+    // subject is the actionable sentence and the text only says where to act.
+    expect(exceptionSubjectIsSentence("payment_attention")).toBe(true);
+    expect(exceptionSubjectIsSentence("stripe_attention")).toBe(true);
+    for (const kind of [
+      "overdue_job",
+      "uncollected_job",
+      "negative_stock",
+      "unit_hold_stale",
+      "unit_state_mismatch",
+      "unsettled_consignment",
+      "currency_mismatch",
+      "integration_failed",
+      "a_kind_from_a_later_phase",
+    ]) {
+      expect(exceptionSubjectIsSentence(kind)).toBe(false);
+    }
   });
 
   it("opens the job, or Settings' Stripe deliveries for an event with no job (D86)", () => {

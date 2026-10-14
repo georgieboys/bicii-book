@@ -15,6 +15,7 @@ vi.mock("server-only", () => ({}));
 const {
   PAY_DEADLINE_MS,
   confirmDepositReturn,
+  incompleteCheckKind,
   refreshPaymentFromStripe,
   startDepositCheckout,
   validateRedirect,
@@ -605,7 +606,7 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
       after: "partially_refunded",
       processing: false,
       changed: true,
-      incomplete: false,
+      incomplete: null,
     });
     expect(gateway.calls).toEqual([
       { op: "retrieve", id: s.id },
@@ -629,7 +630,7 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
       after: "pending",
       processing: false,
       changed: false,
-      incomplete: false,
+      incomplete: null,
     });
   });
 
@@ -655,7 +656,7 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
       after: "failed",
       processing: false,
       changed: true,
-      incomplete: false,
+      incomplete: null,
     });
     expect(gateway.calls).toEqual([
       { op: "retrieve", id: s.id },
@@ -707,17 +708,68 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
     expect(paid.calls.map((c) => c.op)).toEqual(["retrieve", "list"]);
   });
 
-  it("the session recorded but the intent or refunds unreadable (a key permission): incomplete, not unavailable", async () => {
-    for (const op of ["list", "retrieve_pi"] as const) {
+  it("the session recorded but the intent or refunds unreadable: incomplete with its kind, not unavailable", async () => {
+    const cases = [
+      // A key permission: Stripe refused the key (401 or 403).
+      [new StripeError("stripe_auth_failed", false, 403), "permission"],
+      // Stripe not reached or busy: a retry may fix it.
+      [new StripeError("stripe_unavailable", true), "unavailable"],
+      [new StripeError("stripe_unavailable", true, 503), "unavailable"],
+      [new StripeError("stripe_rate_limited", true, 429), "unavailable"],
+      // Stripe answered, but not usefully: a retry will not fix it.
+      [new StripeError("stripe_not_found", false, 404), "error"],
+      [new StripeError("stripe_bad_response", false, 200), "error"],
+      [new StripeError("stripe_request_failed", false, 400), "error"],
+    ] as const;
+    for (const [failure, kind] of cases) {
+      for (const op of ["list", "retrieve_pi"] as const) {
+        const gateway = fakeStripe();
+        const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
+        gateway.complete(s.id, { paid: false, paymentIntent: "pi_perm" });
+        gateway.failNext(op, failure);
+        const { deps, lines } = makeDeps(
+          { record_stripe_read: [readResult("pending")] },
+          {
+            rows: [
+              row({ status: "pending", stripe_payment_intent_id: "pi_perm" }),
+              {
+                status: "pending",
+                refunded_amount: "0.00",
+                checkout_completed_at: "2027-01-15T08:00:00Z",
+              },
+            ],
+          },
+        );
+        deps.gateway = gateway;
+        expect(await refreshPaymentFromStripe(P1, deps), `${failure.code} ${op}`).toMatchObject({
+          kind: "checked",
+          incomplete: kind,
+        });
+        expect(lines.join("\n")).toContain(failure.code);
+        expectCleanLogs(lines);
+      }
+    }
+  });
+
+  it("both reads failing differently: the worse kind wins (permission, then error, then unavailable)", async () => {
+    for (const [first, second, worse] of [
+      ["stripe_auth_failed", "stripe_unavailable", "permission"],
+      ["stripe_unavailable", "stripe_auth_failed", "permission"],
+      ["stripe_auth_failed", "stripe_bad_response", "permission"],
+      ["stripe_bad_response", "stripe_auth_failed", "permission"],
+      ["stripe_unavailable", "stripe_bad_response", "error"],
+      ["stripe_bad_response", "stripe_unavailable", "error"],
+    ] as const) {
       const gateway = fakeStripe();
       const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
-      gateway.complete(s.id, { paid: false, paymentIntent: "pi_perm" });
-      gateway.failNext(op, new StripeError("stripe_auth_failed", false, 403));
-      const { deps, lines } = makeDeps(
+      gateway.complete(s.id, { paid: false, paymentIntent: "pi_both" });
+      gateway.failNext("retrieve_pi", new StripeError(first, first === "stripe_unavailable"));
+      gateway.failNext("list", new StripeError(second, second === "stripe_unavailable"));
+      const { deps } = makeDeps(
         { record_stripe_read: [readResult("pending")] },
         {
           rows: [
-            row({ status: "pending", stripe_payment_intent_id: "pi_perm" }),
+            row({ status: "pending", stripe_payment_intent_id: "pi_both" }),
             {
               status: "pending",
               refunded_amount: "0.00",
@@ -727,13 +779,17 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
         },
       );
       deps.gateway = gateway;
-      expect(await refreshPaymentFromStripe(P1, deps), op).toMatchObject({
+      expect(await refreshPaymentFromStripe(P1, deps), `${first} ${second}`).toMatchObject({
         kind: "checked",
-        incomplete: true,
+        incomplete: worse,
       });
-      expect(lines.join("\n")).toContain("stripe_auth_failed");
-      expectCleanLogs(lines);
     }
+    expect(incompleteCheckKind(new StripeError("stripe_auth_failed", false, 401))).toBe(
+      "permission",
+    );
+    expect(incompleteCheckKind(new StripeError("stripe_session_not_open", false, 400))).toBe(
+      "error",
+    );
   });
 
   it("not_found, other_mode and unavailable", async () => {

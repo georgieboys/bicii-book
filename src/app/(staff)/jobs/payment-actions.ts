@@ -8,7 +8,7 @@ import { unwrap } from "@/lib/db-errors";
 import { refreshPaymentFromStripe } from "@/lib/integrations/stripe/checkout";
 import { defaultStripeDeps } from "@/lib/integrations/stripe/deps";
 import { noteStripeCheck } from "@/lib/integrations/stripe/limits";
-import type { PaymentStatus } from "@/lib/payments";
+import type { IncompleteCheck, PaymentStatus } from "@/lib/payments";
 
 /**
  * A job's Customer payments (Phase 14 step 2; D153, D159a; R-086). Check
@@ -30,8 +30,12 @@ export const checkWithStripeAction = staffAction(
     after: PaymentStatus;
     /** Still pending with Checkout completed (Stripe confirming). */
     processing: boolean;
-    /** The session was recorded, its PaymentIntent or refunds could not be read. */
-    incomplete: boolean;
+    /**
+     * Null, or why the session was recorded but its PaymentIntent or
+     * refunds could not be read: the key's permission, Stripe not reachable,
+     * or an answer BICII could not use.
+     */
+    incomplete: IncompleteCheck | null;
   }> => {
     const row = unwrap(
       await supabase.from("payments").select("id").eq("id", paymentId).maybeSingle(),

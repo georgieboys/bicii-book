@@ -225,17 +225,20 @@ from the code:
   staff roles, `20261006001000` and up reporting, `20261007…` public site,
   `20261014000100`–`20261014000200` indent parts and quotes (Phase 13) and
   `20261014000300` and up Stripe payments (Phase 14). Main and the hosted
-  project end at `20261014000200_indent_parts.sql`, so a new file must sort
-  after it (hosted migrations are append-only; `migrate.yml` never uses
-  `--include-all`).
+  project end at `20261014000500_indent_deposits.sql`
+  (`20261014000600_payment_exception_dedupe.sql` once the recheck merges),
+  so a new file must sort after the newest (hosted migrations are
+  append-only; `migrate.yml` never uses `--include-all` and skips applied
+  versions).
   The latest file on `feat/p9-reporting` is
   `20261006001300_operational_exceptions.sql` (Phase 9, after the staff
   roles' `20261006000100`–`20261006000300`; it applies before or after
   Phase 10's `20261004004000`, R-058). A
   migration that replaces a function another track also replaces (as
-  `staff_search`) must carry both tracks' behaviour. Never edit an applied
-  migration; add a new one (nothing is hosted yet, so a track's own
-  unapplied migration may be edited in place at an integration).
+  `staff_search`) must carry both tracks' behaviour. Never edit a merged
+  or applied migration; add a new one (`migrate.yml` skips a version the
+  hosted project already holds, so an edit there would never run). Only a
+  file that has not yet merged to `main` may still be edited in place.
 - **Access.** Every object gets an explicit `revoke` and `grant`; every table
   ships with RLS and its policies in the same migration. Base tables are
   staff-only; customers reach data only through security definer `my_*`

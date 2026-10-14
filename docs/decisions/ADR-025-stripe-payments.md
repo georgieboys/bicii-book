@@ -128,6 +128,21 @@ database):
   expires sessions by its clock, Pay deposit stops starting Stripe steps
   after 30 s, `ADMIN_ORIGIN` may not be a loopback host in Production, and
   the quote page treats an unreadable server environment as Stripe off.
+- **Recheck of these fixes (after PR #24 merged and its migrations ran
+  on the hosted project, so a new migration,
+  `20261014000600_payment_exception_dedupe`).** The payment and Stripe
+  sentences on Exceptions wrap in full (they are what to do; other
+  kinds' subjects stay one truncated line); `stripe_attention` also
+  leaves a `livemode_mismatch` about a refund to `refund_not_counted`, by
+  the same test as `payment_issues`, while a failed or canceled
+  mismatched refund, which `refund_not_counted` leaves out, keeps its
+  `stripe_attention` row, and lists each Stripe object once per outcome
+  (the earliest event in the window), however many events or reads
+  repeat it; and *Check with Stripe* names the key's permissions only
+  when Stripe refused the key (`stripe_auth_failed`), says Stripe could
+  not be reached only for a network error or timeout, a 409, a 5xx or a
+  429 (`stripe_unavailable`, `stripe_rate_limited`), and otherwise that
+  BICII could not use Stripe's answer, which a retry will not fix.
 - **Not changed, recorded:** a pending payment whose session Stripe
   cannot find under the current key stays pending (R-086, RUNBOOK); a
   Checkout custom domain is refused by the redirect guard (R-088,

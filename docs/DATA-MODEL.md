@@ -45,10 +45,10 @@ This section was added by the documentation retrofit (2026-10-05, inspected
 at `c6bf6d0`). The numbered sections below are never renumbered; code and
 migration comments cite them as "DATA-MODEL §n".
 
-**Authority.** The schema source is the 58 files in
+**Authority.** The schema source is the 60 files in
 [supabase/migrations/](../supabase/migrations/), from
 `20261004000100_foundation.sql` to
-`20261014000200_indent_parts.sql` (Phase 6 added `20261004003300` to
+`20261014000400_stripe_payments.sql` (Phase 6 added `20261004003300` to
 `20261004003700`; Phase 8, labels, added `20261004003800_labels.sql` and
 Phase 10, Shopify, `20261004003900_shopify_integration.sql`,
 `20261004004000_shopify_order_processing.sql` and
@@ -83,7 +83,11 @@ otherwise create new objects, D100–D108; Phase 11 step 1 added
 `20261014000100_indent_enum_values` (seven `work_order_event_type`
 values, on their own because a new enum value cannot be used in the
 transaction that adds it) and `20261014000200_indent_parts`, which
-creates only new objects (§5 "Indent parts and quotes"), D140–D147). The labels and Shopify
+creates only new objects (§5 "Indent parts and quotes"), D140–D147;
+Phase 14 step 1 added `20261014000300_payment_enum_values` (three
+`work_order_event_type` values, on their own for the same reason) and
+`20261014000400_stripe_payments`, which creates only new objects (§19),
+D150, D153, D155, D157–D159). The labels and Shopify
 migrations sort before the purchasing, sign-in, roles, reporting and
 public-site ones, and no function, view, policy, grant, trigger or type
 that `20261004003800_labels.sql` or `20261004003900` to `20261004004100`
@@ -123,11 +127,11 @@ document is corrected.
 
 **Applied state.**
 
-- Local: on 2026-10-06, after `npm run db:reset` on the merge of
-  `feat/p9-reporting` into the main line (with labels and Shopify;
-  `npm run test:e2e` resets the same database),
+- Local: on 2026-10-14, after `npm run db:reset` on
+  `claude/brave-clarke-kfqhgt` with Phase 14 step 1's migrations
+  (`npm run test:e2e` resets the same database),
   `psql postgresql://postgres:postgres@127.0.0.1:5432/bicii_dev -Atc "select count(*), max(version) from supabase_migrations.schema_migrations"`
-  printed `56|20261006103000` (every file applied).
+  printed `60|20261014000400` (every file applied).
 - CI: the `check` job diffs the generated types against a throwaway
   database built from the migrations, and the `test` and E2E jobs run
   `npm run db:reset` (migrations, then the seed) before testing
@@ -164,6 +168,7 @@ the `20261004` prefix; Phase 7's keep `20261005`). For planned tables, the rows 
 | §15 Row-level security matrix | Partly | Rows for every built table are implemented and tested, including consignment (Phase 6 step 1), sales and settlements (step 2, D48), purchasing (Phase 7, D60), labels (Phase 8 step 1) and the Shopify integration tables (Phase 10 step 1, D86); the rows of later phases are design |
 | §16 RPC catalogue | Partly | Rows marked "Built" exist, including the five consignment item RPCs (Phase 6 step 1) and the five sale and settlement write RPCs and six read RPCs (step 2), all with screens since steps 3 and 4 (deviations from the original rows: `record_retail_sale`, `restock_unit(unit_id, sale_line_id, location_id, reason)`, `return_consignment_item(return_id, item_id, reason, quantity, location_id)`), the fourteen purchasing RPCs (Phase 7, `receive_purchase(purchase_order_id, idempotency_key, lines, reference, received_at, notes)` among them), the five label RPCs (Phase 8 step 1), the five Shopify service-role RPCs and four staff RPCs (Phase 10 step 1), the two sync-worker RPCs and three staff RPCs of the outbound sync (step 2), the seven period-report RPCs (Phase 9 step 1: `report_period_summary`, `report_period_series`, `report_breakdown`, `report_line_items`, `report_activity`, `report_activity_by_mechanic`, `report_stock_value`), the four reconciliation and exception RPCs (Phase 9 step 3: `report_stock_reconciliation`, `report_unit_reconciliation`, `report_exception_counts`, `set_consignment_settlement_alert_days`; `operational_exceptions` gained columns) and Phase 11's `claim_my_customer` and `bookable_slots`; the rows of later phases are design |
 | §17 Sequences and short IDs | Implemented | `000100_foundation` (all seven prefixes); C is used from Phase 6 step 1 (`consignment_items`), S from step 2 (`sales`), PO from Phase 7 (`purchase_orders`) |
+| §19 Customer payments (Stripe) | Partly | Step 1's database built (`20261014000300_payment_enum_values`, `20261014000400_stripe_payments`: `stripe_events`, `payments`, `payment_refunds`, the guards, the apply paths, `record_stripe_event`, `record_stripe_read`, the owner's purge; D150, D153, D155, D159), proved by `tests/db/stripe-payments.test.ts`; not called by any code yet. Missing: the Stripe adapter and webhook route (step 1, second commit), and step 2's deposit snapshot, Checkout RPCs, views, D152 gate and exception kinds |
 | §18 Seed data | Implemented | Phase 1–5, Phase 2, Phase 6, Phase 7, Phase 8 and Phase 10 parts are in `supabase/seed.sql`, in that order (Phase 10's last) |
 
 **Access summary.** The matrix is [§15](#15-row-level-security-matrix) and
@@ -177,7 +182,7 @@ the pattern is [ADR-003](decisions/ADR-003-customer-access.md).
 | staff with a permission (by role or as an exception) | costs, inventory writes, stock changes, financial reports, staff management, consignment money, purchasing (`manage_purchasing` held as an exception also sees purchase costs on purchasing surfaces, D60). A manager holds every permission except `manage_staff` by role (D91) | `private.require_permission` / `has_permission` (through `private.role_implies`) in RPCs; `private.can_view_purchase_costs()` | `staff-roles`, `permission-helpers`, `reporting-access`, `staff-management`, `inventory-ledger`, `purchasing-access` |
 | manager or admin | retail refunds (D94, a role check: `private.can_record_refunds()`) | `record_sale_refund` | `staff-roles`, `sales` |
 | admin | everything above plus settings, hours, rates, roles, admin and manager staff (D93), label templates and printers, and the Shopify integration's events, queue, audit trail, dismissals, links and `integration_failed` exceptions (D86) | `private.require_admin()`, `private.is_admin()` | `staff-roles`, `staff-management`, `staff-history`, `schedule-settings`, `labels`, `shopify-webhooks` |
-| service role | bypasses RLS; exactly the allow-listed functions (`SERVICE_ROLE_FUNCTIONS`), nothing in `private`: in `src/lib/admin/` the Auth admin API (invites without a password) and `note_sign_in_attempt` (D72); since Phase 10 the Shopify webhook, queue and sync-worker RPCs (`src/lib/integrations/shopify/`) | grants (each revoked from anon and authenticated), ESLint import restriction, `server-only` | `meta` ("service_role can execute exactly the allow-listed functions"), `sign-in-throttle` (anon and staff get 42501), `shopify-webhooks` |
+| service role | bypasses RLS; exactly the allow-listed functions (`SERVICE_ROLE_FUNCTIONS`), nothing in `private`: in `src/lib/admin/` the Auth admin API (invites without a password) and `note_sign_in_attempt` (D72); since Phase 10 the Shopify webhook, queue and sync-worker RPCs (`src/lib/integrations/shopify/`); since Phase 14 the Stripe RPCs `record_stripe_event` and `record_stripe_read`, to be called only from `src/lib/integrations/stripe/` (anon gains nothing) | grants (each revoked from anon and authenticated), ESLint import restriction, `server-only` | `meta` ("service_role can execute exactly the allow-listed functions"), `sign-in-throttle` (anon and staff get 42501), `shopify-webhooks`, `stripe-payments` |
 
 **Lifecycle.**
 
@@ -223,6 +228,7 @@ the pattern is [ADR-003](decisions/ADR-003-customer-access.md).
   `MESSAGE`, mapped to user messages in
   [src/lib/db-errors.ts](../src/lib/db-errors.ts) (§16).
 - Shopify: inbound built in §13 (Phase 10 step 1): the service-role RPCs the webhook route and cron call (`record_shopify_webhook`, `claim_integration_jobs`, `process_shopify_event`); the outbound sync and `reporting.public_items.buy_online_url` (the Buy-online rule Phase 11 reads, D84) came in step 2, and the service layer that calls them (`src/lib/integrations/shopify/`) in step 3.
+- Stripe (Phase 14, §19, ADR-025): the service-role RPCs `record_stripe_event` (a webhook delivery, verified on its raw bytes by the route, or rejected as evidence) and `record_stripe_read` (an object the server read with the secret key). Stripe's API version is pinned on the endpoint; the database reads only the allow-listed projection, so new Stripe fields are ignored and a missing one becomes an outcome, never a raise. Built in step 1; the adapter and route that call them follow in its second commit.
 
 ## 1. Identity and authorization
 
@@ -1500,6 +1506,16 @@ consignor FOR SHARE; `record_sale_refund` locks only its sale row.
 Archiving a consignor (a plain UPDATE of 0b) takes its items FOR SHARE
 (6) in its trigger, so an in-flight sale, restock or completion finishes
 first and the balance check sees it.
+
+Stripe paths (Phase 14, §19): the `stripe_events` row is inserted with no
+FK value set (it locks no job), then
+`private.lock_stripe_payment_intent(pi)` (a transaction advisory lock taken
+only by the Stripe apply paths, always before the job, so no cycle with
+any other path), then 1 (`private.lock_work_order`), then the payment row
+FOR UPDATE, `payment_refunds` rows, `work_order_events` inserts and last
+the `stripe_events` decision UPDATE (its FK KEY SHARE on the job comes
+after the FOR UPDATE). `record_stripe_read`'s mismatch path takes 1
+without the advisory lock and takes none after it.
 
 Phase 6 adds, outside and before this order: step 0, the request's own
 idempotency lock (`create_consignment_item`'s
@@ -2909,6 +2925,9 @@ written out, e.g. `A, M or P(view_costs)`.
 | label_templates, printer_profiles | Built (Phase 8 step 1): S; C and anon none | A (RLS `*_insert_admin`; column grants: templates id, name, kind, width_mm, height_mm, layout, active; profiles id, name, adapter, config, active, sort_order; never `is_default` or `created_by`) | A (column grants: templates name, width_mm, height_mm, layout, active; profiles name, config, active, sort_order); `is_default` only via RPC `set_default_label_template` / `set_default_printer_profile` (A) | never (switch off) |
 | print_jobs | Built (Phase 8 step 1): S; C and anon none | RPC `create_print_job` (S) | RPC `set_print_job_status` (S; status columns only, D59) | never (`print_job_immutable`) |
 | integration_events, integration_retry_queue, integration_audit_events | A (D86: payloads and messages name customers); service role SELECT | RPC only: `record_shopify_webhook` (service role); jobs also `claim_integration_jobs`, the processors, `retry_integration_job`, `dismiss_integration_job`; audit rows by the staff RPCs | RPC only; events immutable except processing columns (`integration_event_immutable`), audit append-only | never (events: only `private.purge_integration_events`, owner by hand, rejected rows ≥ 30 days old, D88) |
+| stripe_events (Phase 14, D86) | A (delivery evidence); C and anon none | RPC only: `record_stripe_event`, `record_stripe_read` (service role) | RPC only; immutable except the delivery count and, while `received`, the decision (`stripe_event_immutable`) | never (only `private.purge_stripe_events`, owner by hand, rejected rows ≥ 30 days old, D88) |
+| payments (Phase 14, D153, D154) | S (what was paid on a job); service role SELECT; C and anon none | RPC only (step 2's Checkout RPCs; the guard allows only a pending row) | RPC only, citing the Stripe event being applied (`payment_immutable`) | never (`payment_immutable`) |
+| payment_refunds (Phase 14, D155) | S for rows matched to a payment; A also unmatched rows (another sale of the Stripe account); C and anon none | RPC only (the apply paths) | RPC only; status only up in rank (`payment_refund_immutable`) | never (`payment_refund_immutable`) |
 | shopify_settings, shopify_product_sync | S (sync status and the online location, D86); service role SELECT | seed; RPC `set_shopify_settings` (A; creates the row when absent), `set_publish_online` (P(manage_inventory)), `link_shopify_variant` (A) | RPC `set_shopify_settings` (A; `accept_test_orders` only with a reason, D89), `set_publish_online`, `request_product_sync` (P(manage_inventory)), `record_product_sync_result` (service role), the deferred enqueue triggers (`sync_status` pending) | never |
 | reporting.shopify_sync_status | S (security_invoker; job columns admins only through the queue's RLS) | — | — | — |
 | reporting.* financial views (financial_lines, daily_summary, work_order_activity, operational_exceptions) | no grants (not even SELECT to authenticated); via RPCs: S for counts; P(view_financial_reports) for money rows; cost columns P(view_costs) (FIN-ACCESS D30) | — | — | — |
@@ -3103,6 +3122,9 @@ and would print the hidden columns (costs) to any caller through PostgREST.
 | `link_shopify_variant(product_id, shopify_product_id, shopify_variant_id, reason)` → `shopify_product_sync` | A | Built (Phase 10 step 1, D84). Numeric ids or gids (`shopify_gid_invalid`); reason required; the product FOR UPDATE; another variant already on it, or a Shopify product BICII created for another product → `shopify_ids_conflict`; a variant on another product → 23505 `products_shopify_variant_id_key`; sets the two product columns with the reason (P4's history records `details_changed`); upserts the sync row as `external` (unless `bicii`), no handle, Publish online untouched; same ids → no-op; audit `variant_linked` {from, to}. |
 | `link_shopify_customer(customer_id, shopify_customer_id, reason)` → `shopify_customer_link_result (customer_id, shopify_customer_id, earlier_online_sales)` | A | Built (Phase 10 step 1, D86). A composite result (a `returns table` would clash with the argument names). Reason required; the customer FOR UPDATE; a different id already linked → `shopify_customer_already_linked`; an id on another customer → 23505 `customers_shopify_customer_id_key`; never by email; recorded sales are never edited (`earlier_online_sales` counts the online sales of that Shopify customer still without a customer); same id → no-op; audit `customer_linked`. |
 | `private.integration_exceptions()` → P5's nine exception columns | no API role | Built (Phase 10 step 1, D86): §14. |
+| `record_stripe_event(payload jsonb, headers jsonb, body_sha256 text, body_bytes integer, rejection_reason stripe_rejection_reason, correlation_id text)` → `event_id, duplicate, event_status, outcome, payment_id` | service role only | Built (Phase 14 step 1, D153, D159; §19). 22004 without the SHA or size; 22023 on a bad SHA, a negative size or non-object headers; headers capped as Shopify's. Rejected → one row per (reason, body sha), no payload, no event id. Verified → 22023 unless `payload` has an `evt_` id, a type and a boolean livemode; dedupe on the `evt_` id (a repeat counts the delivery and returns the stored decision); a new one is stored as its projection and applied in the same transaction (§19's tables); an error rolls everything back. |
+| `record_stripe_read(payment_id uuid, object jsonb, correlation_id text)` → `event_id, event_status, outcome, payment_status` | service role only | Built (Phase 14 step 1, D159a; §19). 22004 on nulls; 22023 unless a `checkout.session` (`cs_` id) or a `refund` (`re_`/`pyr_` id); P0002 for an unknown payment. Stores an `api_read` row, applies it like a webhook (or `read_mismatch` when the id is not the payment's) and stamps `checked_at`. Not deduplicated. |
+| `private.purge_stripe_events(older_than interval)` → integer | owner only, by hand (no API role, no cron) | Built (Phase 14 step 1, D88). 22023 when null or under 30 days; deletes rejected deliveries last delivered before then. |
 | `private.purge_integration_events(older_than interval)` → `rejected_deleted, payloads_purged` | owner only, by hand (no API role, no cron) | Built (Phase 10 step 1, D88). 22023 under 30 days; deletes rejected rows last delivered before then; clears the payload of processed/skipped events processed before then (`payload_purged_at`), never failed, pending or open-job events. |
 | `set_publish_online(product_id, publish)` → `shopify_publish_result (product_id, publish_online, sync_status, job_id)` | P(manage_inventory) | Built (Phase 10 step 2, D84, D86). A composite result (a `returns table` cannot reuse the argument name). Locks the product (P0002). Publishing: `shopify_product_archived`, `shopify_not_saleable` (customer-owned), `shopify_requires_public`, `shopify_price_missing` (`private.shopify_online_price` NULL; 0 is a price), in that order. Same value: the current state, `job_id` NULL, no job, no audit. Otherwise upserts the sync row and queues the product; `job_id` is the queued job this call created or reused (the app runs exactly that one); unpublishing a never-pushed product is `not_synced`, its queued job dismissed, `job_id` NULL. One `publish_online_changed {from, to}` audit row. |
 | `request_product_sync(product_id)` → uuid | P(manage_inventory) | Built (Phase 10 step 2, D86). Sync now: `shopify_not_published` unless published or pushed before; clears `desired_hash` (a full push), returns the queued job (created or reused), due now. One `sync_requested` audit row per call. |
@@ -3597,3 +3619,240 @@ webhooks through the real service-role RPCs (`record_shopify_webhook`, then
 - `tests/db/shopify-webhooks.test.ts` "Seeded integration data is
   consistent" and `tests/db/shopify-sync.test.ts` "Seeded sync data is
   consistent" prove them.
+
+## 19. Customer payments (Stripe)
+
+Phase 14 (PLAN Phase 14, D150–D159, [ADR-025](decisions/ADR-025-stripe-payments.md)).
+Step 1 is built in `20261014000300_payment_enum_values.sql` (the three
+payment timeline types, in their own file) and
+`20261014000400_stripe_payments.sql`: the tables, the guards, the apply
+paths and the two service-role RPCs below. Nothing calls them yet: the
+Stripe adapter and the signed webhook route come in step 1's second
+commit, and step 2 adds the indent deposit (the quote snapshot, the
+Checkout RPCs, the views, the D152 gate and the exception kinds).
+
+**Money held, not revenue (D154).** A payment is money the shop holds for
+a job. It is not a branch of `financial_lines`, `report_lines` or
+`daily_summary`; nothing here writes a job line, a sale, a total, a job
+status or a completion stamp. The apply locks the job and appends
+`work_order_events` only (`tests/db/stripe-payments.test.ts` "D154").
+
+```
+stripe_events   (every webhook delivery and every server read; admins only, D86)
+  id uuid PK, source stripe_event_source (webhook | api_read)
+  stripe_event_id text null      -- evt_…, verified webhooks only: the dedupe key
+  event_type text (1..100)       -- the Stripe type; 'read.checkout.session' |
+                                 --   'read.refund' for a read; 'unknown' when rejected
+  api_version (≤ 40), livemode boolean null, stripe_created_at (the event's created)
+  object_type (≤ 60), object_id (≤ 255)   -- data.object.object / .id
+  payload jsonb null             -- private.stripe_event_projection(): the allow-listed
+                                 --   copy (D159e); null when rejected (D88)
+  headers jsonb (capped: 16 lower-cased keys, ≤ 512 chars, 'x-bicii-truncated')
+  body_sha256 (hex), body_bytes (≥ 0)     -- webhooks only
+  rejection_reason stripe_rejection_reason null
+     -- stripe_off | signature_invalid | signature_expired | body_not_json |
+     --   event_shape_invalid | livemode_mismatch | not_recorded
+  status stripe_event_status   -- received (only inside the recording transaction) |
+                               --   applied | ignored | needs_attention | rejected
+  outcome text null (the list below), payment_id null -> payments,
+  work_order_id null -> work_orders, received_at, delivery_count (≥ 1),
+  last_delivered_at, processed_at, correlation_id (≤ 128)
+  checks: stripe_events_rejected_shape (rejected ⇔ a reason; a reason ⇒ a webhook
+    with no payload, event id, outcome, payment or job), _event_id_shape (an event id
+    ⇔ a verified webhook), _payload_check, _evidence_check (a webhook ⇔ sha and
+    size), _decided_check (applied | ignored | needs_attention ⇔ outcome and
+    processed_at), _outcome_check, and the length and format checks
+  unique index stripe_events_event_id_key (stripe_event_id) where not null
+                                 -- D88: a forgery never takes the key
+  unique index stripe_events_rejected_body_key (rejection_reason, body_sha256)
+    where rejection_reason is not null     -- one row per bad body
+  -- stripe_events_guard (every role, the owner too): only delivery_count and
+  --   last_delivered_at move; the decision columns once, while 'received';
+  --   DELETE only of a rejected row under private.purge_stripe_events
+  --   (stripe_event_immutable)
+
+payments        (one row per Checkout session; active staff read it)
+  id uuid PK                     -- generated before Checkout (step 2); also Stripe's
+                                 --   client_reference_id, metadata[bicii_payment_id]
+                                 --   and the Idempotency-Key suffix
+  work_order_id -> work_orders, quote_id null -> quotes (deposit ⇔ a quote)
+  kind payment_kind (deposit | balance)    -- balance: step 3 (D156)
+  amount money_amount (0.50..999,999.99)   -- what BICII asked, computed in Postgres
+  amount_cents bigint generated ((amount * 100)::bigint)
+                                 -- Checkout's unit_amount and the match against
+                                 --   amount_total (D158)
+  currency char(3) = 'SGD'
+  status payment_status          -- pending | paid | failed | expired |
+                                 --   partially_refunded | refunded
+  amount_received money_amount null       -- Stripe's amount_total / 100 when paid;
+                                          --   null when not SGD or unreadable
+  refunded_amount money_amount (sum of succeeded refunds, D155, D159c)
+  stripe_checkout_session_id (cs_test_… | cs_live_…, unique),
+  stripe_session_expires_at, stripe_payment_intent_id null (pi_…), livemode
+  checkout_completed_at, paid_at (Stripe's time, D159d), failed_at, expired_at,
+  checked_at (the last server read)
+  last_event_id null -> stripe_events     -- provenance
+  created_at, updated_at
+  checks: payments_kind_quote, _amount_check, _currency_check, _paid_shape (the
+    paid group ⇔ paid_at), _closed_shape (failed ⇒ failed_at, expired ⇒
+    expired_at), the id formats; no refunded_amount ≤ amount check (an
+    over-refund is recorded, never refused)
+  unique index payments_one_open_deposit (quote_id) where deposit and pending
+                                 -- D158d: one open Checkout per quote
+  -- payments_guard (every role, the owner too): payment_immutable
+
+payment_refunds (one row per Stripe Refund; matched rows: active staff;
+                 unmatched rows: admins only)
+  id uuid PK, stripe_refund_id (re_… | pyr_…, unique), stripe_payment_intent_id (pi_…)
+  payment_id null -> payments    -- null until a payment carries the payment intent
+  amount money_amount (> 0), currency, status stripe_refund_status
+     -- pending | requires_action | succeeded | failed | canceled
+  reason (≤ 60), failure_reason (≤ 120), stripe_created_at (refund.created)
+  last_event_id -> stripe_events, created_at, updated_at
+  -- payment_refunds_guard (every role, the owner too): payment_refund_immutable
+```
+
+**Cents.** Stripe's amounts are integers in minor units. They are read by
+`private.stripe_int`, which accepts only a JSON number of up to 12 digits
+(never a float, a string or a negative number), and turned into money in
+Postgres (`cents / 100`). TypeScript never computes money.
+
+**The projection (D159e).** The stored copy of an object keeps `id, object,
+livemode, status, payment_status, amount_total, amount, currency,
+expires_at, created, client_reference_id, reason, failure_reason` when they
+are scalars, `payment_intent` and `charge` as ids, and `metadata` keys
+matching `^bicii_[a-z_]{1,32}$` with string values up to 100 characters.
+Customer details, emails, addresses, `url`, `success_url` and `cancel_url`
+are never stored. An event keeps its `id, type, livemode, created,
+api_version` and the projected `data.object`. The apply reads the stored
+projection, so what is stored is exactly what was applied.
+
+**Provenance (D153, D159a).** Only Stripe's word moves a payment: a webhook
+whose signature was verified on the raw bytes, or the server's own read
+with the secret key. Staff and customers only trigger a read. The guards
+apply to every role, including the owner:
+
+- `payments_guard`: a payment starts pending (no Stripe-owned value on
+  insert); it is never deleted; its job, quote, kind, amount, currency,
+  session, expiry and mode never change; a Stripe-owned column (`status`,
+  `amount_received`, `refunded_amount`, the four timestamps,
+  `stripe_payment_intent_id`) changes only when the same UPDATE moves
+  `last_event_id` to a `stripe_events` row in status `received` (the one
+  being applied now). `checked_at` alone may change. A payment intent,
+  once set, never changes. Status edges: pending to anything; failed or
+  expired only into the paid group (Stripe's money wins); the paid group
+  only within itself.
+- `payment_refunds_guard`: never deleted; the amount, currency, reason and
+  dates never change; the payment is linked once; the status only moves up
+  in rank; every insert and change cites a `received` event.
+- `stripe_events_guard`: see the table above.
+
+**Recording.** `record_stripe_event` stores a delivery and applies it in
+one transaction. A rejected delivery is evidence only (D88). A verified
+one is inserted `on conflict (stripe_event_id)`: a repeat only counts the
+delivery and returns the stored decision. Any error (a bug, a lock
+timeout, a serialisation failure) rolls the whole call back, so nothing
+is stored, the route answers 500 and Stripe retries; a stored event is
+never left unapplied. `record_stripe_read` stores an `api_read` row for
+an object the server read (not deduplicated, so a repair read always
+applies) and applies it the same way; a read of an id the payment does
+not carry is `needs_attention` / `read_mismatch`.
+
+**Applying a Checkout Session** (`private.apply_stripe_session`; it never
+raises for Stripe data). (1) Not a `checkout.session` with a `cs_` id:
+`needs_attention` / `object_invalid`. (2) No uuid in
+`metadata.bicii_payment_id` or `client_reference_id`: `ignored` /
+`not_ours`. (3) A malformed payment intent: `object_invalid`; otherwise
+`private.lock_stripe_payment_intent(pi)`. (4) No such payment:
+`payment_not_found`, needing attention only when Stripe says paid. (5) The
+job lock, then the payment FOR UPDATE. (6) Identity: another session id or
+payment intent is `session_mismatch`, another mode `livemode_mismatch`
+(both need attention, nothing changes). (7) The target:
+`async_payment_failed` → failed; `payment_status` paid → paid;
+`no_payment_required` → `unexpected_payment_status`; status `expired` →
+expired; `complete` (unpaid) → processing; `open` → open. (8) The
+transition, one UPDATE citing the event:
+
+| current \ target | paid | processing | failed | expired | open |
+|---|---|---|---|---|---|
+| pending, not completed | **→ paid**: `payment_paid`, or `paid_amount_mismatch` when `amount_received` differs from `amount` | set `checkout_completed_at` and the payment intent: `payment_processing` | **→ failed**: `payment_failed` | **→ expired**: `payment_expired` | `still_open` |
+| pending, completed (processing) | **→ paid** | `already_processing` | **→ failed** | `stale` | `stale` |
+| paid, partially_refunded, refunded | `already_paid` | `stale` | `stale` | `stale` | `stale` |
+| failed | **→ paid**: `paid_after_failed` | `stale` | `already_failed` | `stale` | `stale` |
+| expired | **→ paid**: `paid_after_expired` (`expired_at` kept) | `stale` | `stale` | `already_expired` | `stale` |
+
+**→ paid** adopts refunds that arrived first (`payment_refunds` with this
+payment intent and no payment), sums their succeeded amounts, and in one
+UPDATE sets the paid-group status, `paid_at` (the event's `created`, or the
+read time, D159d), `amount_received` (Stripe's cents / 100 when the
+currency is SGD, else null), `refunded_amount`, the payment intent and
+`checkout_completed_at`. Then `payment_received` `{payment_id, kind,
+quote_id, amount, asked, currency}` and, when refunds were adopted,
+`payment_refunded`. A cancelled or closed job, cancelled parts, a second
+paid deposit and an amount or currency mismatch are all recorded as paid
+(D159b); step 2's `payment_issues` flags them.
+
+**Applying a Refund** (`private.apply_stripe_refund`). (1) Not a `refund`
+with a `re_` or `pyr_` id, one of the five statuses, an integer amount of
+1 to 99,999,999,999 and a three-letter currency: `object_invalid`. (2) No
+payment intent: `ignored` / `not_ours` (not BICII's Checkout); otherwise
+the advisory lock. (3) The payment carrying the intent, then the job lock
+and the payment FOR UPDATE. (4) The refund row FOR UPDATE: inserted at
+first sight (amount, currency and `created` fixed), or moved to a higher
+rank, or linked to the payment. (5) No payment: `ignored` /
+`refund_unmatched` (the row waits). (6) `private.settle_payment`:
+`refund_recorded` when the row or the payment changed, else
+`refund_unchanged`.
+
+**Refund ranks.** pending 0 < requires_action 1 < succeeded 2 < failed =
+canceled 3. A row moves only to a higher rank, so succeeded → failed (a
+PayNow refund that fails after succeeding) is allowed and nothing leaves
+rank 3. `settle_payment` is a pure function of the payment's refund rows:
+`refunded_amount` is the sum of succeeded refunds, and the status is paid
+(0), partially_refunded (below `coalesce(amount_received, amount)`) or
+refunded. A rise records `payment_refunded` `{payment_id, kind, refunded,
+refunded_total, currency, full}`; a fall `payment_refund_failed`
+`{payment_id, kind, amount, refunded_total, currency}`.
+
+| Refund event or read | The row | The payment (only in the paid group) |
+|---|---|---|
+| `refund.created` (pending) | inserted pending | none (only succeeded refunds count) |
+| `refund.updated` (succeeded), even before `created` | → succeeded; a later pending is a lower rank: `refund_unchanged` | `refunded_amount` rises; partially_refunded or refunded; `payment_refunded` |
+| `refund.failed` from pending | → failed | none |
+| `refund.failed` after succeeded | → failed | `refunded_amount` falls; back to paid or partially_refunded; `payment_refund_failed` |
+| succeeded after failed (a stale snapshot) | unchanged (rank) | none |
+| canceled | → canceled | as failed |
+
+Other event types (`charge.refunded`, `charge.dispute.*`, …) are stored as
+a projection and `ignored` / `type_not_handled`: `charge.refunded` carries
+only a running total, and disputes are a known gap (D159f, R-089).
+
+**Duplicates and out-of-order delivery** (each row is a test in
+`tests/db/stripe-payments.test.ts`):
+
+| Situation | Result |
+|---|---|
+| The same `evt_` twice | The second is `duplicate`, `delivery_count` 2, nothing applied again |
+| Two Event objects for one change | The second is `already_paid` (or `already_*`, `refund_unchanged`); no second timeline entry |
+| `async_payment_succeeded` before `completed` (unpaid) | paid, then `stale` |
+| `expired` after paid | `stale` |
+| `completed` (unpaid), then `async_payment_failed` | processing, then failed |
+| `async_payment_failed`, then `completed` (unpaid) | failed, then `stale` |
+| A refund before `checkout.session.completed` | stored unmatched (`refund_unmatched`); the completion adopts it in the same UPDATE and records both timeline entries |
+| A webhook and a read of the same session at once | serialised by the advisory lock, then the job lock; the second is `already_paid` |
+
+**Lock order.** (1) The `stripe_events` row, inserted with no FK value set,
+so it locks no job (a concurrent duplicate waits on the unique index
+only). (2) `private.lock_stripe_payment_intent(pi)`, a transaction
+advisory lock (`hashtextextended('bicii.stripe.payment_intent:' || pi)`),
+taken only on the apply paths and always before the job. (3)
+`private.lock_work_order(job)`. (4) The `payments` row FOR UPDATE (step 2:
+the quote FOR UPDATE before it). (5) `payment_refunds` rows, then
+`work_order_events` inserts, then the `stripe_events` decision UPDATE,
+whose FK KEY SHARE locks come after the FOR UPDATEs. `record_stripe_read`
+takes the job lock without the advisory lock only on its mismatch path, and
+no advisory lock after it.
+
+**Purge.** `private.purge_stripe_events(older_than)` (owner only, by hand,
+at least 30 days) deletes rejected deliveries last delivered before then.
+Verified events and reads hold no personal data and are kept.

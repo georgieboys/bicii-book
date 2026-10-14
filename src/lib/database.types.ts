@@ -1990,6 +1990,180 @@ export type Database = {
         };
         Relationships: [];
       };
+      payment_refunds: {
+        Row: {
+          amount: number;
+          created_at: string;
+          currency: string;
+          failure_reason: string | null;
+          id: string;
+          last_event_id: string;
+          payment_id: string | null;
+          reason: string | null;
+          status: Database["public"]["Enums"]["stripe_refund_status"];
+          stripe_created_at: string | null;
+          stripe_payment_intent_id: string;
+          stripe_refund_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          amount: number;
+          created_at?: string;
+          currency: string;
+          failure_reason?: string | null;
+          id?: string;
+          last_event_id: string;
+          payment_id?: string | null;
+          reason?: string | null;
+          status: Database["public"]["Enums"]["stripe_refund_status"];
+          stripe_created_at?: string | null;
+          stripe_payment_intent_id: string;
+          stripe_refund_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          amount?: number;
+          created_at?: string;
+          currency?: string;
+          failure_reason?: string | null;
+          id?: string;
+          last_event_id?: string;
+          payment_id?: string | null;
+          reason?: string | null;
+          status?: Database["public"]["Enums"]["stripe_refund_status"];
+          stripe_created_at?: string | null;
+          stripe_payment_intent_id?: string;
+          stripe_refund_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payment_refunds_last_event_id_fkey";
+            columns: ["last_event_id"];
+            isOneToOne: false;
+            referencedRelation: "stripe_events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payment_refunds_payment_id_fkey";
+            columns: ["payment_id"];
+            isOneToOne: false;
+            referencedRelation: "payments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payments: {
+        Row: {
+          amount: number;
+          amount_cents: number | null;
+          amount_received: number | null;
+          checked_at: string | null;
+          checkout_completed_at: string | null;
+          created_at: string;
+          currency: string;
+          expired_at: string | null;
+          failed_at: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["payment_kind"];
+          last_event_id: string | null;
+          livemode: boolean;
+          paid_at: string | null;
+          quote_id: string | null;
+          refunded_amount: number;
+          status: Database["public"]["Enums"]["payment_status"];
+          stripe_checkout_session_id: string;
+          stripe_payment_intent_id: string | null;
+          stripe_session_expires_at: string;
+          updated_at: string;
+          work_order_id: string;
+        };
+        Insert: {
+          amount: number;
+          amount_cents?: never;
+          amount_received?: number | null;
+          checked_at?: string | null;
+          checkout_completed_at?: string | null;
+          created_at?: string;
+          currency?: string;
+          expired_at?: string | null;
+          failed_at?: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["payment_kind"];
+          last_event_id?: string | null;
+          livemode: boolean;
+          paid_at?: string | null;
+          quote_id?: string | null;
+          refunded_amount?: number;
+          status?: Database["public"]["Enums"]["payment_status"];
+          stripe_checkout_session_id: string;
+          stripe_payment_intent_id?: string | null;
+          stripe_session_expires_at: string;
+          updated_at?: string;
+          work_order_id: string;
+        };
+        Update: {
+          amount?: number;
+          amount_cents?: never;
+          amount_received?: number | null;
+          checked_at?: string | null;
+          checkout_completed_at?: string | null;
+          created_at?: string;
+          currency?: string;
+          expired_at?: string | null;
+          failed_at?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["payment_kind"];
+          last_event_id?: string | null;
+          livemode?: boolean;
+          paid_at?: string | null;
+          quote_id?: string | null;
+          refunded_amount?: number;
+          status?: Database["public"]["Enums"]["payment_status"];
+          stripe_checkout_session_id?: string;
+          stripe_payment_intent_id?: string | null;
+          stripe_session_expires_at?: string;
+          updated_at?: string;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payments_last_event_id_fkey";
+            columns: ["last_event_id"];
+            isOneToOne: false;
+            referencedRelation: "stripe_events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payments_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quotes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       print_jobs: {
         Row: {
           adapter: Database["public"]["Enums"]["printer_adapter"];
@@ -3635,6 +3809,113 @@ export type Database = {
             columns: ["staff_id"];
             isOneToOne: false;
             referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      stripe_events: {
+        Row: {
+          api_version: string | null;
+          body_bytes: number | null;
+          body_sha256: string | null;
+          correlation_id: string | null;
+          delivery_count: number;
+          event_type: string;
+          headers: NonNullable<Json>;
+          id: string;
+          last_delivered_at: string;
+          livemode: boolean | null;
+          object_id: string | null;
+          object_type: string | null;
+          outcome: string | null;
+          payload: Json | null;
+          payment_id: string | null;
+          processed_at: string | null;
+          received_at: string;
+          rejection_reason: Database["public"]["Enums"]["stripe_rejection_reason"] | null;
+          source: Database["public"]["Enums"]["stripe_event_source"];
+          status: Database["public"]["Enums"]["stripe_event_status"];
+          stripe_created_at: string | null;
+          stripe_event_id: string | null;
+          work_order_id: string | null;
+        };
+        Insert: {
+          api_version?: string | null;
+          body_bytes?: number | null;
+          body_sha256?: string | null;
+          correlation_id?: string | null;
+          delivery_count?: number;
+          event_type: string;
+          headers?: NonNullable<Json>;
+          id?: string;
+          last_delivered_at?: string;
+          livemode?: boolean | null;
+          object_id?: string | null;
+          object_type?: string | null;
+          outcome?: string | null;
+          payload?: Json | null;
+          payment_id?: string | null;
+          processed_at?: string | null;
+          received_at?: string;
+          rejection_reason?: Database["public"]["Enums"]["stripe_rejection_reason"] | null;
+          source: Database["public"]["Enums"]["stripe_event_source"];
+          status: Database["public"]["Enums"]["stripe_event_status"];
+          stripe_created_at?: string | null;
+          stripe_event_id?: string | null;
+          work_order_id?: string | null;
+        };
+        Update: {
+          api_version?: string | null;
+          body_bytes?: number | null;
+          body_sha256?: string | null;
+          correlation_id?: string | null;
+          delivery_count?: number;
+          event_type?: string;
+          headers?: NonNullable<Json>;
+          id?: string;
+          last_delivered_at?: string;
+          livemode?: boolean | null;
+          object_id?: string | null;
+          object_type?: string | null;
+          outcome?: string | null;
+          payload?: Json | null;
+          payment_id?: string | null;
+          processed_at?: string | null;
+          received_at?: string;
+          rejection_reason?: Database["public"]["Enums"]["stripe_rejection_reason"] | null;
+          source?: Database["public"]["Enums"]["stripe_event_source"];
+          status?: Database["public"]["Enums"]["stripe_event_status"];
+          stripe_created_at?: string | null;
+          stripe_event_id?: string | null;
+          work_order_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "stripe_events_payment_fk";
+            columns: ["payment_id"];
+            isOneToOne: false;
+            referencedRelation: "payments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stripe_events_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "stripe_events_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "stripe_events_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
             referencedColumns: ["id"];
           },
         ];
@@ -6052,6 +6333,32 @@ export type Database = {
           job_id: string;
         }[];
       };
+      record_stripe_event: {
+        Args: {
+          body_bytes: number;
+          body_sha256: string;
+          correlation_id: string;
+          headers: Json;
+          payload: Json;
+          rejection_reason: Database["public"]["Enums"]["stripe_rejection_reason"];
+        };
+        Returns: {
+          duplicate: boolean;
+          event_id: string;
+          event_status: Database["public"]["Enums"]["stripe_event_status"];
+          outcome: string;
+          payment_id: string;
+        }[];
+      };
+      record_stripe_read: {
+        Args: { correlation_id: string; object: Json; payment_id: string };
+        Returns: {
+          event_id: string;
+          event_status: Database["public"]["Enums"]["stripe_event_status"];
+          outcome: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+        }[];
+      };
       remove_purchase_order_line: {
         Args: { line_id: string; reason?: string };
         Returns: {
@@ -7510,6 +7817,8 @@ export type Database = {
       part_request_kind: "part" | "service";
       part_request_status:
         "proposed" | "quoted" | "approved" | "declined" | "ordered" | "fitted" | "cancelled";
+      payment_kind: "deposit" | "balance";
+      payment_status: "pending" | "paid" | "failed" | "expired" | "partially_refunded" | "refunded";
       permission_key:
         | "view_costs"
         | "manage_inventory"
@@ -7561,6 +7870,17 @@ export type Database = {
         | "permission_granted"
         | "permission_revoked";
       staff_role: "admin" | "manager" | "mechanic";
+      stripe_event_source: "webhook" | "api_read";
+      stripe_event_status: "received" | "applied" | "ignored" | "needs_attention" | "rejected";
+      stripe_refund_status: "pending" | "requires_action" | "succeeded" | "failed" | "canceled";
+      stripe_rejection_reason:
+        | "stripe_off"
+        | "signature_invalid"
+        | "signature_expired"
+        | "body_not_json"
+        | "event_shape_invalid"
+        | "livemode_mismatch"
+        | "not_recorded";
       tracking_type: "quantity" | "unique";
       unit_status:
         | "available"
@@ -7595,7 +7915,10 @@ export type Database = {
         | "quote_withdrawn"
         | "quote_answered"
         | "part_ordered"
-        | "part_fitted";
+        | "part_fitted"
+        | "payment_received"
+        | "payment_refunded"
+        | "payment_refund_failed";
       work_order_note_kind: "note" | "diagnosis";
       work_order_status:
         | "received"
@@ -8519,6 +8842,8 @@ export const Constants = {
         "fitted",
         "cancelled",
       ],
+      payment_kind: ["deposit", "balance"],
+      payment_status: ["pending", "paid", "failed", "expired", "partially_refunded", "refunded"],
       permission_key: [
         "view_costs",
         "manage_inventory",
@@ -8580,6 +8905,18 @@ export const Constants = {
         "permission_revoked",
       ],
       staff_role: ["admin", "manager", "mechanic"],
+      stripe_event_source: ["webhook", "api_read"],
+      stripe_event_status: ["received", "applied", "ignored", "needs_attention", "rejected"],
+      stripe_refund_status: ["pending", "requires_action", "succeeded", "failed", "canceled"],
+      stripe_rejection_reason: [
+        "stripe_off",
+        "signature_invalid",
+        "signature_expired",
+        "body_not_json",
+        "event_shape_invalid",
+        "livemode_mismatch",
+        "not_recorded",
+      ],
       tracking_type: ["quantity", "unique"],
       unit_status: [
         "available",
@@ -8616,6 +8953,9 @@ export const Constants = {
         "quote_answered",
         "part_ordered",
         "part_fitted",
+        "payment_received",
+        "payment_refunded",
+        "payment_refund_failed",
       ],
       work_order_note_kind: ["note", "diagnosis"],
       work_order_status: [

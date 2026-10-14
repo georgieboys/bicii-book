@@ -126,9 +126,10 @@ describe("API surface (tests/fixtures/api-surface.ts)", () => {
     expect(await reachableFunctions("authenticated")).toEqual([...AUTHENTICATED_FUNCTIONS].sort());
   });
 
-  // The service role gets exactly the sign-in counter (PLAN D72) and the
-  // Phase 10 Shopify webhook and queue RPCs, and nothing in private (the
-  // purge and the exceptions helper are owner-only).
+  // The service role gets exactly the sign-in counter (PLAN D72), the
+  // Phase 10 Shopify webhook and queue RPCs and the Phase 14 Stripe RPCs,
+  // and nothing in private (the purges and the exceptions helper are
+  // owner-only).
   it("service_role can execute exactly the allow-listed functions in public", async () => {
     expect(await reachableFunctions("service_role")).toEqual([...SERVICE_ROLE_FUNCTIONS].sort());
     const { rows } = await conn.query<{ fn: string }>(
@@ -142,10 +143,11 @@ describe("API surface (tests/fixtures/api-surface.ts)", () => {
     expect(rows.map((r) => r.fn)).toEqual([]);
   });
 
-  it("no API role can execute private.integration_exceptions or private.purge_integration_events", async () => {
+  it("no API role can execute private.integration_exceptions or the purges", async () => {
     for (const fn of [
       "private.integration_exceptions()",
       "private.purge_integration_events(interval)",
+      "private.purge_stripe_events(interval)",
     ]) {
       for (const role of ["anon", "authenticated", "service_role"]) {
         const { rows } = await conn.query<{ ok: boolean }>(

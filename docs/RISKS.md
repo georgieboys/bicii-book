@@ -47,7 +47,9 @@ URLs, or customer data in this file.
 - Workaround or containment: test with data that can be deleted, and keep
   `supabase/seed.sql` off the hosted project (it never runs there:
   `migrate.yml` has no seed step). A migration added from now on must sort
-  after `20261006103000` (`HANDOVER.md` "Migrations after go-live").
+  after the newest file on `main` (`HANDOVER.md` "Migrations after
+  go-live"); since Phase 13 that is `20261014000200_indent_parts.sql`, and
+  Phase 14's files (`20261014000300` onward) sort after it.
 - Next action: the owner decides whether to create a staging project
   before staff and customers use production; until then each migration
   is dry-run by `migrate.yml` before it applies.
@@ -2121,22 +2123,35 @@ URLs, or customer data in this file.
 
 - Category: operational gap / security concern (non-exploitable summary;
   D150, D153).
-- Status and owner: open (Phase 14 not built); owner (Stripe account and
-  keys), build agent (procedure).
+- Status and owner: open; the database side is built (Phase 14 step 1,
+  first commit), the adapter, webhook route and keys are not; owner
+  (Stripe account and keys), build agent (procedure).
 - Trigger: going live with Stripe; rotating a key; a leaked key.
 - Impact: a secret key can create charges and refunds and read customer
   payments; a webhook secret proves events come from Stripe. Both live
   only in Vercel's server environment (Production live, Preview test or
   none) and never in the public site or the repository.
 - Evidence and confidence: high; the design in
-  [ADR-025](decisions/ADR-025-stripe-payments.md).
+  [ADR-025](decisions/ADR-025-stripe-payments.md). Database containment
+  built and tested (`tests/db/stripe-payments.test.ts`, 27 tests, pass
+  on 2026-10-14): only the service role can call `record_stripe_event`
+  and `record_stripe_read` (anon, staff and admins get 42501, and nobody
+  writes the tables); a payment changes only while a verified Stripe
+  event or read is applied, for the owner too (`payment_immutable`);
+  livemode is checked per payment (`livemode_mismatch`, nothing changes);
+  a rejected delivery is kept as evidence with no body and never takes the
+  dedupe key; the stored copy never holds customer details or URLs (the
+  allow-listed projection, D159e); delivery evidence is admins only.
+  The signature check, `stripeConfig`, the webhook handler and the
+  environment rules are not built yet (step 1, second commit).
 - Workaround or containment: a restricted key with only the permissions
   Checkout and refunds-reading need; RUNBOOK steps for setting and
   rotating both, written with Phase 14.
 - Next action: owner creates the Stripe account (Singapore, PayNow on);
-  the build agent writes the RUNBOOK section with step 1.
-- Revisit trigger: Phase 14 step 1.
-- Last checked: 2026-10-14, design.
+  the build agent writes the adapter, the route and the RUNBOOK section
+  in step 1's second commit.
+- Revisit trigger: Phase 14 step 1's second commit.
+- Last checked: 2026-10-14, `tests/db/stripe-payments.test.ts`.
 
 ## R-086 — A payment stays pending until Stripe's webhook arrives
 

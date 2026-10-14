@@ -366,6 +366,13 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.job_part_requests_staff": ["SELECT"],
   "public.quote_items": ["SELECT"],
   "public.quotes": ["SELECT"],
+  // Stripe payments (Phase 14 step 1, D150-D159): read-only; every write
+  // is a service-role RPC. Payments are readable by active staff, matched
+  // refunds by active staff and unmatched ones by admins, the delivery
+  // evidence by admins only (D86)
+  "public.payment_refunds": ["SELECT"],
+  "public.payments": ["SELECT"],
+  "public.stripe_events": ["SELECT"],
 };
 
 /**
@@ -375,7 +382,10 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
  * Phase 10 added exactly the Shopify webhook and queue RPCs, which the
  * webhook route and the cron call with the service-role key, and the
  * product sync's state and result RPCs the sync worker calls
- * (DATA-MODEL §16). Nothing in `private`.
+ * (DATA-MODEL §16). Phase 14 (D150-D159, ADR-025) adds the Stripe RPCs,
+ * called only from src/lib/integrations/stripe/: the webhook's
+ * record_stripe_event and the server's own reads, record_stripe_read.
+ * Nothing in `private` (the Stripe purge is owner-only).
  */
 export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.note_sign_in_attempt(text[], integer)",
@@ -386,6 +396,9 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.product_sync_state(uuid)",
   "public.record_product_sync_result(uuid, uuid, text, text, text, text, text, integer, money_amount, text, text, text, text, boolean)",
   "public.record_shopify_webhook(text, text, text, text, text, timestamp with time zone, jsonb, jsonb, text, integer, boolean, integration_rejection_reason, text)",
+  // Stripe payments (Phase 14, D150-D159)
+  "public.record_stripe_event(jsonb, jsonb, text, integer, stripe_rejection_reason, text)",
+  "public.record_stripe_read(uuid, jsonb, text)",
 ];
 
 /**

@@ -3,6 +3,8 @@
  * sentence per work_order_events row, from its type and payload. Pure, so
  * the job page and tests share it. Payloads never carry costs, yield or
  * Cult Commons (the database guarantees it), so nothing here can show one.
+ * They may carry customer prices and, from Phase 14, customer payments
+ * (amounts Stripe confirmed or refunded), which are not costs.
  */
 import { formatAppointmentMoment } from "@/lib/appointments/format";
 import type { Database } from "@/lib/database.types";
@@ -283,6 +285,56 @@ export function describeEvent(
         detail: null,
         tone: "done",
       };
+    // Phase 14 (D153, D155, D159): customer payments, from Stripe's word
+    // only. Payloads carry customer amounts (money held, not revenue,
+    // D154), never a cost; amounts are formatted here, never computed.
+    case "payment_received": {
+      const what = p.kind === "deposit" ? "Deposit" : "Payment";
+      const paidCurrency = text(p, "currency") ?? currency;
+      const received = amount(p, "amount");
+      const asked = amount(p, "asked");
+      const receivedText = received !== null ? formatMoney(received, paidCurrency) : null;
+      const askedText = asked !== null ? formatMoney(asked, paidCurrency) : null;
+      return {
+        title: receivedText ? `${what} of ${receivedText} paid online` : `${what} paid online`,
+        detail:
+          askedText && receivedText !== askedText
+            ? `Stripe's amount differs from the ${askedText} asked`
+            : null,
+        tone: "done",
+      };
+    }
+    case "payment_refunded": {
+      const refundCurrency = text(p, "currency") ?? currency;
+      const refunded = amount(p, "refunded");
+      const total = amount(p, "refunded_total");
+      return {
+        title:
+          refunded !== null
+            ? `${formatMoney(refunded, refundCurrency)} refunded in Stripe`
+            : "Refunded in Stripe",
+        detail:
+          p.full === true
+            ? "The whole payment is refunded"
+            : total !== null
+              ? `${formatMoney(total, refundCurrency)} refunded in total`
+              : null,
+        tone: "info",
+      };
+    }
+    case "payment_refund_failed": {
+      const refundCurrency = text(p, "currency") ?? currency;
+      const failed = amount(p, "amount");
+      const total = amount(p, "refunded_total");
+      return {
+        title:
+          failed !== null
+            ? `A refund of ${formatMoney(failed, refundCurrency)} failed in Stripe`
+            : "A refund failed in Stripe",
+        detail: total !== null ? `${formatMoney(total, refundCurrency)} refunded in total` : null,
+        tone: "danger",
+      };
+    }
     default: {
       const unknown: never = event.type;
       return { title: String(unknown), detail: null, tone: "neutral" };

@@ -1368,7 +1368,7 @@ re-lock waits for nothing) before it touches a purchase order.
 
 `20261014000800_outside_purchase_enum` and
 `20261014000900_indent_settle_and_outside_purchase` (owner decisions
-D149a, D149b of 2026-10-15; D149c build defaults; ADR-024 amendment
+D149a, D149b of 2026-10-15; D149c, confirmed by the owner the same day; ADR-024 amendment
 "Closing indent items"). Nothing here replaces an existing function.
 
 **`job_part_requests.outside_purchase_movement_id`** (`bigint null`,

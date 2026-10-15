@@ -29,7 +29,7 @@ import { formatDateTime, shopDaysBetween } from "@/lib/dates";
 import { listPhotos } from "@/lib/domain/attachments";
 import { getIndentPanel, getUnfittedSummary } from "@/lib/domain/indent";
 import { getJobPayments } from "@/lib/domain/payments";
-import { isUnfitted, unfittedMemo } from "@/lib/indent";
+import { fittedIndentLines, isUnfitted, unfittedMemo } from "@/lib/indent";
 import { paidOnlineSummary } from "@/lib/payments";
 import { listLocations } from "@/lib/domain/inventory";
 import { getWorkOrderYield } from "@/lib/domain/reports";
@@ -91,6 +91,8 @@ function sharedRate(job: WorkOrderDetail): string | null {
  * approved indent items not on the bill as a memo under the total, never in
  * it, and what a closed job holds above its bill (R-082); Complete and the
  * other moves out of the open statuses settle those items first (D149b),
+ * and voiding a line a fitted indent item became puts it back among them
+ * (D160),
  * photos, the people on it, notes and the timeline. A job checked in from an
  * appointment (D40) links back to it under the header. Straight after intake (`?intake=photos`) the intake photos come first: the job
  * has to exist before a photo can be recorded against it. The timeline
@@ -311,7 +313,14 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             {lockedReason ? (
               <p className="px-4 pb-3 text-sm text-dust-700 sm:px-5">{lockedReason}</p>
             ) : null}
-            <LineTable lines={job.lines} viewCosts={viewCosts} canVoid={open} />
+            <LineTable
+              lines={job.lines}
+              viewCosts={viewCosts}
+              canVoid={open}
+              // D160: voiding a line a fitted indent item became puts the
+              // item back to approved or ordered; the confirmation says so.
+              indentLines={fittedIndentLines(indent.requests)}
+            />
             <div className="mt-3">
               <TotalsSummary totals={job.totals} ccRate={sharedRate(job)} report={report} />
             </div>

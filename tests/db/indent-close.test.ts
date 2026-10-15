@@ -710,7 +710,7 @@ describe("fit_part_bought_outside (D149a)", () => {
     });
   });
 
-  it("voiding the line puts the part back in stock at its cost; the receipt stays", async () => {
+  it("voiding the line puts the part back in stock at its cost; the receipt stays; the request is approved again (D160)", async () => {
     await inTransaction(conn, async (tx) => {
       const a = await approvedPart(tx);
       const lineId = await boughtOutside(tx, a.partId, { locationId: LOCATION.shopFloor });
@@ -722,7 +722,13 @@ describe("fit_part_bought_outside (D149a)", () => {
         ["reversal", 2, "30.00"],
       ]);
       expect(await onHand(tx, a.productId)).toBe(2);
-      expect(await requestStatus(tx, a.partId)).toBe("fitted");
+      // D160 (R-083): back to approved, its line and receipt link cleared
+      // (tests/db/indent-unfit.test.ts covers the rest).
+      expect(await requestRow(tx, a.partId)).toEqual({
+        status: "approved",
+        work_order_line_item_id: null,
+        outside_purchase_movement_id: null,
+      });
       await assertLedgerConsistent(tx);
     });
   });

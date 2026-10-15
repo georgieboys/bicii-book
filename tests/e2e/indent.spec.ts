@@ -20,7 +20,9 @@ import { createSupplier } from "./purchasing-helpers";
  * approved items, where a part never ordered in BICII is fitted as bought
  * outside BICII at the cost the admin enters (the stock count does not
  * change); and Cancel job lists them with Cancel only, naming the open
- * quote it withdraws. Every record carries tagFor(testInfo).
+ * quote it withdraws. D160: voiding the line a fitted item became puts the
+ * item back to approved, with Fit and Cancel, and it is fitted again from
+ * the stock the void returned. Every record carries tagFor(testInfo).
  */
 
 /** Sends the job's proposed items as a quote and returns the link (shown once). */
@@ -375,4 +377,86 @@ test("Cancel job lists the approved items with Cancel only, and withdraws the op
       .getByRole("list", { name: "Proposed items" })
       .getByRole("listitem", { name: "Basic Service" }),
   ).toContainText("Proposed");
+});
+
+test("Voiding a fitted indent part puts it back to approved, with Fit and Cancel (D160)", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(240_000);
+  const tag = tagFor(testInfo);
+  const partName = `Brake rotor ${tag}`;
+  await signIn(page, "admin");
+  await createProduct(page, { name: partName, sku: `BR-${tag}`, price: "120.00", cost: "70.00" });
+  const job = await createJobViaIntake(page, { tag, requestedWork: "Brake rotor" });
+
+  // Proposed, quoted and approved.
+  const card = section(page, "Indent parts and quote");
+  await card.getByRole("button", { name: "Propose part" }).click();
+  const partSheet = page.getByRole("dialog", { name: "Propose part" });
+  await partSheet.getByRole("combobox", { name: /^Part/ }).fill(tag);
+  await partSheet.getByRole("option", { name: new RegExp(partName) }).click();
+  await partSheet.getByRole("button", { name: "Propose part" }).click();
+  await expect(partSheet).toBeHidden();
+  await answerQuoteByLink(await sendQuote(page, 1), `Intake ${tag}`);
+  await page.reload();
+  const item = card.getByRole("list", { name: "Proposed items" }).getByRole("listitem", {
+    name: partName,
+  });
+  await expect(item).toContainText("Approved");
+
+  // Fitted as bought outside BICII (the stock count does not move).
+  await item.getByRole("button", { name: "Fit" }).click();
+  const fitSheet = page.getByRole("dialog", { name: "Fit part" });
+  await fitSheet.getByRole("radio", { name: "Bought outside BICII" }).click();
+  await fitSheet.getByLabel(/^Cost each/).fill("30.00");
+  await fitSheet.getByRole("button", { name: "Record and fit" }).click();
+  await expect(fitSheet).toBeHidden();
+  await expect(item).toContainText("Fitted");
+  await expect(item.getByRole("button", { name: "Fit" })).toHaveCount(0);
+
+  // Void its line: the confirmation says the item goes back to approved.
+  const partLine = page.getByRole("row", { name: new RegExp(partName) });
+  await partLine.getByRole("button", { name: "Void…" }).click();
+  await expect(partLine).toContainText(
+    `Voiding puts ${partName} back to approved: fit it again or cancel it before completing the job.`,
+  );
+  await partLine.getByLabel(`Why are you voiding ${partName}?`).fill("Fitted the wrong size");
+  await page.waitForTimeout(500); // the confirm button ignores presses for 400 ms
+  await partLine.getByRole("button", { name: "Void line" }).click();
+  await expect(toast(page, `${partName} is back to approved`)).toBeVisible();
+
+  // Back to approved, with Fit and Cancel, and not on the bill.
+  await expect(item).toContainText("Approved");
+  await expect(item).toContainText(
+    "Its line was voided, so it is not on the bill. The part bought outside BICII went back into stock: fit it from stock, or cancel it.",
+  );
+  await expect(item.getByRole("button", { name: "Fit" })).toBeVisible();
+  await expect(item.getByRole("button", { name: `Cancel ${partName}` })).toBeVisible();
+  const memo = section(page, "Lines").getByLabel("Approved, not on the bill");
+  await expect(memo).toHaveText(
+    "Approved, not on the bill yet: 1 item, $120.00. Fit it to bill it.",
+  );
+  await expect(section(page, "Timeline")).toContainText(
+    `${partName} back to approved: its line was voided`,
+  );
+
+  // Complete waits for it (D149b), listing it with Fit.
+  const header = page.getByRole("main").locator("header").first();
+  await page.getByRole("button", { name: "Start work" }).click();
+  await expect(header).toContainText("In progress");
+  await page.getByRole("button", { name: "Complete…" }).click();
+  const checklist = page.getByRole("dialog", { name: `Before completing ${job.jobNumber}` });
+  await expect(checklist.getByRole("listitem", { name: partName })).toBeVisible();
+  await expect(checklist.getByRole("button", { name: "Complete job" })).toBeDisabled();
+  await checklist.getByRole("button", { name: "Back" }).click();
+  await expect(checklist).toBeHidden();
+
+  // Fitted again from stock, where the void put it.
+  await item.getByRole("button", { name: "Fit" }).click();
+  await expect(fitSheet).toContainText("It went back into stock when its line was voided");
+  await fitSheet.getByRole("button", { name: "Fit part" }).click();
+  await expect(fitSheet).toBeHidden();
+  await expect(toast(page, `${partName} is on the job.`)).toBeVisible();
+  await expect(item).toContainText("Fitted");
+  await expect(memo).toHaveCount(0);
 });

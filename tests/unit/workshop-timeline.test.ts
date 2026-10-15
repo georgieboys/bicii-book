@@ -348,6 +348,32 @@ describe("describeEvent", () => {
         payload: { description: "Shimano chain", bought_outside: true, reference: null },
       }).detail,
     ).toBe("Bought outside BICII");
+    // D160: its fitted line was voided; back to approved or ordered.
+    expect(
+      d({
+        type: "part_request_unfitted",
+        payload: { description: "Shimano chain", status: "approved", bought_outside: false },
+      }),
+    ).toEqual({
+      title: "Shimano chain back to approved: its line was voided",
+      detail: "Fit it again or cancel it.",
+      tone: "waiting",
+    });
+    expect(
+      d({
+        type: "part_request_unfitted",
+        payload: { description: "Rohloff hub", status: "ordered", bought_outside: false },
+      }).title,
+    ).toBe("Rohloff hub back to ordered: its line was voided");
+    expect(
+      d({
+        type: "part_request_unfitted",
+        payload: { description: "Dropper post", status: "approved", bought_outside: true },
+      }).detail,
+    ).toBe("The part bought outside BICII went back into stock. Fit it again or cancel it.");
+    expect(d({ type: "part_request_unfitted", payload: {} }).title).toBe(
+      "The fitted item back to approved: its line was voided",
+    );
   });
 
   it("customer payments read in the customer's money, with the mismatch and refund details (Phase 14)", () => {

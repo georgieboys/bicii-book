@@ -63,21 +63,25 @@ Admin never replaces the public site.
   14, D150–D159; steps 1 and 2 built and deployed on 2026-10-14, the
   owner's keys set and Stripe on; the owner set the deposit to 100% in
   production on 2026-10-15 SGT (D151's build default is 50%, D157) and
-  paid a first live deposit on a test job, whose refund is not yet done;
+  paid a first live deposit on a test job, refunded on 2026-10-15;
   balances and reports are step 3). An approved indent part reaches the
   bill only when it is fitted (D140); since the live test, a part a job
   was completed without is shown as not billed, its deposit is flagged,
   and an admin or manager can cancel it on a collected job (D149,
   [R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)).
-  From D149a–c (not yet deployed): a job is completed, made ready,
+  From D149a–c (in production since 2026-10-15): a job is completed, made ready,
   collected or cancelled only once each approved or ordered indent item is
   fitted or cancelled (a checklist with Fit and Cancel); a part the shop
   bought outside BICII is fitted as "Bought outside BICII" at the cost
   staff with View costs or Manage purchasing enter, which becomes the
   product's cost and leaves the stock count unchanged; an open quote is
   withdrawn when its job is completed or cancelled (the permission, the
-  product's cost and the quote withdrawal are build defaults, question
-  34).
+  product's cost and the quote withdrawal are build defaults, confirmed by
+  the owner on 2026-10-15, question 34). From D160 (built, not yet
+  deployed): voiding the line a fitted indent item became puts the item
+  back to approved (or ordered, when it is on a purchase order), to be
+  fitted again or cancelled before the job closes
+  ([R-083](RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)).
 
 ## Domain rules
 
@@ -111,6 +115,7 @@ These are fixed by the brief ([SPEC §2](SPEC.md#2-non-negotiable-principles),
 | Stripe's word wins; disagreements are flagged, never refused (D159) | Refusing money Stripe took would lose it after Stripe's retries | A deposit paid on a cancelled job is recorded and shown as "… is held but this job is cancelled. Refund it in Stripe if it is due back." to admins and managers, on the job and in Exceptions | `tests/db/stripe-payments.test.ts`, `tests/db/indent-deposits.test.ts` (payment_issues and the exception kinds) |
 | An approved indent part is billed only when it is fitted (D140); one never fitted is shown, never counted (R-082, D149) | The bill, yield and Cult Commons follow the job's lines (SPEC §2); a part that never went on the bike is not a sale | A part approved and paid for at S$2.00 on a job completed and collected without fitting it: Total $0.00, yield $0.00; the Lines card says "Approved but never fitted: $2.00 (not billed).", the item shows "Not fitted", the deposit is flagged "$2.00 is held for parts that never went on this job…" on the job's Customer payments card (every staff member) and in Exceptions (admins and managers), the closed job shows "Paid online $2.00 · $2.00 more than the bill", and an admin or manager cancels the part with a reason and refunds in Stripe (an item left on an unanswered quote is cancelled the same way, which withdraws the quote); nobody else can change the collected job | `tests/db/indent-parts.test.ts` (D149's roles, the order and withdraw guards, `work_order_unfitted_requests`), `tests/db/indent-deposits.test.ts` (`paid_parts_not_fitted`, `held_over_total`, `job_closed`), `tests/unit/indent.test.ts`, `tests/unit/payments.test.ts`, `tests/e2e/payments.spec.ts` |
 | A job leaves the open statuses only with its approved and ordered indent items settled (D149b, D149c) | An approved item never fitted is not billed (D140); settling it at Complete stops it being forgotten | Complete… on a job with an approved part opens "Before completing J-…": Fit (or, for a part bought elsewhere, Fit → Bought outside BICII at what the shop paid; the stock count does not move and the yield uses that cost) or Cancel item…; Complete job is available once none is left. Cancel job offers Cancel item… only. An open quote is withdrawn when the job closes. A job completed before this rule is settled at Ready or Collected | `tests/db/indent-close.test.ts` (the guard for every writer, the 110 pairs, the outside purchase's ledger, cost and reports), `tests/unit/indent.test.ts`, `tests/unit/job-status-actions.test.tsx`, `tests/unit/indent-sheets.test.tsx`, `tests/e2e/indent.spec.ts`, `tests/e2e/payments.spec.ts` |
+| Voiding a fitted indent item's line undoes the fit (D160) | A wrong part voided off the job must not leave its item looking fitted, stuck and out of every check ([R-083](RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)) | A part fitted, then its line voided ("Voiding puts <part> back to approved: fit it again or cancel it before completing the job."): the item is Approved again with Fit and Cancel, the memo counts it, Complete waits for it; the part is back in stock (a part bought outside BICII keeps its purchase), and fitting it again bills it again | `tests/db/indent-unfit.test.ts`, `tests/unit/void-line-control.test.tsx`, `tests/e2e/indent.spec.ts` |
 | An indent part is ordered once its deposit is paid, unless an admin or manager gives a reason (D152) | The shop does not buy parts for a customer who has not committed | The order sheet starts unpaid parts unticked; a mechanic with Manage purchasing cannot override; fitting is never held up; after an override the deposit stays due, and the customer's page says the parts are ordered and to ask the shop before paying | `tests/db/indent-deposits.test.ts` (the gate and override), `tests/e2e/payments.spec.ts` |
 | Consignment liability is separate from settlement | The shop owes a consignor until it pays | A partial payment leaves the rest owed; a restock after payment leaves the consignor overpaid, never in credit | `tests/db/settlements.test.ts` (Phase 6 step 2); on screen, `tests/e2e/consignment.spec.ts` ($500 owed, $200 then $300 paid, Outstanding $0.00) and `tests/unit/consignment.test.ts` (the Overpaid label) |
 | A consigned item used on a job is sold when the job is completed (D44) | The owner's D27 change: consigned stock may be a job part | The consignor is owed the agreed amount exactly while the line is live on a completed job; a reopen removes it, a void returns the stock | `tests/db/consignment-job-parts.test.ts`; `tests/e2e/consignment.spec.ts` |

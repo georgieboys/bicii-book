@@ -1,5 +1,5 @@
 /**
- * Indent parts and quotes (Phase 13; PLAN D140-D146, D149, D149a-c,
+ * Indent parts and quotes (Phase 13; PLAN D140-D146, D149, D149a-c, D160,
  * ADR-024): the words and links the job page and the quote page share.
  * Pure, so the browser, the server and the unit tests use the same rules.
  */
@@ -197,6 +197,62 @@ export const COST_MISSING_SWITCH_NOTE =
 /** Fit refused with part_cost_missing for a part on a purchase order. */
 export const COST_SET_ON_RECEIPT_NOTE =
   "Its cost is set when its order is received in Purchasing. Receive it first.";
+
+// ---------------------------------------------------------------------------
+// Voiding a fitted indent line (D160)
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a fitted request goes when its line is voided (D160): ordered when
+ * it is on a purchase order (`order`, from part_request_arrivals), else
+ * approved. Mirrors private.unfit_part_request.
+ */
+export type UnfitStatus = "approved" | "ordered";
+
+export function unfitStatus(request: { order: unknown }): UnfitStatus {
+  return request.order === null || request.order === undefined ? "approved" : "ordered";
+}
+
+/** A job line that a fitted indent request points at, for the void confirmation (D160). */
+export type FittedIndentLine = { description: string; backTo: UnfitStatus };
+
+/** The job's fitted indent items keyed by their line id (D160). */
+export function fittedIndentLines(
+  requests: readonly {
+    status: PartRequestStatus;
+    lineId: string | null;
+    description: string;
+    order: unknown;
+  }[],
+): Record<string, FittedIndentLine> {
+  const lines: Record<string, FittedIndentLine> = {};
+  for (const r of requests) {
+    if (r.status === "fitted" && r.lineId) {
+      lines[r.lineId] = { description: r.description, backTo: unfitStatus(r) };
+    }
+  }
+  return lines;
+}
+
+/** What the void confirmation says for a fitted indent line (D160). */
+export function voidIndentNote(line: FittedIndentLine): string {
+  return `Voiding puts ${line.description} back to ${line.backTo}: fit it again or cancel it before completing the job.`;
+}
+
+/**
+ * What the indent card says under an approved or ordered item whose line
+ * was voided (D160); a part bought outside BICII went back into stock
+ * with the void, so it is fitted from stock.
+ */
+export function unfittedNote(boughtOutside: boolean): string {
+  return boughtOutside
+    ? "Its line was voided, so it is not on the bill. The part bought outside BICII went back into stock: fit it from stock, or cancel it."
+    : "Its line was voided, so it is not on the bill: fit it again or cancel it.";
+}
+
+/** The Fit sheet's note for a part bought outside BICII whose line was voided (D160). */
+export const BACK_IN_STOCK_NOTE =
+  "It went back into stock when its line was voided: fit it from stock. Bought outside BICII would record a second purchase.";
 
 // ---------------------------------------------------------------------------
 // Settle before closing (D149b, D149c)

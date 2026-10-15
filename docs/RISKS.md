@@ -52,8 +52,9 @@ URLs, or customer data in this file.
   `20261014000600_payment_exception_dedupe.sql`
   (`20261014000700_indent_closed_jobs.sql` once
   [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
-  containment merges, and `20261014000900_indent_settle_and_outside_purchase.sql`
-  after D149a–c).
+  containment merges, `20261014000900_indent_settle_and_outside_purchase.sql`
+  after D149a–c, and `20261014001100_indent_unfit_on_void.sql` once D160
+  merges).
 - Next action: the owner decides whether to create a staging project
   before staff and customers use production; until then each migration
   is dry-run by `migrate.yml` before it applies.
@@ -2193,8 +2194,10 @@ URLs, or customer data in this file.
   - the quote page says "Ask the shop about your deposit." once the job
     closed without the parts.
   The containment covers approved and ordered requests only: a fitted
-  request whose line was voided is
-  [R-083](#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged).
+  request whose line was voided was
+  [R-083](#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged),
+  fixed by D160 (the void puts it back to approved or ordered, so this
+  containment and the fix below see it).
 - The fix (D149b, D149c, `20261014000900`): no job can move into
   completed, ready for collection, collected or cancelled while a request
   is approved or ordered (`work_order_has_unfitted_requests`, a trigger
@@ -2229,57 +2232,86 @@ URLs, or customer data in this file.
 
 ## R-083 — A fitted indent request whose line was voided is stuck and unflagged
 
-- Category: product gap (business process; D140, D146, D149).
-- Status and owner: open; the owner decides the fix (below); build agent
-  (record). Found by the review of the R-082 containment on 2026-10-15
-  SGT; the behaviour dates from `20261014000200_indent_parts`, already in
-  production.
+- Category: product gap (business process; D140, D146, D149, D160).
+- Status and owner: resolved on `claude/brave-clarke-kfqhgt` by D160 (the
+  owner's decision of 2026-10-15 SGT: the first of the three options
+  below), local commit, not yet merged or applied to production; build
+  agent (record). Found by the review of the R-082 containment on
+  2026-10-15 SGT; the behaviour dates from `20261014000200_indent_parts`,
+  in production until D160 is applied.
 - Trigger: an indent part or service is fitted (its request becomes
   `fitted`, linked to the new job line), then that line is voided on the
   open job (a wrong part, say), and the job is completed or collected.
-- Impact: `void_line` reverses the line's stock and takes it off the bill
-  but never touches `job_part_requests`, and nothing moves a request out
-  of `fitted`. So the request stays `fitted`, pointing at a voided line:
-  - Fit refuses it (`part_request_fitted`: it is linked to another line),
-    and Cancel refuses it with "It is already on the job. Void the line
+- Impact (before D160): `void_line` reversed the line's stock and took it
+  off the bill but never touched `job_part_requests`, and nothing moved a
+  request out of `fitted`. So the request stayed `fitted`, pointing at a
+  voided line:
+  - Fit refused it (`part_request_fitted`: it is linked to another line),
+    and Cancel refused it with "It is already on the job. Void the line
     instead.", advice already followed; on a collected or cancelled job
-    the line cannot be voided either (`work_order_locked`).
-  - A deposit for it is in no payment issue: `paid_parts_not_fitted`
+    the line could not be voided either (`work_order_locked`).
+  - A deposit for it was in no payment issue: `paid_parts_not_fitted`
     looks only at approved and ordered requests, and
     `paid_parts_cancelled` counts `fitted` as live.
-    `work_order_unfitted_requests` leaves it out, and the quote page
-    counts it as ordered ("the shop has ordered your parts").
-  - The money shows only as `paid_ahead` while the job is open, or
-    `held_over_total` once it is collected or cancelled.
-- Evidence and confidence: high for the mechanism, from the code:
-  `public.void_line` (`20261004001900_inventory_jobs.sql`) never reads or
-  writes requests; the only writer of `fitted` is `fit_part_request`;
-  `job_part_requests_fitted_has_line` only requires the line id to be
-  set. Not reproduced in production. A one-line "or fitted with a voided
-  line" in `paid_parts_not_fitted` was considered and not built: staff who
-  void the fitted line and add the part again by hand (re-fit is refused)
-  would be flagged wrongly, and the issue's advice ("Reopen the job to fit
-  them") cannot be followed for such a request.
-- Workaround or containment: none in the app. Staff who void a fitted
-  indent line should add the part again as an ordinary line if it stays
-  on the job, or settle any deposit for it by hand in Stripe; the job's
-  timeline records both the fit and the void.
-- Next action: the owner chooses one of: `void_line` returns a fitted
-  request to approved or ordered (so it can be fitted again or
-  cancelled); D149's cancel also accepts a fitted request whose line is
-  voided; or a separate payment issue for such deposits that ignores a
-  job with a live line of the same product or service (with its own
-  database test: fit, void, complete, collect; a hand-added replacement
-  line as the negative case). Any of these takes a number from D160.
-  D149b's guard (R-082) does not see such a request either: it is
-  `fitted`, so Complete is not held up by it. A part fitted as bought
-  outside BICII (D149a) whose line is voided is the same case: the
-  reversal puts it back into stock at its cost, the receipt row stays,
-  and the request stays `fitted`.
-- Revisit trigger: a fitted indent line voided in production.
-- Last checked: 2026-10-15 SGT, code reading on
-  `claude/brave-clarke-kfqhgt`; `tests/db/indent-close.test.ts` (voiding a
-  bought-outside line).
+    `work_order_unfitted_requests` left it out, D149b's settle guard did
+    not hold Complete for it, and the quote page counted it as ordered
+    ("the shop has ordered your parts").
+  - The money showed only as `paid_ahead` while the job was open, or
+    `held_over_total` once it was collected or cancelled.
+- Evidence and confidence: high for the mechanism, from the code
+  (`public.void_line`, `20261004001900_inventory_jobs.sql`, never read or
+  wrote requests; the only writer of `fitted` was `fit_part_request`;
+  `job_part_requests_fitted_has_line` only required the line id to be
+  set) and by test: with `20261014001100` moved out, 14 of the 15 tests in
+  `tests/db/indent-unfit.test.ts` fail (the request stays `fitted`; in
+  the committed race a job completes with a fitted request on a voided
+  line); the one that passes is the negative case (voiding any other line
+  changes no request). Not reproduced in production.
+- The fix (D160, `20261014001000_part_unfitted_enum`,
+  `20261014001100_indent_unfit_on_void`; ADR-024 amendment "Voiding a
+  fitted indent line"; DATA-MODEL §5): a trigger on every void of a job
+  line puts the fitted request that points at it back to `ordered` (on a
+  purchase order line) or `approved`, clears its line, `fitted_at`,
+  `fitted_by` and `outside_purchase_movement_id`, and records
+  `part_request_unfitted` on the timeline, in the void's transaction. The
+  void's stock reversal is unchanged: a part bought outside BICII keeps
+  its receipt and is back in stock, and a re-fit takes it from there. The
+  request can then be fitted again or cancelled; D149b holds Complete,
+  Ready, Collected and Cancel job until it is; the memo, the quote page
+  and `paid_parts_not_fitted` see it. A request is never linked to a
+  voided line again (`part_request_line_voided`, so a stale Fit retried
+  with the voided line's id cannot bring the state back), and the
+  migration un-fits once any request already in it, with a NOTICE. On
+  screen: the void's confirmation says "Voiding puts … back to approved:
+  fit it again or cancel it before completing the job."; the indent card
+  shows the item approved or ordered with Fit and Cancel and says its line
+  was voided.
+- Options the owner did not choose: D149's cancel also accepting a fitted
+  request whose line is voided; a separate payment issue for such
+  deposits that ignores a job with a live line of the same item.
+- Residual: a request the one-off un-fits on a job where staff had
+  already added the part again by hand (R-083's workaround) is approved
+  again beside that line, so it must be cancelled before the job's next
+  move. The NOTICE counts the un-fitted requests whose job has a live line
+  of the same item added after the void that no request is linked to;
+  staff check each such job and cancel the request only if the line was a
+  hand re-add (RUNBOOK "Indent items on jobs closed before the guard").
+  Production had no such request as far as known. A request un-fitted on
+  a collected or cancelled job is closed by D149's admin or manager
+  cancel and listed by the same RUNBOOK section.
+- Next action: when D160 reaches production (merge, then `migrate.yml`),
+  read the migration's NOTICE in the run's log and run the RUNBOOK query
+  (read-only); settle anything they list.
+- Revisit trigger: the one-off's NOTICE reports a request on a job that
+  is not open or with a possible hand-added line; a
+  `part_request_line_voided` refusal in production logs.
+- Last checked: 2026-10-15 SGT, on `claude/brave-clarke-kfqhgt`:
+  `tests/db/indent-unfit.test.ts` (17 tests, red without
+  `20261014001100`, green with it; a direct owner void un-fits too),
+  `tests/db/indent-close.test.ts` (voiding a bought-outside line now
+  leaves the request approved), unit
+  tests and `tests/e2e/indent.spec.ts` (fit, void, back to approved with
+  Fit, fitted again) on phone and iPad.
 
 ## R-084 — A part bought outside BICII rests on a typed cost
 

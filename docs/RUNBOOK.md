@@ -41,8 +41,10 @@ exercised, per section (as of 2026-10-12):
   and journeys 3 and 4 with `window.print` stubbed or the PDF fetched;
   never on a real label printer
   ([R-075](RISKS.md#r-075--label-output-is-unverified-on-a-real-label-printer-and-on-ios)).
-- Indent items on jobs closed before the guard: not run (the migration is
-  not deployed); the query was run on the local devstack only.
+- Indent items on jobs closed before the guard: the query was last run
+  read-only on production on 2026-10-15 SGT, after `20261014000900` was
+  applied (no rows); it is run again, with the D160 one-off's NOTICE,
+  once `20261014001100` is applied.
 - CI: the `e2e` label exists, and PRs #2–#7 carry it, each with a
   successful `e2e` workflow run (e.g.
   [PR #7 e2e](https://github.com/abhishekcheriangeorge-ops/bicii-book/actions/runs/37276834195/job/111655595521));
@@ -693,6 +695,24 @@ The same migration withdrew, once, every quote still open on a job that
 was no longer open (D149c(6)); from then on a quote is withdrawn when its
 job leaves the open statuses.
 
+**After `20261014001100_indent_unfit_on_void` (D160) is applied:** it
+puts back to approved or ordered, once, every indent item still marked
+fitted whose job line was voided
+([R-083](RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged));
+from then on voiding a fitted item's line does it at once. In the
+`migrate.yml` run's log, read its NOTICE: "D160 one-off: N fitted indent
+request(s) whose line was voided went back to approved or ordered; M of
+them on jobs that are not open, K on a job with a live line of the same
+item added after the void (check whether it was added by hand)." With
+N = 0 nothing changed. Otherwise run the query above again: the M items
+on jobs that are not open are among its rows, settled as above. For each
+of the K, open the job and check whether the part was added again by
+hand after the void (a line of the same part or service, added after the
+voided one, that no indent item is on). If it was, press **Cancel** on
+the item with a reason ("Added by hand"; on a collected or cancelled job
+an admin or manager does it); otherwise fit it again or settle it as
+above.
+
 ## Shopify
 
 The integration (Phase 10, decisions D80–D89 in
@@ -1145,7 +1165,8 @@ payment nobody can make), then remove the keys and redeploy.
   [R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)):
   the job was completed or collected with an approved part never fitted,
   so the part is not on the bill (only a job closed before
-  `20261014000900`'s guard can be in this state:
+  `20261014000900`'s guard can be in this state, or one whose fitted item
+  `20261014001100`'s one-off put back to approved, D160:
   [Indent items on jobs closed before the guard](#indent-items-on-jobs-closed-before-the-guard)).
   If the job is completed or ready for collection and the part was
   supplied: **Change status** → **Reopen job…**, **Fit** it, then

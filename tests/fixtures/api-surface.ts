@@ -228,6 +228,9 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // page's two functions are callable signed in too
   "public.answer_quote(text, jsonb, text)",
   "public.cancel_part_request(uuid, text)",
+  // D160: voiding a fitted line (public.void_line, unchanged) puts its
+  // request back to approved or ordered through an owner-only trigger;
+  // nothing is added here (tests/db/meta.test.ts checks the private side)
   "public.fit_part_request(uuid, uuid, uuid)",
   // D149a: a part bought outside BICII, recorded and fitted in one step;
   // view_costs or manage_purchasing (the function checks)

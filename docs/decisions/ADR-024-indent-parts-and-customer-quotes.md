@@ -2,12 +2,14 @@
 
 Date: 2026-10-14 (design, before Phase 13 is built; on
 `claude/brave-clarke-kfqhgt` from `main` 511aac6); amended 2026-10-15
-(D149, [below](#amendment-2026-10-15-d149-indent-close)) and again
+(D149, [below](#amendment-2026-10-15-d149-indent-close)), again
 2026-10-15 (D149a–c,
-[below](#amendment-2026-10-15-closing-indent-items-d149a-d149b-d149c)).
+[below](#amendment-2026-10-15-closing-indent-items-d149a-d149b-d149c))
+and a third time 2026-10-15 (D160,
+[below](#amendment-2026-10-15-voiding-a-fitted-indent-line-d160)).
 Status: proposed. The owner decided the workflow and three of its rules on
-2026-10-14, D149 and D149a–b on 2026-10-15; the rest are build defaults
-for the owner to confirm
+2026-10-14, D149, D149a–b and D160 on 2026-10-15 (and confirmed D149c the
+same day); the rest are build defaults for the owner to confirm
 ([PRODUCT questions 31 and 34](../PRODUCT.md#open-assumptions-and-owner-questions)).
 Decision owner: Abhishek Cherian George (owner) for business meaning;
 defaults proposed by the build agent.
@@ -126,10 +128,10 @@ sheet warns before fitting a part never ordered in BICII or one with no
 cost; the quote page says "Ask the shop about your deposit." once the job
 closed without the parts (its deposit object gains `job_closed`, D143
 otherwise unchanged). The containment covers approved and ordered requests
-only: a fitted request whose line was later voided stays fitted and
+only: a fitted request whose line was later voided stayed fitted and
 unflagged
-([R-083](../RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged),
-owner to decide).
+([R-083](../RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged);
+the owner chose D160, [below](#amendment-2026-10-15-voiding-a-fitted-indent-line-d160)).
 
 **Alternatives considered.** Adding approved parts to the bill when the
 customer approves or pays (rejected again: it is the first alternative
@@ -232,6 +234,68 @@ Yield and Cult Commons formulas, inventory ownership (shop-owned only; D50
 refuses the new type on consigned stock) and consignment liability are
 unchanged; no snapshot changes.
 
+## Amendment 2026-10-15: voiding a fitted indent line (D160)
+
+**Context.** [R-083](../RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)
+(found reviewing the R-082 containment, not seen in production): when a
+fitted indent item's job line was voided, `void_line` reversed the stock
+and took the line off the bill but left the request `fitted`, pointing at
+the voided line. Fit and Cancel both refused it, D149b's settle guard did
+not see it, the quote page counted it as ordered, and a deposit for it was
+in no payment issue. The analysis offered three fixes: the void undoes the
+fit; D149's cancel also accepts such a request; or a separate payment
+issue for such deposits.
+
+**Decision (the owner, 2026-10-15 SGT, the first of the three).** The void
+undoes the fit. When a job line that a fitted indent request points at is
+voided, the request goes back to where it was before Fit: `ordered` if it
+is on a purchase order line, else `approved`. Its link to the line, who
+fitted it and when, and (D149a) its link to the `outside_purchase` receipt
+are cleared; the receipt itself stays, and the void's reversal puts the
+part back into stock, so a re-fit takes it from stock. The job's timeline
+records it (`part_request_unfitted`). The request can then be fitted again
+or cancelled; D149b's checklist holds Complete, Ready, Collected and
+Cancel job until it is; `paid_parts_not_fitted` flags a held deposit for
+it should such a job ever close; and the quote page and the memo count it
+as approved or ordered again.
+
+How it is built (`20261014001000_part_unfitted_enum`,
+`20261014001100_indent_unfit_on_void`): an AFTER UPDATE trigger on
+`work_order_line_items`, for every row whose `voided_at` is set, calls
+`private.unfit_part_request` in the void's own transaction and under the
+job lock the void already holds. A trigger rather than a new `void_line`:
+a void is a single UPDATE of `voided_at` (the line's rules allow nothing
+else), so the trigger covers every writer, owner writes included, and
+`void_line` (already in production) is not replaced: its checks, errors,
+replay, stock reversal, unit status and publication refresh are exactly as
+before. Built with it as build defaults (not part of the owner's choice):
+a request is never linked to a voided line
+(`job_part_requests_require_live_line`, `part_request_line_voided`), so a
+stale Fit replayed with the voided line's id cannot re-link it through the
+line RPCs' replay; and a one-off un-fits, once, requests already in R-083's
+state (none known in production), reporting in a NOTICE how many are on
+jobs no longer open and how many on a job with a live line of the same
+item added after the void that no request is linked to (perhaps added
+again by hand under R-083's workaround: staff check, and cancel the
+request if it was).
+
+**Alternatives considered.**
+
+| Option | Outcome |
+|---|---|
+| D149's cancel also accepts a fitted request whose line is voided | Not chosen by the owner: the item could only be cancelled, never fitted again, and D149b's guard would still not see it. |
+| A separate payment issue for such deposits (ignoring a job with a live line of the same item) | Not chosen by the owner: a flag after the fact, with the request still stuck. |
+| Replace `void_line` with the un-fit in its body | Rejected: it covers one writer only and copies a 150-line production function; the trigger is in the same transaction and lock order. |
+| Un-fit only, without the live-line guard | Rejected: `add_inventory_line` and `add_service_line` answer a voided line as a replay, so a retried Fit form would put the request back on the voided line. |
+
+**Consequences.** A fitted request always points at a live line. Voiding
+a fitted line now asks staff to settle the item again before the job
+closes, and the void's confirmation says so ("Voiding puts … back to
+approved: fit it again or cancel it before completing the job."). Stock
+arithmetic, line totals, yield, Cult Commons, money and snapshots are
+unchanged; who may void is unchanged (any active staff member on an open
+job, D15).
+
 ## Revisit trigger
 
 The owner's answer to question 31; a request for hard reservation, for
@@ -242,6 +306,8 @@ quotes.
 
 - The owner's request and answers, 2026-10-14 (this session): WhatsApp and
   email, per item, deposits through Stripe.
+- R-083's options and the owner's choice of the first, 2026-10-15 SGT
+  (D160); `tests/db/indent-unfit.test.ts`.
 - SPEC §7.1, §30; DATA-MODEL §4 (workshop), §5 (line items), §7 (the
   movement ledger), §10 (purchasing); [ADR-010](ADR-010-stock-and-units-on-jobs.md) (D23–D25),
   [ADR-018](ADR-018-purchasing.md) (D60–D66).

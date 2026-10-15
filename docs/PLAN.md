@@ -1010,6 +1010,20 @@ Cancel job open a checklist with Fit and Cancel item… (Cancel only for
 Cancel job); the Fit sheet's "Bought outside BICII". Tests first
 (`tests/db/indent-close.test.ts`).
 
+**Voiding a fitted indent line (2026-10-15, D160,
+[R-083](RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)).**
+The owner chose the first of R-083's three options: the void undoes the
+fit. `20261014001000_part_unfitted_enum` (the timeline type) and
+`20261014001100_indent_unfit_on_void`: a trigger on every void of a job
+line puts the fitted request that points at it back to ordered (on a
+purchase order line) or approved, unlinked, with `part_request_unfitted`
+on the timeline; a request is never linked to a voided line again; a
+one-off un-fits those already left that way. The void's stock reversal,
+the totals, yield and Cult Commons are unchanged. On screen: the void's
+confirmation says the item goes back to approved (or ordered); the indent
+card shows it with Fit and Cancel and says its line was voided. Tests
+first (`tests/db/indent-unfit.test.ts`).
+
 Not in Phase 13: hard reservation of arrived stock
 ([R-080](RISKS.md#r-080--arrived-indent-stock-is-not-held-for-its-job)),
 quotes on the public site, messages other than quotes.
@@ -1269,6 +1283,7 @@ only its own range.
 | D157 | PAYMENTS-ROLLOUT: when Stripe and deposits switch on | `shop_settings.indent_deposit_percent` ships at 0 in every database (no deposit asked, nothing gated) and is refused above 0 while Stripe is off; an admin raises it in Settings → Customer payments. Stripe is on only when every variable is valid for the deployment: never in a Vercel Preview; a `sk_`/`rk_` key whose mode matches (live only when `VERCEL_ENV=production`, test only outside it); `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` and `ADMIN_ORIGIN` set and well-formed; the fake only outside production. A missing, malformed or wrong-mode value turns Stripe off and names the reason, never stopping the app. Switching off: the percent to 0 first, then remove the keys | Phase 14 steps 1-2 | Build default, owner to confirm; built in steps 1–2 (`stripeConfig`, the setting and its rollout guard) | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D158 | DEPOSIT-RULES: which quotes ask a deposit, how much, how Checkout is offered | The quote stores the shop percent when sent and the amount when answered (`round(approved part lines × percent / 100, 2)` in Postgres; services and declined items excluded; later setting changes never move it; quotes sent before Phase 14 ask nothing). Only SGD quotes; under S$0.50 or over S$999,999.99 nothing is asked (never rounded up). Offered online only while the job is open and an approved part is still approved, ordered or fitted. One Checkout session per quote at a time, 60 minutes, reused until 2 minutes before it expires. Paid or partly refunded counts as paid for D152; fully refunded counts as unpaid and is never offered again | Phase 14 step 2 | Build default, owner to confirm; built in step 2 | [ADR-025](decisions/ADR-025-stripe-payments.md) |
 | D159 | PAYMENT-TRUTH: what changes a payment, and disagreements | Only verified data: a webhook whose signature is valid on the raw body, or the server's own read with the secret key (customers and staff only trigger it). Whatever Stripe confirms is recorded with Stripe's own amount, even on a cancelled job or part, a second payment or a different amount or currency, and flagged as needing attention; BICII never refunds on its own (D155). Refunds per Stripe Refund; only succeeded ones count, and one that fails after succeeding puts the amount back. `paid_at` is Stripe's time. Stored Stripe objects are an allow-listed projection without customer details or URLs. Card disputes are not handled (a known gap, R-089) | Phase 14 steps 1-2 | Build default, owner to confirm; built in step 1 (recording) and step 2 (flags) | [ADR-025](decisions/ADR-025-stripe-payments.md) |
+| D160 | INDENT-UNFIT-ON-VOID: voiding a fitted indent line ([R-083](RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)) | When a job line that a fitted indent request points at is voided, by any way a line is voided, the request goes back to where it was before Fit: ordered if it is on a purchase order line, else approved; its link to the line, who fitted it and when, and its link to a D149a outside purchase are cleared; the job's timeline records it (`part_request_unfitted`). It can then be fitted again or cancelled: D149b's checklist holds Complete, Ready, Collected and Cancel job until it is, `paid_parts_not_fitted` flags a deposit held for it should such a job ever close, and the memo and the quote page count it as approved or ordered again. The void's stock reversal is unchanged (a part bought outside BICII keeps its receipt and is back in stock, so a re-fit takes it from there); no change to line totals, yield, Cult Commons or who may void. Built with it as build defaults (not part of the owner's choice): a request is never linked to a voided line (`part_request_line_voided`: a stale Fit with the voided line's id is refused), and a one-off un-fits once the requests already in that state, with a NOTICE | Phase 13 follow-up (`20261014001000_part_unfitted_enum`, `20261014001100_indent_unfit_on_void`) | Owner decision 2026-10-15 SGT (the first of R-083's three options); the live-line guard and the one-off are build defaults; built on `claude/brave-clarke-kfqhgt` (local commit, not pushed or deployed) | [ADR-024](decisions/ADR-024-indent-parts-and-customer-quotes.md#amendment-2026-10-15-voiding-a-fitted-indent-line-d160) |
 
 ## 7. Out of scope (restated from SPEC §30)
 

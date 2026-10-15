@@ -169,7 +169,7 @@ goes below zero; the yield uses the real cost). Parts on a BICII purchase
 order are received through Purchasing, then fitted; fitting from existing
 stock stays.
 
-How it is built, with the D149c build defaults it rests on marked:
+How it is built, with the D149c clauses it rests on marked (built as defaults, confirmed by the owner on 2026-10-15):
 `fit_part_bought_outside` records the receipt as one movement of the new
 type `outside_purchase` (D149c(5)): +quantity at the entered cost, linked
 to the job, its `request_id` the new line's id. It sets the product's cost
@@ -195,7 +195,7 @@ those items with Fit (or Add to job) and Cancel item…; Complete job is
 available once none is left. Proposed, quoted, declined, fitted and
 cancelled items never block.
 
-**Build defaults (D149c, owner to confirm, PRODUCT question 34).**
+**D149c (built as defaults, confirmed by the owner on 2026-10-15 SGT, PRODUCT question 34).**
 (1) The same guard covers the moves into ready for collection, collected
 and cancelled, so a job completed before it is settled at Ready or
 Collected, and Cancel job lists the items with Cancel only (a fitted line
@@ -234,7 +234,7 @@ unchanged; no snapshot changes.
 
 ## Revisit trigger
 
-The owner's answer to question 34 (D149c); the owner's answer to question 31; a request for hard reservation, for
+The owner's answer to question 31; a request for hard reservation, for
 customers to see quotes on the public site, or for messages other than
 quotes.
 

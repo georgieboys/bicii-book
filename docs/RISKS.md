@@ -2285,9 +2285,9 @@ URLs, or customer data in this file.
 
 - Category: data quality and reporting gap (D149a, D149c(3)–(5), D5, D63,
   D105, D152).
-- Status and owner: accepted for MVP (the owner's decision D149a, with
-  build defaults D149c to confirm, PRODUCT question 34); build agent
-  (record). On `claude/brave-clarke-kfqhgt`, not deployed.
+- Status and owner: accepted for MVP (the owner's decision D149a and
+  D149c, confirmed 2026-10-15 SGT, PRODUCT question 34); build agent
+  (record). In production since PR #27 merged on 2026-10-15.
 - Trigger: Fit → "Bought outside BICII" on an approved indent part never
   ordered in BICII (`fit_part_bought_outside`).
 - Impact:
@@ -2322,8 +2322,8 @@ URLs, or customer data in this file.
 - Next action: a purchases-report line for `outside_purchase`; an
   "un-order" for a request whose purchase order is still a draft; both
   need numbers from D160.
-- Revisit trigger: the owner's answer to question 34; staff asking for
-  outside purchases in the purchases report or by supplier.
+- Revisit trigger: staff asking for outside purchases in the purchases
+  report or by supplier.
 - Last checked: 2026-10-15 SGT, this branch.
 
 ## R-085 — Stripe keys and the webhook are new hosted secrets

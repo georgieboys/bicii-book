@@ -97,11 +97,8 @@ evidence of their own phase.
   D120–D125, [ADR-023](docs/decisions/ADR-023-public-site.md)), whose
   screens wait as a draft pull request in repository `bicii`.
 - Next action:
-  0. Owner decisions: confirm the D149c build defaults (PRODUCT question
-     34: the guard on Ready, Collected and Cancel job, the automatic quote
-     withdrawal, the View costs or Manage purchasing permission for an
-     outside purchase, the entered cost becoming the product's cost, the
-     `outside_purchase` ledger type); pick R-083's fix (a voided fitted
+  0. Owner decisions (question 34 was answered on 2026-10-15 SGT: D149c
+     confirmed as built): pick R-083's fix (a voided fitted
      indent line), which takes a number from D160; answer question 32
      (D151–D159, GST time of supply, the privacy notice, counter payments).
      On the next refund in Stripe, check that a `refund.*` event is
@@ -234,8 +231,8 @@ evidence of their own phase.
   ([R-075](docs/RISKS.md#r-075--label-output-is-unverified-on-a-real-label-printer-and-on-ios));
   print success is confirmed by hand
   ([R-076](docs/RISKS.md#r-076--print-success-is-confirmed-by-hand)).
-- Owner questions: 34 (confirm the D149c build defaults; 33 was answered
-  by the owner on 2026-10-15 SGT: block, D149a and D149b), 31 (indent
+- Owner questions: 33 and 34 were answered by the owner on 2026-10-15
+  SGT (block, D149a and D149b; D149c confirmed as built); open: 31 (indent
   parts defaults), 32 (Stripe defaults and account), 12 (refund netting; D102 is the build default), 18
   (D70–D72), 19 (the sender address, after Resend's domain verification), 20 (D92, D93), 21 (the label defaults
   D56–D59), 23–25 (Shopify: D89's tax basis and POS, the defaults
@@ -258,14 +255,15 @@ evidence of their own phase.
   [R-082](docs/RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)
   (approved indent parts left unfitted on a completed or collected job;
   evidence J-000002; mitigated: contained by D149 in PR #26, closed for
-  new jobs by D149b and D149c(1) in `20261014000900`, not deployed; the
-  residual is jobs closed before the guard),
+  new jobs by D149b and D149c(1) in `20261014000900`, in production
+  since 2026-10-15; the residual, jobs closed before the guard, was
+  checked that day: none),
   [R-083](docs/RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)
   (a fitted indent request whose line was voided; the fix waits for the
   owner and takes a number from D160) and
   [R-084](docs/RISKS.md#r-084--a-part-bought-outside-bicii-rests-on-a-typed-cost)
-  (a part bought outside BICII rests on a typed cost; accepted for MVP
-  pending question 34).
+  (a part bought outside BICII rests on a typed cost; accepted for MVP,
+  D149c confirmed by the owner).
 - Main uncertainty: production has no staging in front of it and no
   exercised restore
   ([R-001](docs/RISKS.md#r-001--nothing-is-deployed),
@@ -400,7 +398,7 @@ Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
   and 27 (confirm D106–D108; numbered 21 and 22 on its branch); Phase 11
   adds row 30 (confirm D120–D125); Phases 13 and 14 add rows 31 and 32;
   the indent follow-up adds 33 (block or warn at Complete: answered,
-  block, D149b) and 34 (confirm D149c).
+  block, D149b) and 34 (D149c: confirmed as built, 2026-10-15).
 - Phase 9 risks:
   [R-057](docs/RISKS.md#r-057--csv-exports-stop-at-50000-rows-and-refuse-when-figures-change-mid-export)
   (export limits),

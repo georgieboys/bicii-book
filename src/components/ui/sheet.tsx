@@ -139,15 +139,22 @@ export function Sheet({
 
   // Toasts confirm what a sheet just did; keep them above its action row
   // instead of on top of Save/Cancel. The toast viewport reads this
-  // variable (src/components/ui/toast.tsx).
+  // variable (src/components/ui/toast.tsx). A sheet opened over another
+  // (Fit from the settle checklist) puts the outer sheet's inset back when
+  // it closes, so the toast it raises stays clear of the outer footer.
   const hasFooter = Boolean(footer);
   useEffect(() => {
     if (!open) return;
     const root = document.documentElement;
+    const previous = root.style.getPropertyValue(TOAST_INSET_VAR);
+    const restore = () => {
+      if (previous) root.style.setProperty(TOAST_INSET_VAR, previous);
+      else root.style.removeProperty(TOAST_INSET_VAR);
+    };
     const footerEl = footerRef.current;
     if (!hasFooter || !footerEl) {
       root.style.setProperty(TOAST_INSET_VAR, "env(safe-area-inset-bottom)");
-      return () => root.style.removeProperty(TOAST_INSET_VAR);
+      return restore;
     }
     const update = () =>
       root.style.setProperty(TOAST_INSET_VAR, `${footerEl.getBoundingClientRect().height}px`);
@@ -156,7 +163,7 @@ export function Sheet({
     observer?.observe(footerEl);
     return () => {
       observer?.disconnect();
-      root.style.removeProperty(TOAST_INSET_VAR);
+      restore();
     };
   }, [open, hasFooter]);
 

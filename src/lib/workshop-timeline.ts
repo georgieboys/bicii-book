@@ -288,12 +288,19 @@ export function describeEvent(
         tone: reason ? "waiting" : "info",
       };
     }
-    case "part_fitted":
+    case "part_fitted": {
+      // D149a: a part bought outside BICII says so, with where it was
+      // bought when staff gave it (never its cost).
+      const reference = text(p, "reference");
       return {
         title: `Fitted ${text(p, "description") ?? "the proposed item"}`,
-        detail: null,
+        detail:
+          p.bought_outside === true
+            ? `Bought outside BICII${reference ? ` · ${reference}` : ""}`
+            : null,
         tone: "done",
       };
+    }
     // Phase 14 (D153, D155, D159): customer payments, from Stripe's word
     // only. Payloads carry customer amounts (money held, not revenue,
     // D154), never a cost; amounts are formatted here, never computed.

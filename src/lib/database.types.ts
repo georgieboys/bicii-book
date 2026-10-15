@@ -1742,6 +1742,7 @@ export type Database = {
           line_total: number | null;
           ordered_at: string | null;
           ordered_by: string | null;
+          outside_purchase_movement_id: number | null;
           product_id: string | null;
           purchase_order_line_id: string | null;
           quantity: number;
@@ -1770,6 +1771,7 @@ export type Database = {
           line_total?: never;
           ordered_at?: string | null;
           ordered_by?: string | null;
+          outside_purchase_movement_id?: number | null;
           product_id?: string | null;
           purchase_order_line_id?: string | null;
           quantity: number;
@@ -1798,6 +1800,7 @@ export type Database = {
           line_total?: never;
           ordered_at?: string | null;
           ordered_by?: string | null;
+          outside_purchase_movement_id?: number | null;
           product_id?: string | null;
           purchase_order_line_id?: string | null;
           quantity?: number;
@@ -1836,6 +1839,20 @@ export type Database = {
             columns: ["ordered_by"];
             isOneToOne: false;
             referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_outside_purchase_movement_id_fkey";
+            columns: ["outside_purchase_movement_id"];
+            isOneToOne: false;
+            referencedRelation: "inventory_movement_costs";
+            referencedColumns: ["movement_id"];
+          },
+          {
+            foreignKeyName: "job_part_requests_outside_purchase_movement_id_fkey";
+            columns: ["outside_purchase_movement_id"];
+            isOneToOne: false;
+            referencedRelation: "inventory_movements";
             referencedColumns: ["id"];
           },
           {
@@ -6021,6 +6038,16 @@ export type Database = {
           yield_total: number;
         }[];
       };
+      fit_part_bought_outside: {
+        Args: {
+          line_id: string;
+          location_id?: string;
+          reference?: string;
+          request_id: string;
+          unit_cost: unknown;
+        };
+        Returns: string;
+      };
       fit_part_request: {
         Args: { line_id: string; location_id?: string; request_id: string };
         Returns: string;
@@ -8128,6 +8155,7 @@ export type Database = {
       location_kind: "shop_floor" | "workshop" | "storage" | "offsite";
       movement_type:
         | "purchase_received"
+        | "outside_purchase"
         | "job_consumption"
         | "retail_sale"
         | "online_sale"
@@ -9145,6 +9173,7 @@ export const Constants = {
       location_kind: ["shop_floor", "workshop", "storage", "offsite"],
       movement_type: [
         "purchase_received",
+        "outside_purchase",
         "job_consumption",
         "retail_sale",
         "online_sale",

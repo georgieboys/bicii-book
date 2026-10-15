@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { setWorkOrderStatus } from "@/app/(staff)/jobs/actions";
@@ -9,18 +10,42 @@ import { Sheet } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { useArmed, useArmedAfter } from "@/components/ui/use-armed";
+import type { ActionResult } from "@/lib/actions";
 import { cn } from "@/lib/cn";
+import {
+  CANCEL_UNSETTLED_REFUSAL,
+  settleNeeded,
+  type ClosingStatus,
+  type PartRequestStatus,
+} from "@/lib/indent";
 import { reopenUnitNote } from "@/lib/inventory";
-import { collectedNotes, type UnfittedItem, type paidOnlineSummary } from "@/lib/payments";
+import { collectedNotes, type paidOnlineSummary } from "@/lib/payments";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import {
   STATUS_LABELS,
   allowedTransitions,
+  isOpenStatus,
   primaryActions,
   type WorkOrderStatus,
 } from "@/lib/workshop";
 
 import { ReasonConfirm } from "./reason-confirm";
+import { SettleItemsSheet, type SettleContext } from "./settle-items-sheet";
+
+/** The code the settle guard refuses a move with (D149b, D149c). */
+const UNSETTLED = "work_order_has_unfitted_requests";
+
+/**
+ * A cancel refused for unsettled items (a stale page) says to cancel them,
+ * not the mapped "Fit or cancel": a fitted line would stop the cancel too
+ * (work_order_has_lines, D16), so the checklist for a cancel offers Cancel
+ * only.
+ */
+function cancelRefusal<T>(result: ActionResult<T>): ActionResult<T> {
+  return !result.ok && result.code === UNSETTLED
+    ? { ...result, error: CANCEL_UNSETTLED_REFUSAL }
+    : result;
+}
 
 /**
  * A job's status controls (D15, D16): the usual next steps as large
@@ -34,8 +59,15 @@ import { ReasonConfirm } from "./reason-confirm";
  * final, so it is never one tap: it opens a confirmation naming the job and
  * the customer, focus on Back, whose confirm button is armed after the same
  * guard. Cancelling and reopening need a reason (ReasonConfirm). Both ways
- * to Collected (the button and Change status) say what was paid online and
- * name approved indent items not on the bill (R-082).
+ * to Collected (the button and Change status) say what was paid online.
+ *
+ * D149b, D149c(1): a move into completed, ready for collection, collected
+ * or cancelled while an indent item is approved or ordered opens the settle
+ * checklist instead (SettleItemsSheet: Fit and Cancel, Cancel only for
+ * Cancel job), whichever way it was chosen; its button continues once none
+ * is left, with the note typed in Change status, if any. A stale page
+ * refused by the database (work_order_has_unfitted_requests) refreshes and
+ * opens it.
  */
 export function JobStatusActions({
   workOrderId,
@@ -44,7 +76,7 @@ export function JobStatusActions({
   status,
   heldUnits = [],
   paidOnline = null,
-  unfitted = [],
+  settle = null,
 }: {
   workOrderId: string;
   jobNumber: string;
@@ -61,33 +93,76 @@ export function JobStatusActions({
    */
   heldUnits?: readonly string[];
   /**
-   * R-082: approved indent items (approved or ordered) not on the bill, with
-   * their quoted totals, which the Collected confirmation names.
+   * D149b: the job's approved and ordered indent items and what the settle
+   * checklist needs; null (or no items) moves straight on.
    */
-  unfitted?: readonly UnfittedItem[];
+  settle?: SettleContext | null;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [moving, setMoving] = useState<WorkOrderStatus | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [confirmingCollected, setConfirmingCollected] = useState(false);
+  const [settling, setSettling] = useState<ClosingStatus | null>(null);
+  // The Change status note, kept while the checklist (and, for Collected,
+  // the confirmation) comes between; sent with the move.
+  const [settleNote, setSettleNote] = useState<string | undefined>();
   const armed = useArmedAfter(status);
   const primary = primaryActions(status);
   const transitions = allowedTransitions(status);
+  const items = settle?.items ?? [];
+  const notes = collectedNotes(paidOnline);
 
-  const move = (to: WorkOrderStatus) => {
+  /** Open the checklist for a move to `to`, keeping its note. */
+  const startSettling = (to: ClosingStatus, note?: string) => {
+    setSettleNote(note);
+    setSettling(to);
+  };
+
+  /** Leave the checklist or the confirmation: the note goes with them. */
+  const stopSettling = () => {
+    setSettling(null);
+    setSettleNote(undefined);
+  };
+
+  /**
+   * The database refused a stale page: refresh, then show what is left
+   * (`error` null when a ReasonConfirm already said why).
+   */
+  const refusedUnsettled = (to: ClosingStatus, error: string | null, note?: string) => {
+    if (error) toast({ title: "Status not changed", description: error, tone: "error" });
+    router.refresh();
+    setConfirmingCollected(false);
+    startSettling(to, note);
+  };
+
+  const move = (to: WorkOrderStatus, note?: string) => {
+    if (settleNeeded(to, items)) {
+      startSettling(to, note);
+      return;
+    }
     setMoving(to);
     startTransition(async () => {
-      const result = await setWorkOrderStatus({ workOrderId, status: to });
+      const result = await setWorkOrderStatus({ workOrderId, status: to, note });
       setMoving(null);
       if (!result.ok) {
+        if (result.code === UNSETTLED && !isOpenStatus(to)) {
+          refusedUnsettled(to as ClosingStatus, result.error, note);
+          return;
+        }
         toast({ title: "Status not changed", description: result.error, tone: "error" });
         return;
       }
       setConfirmingCollected(false);
+      stopSettling();
       toast({ title: `${jobNumber}: ${STATUS_LABELS[to]}`, tone: "success" });
     });
   };
+
+  /** Collected: the checklist first when items are left, then the confirmation. */
+  const toCollected = () =>
+    settleNeeded("collected", items) ? startSettling("collected") : setConfirmingCollected(true);
 
   if (transitions.length === 0) return null;
 
@@ -96,10 +171,13 @@ export function JobStatusActions({
       <CollectedConfirm
         jobNumber={jobNumber}
         customerLabel={customerLabel}
-        notes={collectedNotes(paidOnline, unfitted)}
+        notes={notes}
         pending={pending}
-        onBack={() => setConfirmingCollected(false)}
-        onConfirm={() => move("collected")}
+        onBack={() => {
+          setConfirmingCollected(false);
+          setSettleNote(undefined);
+        }}
+        onConfirm={() => move("collected", settleNote)}
       />
     );
   }
@@ -113,11 +191,11 @@ export function JobStatusActions({
           variant={i === 0 ? "solid" : "outline"}
           pending={pending && moving === action.to}
           disabled={pending || !armed}
-          onClick={() =>
-            action.to === "collected" ? setConfirmingCollected(true) : move(action.to)
-          }
+          onClick={() => (action.to === "collected" ? toCollected() : move(action.to))}
         >
-          {action.to === "collected" ? `${action.label}…` : action.label}
+          {action.to === "collected" || settleNeeded(action.to, items)
+            ? `${action.label}…`
+            : action.label}
         </Button>
       ))}
       <Button variant="ghost" disabled={pending} onClick={() => setSheetOpen(true)}>
@@ -129,8 +207,46 @@ export function JobStatusActions({
           jobNumber={jobNumber}
           status={status}
           heldUnits={heldUnits}
-          collectedNotes={collectedNotes(paidOnline, unfitted)}
+          collectedNotes={notes}
+          settleItems={items}
+          onSettle={(to, note) => {
+            setSheetOpen(false);
+            startSettling(to, note);
+          }}
+          onRefused={(to, error, note) => {
+            setSheetOpen(false);
+            refusedUnsettled(to, error, note);
+          }}
           onClose={() => setSheetOpen(false)}
+        />
+      ) : null}
+      {settling && settle ? (
+        <SettleItemsSheet
+          jobNumber={jobNumber}
+          jobStatus={status}
+          target={settling}
+          settle={settle}
+          pending={pending}
+          onBack={stopSettling}
+          onContinue={() => {
+            if (settling === "collected") {
+              // The note waits for the confirmation's Mark collected.
+              setSettling(null);
+              setConfirmingCollected(true);
+            } else {
+              move(settling, settleNote);
+            }
+          }}
+          onCancelJob={async (reason) => {
+            const result = await setWorkOrderStatus({
+              workOrderId,
+              status: "cancelled",
+              note: reason,
+            });
+            if (!result.ok && result.code === UNSETTLED) router.refresh();
+            return cancelRefusal(result);
+          }}
+          onCancelled={stopSettling}
         />
       ) : null}
     </div>
@@ -139,9 +255,10 @@ export function JobStatusActions({
 
 /**
  * "Collected" is final (D15: no reopen, the job locks): a second step that
- * names the job and who collects it, what the customer already paid online
- * (D154) and any approved indent item not on the bill (R-082), focus on
- * Back, and a confirm button that ignores presses for CONFIRM_GUARD_MS.
+ * names the job and who collects it and what the customer already paid
+ * online (D154), focus on Back, and a confirm button that ignores presses
+ * for CONFIRM_GUARD_MS. Approved indent items are never left by then: the
+ * settle checklist comes first (D149b).
  */
 function CollectedConfirm({
   jobNumber,
@@ -153,7 +270,7 @@ function CollectedConfirm({
 }: {
   jobNumber: string;
   customerLabel: string;
-  /** collectedNotes(): paid online, and approved items not on the bill. */
+  /** collectedNotes(): what was paid online, if anything. */
   notes: readonly string[];
   pending: boolean;
   onBack: () => void;
@@ -206,6 +323,9 @@ function ChangeStatusSheet({
   status,
   heldUnits,
   collectedNotes: notes,
+  settleItems,
+  onSettle,
+  onRefused,
   onClose,
 }: {
   workOrderId: string;
@@ -214,6 +334,12 @@ function ChangeStatusSheet({
   heldUnits: readonly string[];
   /** The Collected confirmation's sentences (collectedNotes), shown when Collected is picked. */
   collectedNotes: readonly string[];
+  /** D149b: approved and ordered indent items; a move out of the open statuses settles them first. */
+  settleItems: readonly { status: PartRequestStatus }[];
+  /** Open the settle checklist for this move instead (this sheet closes), keeping the note. */
+  onSettle: (to: ClosingStatus, note?: string) => void;
+  /** The database refused the move for unsettled items (a stale page); null: already said. */
+  onRefused: (to: ClosingStatus, error: string | null, note?: string) => void;
   onClose: () => void;
 }) {
   const { toast } = useToast();
@@ -234,13 +360,21 @@ function ChangeStatusSheet({
   const [cancelling, setCancelling] = useState(false);
   const reasonOpen = reopening || cancelling;
 
+  const unsettled = settleItems.length > 0;
+
   const submit = () => {
     if (!to) return;
+    if (settleNeeded(to, settleItems)) {
+      onSettle(to, note);
+      return;
+    }
     startTransition(async () => {
       const result = await setWorkOrderStatus({ workOrderId, status: to, note });
       if (!result.ok) {
         const fieldError = result.fieldErrors?.note?.[0];
         if (fieldError) setError(fieldError);
+        else if (result.code === UNSETTLED && !isOpenStatus(to))
+          onRefused(to as ClosingStatus, result.error, note);
         else toast({ title: "Status not changed", description: result.error, tone: "error" });
         return;
       }
@@ -249,8 +383,16 @@ function ChangeStatusSheet({
     });
   };
 
-  const withReason = (target: WorkOrderStatus) => (reason: string) =>
-    setWorkOrderStatus({ workOrderId, status: target, note: reason });
+  const withReason = (target: WorkOrderStatus) => async (reason: string) => {
+    const result = await setWorkOrderStatus({ workOrderId, status: target, note: reason });
+    // A stale page: ReasonConfirm says why (cancel only, as the checklist
+    // that opens on the refresh offers); the reason was the cancel's own.
+    if (!result.ok && result.code === UNSETTLED && target === "cancelled") {
+      onRefused("cancelled", null);
+      return cancelRefusal(result);
+    }
+    return result;
+  };
 
   return (
     <Sheet
@@ -369,21 +511,33 @@ function ChangeStatusSheet({
           <section className="flex flex-col gap-2">
             <h3 className="font-display text-xs font-bold tracking-wide uppercase">Cancel</h3>
             <p className="text-sm text-dust-700">
-              Cancelling is final. Void the job&apos;s lines first.
+              Cancelling is final. Void the job&apos;s lines first
+              {unsettled ? ", and cancel its approved and ordered indent items" : ""}.
             </p>
-            <ReasonConfirm
-              startLabel="Cancel job…"
-              question="Why is this job being cancelled?"
-              hint="Kept on the job's timeline."
-              confirmLabel="Cancel job"
-              pendingLabel="Cancelling…"
-              failureTitle="Job not cancelled"
-              successTitle={`${jobNumber} cancelled`}
-              dismissLabel="Keep job"
-              onConfirm={withReason(cancel.to)}
-              onConfirmingChange={setCancelling}
-              onDone={onClose}
-            />
+            {unsettled ? (
+              // D149c(1): the checklist first; its own Cancel job… asks why.
+              <Button
+                variant="outline"
+                className="self-start"
+                onClick={() => onSettle("cancelled")}
+              >
+                Cancel job…
+              </Button>
+            ) : (
+              <ReasonConfirm
+                startLabel="Cancel job…"
+                question="Why is this job being cancelled?"
+                hint="Kept on the job's timeline."
+                confirmLabel="Cancel job"
+                pendingLabel="Cancelling…"
+                failureTitle="Job not cancelled"
+                successTitle={`${jobNumber} cancelled`}
+                dismissLabel="Keep job"
+                onConfirm={withReason(cancel.to)}
+                onConfirmingChange={setCancelling}
+                onDone={onClose}
+              />
+            )}
           </section>
         ) : null}
       </div>

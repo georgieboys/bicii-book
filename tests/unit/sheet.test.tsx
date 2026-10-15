@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import { Sheet } from "@/components/ui/sheet";
+import { Sheet, TOAST_INSET_VAR } from "@/components/ui/sheet";
 
 function Harness() {
   const [open, setOpen] = useState(false);
@@ -57,5 +57,28 @@ describe("Sheet", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(opener.closest("body > div")).not.toHaveAttribute("inert");
     expect(opener).toHaveFocus();
+  });
+
+  it("a sheet over another puts the outer sheet's toast inset back when it closes", () => {
+    const inset = () => document.documentElement.style.getPropertyValue(TOAST_INSET_VAR);
+    const ui = (inner: boolean) => (
+      <>
+        <Sheet open onOpenChange={() => {}} title="Outer" footer={<button>Go</button>}>
+          <p>outer</p>
+        </Sheet>
+        <Sheet open={inner} onOpenChange={() => {}} title="Inner">
+          <p>inner</p>
+        </Sheet>
+      </>
+    );
+    const { rerender, unmount } = render(ui(false));
+    const outer = inset();
+    expect(outer).not.toBe("");
+    rerender(ui(true));
+    expect(inset()).toBe("env(safe-area-inset-bottom)");
+    rerender(ui(false));
+    expect(inset()).toBe(outer);
+    unmount();
+    expect(inset()).toBe("");
   });
 });

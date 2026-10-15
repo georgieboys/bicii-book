@@ -137,6 +137,35 @@ export const fit = (
   scalar<string>(tx, "select public.fit_part_request($1, $2, $3)", [requestId, lineId, locationId]);
 
 /**
+ * Runs `fn` as whoever `tx` is, with the two D149b/c work_orders triggers
+ * of 20261014000900 switched off for the transaction, to build the state of
+ * a job that changed status before them (production's J-000002): completed
+ * or collected with approved or ordered items, and an open quote left on
+ * it. The triggers are switched back on before it returns. Owner-only
+ * (ALTER TABLE); never in a transaction that commits while they are off.
+ */
+export async function beforeTheGuard<T>(tx: pg.Client, fn: () => Promise<T>): Promise<T> {
+  const toggle = async (on: boolean) => {
+    const role = await scalar<string>(tx, "select current_user::text");
+    await tx.query("reset role");
+    const owner = await scalar<string>(tx, "select current_user::text");
+    const verb = on ? "enable" : "disable";
+    await tx.query(
+      `alter table public.work_orders
+         ${verb} trigger work_orders_require_settled_requests,
+         ${verb} trigger work_orders_withdraw_open_quote`,
+    );
+    if (role !== owner) await tx.query(`set local role ${role}`);
+  };
+  await toggle(false);
+  // On a failure the test's transaction is rolled back, which undoes the
+  // ALTER too (and an aborted transaction could not run another one).
+  const result = await fn();
+  await toggle(true);
+  return result;
+}
+
+/**
  * A fresh job (as ADMIN), an indent product (no stock), a supplier and a
  * fitting service, created as the owner; leaves `tx` acting as ADMIN.
  */

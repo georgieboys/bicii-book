@@ -471,3 +471,34 @@ export async function fitPartRequest(
     "RPC",
   );
 }
+
+/**
+ * fit_part_bought_outside (D149a; View costs or Manage purchasing): records
+ * an approved part never ordered in BICII as bought outside at `unitCost`
+ * (what the shop paid for one) and fits it in the same transaction, at
+ * `locationId` or the default location. Returns the new line's id
+ * (replay-safe on it). The cost is passed as a fixed-point string.
+ */
+export async function fitPartBoughtOutside(
+  supabase: ServerSupabase,
+  input: {
+    requestId: string;
+    lineId: string;
+    unitCost: string;
+    locationId: string | null;
+    reference: string | null;
+  },
+): Promise<string> {
+  return returned(
+    unwrap(
+      await supabase.rpc("fit_part_bought_outside", {
+        request_id: input.requestId,
+        line_id: input.lineId,
+        unit_cost: input.unitCost as unknown as number,
+        ...(input.locationId !== null ? { location_id: input.locationId } : {}),
+        ...(input.reference !== null ? { reference: input.reference } : {}),
+      }),
+    ),
+    "RPC",
+  );
+}

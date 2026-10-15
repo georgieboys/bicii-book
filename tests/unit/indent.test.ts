@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import { Constants } from "@/lib/database.types";
 import {
   CANCELLABLE,
+  COST_MISSING_BUY_NOTE,
   COST_MISSING_NOTE,
+  COST_MISSING_SWITCH_NOTE,
+  COST_SET_ON_RECEIPT_NOTE,
   PART_REQUEST_LABELS,
   PART_REQUEST_TONES,
+  canBuyOutside,
   canCancelRequest,
   canFit,
   isUnfitted,
@@ -13,12 +17,20 @@ import {
   notFittedNote,
   quoteMessage,
   quotePath,
+  quoteWithdrawNote,
   requestBadge,
+  settleDescription,
+  settleNeeded,
+  settleTitle,
   unansweredQuoteNote,
   unfittedMemo,
   whatsappHref,
   whatsappNumber,
+  type ClosingStatus,
+  type PartRequestStatus,
 } from "@/lib/indent";
+import { formatDateTime } from "@/lib/dates";
+import { isOpenStatus } from "@/lib/workshop";
 
 describe("whatsappNumber (D144)", () => {
   it("adds 65 to an 8-digit Singapore number, however it is spaced", () => {
@@ -194,12 +206,106 @@ describe("approved items not on the bill (R-082, D140, D149)", () => {
   });
 
   it("warns before fitting a part never ordered in BICII, or one with no cost", () => {
-    expect(neverOrderedNote("Shop floor")).toBe(
-      "Never ordered in BICII: fitting takes it out of stock at Shop floor. If it was bought outside BICII, that count may go below zero until the stock is corrected.",
+    // Staff who can record a purchase are pointed at Bought outside BICII (D149a).
+    expect(neverOrderedNote("Shop floor", true)).toBe(
+      "Never ordered in BICII. If you bought it outside BICII, choose Bought outside BICII so the stock count stays right and the job uses what you paid. From stock, it comes out of Shop floor.",
     );
-    expect(neverOrderedNote(null)).toContain("at the default location.");
+    expect(neverOrderedNote("Shop floor", false)).toBe(
+      "Never ordered in BICII: fitting takes it out of stock at Shop floor. If it was bought outside BICII, ask someone with View costs or Manage purchasing to fit it as bought outside, so the stock count stays right.",
+    );
+    expect(neverOrderedNote(null, false)).toContain("at the default location.");
+    expect(neverOrderedNote(null, true)).toContain("comes out of the default location.");
     expect(COST_MISSING_NOTE).toBe(
       "This part has no cost yet, so it can't be fitted: its yield can't be worked out. Set its cost on the product's page first.",
     );
+    expect(COST_MISSING_BUY_NOTE).toContain("choose Bought outside BICII and enter what you paid");
+    expect(COST_MISSING_SWITCH_NOTE).toBe(
+      "This part has no cost yet. If you bought it outside BICII, enter what you paid; otherwise ask someone with View costs to set the product's cost.",
+    );
+    expect(COST_SET_ON_RECEIPT_NOTE).toBe(
+      "Its cost is set when its order is received in Purchasing. Receive it first.",
+    );
+  });
+});
+
+const REQUEST_STATUSES = Constants.public.Enums.part_request_status as readonly PartRequestStatus[];
+const JOB_STATUSES = Constants.public.Enums.work_order_status;
+
+describe("Bought outside BICII (D149a)", () => {
+  it("is offered for an approved part never ordered, to cost or purchasing holders only", () => {
+    const order = {
+      purchaseOrderId: "po",
+      poNumber: "PO-000001",
+      arrived: false,
+      locationId: null,
+    };
+    for (const kind of ["part", "service"] as const) {
+      for (const status of REQUEST_STATUSES) {
+        for (const ordered of [null, order]) {
+          for (const purchaseData of [true, false]) {
+            expect(
+              canBuyOutside({ kind, status, order: ordered }, purchaseData),
+              `${kind} ${status} ${ordered ? "ordered" : "never ordered"} ${purchaseData}`,
+            ).toBe(kind === "part" && status === "approved" && ordered === null && purchaseData);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe("settle before closing (D149b, D149c)", () => {
+  it("mirrors the trigger: a move out of the open statuses waits for approved and ordered items", () => {
+    for (const to of JOB_STATUSES) {
+      for (const status of REQUEST_STATUSES) {
+        const expected = !isOpenStatus(to) && (status === "approved" || status === "ordered");
+        expect(settleNeeded(to, [{ status }]), `${to} ${status}`).toBe(expected);
+        // Other items around it change nothing.
+        expect(settleNeeded(to, [{ status: "proposed" }, { status }, { status: "fitted" }])).toBe(
+          expected,
+        );
+      }
+      expect(settleNeeded(to, [])).toBe(false);
+    }
+    expect(REQUEST_STATUSES.filter((s) => isUnfitted(s))).toEqual(["approved", "ordered"]);
+  });
+
+  it("names the move in the checklist's title and says what to do", () => {
+    expect(settleTitle("completed", "J-000123")).toBe("Before completing J-000123");
+    expect(settleTitle("ready_for_collection", "J-000123")).toBe("Before marking J-000123 ready");
+    expect(settleTitle("collected", "J-000123")).toBe("Before marking J-000123 collected");
+    expect(settleTitle("cancelled", "J-000123")).toBe("Before cancelling J-000123");
+    expect(settleDescription("completed")).toBe(
+      "Fit or cancel each approved or ordered item first.",
+    );
+    expect(settleDescription("collected")).toBe(settleDescription("completed"));
+    expect(settleDescription("cancelled")).toBe(
+      "Cancel each approved or ordered item first. A cancelled job can't keep items waiting.",
+    );
+  });
+
+  it("says an open quote is withdrawn by the move, and its items go back to Proposed", () => {
+    const sentAt = "2026-10-15T02:00:00Z";
+    const open = { state: "open" as const, sentAt };
+    expect(quoteWithdrawNote(open, "completed", 2)).toBe(
+      `Completing the job withdraws the quote sent ${formatDateTime(sentAt)}: the customer's link will say it was withdrawn, and its 2 items go back to Proposed.`,
+    );
+    expect(quoteWithdrawNote(open, "cancelled", 1)).toBe(
+      `Cancelling the job withdraws the quote sent ${formatDateTime(sentAt)}: the customer's link will say it was withdrawn, and its item goes back to Proposed.`,
+    );
+    expect(quoteWithdrawNote({ state: "expired", sentAt }, "completed", 0)).toBe(
+      `Completing the job withdraws the quote sent ${formatDateTime(sentAt)}: the customer's link will say it was withdrawn.`,
+    );
+    for (const state of ["answered", "withdrawn"] as const) {
+      expect(quoteWithdrawNote({ state, sentAt }, "completed", 1)).toBeNull();
+    }
+    expect(quoteWithdrawNote(null, "completed", 0)).toBeNull();
+    const targets: ClosingStatus[] = [
+      "completed",
+      "ready_for_collection",
+      "collected",
+      "cancelled",
+    ];
+    for (const to of targets) expect(quoteWithdrawNote(open, to, 1)).toContain("withdraws");
   });
 });

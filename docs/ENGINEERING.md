@@ -225,9 +225,11 @@ from the code:
   staff roles, `20261006001000` and up reporting, `20261007…` public site,
   `20261014000100`–`20261014000200` indent parts and quotes (Phase 13) and
   `20261014000300` and up Stripe payments (Phase 14; the indent follow-up
-  of 2026-10-15 took `20261014000700`). Main and the hosted project end at
+  of 2026-10-15 took `20261014000700`, and closing indent items, D149a–c,
+  `20261014000800` and `20261014000900`). Main and the hosted project end at
   `20261014000600_payment_exception_dedupe.sql` since PR #25
-  (`20261014000700_indent_closed_jobs.sql` once this branch merges), so a
+  (`20261014000700_indent_closed_jobs.sql` once PR #26 merges, then
+  `20261014000900_indent_settle_and_outside_purchase.sql`), so a
   new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).

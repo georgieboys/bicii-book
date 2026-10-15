@@ -52,7 +52,8 @@ URLs, or customer data in this file.
   `20261014000600_payment_exception_dedupe.sql`
   (`20261014000700_indent_closed_jobs.sql` once
   [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
-  containment merges).
+  containment merges, and `20261014000900_indent_settle_and_outside_purchase.sql`
+  after D149a–c).
 - Next action: the owner decides whether to create a staging project
   before staff and customers use production; until then each migration
   is dry-run by `migrate.yml` before it applies.
@@ -2124,10 +2125,12 @@ URLs, or customer data in this file.
 
 ## R-082 — Approved indent parts can be left unfitted on a completed or collected job
 
-- Category: product gap (business process; D140, D149, D151, D154).
-- Status and owner: contained 2026-10-15 SGT on `claude/brave-clarke-kfqhgt`
-  (local commit, not pushed; not deployed); the owner decides whether
-  Complete is blocked or only warned (pending); build agent (containment).
+- Category: product gap (business process; D140, D149, D149b, D151, D154).
+- Status and owner: mitigated 2026-10-15 SGT: contained by D149 (PR #26),
+  then closed for new jobs by D149b, the owner's answer to the Complete
+  question (block), and D149c(1) (`20261014000900`, on
+  `claude/brave-clarke-kfqhgt`, not deployed); what remains is the jobs
+  that closed before the guard (below); build agent.
 - Trigger: a job with an approved or ordered indent item is completed and
   collected without the item being fitted, for example because the part
   was bought outside BICII or never arrived, or because Fit was missed.
@@ -2166,9 +2169,10 @@ URLs, or customer data in this file.
     staff member and in Exceptions for admins and managers, naming only
     the share the fitted parts do not account for when some of the
     quote's parts were fitted;
-  - both ways to Collected name the items not on the bill and tie money
-    paid ahead to them; a closed job shows what was paid above its bill
-    (`held_over_total`);
+  - both ways to Collected named the items not on the bill and tied money
+    paid ahead to them (replaced by D149b's settle checklist, below: the
+    Collected confirmation now carries only the paid-online sentence); a
+    closed job shows what was paid above its bill (`held_over_total`);
   - D149: an active admin or manager cancels a request that was never
     fitted on a collected or cancelled job, with a reason, so its deposit
     can be refunded in Stripe (D155) and the problem clears; an item still
@@ -2181,22 +2185,38 @@ URLs, or customer data in this file.
     has no cost (D24);
   - the quote page says "Ask the shop about your deposit." once the job
     closed without the parts.
-  Staff can still complete a job without fitting: the warning at Complete
-  itself is not built. The containment covers approved and ordered
-  requests only: a fitted request whose line was voided is
+  The containment covers approved and ordered requests only: a fitted
+  request whose line was voided is
   [R-083](#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged).
-- Next action: the owner decides whether Complete is blocked, or only
-  warned, while approved or ordered indent items are not fitted (the
-  owner noted that not all orders happen through the app); then build
-  that choice with its own decision number (the indent range D140–D149 is
-  used up, so D160 or later). For J-000002 once this is deployed: an
-  admin or manager cancels the request with a reason and refunds the
-  S$2.00 in Stripe (RUNBOOK "Stripe: resolving problems").
-- Revisit trigger: the owner's Complete decision; a deposit flagged
-  `paid_parts_not_fitted` in production; staff asking for a Complete
-  checklist.
-- Last checked: 2026-10-15 SGT, this commit (database tests, unit tests,
-  E2E).
+- The fix (D149b, D149c, `20261014000900`): no job can move into
+  completed, ready for collection, collected or cancelled while a request
+  is approved or ordered (`work_order_has_unfitted_requests`, a trigger
+  for every writer); Complete, Ready, Collected and Cancel job open a
+  checklist with Fit (including "Bought outside BICII", D149a,
+  [R-084](#r-084--a-part-bought-outside-bicii-rests-on-a-typed-cost)) and
+  Cancel item…; an open quote is withdrawn when its job is completed or
+  cancelled (when it leaves the open statuses, D149c(2)), and the
+  migration withdrew those already open on jobs that were not open
+  (D149c(6)).
+- Residual: jobs that left the workshop before the guard may still hold
+  approved or ordered items. Completed and ready ones are settled at their
+  next move (Ready or Collected opens the checklist: Cancel, or reopen and
+  Fit). Collected and cancelled ones are final: D149's admin or manager
+  cancel is the only way, and only those with a paid deposit are flagged
+  (`paid_parts_not_fitted`); a job without a deposit shows its items as
+  "Not fitted" on its page but in no list. RUNBOOK "Indent items on jobs
+  closed before the guard" has a read-only query that lists them all.
+- Next action: for J-000002 once deployed: an admin or manager cancels the
+  request with a reason and refunds the S$2.00 in Stripe (RUNBOOK "Stripe:
+  resolving problems"); the owner runs the RUNBOOK query once after
+  `20261014000900` is applied. Later: an operational exception for every
+  closed job with an approved or ordered item, not only those with a paid
+  deposit.
+- Revisit trigger: the RUNBOOK query finds rows; a deposit flagged
+  `paid_parts_not_fitted` in production.
+- Last checked: 2026-10-15 SGT, `tests/db/indent-close.test.ts` (the
+  guard's 110 pairs for the RPC and direct writers; a job completed before
+  the guard settled at Collected; J-000002's cancel), unit tests, E2E.
 
 ## R-083 — A fitted indent request whose line was voided is stuck and unflagged
 
@@ -2242,10 +2262,60 @@ URLs, or customer data in this file.
   job with a live line of the same product or service (with its own
   database test: fit, void, complete, collect; a hand-added replacement
   line as the negative case). Any of these takes a number from D160.
-- Revisit trigger: a fitted indent line voided in production; the owner's
-  Complete decision (R-082), which may touch the same paths.
+  D149b's guard (R-082) does not see such a request either: it is
+  `fitted`, so Complete is not held up by it. A part fitted as bought
+  outside BICII (D149a) whose line is voided is the same case: the
+  reversal puts it back into stock at its cost, the receipt row stays,
+  and the request stays `fitted`.
+- Revisit trigger: a fitted indent line voided in production.
 - Last checked: 2026-10-15 SGT, code reading on
-  `claude/brave-clarke-kfqhgt`.
+  `claude/brave-clarke-kfqhgt`; `tests/db/indent-close.test.ts` (voiding a
+  bought-outside line).
+
+## R-084 — A part bought outside BICII rests on a typed cost
+
+- Category: data quality and reporting gap (D149a, D149c(3)–(5), D5, D63,
+  D105, D152).
+- Status and owner: accepted for MVP (the owner's decision D149a, with
+  build defaults D149c to confirm, PRODUCT question 34); build agent
+  (record). On `claude/brave-clarke-kfqhgt`, not deployed.
+- Trigger: Fit → "Bought outside BICII" on an approved indent part never
+  ordered in BICII (`fit_part_bought_outside`).
+- Impact:
+  - the cost is what staff type, with no supplier and no document beyond
+    an optional free-text "Bought from" (shop and receipt number); a typo
+    becomes the product's cost (D149c(4)) and the job's yield;
+  - it is not a purchase receipt: D105's purchases ("purchase receipts",
+    "units received") and supplier reporting leave it out; it shows in the
+    product's movements as "Bought outside BICII" and in parts used on
+    jobs;
+  - a purchase receipt recorded later but back-dated before the outside
+    purchase still overwrites the product's cost, because
+    `receive_purchase`'s D63 check reads only receipt lines;
+  - an ordered part later bought elsewhere has no clean path: it is
+    refused (`part_request_ordered`), cancelling it keeps it on its
+    purchase order, and there is no "un-order";
+  - it sidesteps D152's deposit gate (Fit was never gated), and a request
+    is all bought outside or all from stock: it cannot be split.
+- Evidence and confidence: high, by design and by test:
+  `tests/db/indent-close.test.ts` (the movement, the cost and its
+  `cost_changed` entry with the reason, reconciliation clean, not an
+  adjustment, absent from `report_activity`'s purchase counts; a direct
+  product cost edit racing it never splits the receipt's cost from the
+  line's, because the products row is locked before the cost is read).
+  The typed cost itself is what this risk is about: the database keeps it
+  consistent, not correct.
+- Workaround or containment: the permission (View costs or Manage
+  purchasing, D149c(3)); the cost is prefilled with the expected cost
+  given when the part was proposed; the movement's reason and the
+  timeline name the job and the reference; the product's history names
+  the job on the cost change.
+- Next action: a purchases-report line for `outside_purchase`; an
+  "un-order" for a request whose purchase order is still a draft; both
+  need numbers from D160.
+- Revisit trigger: the owner's answer to question 34; staff asking for
+  outside purchases in the purchases report or by supplier.
+- Last checked: 2026-10-15 SGT, this branch.
 
 ## R-085 — Stripe keys and the webhook are new hosted secrets
 

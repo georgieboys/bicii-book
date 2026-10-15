@@ -45,10 +45,10 @@ This section was added by the documentation retrofit (2026-10-05, inspected
 at `c6bf6d0`). The numbered sections below are never renumbered; code and
 migration comments cite them as "DATA-MODEL §n".
 
-**Authority.** The schema source is the 63 files in
+**Authority.** The schema source is the 65 files in
 [supabase/migrations/](../supabase/migrations/), from
 `20261004000100_foundation.sql` to
-`20261014000700_indent_closed_jobs.sql` (Phase 6 added `20261004003300` to
+`20261014000900_indent_settle_and_outside_purchase.sql` (Phase 6 added `20261004003300` to
 `20261004003700`; Phase 8, labels, added `20261004003800_labels.sql` and
 Phase 10, Shopify, `20261004003900_shopify_integration.sql`,
 `20261004004000_shopify_order_processing.sql` and
@@ -105,7 +105,18 @@ signatures `public.cancel_part_request` (D149), `public.withdraw_quote`,
 `public.order_part_requests` and `private.quote_view`, replaces
 `public.payment_issues` (same columns, a ninth issue) and
 `public.work_order_payment_totals` (one column appended), and creates
-`public.work_order_unfitted_requests`; no enum value, table or column).
+`public.work_order_unfitted_requests`; no enum value, table or column;
+then the owner's decisions D149a and D149b (2026-10-15) added
+`20261014000800_outside_purchase_enum` (the `movement_type` value
+`outside_purchase`, on its own for the same reason) and
+`20261014000900_indent_settle_and_outside_purchase`, which adds the CHECK
+`inventory_movements_outside_purchase_shape`, the column
+`job_part_requests.outside_purchase_movement_id` (with its CHECK, unique
+index and column grant), `public.fit_part_bought_outside` and two
+`work_orders` triggers (`work_orders_require_settled_requests`,
+`work_orders_withdraw_open_quote`), and withdraws once the quotes left
+open on jobs that were not open; it replaces no existing function (§5
+"Closing indent items")).
 The labels and Shopify
 migrations sort before the purchasing, sign-in, roles, reporting and
 public-site ones, and no function, view, policy, grant, trigger or type
@@ -147,10 +158,11 @@ document is corrected.
 **Applied state.**
 
 - Local: on 2026-10-15 SGT, after `npm run db:reset` on
-  `claude/brave-clarke-kfqhgt` with `20261014000700_indent_closed_jobs`
+  `claude/brave-clarke-kfqhgt` with
+  `20261014000900_indent_settle_and_outside_purchase`
   (`npm run test:e2e` resets the same database),
   `psql postgresql://postgres:postgres@127.0.0.1:5432/bicii_dev -Atc "select count(*), max(version) from supabase_migrations.schema_migrations"`
-  printed `63|20261014000700` (every file applied).
+  printed `65|20261014000900` (every file applied).
 - CI: the `check` job diffs the generated types against a throwaway
   database built from the migrations, and the `test` and E2E jobs run
   `npm run db:reset` (migrations, then the seed) before testing
@@ -162,7 +174,9 @@ document is corrected.
   PR #24 merged, its migration history held 61 versions, the last
   `20261014000500` (read-only); PR #25 added `20261014000600` (62
   versions, as reported when this branch started from `main` be1ad17; not
-  re-read here). `20261014000700` reaches it when this branch merges.
+  re-read here). `20261014000700` reaches it when PR #26 merges, and
+  `20261014000800` and `20261014000900` when this branch's next commit
+  does.
   There is no staging project
   ([R-001](RISKS.md#r-001--nothing-is-deployed)).
 
@@ -178,9 +192,9 @@ the `20261004` prefix; Phase 7's keep `20261005`). For planned tables, the rows 
 | §2 Customers, bikes, attachments | Implemented | `000600_customers`, `000700_bikes`, `000800_media_storage`, `000900_attachments`, `001000_customer_access`, `001100_staff_search`; Phase 11's customer link and photo policy in `20261006103000_public_site` |
 | §3 Shop hours and appointments | Implemented | `002700_appointment_enum_values` to `003200_appointment_reporting` (Phase 2); `bookable_slots` in `20261006103000_public_site` (Phase 11) |
 | §4 Workshop | Implemented | `001300_work_orders`, `001500_workshop_rpcs`, `001600_workshop_customer_access`, `001700_workshop_search` |
-| §5 Services and line items | Implemented | `001200_workshop_catalog`, `001400_work_order_lines`, `001500_workshop_rpcs`; consigned-part columns `003300_consignment`, their rules `003400_consignment_job_parts` (D44); indent parts and quotes `20261014000100`, `20261014000200` (D140–D147), their deposits `20261014000500` (D151, D152, D158), and on completed and closed jobs `20261014000700_indent_closed_jobs` (D149's cancel, the order and withdraw guards, `work_order_unfitted_requests`, the quote page's `job_closed`; R-082) |
+| §5 Services and line items | Implemented | `001200_workshop_catalog`, `001400_work_order_lines`, `001500_workshop_rpcs`; consigned-part columns `003300_consignment`, their rules `003400_consignment_job_parts` (D44); indent parts and quotes `20261014000100`, `20261014000200` (D140–D147), their deposits `20261014000500` (D151, D152, D158), and on completed and closed jobs `20261014000700_indent_closed_jobs` (D149's cancel, the order and withdraw guards, `work_order_unfitted_requests`, the quote page's `job_closed`; R-082); closing indent items `20261014000800_outside_purchase_enum`, `20261014000900_indent_settle_and_outside_purchase` (D149a's `fit_part_bought_outside`, D149b's settle guard, D149c's quote withdrawal) |
 | §6 Catalog and inventory | Implemented | `001800_inventory`, `002100_inventory_publication`, `002200_inventory_search`; `003300_consignment` adds the units' consignment foreign key, ownership rules and the consignment branch of `private.selling_price`; the sale-line columns have their foreign keys since `003500_sales`; the Shopify id rules (gid checks; `shopify_product_id` no longer unique, D84) since `003900_shopify_integration`; `supplier_products` is Phase 7's (§10) |
-| §7 Inventory movement ledger | Implemented | `001800_inventory`, `001900_inventory_jobs`, `002000_inventory_reporting`; `003300_consignment` adds the consignment foreign key, D50's movement rules and `private.record_linked_movement`; `003500_sales` adds the sale-line foreign keys and `inventory_movements_restock_once`; `20261005000300_purchase_receiving` adds the receipt-line foreign key, `inventory_movements_purchase_received_has_receipt_line` and `private.record_receipt_movement` |
+| §7 Inventory movement ledger | Implemented | `001800_inventory`, `001900_inventory_jobs`, `002000_inventory_reporting`; `003300_consignment` adds the consignment foreign key, D50's movement rules and `private.record_linked_movement`; `003500_sales` adds the sale-line foreign keys and `inventory_movements_restock_once`; `20261005000300_purchase_receiving` adds the receipt-line foreign key, `inventory_movements_purchase_received_has_receipt_line` and `private.record_receipt_movement`; `20261014000800`, `20261014000900` add the type `outside_purchase` and `inventory_movements_outside_purchase_shape` (D149a) |
 | §8 Sales | Implemented | `sales`, `sale_lines`, `sale_refunds`, `private.sell_line`, `record_retail_sale`, `restock_unit`, `record_sale_refund` (`003500_sales`; the partial unique index `sale_lines_unit_sells_once` replaces this section's plain `unique`, D46). Screens: Phase 6 step 4 (`src/app/(staff)/sales/`, `src/lib/domain/sales.ts`). Shopify orders reuse `private.sell_line` since Phase 10 step 1 (`004000_shopify_order_processing` replaces it with the same body plus `shopify_line_part`; `003900` adds the Shopify columns and `sale_lines_shopify_line_part_key`, D80) |
 | §9 Consignment | Implemented | Phase 6 step 1: consignors, items, charges, item history, returns, `reporting.consignment_item_position`, consigned job parts (`003300_consignment`, `003400_consignment_job_parts`; D44–D52); step 2: settlements, reversals, the ledgers and the balance rule (`003600_consignment_settlements`; D46, D47). Screens: step 3 (`src/app/(staff)/consignment/`, `src/lib/domain/consignment.ts`); selling a consigned item in store: step 4 (Sell on the item page, `/sales`) |
 | §10 Suppliers and purchasing | Implemented | Phase 7: `20261005000100_suppliers`, `…0200_purchase_orders`, `…0300_purchase_receiving`, `…0400_purchasing_search`, `…0500_purchasing_reorder` (D60–D66). Screens: `src/app/(staff)/purchasing/`, `src/lib/domain/purchasing.ts`, `src/lib/domain/suppliers.ts`. Purchases are shop-owned quantity products only (D62; consigned products are refused, `purchase_line_not_shop_owned`) |
@@ -189,7 +203,7 @@ the `20261004` prefix; Phase 7's keep `20261005`). For planned tables, the rows 
 | §13 Shopify integration | Partly | Inbound built (Phase 10 step 1: `003900_shopify_integration`, `004000_shopify_order_processing`: settings, sync rows, events, the queue, the audit trail, webhook recording, order and refund processing, retry, dismiss and the links; D80–D89). Outbound database built (step 2: `004100_shopify_product_sync`: the online price, Publish online, Sync now, the settings RPC, the deferred enqueue triggers, the sync worker's state and result RPCs, `reporting.shopify_sync_status`, `public_items.buy_online_url`). Service layer built (step 3: `src/lib/integrations/shopify/`, the webhook and cron routes; no schema change). Screens built (step 4: the product page's Online card, `/shopify` and its queue, products, events and inspector, `src/lib/domain/shopify.ts`; no schema change). Not verified against a real store ([R-047](RISKS.md#r-047--the-live-shopify-adapter-is-unverified-against-a-real-store)) |
 | §14 Reporting views | Partly | Built: `stock_levels`, `product_stock`, `low_stock`, `public_items`, `financial_lines`, `daily_summary`, `work_order_activity`, `operational_exceptions`, `appointment_daily`, and `work_order_totals` / `work_order_totals_staff` (in `public`). `consignment_item_position`, `consignor_item_ledger`, `consignor_ledger` (Phase 6; no API grant; the consignor ledgers are built and read through `list_consignors` and `consignor_statement`); `financial_lines` has its sale branch and `daily_summary` its consignment columns since `003700_consignment_reporting`. `purchase_order_progress` and `product_on_order` (Phase 7). `operational_exceptions` has its `integration_failed` rows since `004000_shopify_order_processing` (admins only, D86). `shopify_sync_status` and `public_items.buy_online_url` since `004100_shopify_product_sync` (Phase 10 step 2). `report_lines` and the period-report helpers (Phase 9 step 1, `20261006001000_report_periods`, `…1100_report_stock_value`; `financial_lines` gained only the `sa.source <> 'work_order'` exclusion). `unit_ledger_disposition`, `unit_reconciliation`, `stock_reconciliation` and the extended `operational_exceptions` (Phase 9 step 3, `…1200_stock_reconciliation`, `…1300_operational_exceptions`, which keeps Phase 10's `integration_failed` rows). `operational_exceptions` has its `payment_attention` and `stripe_attention` rows since `20261014000500_indent_deposits` (Phase 14 step 2, through `private.integration_exceptions()`, D159b). Nothing listed here is missing since reporting joined `main`; there is no `inventory_balances` cache by design (D106) |
 | §15 Row-level security matrix | Partly | Rows for every built table are implemented and tested, including consignment (Phase 6 step 1), sales and settlements (step 2, D48), purchasing (Phase 7, D60), labels (Phase 8 step 1), the Shopify integration tables (Phase 10 step 1, D86), and the Stripe tables and the deposit views (Phase 14 steps 1 and 2); the rows of later phases are design |
-| §16 RPC catalogue | Partly | Rows marked "Built" exist, including the five consignment item RPCs (Phase 6 step 1) and the five sale and settlement write RPCs and six read RPCs (step 2), all with screens since steps 3 and 4 (deviations from the original rows: `record_retail_sale`, `restock_unit(unit_id, sale_line_id, location_id, reason)`, `return_consignment_item(return_id, item_id, reason, quantity, location_id)`), the fourteen purchasing RPCs (Phase 7, `receive_purchase(purchase_order_id, idempotency_key, lines, reference, received_at, notes)` among them), the five label RPCs (Phase 8 step 1), the five Shopify service-role RPCs and four staff RPCs (Phase 10 step 1), the two sync-worker RPCs and three staff RPCs of the outbound sync (step 2), the seven period-report RPCs (Phase 9 step 1: `report_period_summary`, `report_period_series`, `report_breakdown`, `report_line_items`, `report_activity`, `report_activity_by_mechanic`, `report_stock_value`), the four reconciliation and exception RPCs (Phase 9 step 3: `report_stock_reconciliation`, `report_unit_reconciliation`, `report_exception_counts`, `set_consignment_settlement_alert_days`; `operational_exceptions` gained columns) Phase 11's `claim_my_customer` and `bookable_slots`, and Phase 14's `record_stripe_event`, `record_stripe_read` (step 1), `set_indent_deposit_percent`, `prepare_deposit_checkout`, `record_deposit_checkout` and `order_part_requests` with `override_reason` (step 2), and `20261014000700_indent_closed_jobs`'s replacements with the same signatures (`cancel_part_request` with D149's admin or manager cancel on closed jobs, `withdraw_quote` refusing closed jobs, `order_part_requests` refusing jobs that are not open; R-082); the rows of later phases are design |
+| §16 RPC catalogue | Partly | Rows marked "Built" exist, including the five consignment item RPCs (Phase 6 step 1) and the five sale and settlement write RPCs and six read RPCs (step 2), all with screens since steps 3 and 4 (deviations from the original rows: `record_retail_sale`, `restock_unit(unit_id, sale_line_id, location_id, reason)`, `return_consignment_item(return_id, item_id, reason, quantity, location_id)`), the fourteen purchasing RPCs (Phase 7, `receive_purchase(purchase_order_id, idempotency_key, lines, reference, received_at, notes)` among them), the five label RPCs (Phase 8 step 1), the five Shopify service-role RPCs and four staff RPCs (Phase 10 step 1), the two sync-worker RPCs and three staff RPCs of the outbound sync (step 2), the seven period-report RPCs (Phase 9 step 1: `report_period_summary`, `report_period_series`, `report_breakdown`, `report_line_items`, `report_activity`, `report_activity_by_mechanic`, `report_stock_value`), the four reconciliation and exception RPCs (Phase 9 step 3: `report_stock_reconciliation`, `report_unit_reconciliation`, `report_exception_counts`, `set_consignment_settlement_alert_days`; `operational_exceptions` gained columns) Phase 11's `claim_my_customer` and `bookable_slots`, and Phase 14's `record_stripe_event`, `record_stripe_read` (step 1), `set_indent_deposit_percent`, `prepare_deposit_checkout`, `record_deposit_checkout` and `order_part_requests` with `override_reason` (step 2), and `20261014000700_indent_closed_jobs`'s replacements with the same signatures (`cancel_part_request` with D149's admin or manager cancel on closed jobs, `withdraw_quote` refusing closed jobs, `order_part_requests` refusing jobs that are not open; R-082), and `20261014000900`'s `fit_part_bought_outside` (D149a); the rows of later phases are design |
 | §17 Sequences and short IDs | Implemented | `000100_foundation` (all seven prefixes); C is used from Phase 6 step 1 (`consignment_items`), S from step 2 (`sales`), PO from Phase 7 (`purchase_orders`) |
 | §19 Customer payments (Stripe) | Partly | Step 1's database built (`20261014000300_payment_enum_values`, `20261014000400_stripe_payments`: `stripe_events`, `payments`, `payment_refunds`, the guards, the apply paths, `record_stripe_event`, `record_stripe_read`, the owner's purge; D150, D153, D155, D159), proved by `tests/db/stripe-payments.test.ts`; called by the webhook route and the adapter (`src/lib/integrations/stripe/`, step 1's second commit; no schema change). Step 2's database built (`20261014000500_indent_deposits`: the deposit setting and snapshot, `quote_deposits`, `payment_issues`, `work_order_payment_totals`, the quote page's `deposit` key, `prepare_deposit_checkout`, `record_deposit_checkout`, the D152 gate, `payment_attention` and `stripe_attention`; D151, D152, D154, D158), proved by `tests/db/indent-deposits.test.ts`. Step 2's screens built: the quote page's deposit with Pay deposit (Stripe Checkout through `checkout.ts`), Settings → Customer payments, and the job's Customer payments card with *Check with Stripe* and *Open in Stripe* and the order sheet's override (bf91ea7: `src/components/domain/payments-card.tsx`, `indent-card.tsx`, `tests/e2e/payments.spec.ts`). The final review's fixes (no new migration file; the step 1 and 2 files edited before any hosted apply): `record_stripe_read` also takes a PaymentIntent, `payment_refunds.status_changed_at`, `payment_issues` without a definer helper, the quote page's `parts_ordered`. The recheck (after the steps 1 and 2 files reached the hosted project, so a new file): `20261014000600_payment_exception_dedupe` lists each Stripe problem once on Exceptions (a refund in another currency or mode as `refund_not_counted` while it is not failed or canceled, else one `stripe_attention` row per Stripe object and outcome) and gives `currency_mismatch` its own sentence. After the owner's live test (R-082): `20261014000700_indent_closed_jobs` adds `payment_issues`' `paid_parts_not_fitted` and `work_order_payment_totals.held_over_total`, proved by `tests/db/indent-deposits.test.ts`. Missing: step 3 (balances, reports) |
 | §18 Seed data | Implemented | Phase 1–5, Phase 2, Phase 6, Phase 7, Phase 8 and Phase 10 parts are in `supabase/seed.sql`, in that order (Phase 10's last) |
@@ -858,6 +872,18 @@ can be cancelled (D16, and only with no live line). "Closed" means collected
 or cancelled: assignments and the approval flag no longer change; details
 and notes still may.
 
+Indent items (D149b, D149c(1), `20261014000900`): a job moves into a
+status that is not open (completed, ready for collection, collected,
+cancelled) only while none of its `job_part_requests` is `approved` or
+`ordered`. BEFORE UPDATE OF status trigger
+`work_orders_require_settled_requests` (every writer; P0001
+`work_order_has_unfitted_requests`), after
+`work_orders_cancel_requires_no_lines` and `work_orders_enforce_rules`, so
+the transition, reason and live-line refusals come first; the transition
+table above is unchanged. AFTER UPDATE OF status trigger
+`work_orders_withdraw_open_quote` (D149c(2)): an open quote is withdrawn
+when the job leaves the open statuses. Both in §5 "Closing indent items".
+
 Stamps. `private.work_orders_enforce_rules` (BEFORE INSERT OR UPDATE, every
 writer) derives them from `status_changed_at`, which it sets to
 `clock_timestamp()` unless the writer moved it forward (backfills; moving it
@@ -1154,6 +1180,8 @@ job_part_requests
                                    -- ordered | fitted | cancelled
   purchase_order_line_id uuid null fk purchase_order_lines  -- set when ordered
   work_order_line_item_id uuid null unique fk work_order_line_items  -- set when fitted
+  outside_purchase_movement_id bigint null unique fk inventory_movements
+                                   -- D149a: the receipt of a part fitted as bought outside BICII
   cancel_reason text null          -- required when cancelled (≤ 500)
   created_by, created_at, updated_at, decided_at,
   ordered_at, ordered_by, fitted_at, fitted_by, cancelled_at, cancelled_by
@@ -1338,6 +1366,97 @@ requests and quotes; `order_part_requests` locks every job in id order,
 then its requests, answers a replay, then checks each job is open (the
 re-lock waits for nothing) before it touches a purchase order.
 
+### Closing indent items (D149a, D149b, D149c)
+
+`20261014000800_outside_purchase_enum` and
+`20261014000900_indent_settle_and_outside_purchase` (owner decisions
+D149a, D149b of 2026-10-15; D149c build defaults; ADR-024 amendment
+"Closing indent items"). Nothing here replaces an existing function.
+
+**`job_part_requests.outside_purchase_movement_id`** (`bigint null`,
+foreign key to `inventory_movements`, `on delete restrict`): the
+`outside_purchase` movement recorded when the part was fitted as bought
+outside BICII. CHECK `job_part_requests_outside_purchase_shape` (null, or a
+`part` that is `fitted`); unique partial index
+`job_part_requests_outside_purchase_key` (one request per receipt). Granted
+to `authenticated` like the request's other links: it is not a cost (the
+cost is on the movement, read through `inventory_movement_costs`).
+
+The request state machine gains one path: `approved → fitted` through
+`fit_part_bought_outside` (parts never ordered only). `part_fitted`'s
+payload gains `bought_outside: true` and `reference` (the trimmed "Bought
+from" text or null) on that path; it never carries a cost.
+
+**`fit_part_bought_outside(request_id, line_id, unit_cost, location_id =
+null, reference = null) → uuid`** (D149a; §16): view_costs or
+manage_purchasing (`private.can_view_purchase_costs()`, checked before
+anything is read; 42501). In order: the job (`private.lock_work_order`),
+the request `for update`; the replay (a request fitted as bought outside
+with this `line_id` returns it, any other fitted request is
+`part_request_fitted`); `outside_purchase_part_only` for a service,
+`part_request_ordered` for an ordered part (received in Purchasing, then
+fitted), `part_request_not_approved` for anything else not approved;
+`work_order_locked` unless the job is open; `outside_purchase_cost_invalid`
+outside 0–99,999.99; `outside_purchase_reference_too_long` over 100
+characters; `part_request_conflict` when a line with `line_id` already
+exists; `private.lock_stock(product)`, then the products row `for no key
+update` (§7 step 7, always, so no direct cost edit lands between this read
+and `add_inventory_line`'s) and its checks (archived, inactive, not
+shop-owned quantity: `indent_product_invalid`; another currency:
+`currency_mismatch`); the location (`location_id`, or
+`add_inventory_line`'s default: the active one with the lowest sort order
+and name; `location_required`, `location_inactive`). Then, in one
+transaction: one `outside_purchase` movement (+quantity at the location,
+`unit_cost_snapshot` = `unit_cost`, `request_id` = `line_id`,
+`work_order_id` = the job, reason "Bought outside BICII for J-…" with the
+reference in brackets); the product's `default_direct_cost` set to
+`unit_cost` when it differs (§6; `cost_changed` with that reason and an
+empty payload); `add_inventory_line(line_id, job, product, quantity,
+location, null, the quoted price)`, whose `job_consumption` takes the same
+quantity back out at the same cost (D24: the line takes the product's
+cost); the request `fitted` with its line and movement; `part_fitted`.
+On-hand at the location never changes, so it never goes below zero; any
+refusal rolls everything back.
+
+**The settle guard (D149b, D149c(1)).** Trigger
+`work_orders_require_settled_requests` (BEFORE UPDATE OF `status`, when the
+status changes; every writer): a job cannot move into a status that is not
+open (`completed`, `ready_for_collection`, `collected`, `cancelled`) while
+any of its requests is `approved` or `ordered` (an arrived, unfitted part
+is ordered): P0001 `work_order_has_unfitted_requests`, detail "Fit or
+cancel each approved or ordered item first." (or, into cancelled, "Cancel
+the job's approved and ordered items before cancelling it."). It sorts
+after `work_orders_cancel_requires_no_lines` and
+`work_orders_enforce_rules`, so an invalid move
+(`work_order_transition_invalid`), a missing reason (`reason_required`)
+and a cancel with live lines (`work_order_has_lines`) report first;
+`set_work_order_status` checks those three before its UPDATE.
+`private.work_order_transition_rule` (and the app's `transitionRule`) are
+unchanged: the guard depends on data, not on the pair. Reopen, every move
+into an open status (`order_part_requests`' move to awaiting_parts
+included) and changes to requests never meet it, so D149's admin or
+manager cancel on a collected or cancelled job is unaffected. Every
+writer of a request's status takes the job's lock first, and the status
+UPDATE holds the job row, so the read cannot race.
+
+**An open quote when the job closes (D149c(2), (6)).** Trigger
+`work_orders_withdraw_open_quote` (AFTER UPDATE OF `status`, when it
+changes; it sorts after `work_orders_record_history`): when the job enters
+a status that is not open, its open quote is withdrawn
+(`private.withdraw_open_quote`, actor `private.current_staff_id()`, null
+for an owner write): the quote becomes `withdrawn`, its quoted items go
+back to `proposed`, and `quote_withdrawn` follows the status entry on the
+timeline. Answered quotes and their deposits are untouched; a reopen does
+not revive the link. The migration withdrew once, the same way (no actor),
+every quote still open on a job that was no longer open.
+
+Jobs that changed status before these triggers may still hold approved or
+ordered items: on a completed or ready job the next move is refused until
+each is fitted (after a reopen) or cancelled; on a collected or cancelled
+job D149's admin or manager cancel is the only way
+([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job);
+RUNBOOK "Indent items on jobs closed before the guard").
+
 ## 6. Catalog and inventory
 
 Built in Phase 4 (`20261004001800_inventory.sql`). Money columns are
@@ -1379,6 +1498,8 @@ products
   public_slug text null unique             -- set at first publish, never changes
   default_sale_price money_amount null ≥ 0
   default_direct_cost money_amount null ≥ 0  -- no column grant: product_costs
+     -- written by staff with view_costs, by receive_purchase (D5, D63)
+     -- and by fit_part_bought_outside (D149a: the entered cost, always)
   currency char(3) not null default 'SGD'
   reorder_point integer null ≥ 0           -- low stock: on_hand <= reorder_point
   shopify_product_id text null, shopify_variant_id text null unique  -- Phase 10 (D84)
@@ -1526,9 +1647,10 @@ inventory_movements  (append-only for every writer; inserted only through privat
   location_id uuid not null -> locations
   quantity_delta integer not null check (<> 0 and |delta| <= 100000)
   movement_type movement_type not null
-     -- enum: purchase_received | job_consumption | retail_sale | online_sale |
-     --       stock_adjustment | damaged | return | consignment_received |
+     -- enum: purchase_received | outside_purchase | job_consumption | retail_sale |
+     --       online_sale | stock_adjustment | damaged | return | consignment_received |
      --       consignment_returned | transfer | reversal
+     -- (outside_purchase since 20261014000800, D149a: twelve, SPEC §12's eleven extended)
   work_order_id uuid null -> work_orders
   work_order_line_item_id uuid null -> work_order_line_items
   sale_line_id uuid null                   -- FK in Phase 6
@@ -1548,13 +1670,39 @@ inventory_movements  (append-only for every writer; inserted only through privat
   check inventory_movements_damaged_negative, inventory_movements_transfer_request
   check inventory_movements_purchase_received_has_receipt_line (Phase 7):
         movement_type <> 'purchase_received' or purchase_receipt_line_id is not null
+  check inventory_movements_outside_purchase_shape (D149a, 20261014000900):
+        movement_type <> 'outside_purchase' or (delta > 0, work_order_id, request_id and
+        unit_cost_snapshot set; no unit, line, sale line, receipt line or consignment item)
 ```
+
+`outside_purchase` (D149a, D149c(5)) is the receipt of an indent part
+bought outside BICII, written only by `fit_part_bought_outside` (§5
+"Closing indent items") through `private.record_movement`: +quantity at
+the entered cost, `request_id` = the new job line's id, `work_order_id` =
+the job, reason "Bought outside BICII for J-…". The same transaction's
+`job_consumption` (through `add_inventory_line`) takes the quantity back
+out at the same place and cost, so on-hand never moves. Its lock order is
+the job (step 1), the request, `private.lock_stock(product)` (step 3), then
+the products row `for no key update` (step 7), taken always, before the
+cost is read and whether or not the cost changes: a direct cost edit (the
+product page) waits, so the receipt, the line and its `job_consumption`
+carry one cost. `add_inventory_line` takes the job and the stock again,
+which the transaction already holds. It is not an adjustment
+(D33's `private.is_significant_adjustment`, `daily_summary`,
+`stock_adjustments_on` and `report_activity` read only `stock_adjustment`
+and `damaged`) and not a purchase receipt (no receipt line; D105's
+purchases leave it out, R-084). D50's movement rules refuse it on consigned
+stock (`consignment_stock_adjust_blocked`); the RPC accepts shop-owned
+quantity products only. Voiding the line writes the ordinary `reversal` of
+its `job_consumption`, so the part goes back into stock at its cost and the
+receipt row stays.
 
 `request_id` replaces the original `transfer_group_id`: it is each call's
 idempotency key, generated by the client for that one call. No RPC reuses
 another entity's id or another call's key as its request_id, except that
 `create_unique_unit` and `split_unit_from_stock` use the client's new unit
-id, which is created for that one call.
+id, and `fit_part_bought_outside` (D149a) uses the client's new job line id
+on its `outside_purchase` row; each is created for that one call.
 
 The partial unique indexes are the idempotency guarantees. Phases 6, 7 and
 10 rely on these exact predicates:
@@ -1660,7 +1808,9 @@ touches stock):
 6. (Phase 6) the consignment_items row FOR UPDATE; several in ascending id;
 7. the products row FOR UPDATE (only `private.refresh_unique_publication`,
    `set_publication_status`, which takes `lock_stock(product)` first, and
-   `return_consignment_item`'s archive).
+   `return_consignment_item`'s archive; FOR NO KEY UPDATE by
+   `fit_part_bought_outside` (D149a), after `lock_stock(product)`, and by
+   the purchasing paths below).
 
 Phase 6 step 2 paths: `record_retail_sale` inserts its header (0), then
 3 (every product on the sale, units' products read unlocked, ascending) →
@@ -2178,7 +2328,7 @@ the ledger backstop for "one movement per receipt line".
 FOR UPDATE; (2) that PO's lines, read or changed only under the PO lock;
 (3) `private.lock_stock(product_id)` for every product a receipt touches,
 ascending, before any receipt line or movement (§7 step 3); (4) products
-rows, updated in ascending id (§7 step 6, the last inventory lock); (5)
+rows, updated in ascending id (§7 step 7, the last inventory lock); (5)
 supplier_products rows in ascending product id. `set_supplier_product`
 holds no PO: it locks the products row FOR NO KEY UPDATE, then
 supplier_products (4 then 5), which serialises concurrent preference changes
@@ -2884,6 +3034,9 @@ Materialise `daily_summary` only if measured to be slow; refresh then runs
   is_unit, unit_cost)`: a `stock_adjustment` or `damaged` movement with
   |delta| ≥ 5, on a unique unit, or |delta| × unit cost ≥ 100.00 (unit
   cost = `unit_cost_snapshot`, else `products.default_direct_cost`, else 0).
+  An `outside_purchase` (D149a) is never one: neither it nor the adjustment
+  views (`stock_adjustments_on`, `daily_summary`, `report_activity`) count
+  it; its fit counts as a part used on a job like any `job_consumption`.
 
 **Phase 9 period-report rules (PLAN D100–D105, [ADR-022](decisions/ADR-022-reporting.md)).**
 
@@ -2936,11 +3089,13 @@ Materialise `daily_summary` only if measured to be slow; refresh then runs
   sale basis only, beside gross and never netted; settlements paid are
   `consignment_settlements` by `paid_at`, not reversed; purchases received
   are `purchase_receipt_lines.received_total` of receipts by
-  `received_at` (D105). Nothing is stored: a reopen, a back-dated sale or
-  a back-dated receipt restates past periods (D101, RISKS R-055).
+  `received_at` (D105), so a part bought outside BICII (D149a, no receipt)
+  is not in them (RISKS R-084). Nothing is stored: a reopen, a back-dated
+  sale or a back-dated receipt restates past periods (D101, RISKS R-055).
 - Stock value (D105, `20261006001100_report_stock_value`): NOW, per
   ownership type; quantity products Σ max(on-hand per location, 0) at
-  `products.default_direct_cost` (the last cost, D5/D63; RISKS R-056);
+  `products.default_direct_cost` (the last cost, D5/D63, and since D149a
+  the cost of a part bought outside BICII; RISKS R-056);
   available or reserved units at their own cost, else the product's; a
   NULL cost (or a product in another currency) is not valued and counts in
   `uncosted_items`; 0 is valued; consigned and customer-owned stock is
@@ -3066,7 +3221,7 @@ written out, e.g. `A, M or P(view_costs)`.
 | work_orders | S; C own, not cancelled, via `my_work_orders()` (D17) | RPC `create_work_order` | RPC (`set_work_order_status`, `update_work_order`, `set_approval_flag`; `lead_mechanic_id` by the assignments trigger) | — |
 | work_order_assignments | S | RPC `assign_staff` (S, D22) | RPC `unassign_staff` (closes the row) | — |
 | work_order_events | S; C own job's check-in, customer-status changes and customer-visible photos via `my_work_order_timeline()` (D8, D17) | triggers and `add_work_order_note` only | never | never |
-| job_part_requests | S, except `expected_unit_cost` and `supplier_id` (D60, D147: `job_part_requests_staff`, view_costs or manage_purchasing) | RPC `propose_part`, `propose_service` (S; a cost or supplier needs view_costs or manage_purchasing) | RPC `send_quote`, `answer_quote`, `order_part_requests` (manage_purchasing; open jobs only), `fit_part_request` (open jobs only), `cancel_part_request` (S until the job is collected or cancelled; then A or M only, D149) | never |
+| job_part_requests | S, except `expected_unit_cost` and `supplier_id` (D60, D147: `job_part_requests_staff`, view_costs or manage_purchasing); `outside_purchase_movement_id` (D149a) is granted like the other links (not a cost) | RPC `propose_part`, `propose_service` (S; a cost or supplier needs view_costs or manage_purchasing) | RPC `send_quote`, `answer_quote`, `order_part_requests` (manage_purchasing; open jobs only), `fit_part_request` (open jobs only), `fit_part_bought_outside` (view_costs or manage_purchasing; open jobs only, D149a), `cancel_part_request` (S until the job is collected or cancelled; then A or M only, D149) | never |
 | quotes | S, except `token_hash` (never granted; `deposit_percent` and `deposit_amount` granted since Phase 14 step 2); anyone holding a link reads one quote's customer view through `quote_by_token` (D143) | RPC `send_quote` (S) | RPC `withdraw_quote` (S; not on a collected or cancelled job), `answer_quote` (anyone with the link, once); the deposit columns only by the `quotes_deposit_snapshot` trigger (`quote_deposit_immutable`) | never |
 | quote_items | S | RPC `send_quote` | RPC `answer_quote` (the decision, once) | never |
 | categories | S | P(manage_inventory) (A included) | P(manage_inventory) | — (archive) |
@@ -3204,21 +3359,22 @@ and would print the hidden columns (costs) to any caller through PostgREST.
 | `check_in_appointment(appointment_id uuid, bike_id uuid, work_order_id uuid, link_existing boolean = false, requested_work text = null, intake_notes text = null, lead_mechanic_id uuid = null)` → `appointment_check_in (appointment_id uuid, appointment_status appointment_status, work_order_id uuid, job_number text, created boolean)` | S | Built (Phase 2, D40). In order: 22004 on null ids; the appointment FOR UPDATE (P0002); checked_in or completed → its existing link with `created` false, whatever `work_order_id` was passed (replay, second device); not booked/confirmed/arrived → `appointment_transition_invalid`; `link_existing`: that job FOR UPDATE (P0002), same customer and bike, open (`private.work_order_status_is_open`) and unlinked, else `appointment_work_order_mismatch`; customer then bike FOR SHARE; bike P0002 / `appointment_bike_archived` / `appointment_bike_not_owned` (shop bikes too); the appointment → bike set, `checked_in` (stamps checked_in_at, arrived_at). New job: `private.create_work_order(actor, work_order_id, customer, bike, coalesce(nullif(btrim(requested_work), ''), customer_note), intake_notes, lead_mechanic_id, '{}', '[]', appointment_id)` (job number, `checked_in` event, D18, lead as for a walk-in; blank work and no note → `requested_work_required`), then `work_order_conflict` unless the returned job carries this appointment (an older job under that id). Existing job: `appointment_id` null → this appointment. Both link events from the triggers (§4). One transaction; `created` = not `link_existing`. |
 | `appointment_daily(from_day date = null, to_day date = null)` → `day, booked, expected, arrived, checked_in, no_shows, cancelled` | S | Built (Phase 2, D41). Operational counts, no permission needed (D30). `reporting.appointment_daily` zero-filled one row per day; daily_summary's range rules (null bound = the other, both null = today, ≤ 366 days, else `report_range_invalid`); future days allowed (upcoming appointments). |
 | `create_work_order(work_order_id, customer_id, bike_id, requested_work, intake_notes = null, lead_mechanic_id = null, additional_staff_ids uuid[] = '{}', services jsonb = '[]')` → `work_orders` | S | Calls `private.create_work_order(actor, …, appointment_id)`. Replay first: an existing id returns the row as it is now when customer and bike match (no check, assignment or line re-run, no number burned), else `work_order_conflict`. Then FOR SHARE on customer and bike (D18 against a concurrent transfer), insert (trigger: J- number, `work_order_customer_archived`, `work_order_bike_archived`, `bike_owner_mismatch`), lead, ≤ 10 distinct additional staff, ≤ 20 services `{line_id, service_id, quantity}` (malformed 22023) through `private.insert_service_line`. One transaction. `requested_work_required`; 22004 for missing ids. |
-| `set_work_order_status(work_order_id, status, note = null)` → `work_orders` | S | Locks the job; same status → row unchanged (no event); `work_order_transition_invalid`; `reason_required` for cancel/reopen; `work_order_has_lines` when cancelling with live lines. Triggers stamp the time and write one event. |
+| `set_work_order_status(work_order_id, status, note = null)` → `work_orders` | S | Locks the job; same status → row unchanged (no event); `work_order_transition_invalid`; `reason_required` for cancel/reopen; `work_order_has_lines` when cancelling with live lines. Triggers stamp the time and write one event; since `20261014000900` (D149b, D149c) the trigger `work_orders_require_settled_requests` raises `work_order_has_unfitted_requests` for any move into a status that is not open while a request is approved or ordered (after the three checks above), and after such a move `work_orders_withdraw_open_quote` withdraws the job's open quote (`quote_withdrawn`). |
 | `update_work_order(work_order_id, requested_work = null, intake_notes = null, internal_notes = null, completion_notes = null)` → `work_orders` | S | Null keeps, '' clears (requested work cannot be cleared: `requested_work_required`); no-op when unchanged; one `details_changed` event. Any status. |
 | `add_work_order_note(note_id, work_order_id, kind work_order_note_kind, body)` → `work_order_events` | S | Locks the job; replay by `note_id` first (same job → that event; else `note_conflict`); `note_added` / `diagnosis_added` with `{note_id, body}` (1..5000; `note_required`, `note_too_long`). Any status. |
 | `set_approval_flag(work_order_id, flagged, note = null)` → `work_orders` | S | Internal flag (SPEC §7.1); note null keeps the stored one, '' clears it; `work_order_closed`; replay no-op; `approval_flagged` event. |
 | `propose_part(request_id, work_order_id, product_id, quantity int = 1, unit_sale_price = null, expected_unit_cost = null, supplier_id = null)` → uuid | S (cost or supplier: view_costs or manage_purchasing, else 42501) | D140: locks the job; replay by `request_id` (another job, kind or product → `part_request_conflict`); open job; `quantity_invalid` (1–999); `product_archived`, `product_inactive`, `indent_product_invalid` (not shop-owned and quantity-tracked, D62), `currency_mismatch`; price defaults to `private.selling_price` (`part_price_missing`); `supplier_unavailable`; event `part_requested`. No movement, no line |
 | `propose_service(request_id, work_order_id, service_id, quantity line_quantity = 1, unit_sale_price = null)` → uuid | S | D140: as above for a catalogue service (`service_unavailable`); price defaults to the service's |
-| `cancel_part_request(request_id, reason)` → uuid | S; on a collected or cancelled job A or M (D149) | Locks the job; replay: a cancelled request is returned (any job, anyone); on a collected or cancelled job `work_order_closed` unless an active admin or manager (`private.can_record_refunds()`; `20261014000700`), for whom a quoted request first withdraws the job's open quote (event `quote_withdrawn`, its other items → proposed); otherwise `part_request_quoted` (withdraw the quote first); `part_request_fitted`; `reason_required`, `reason_too_long` (a refusal withdraws nothing); an ordered part stays on its purchase order; event `part_request_cancelled` `{request_id, description, reason, was}` (`was` the status before any withdrawal) |
+| `cancel_part_request(request_id, reason)` → uuid | S; on a collected or cancelled job A or M (D149) | Locks the job; replay: a cancelled request is returned (any job, anyone); on a collected or cancelled job `work_order_closed` unless an active admin or manager (`private.can_record_refunds()`; `20261014000700`), for whom a quoted request first withdraws the job's open quote (event `quote_withdrawn`, its other items → proposed); otherwise `part_request_quoted` (withdraw the quote first); `part_request_fitted`; `reason_required`, `reason_too_long` (a refusal withdraws nothing); an ordered part stays on its purchase order; event `part_request_cancelled` `{request_id, description, reason, was}` (`was` the status before any withdrawal). Never moves the job, so D149b's guard does not apply; on a job that leaves the open statuses the AFTER trigger has already withdrawn any open quote (`20261014000900`) |
 | `send_quote(quote_id, work_order_id, request_ids uuid[], channel quote_channel, valid_days int = 7)` → text | S | D141: locks the job; `quote_already_sent` for a known id (the token cannot be shown again); open job; `quote_validity_invalid` (1–30), `quote_items_invalid` (1–50 distinct); withdraws the job's open quote first; `part_request_not_proposed`; returns the 43-character base64url token of 32 random bytes and stores only its SHA-256; items snapshot; requests → quoted; event `quote_sent` |
-| `withdraw_quote(quote_id)` → uuid | S | Locks the job; replay: withdrawn returned; `quote_answered`; `work_order_closed` on a collected or cancelled job (`20261014000700`); items → proposed; event `quote_withdrawn` |
+| `withdraw_quote(quote_id)` → uuid | S | Locks the job; replay: withdrawn returned; `quote_answered`; `work_order_closed` on a collected or cancelled job (`20261014000700`); items → proposed; event `quote_withdrawn`. Since `20261014000900` a quote is also withdrawn by trigger when its job leaves the open statuses (D149c(2)), so an open quote on a job that is not open exists only from before it |
 | `quote_by_token(token)` → jsonb | anon, S, C | D143: null for anything that is not a known token; withdrawn or expired → `{status, job_number}` only; otherwise status, job number, bike, the customer's first name, currency, total, sent, expires, answered at and by, the items with their decisions, and (Phase 14 step 2, D151, D158) `deposit`: null, `{percent, amount: null, status: on_answer}` (open), or `{percent, amount, status, parts_ordered, job_closed}` with status `due` (job open), `processing`, `paid` or `refunded` (§5 "Indent deposits"; `job_closed` since `20261014000700`, §5 "Indent parts on completed and closed jobs"). Never costs, notes, staff, contact details or any Stripe id or URL |
 | `answer_quote(token, decisions jsonb, name)` → jsonb | anon, S, C | D142: `quote_not_found` (P0002); locks the job, then the quote; `quote_not_open` (answered, withdrawn or the job closed), `quote_expired`, `quote_name_required` (1–100), `quote_answer_incomplete` (exactly one `{item_id, approve boolean}` per item); requests → approved or declined; quote answered (the snapshot trigger fixes `deposit_amount`, Phase 14 step 2); the job's approval flag and note; event `quote_answered`; returns the page's data, its `deposit` key included |
 | `order_part_requests(request_ids uuid[], supplier_id, purchase_order_id, move_to_waiting boolean = true, override_reason text = null)` → uuid | manage_purchasing; a part whose deposit is not paid also A or M with a reason | D145: locks the jobs in id order; replay when all are ordered (their purchase order, whatever the jobs' status); `order_items_invalid`; `work_order_locked` unless every job is open (`20261014000700`, R-082); `part_request_not_approved` (approved parts only); the D152 gate (Phase 14 step 2, dropped and created again with `override_reason`): a part whose quote's deposit is not `paid` in `quote_deposits` → `deposit_unpaid` without a non-blank reason, 42501 unless an active admin or manager (`private.can_record_refunds()`), `reason_too_long`; then `supplier_unavailable`; the supplier's newest draft or `create_purchase_order(purchase_order_id, supplier_id)`; each product's line raised through `set_purchase_order_line` (cost: the line's, else the expected cost, else `purchase_cost_defaults`, else 0; a new line notes "For J-…"); requests → ordered and linked; event `part_ordered` (with `deposit_override {reason, quote_ids}` on each job the reason covered); optionally `set_work_order_status(…, 'awaiting_parts')` where allowed |
 | `part_request_arrivals(work_order_id)` → table(request_id, arrived, location_id, purchase_order_id, po_number) | S | D146: the job's ordered and fitted requests; arrived when receipts on the line cover it, first requested first covered; location of the line's latest receipt |
 | `indent_reservations(product_id)` → table(work_order_id, job_number, quantity) | S | D146: arrived, unfitted quantities by job (reserved, not held) |
 | `fit_part_request(request_id, line_id, location_id = null)` → uuid | S | D140, D146: locks the job, then the request; replay by `line_id`; `part_request_fitted`, `part_request_not_approved` (approved, or ordered for a part); open job; a part through `add_inventory_line(line_id, …, quantity, location_id ?? where it arrived, null, quoted price)` (D23, D24), a service through `add_service_line`; request → fitted; event `part_fitted` |
+| `fit_part_bought_outside(request_id, line_id, unit_cost money_amount, location_id = null, reference = null)` → uuid | view_costs or manage_purchasing (42501, checked first) | D149a (`20261014000900`): 22004; P0002; locks the job, then the request; replay by `line_id` when fitted as bought outside, else `part_request_fitted`; `outside_purchase_part_only`; `part_request_ordered`; `part_request_not_approved`; `work_order_locked`; `outside_purchase_cost_invalid` (0..99,999.99); `outside_purchase_reference_too_long` (100); `part_request_conflict` (the line id is taken); `lock_stock`, then the products row `for no key update` (always, §7 step 7); `product_archived`, `product_inactive`, `indent_product_invalid`, `currency_mismatch`; `location_required`, `location_inactive`; then one `outside_purchase` movement (+quantity, the entered cost, `request_id` = `line_id`, the job), the product's cost (D5, D63 extended; `cost_changed` with the reason), `add_inventory_line` at the same location and the quoted price, request → fitted with `outside_purchase_movement_id`; event `part_fitted` `{…, bought_outside: true, reference}`. Never returns or records a cost outside the movement and the line |
 | `assign_staff(work_order_id, staff_id, role assignment_role = 'additional')` → `work_order_assignments` | S (D22) | Locks the job; `work_order_closed`; P0002 / `staff_inactive`; same role → the active row (no event); other role → close and reopen; a new lead closes the previous lead's row. Trigger syncs `lead_mechanic_id`, writes `assignment_changed`. |
 | `unassign_staff(work_order_id, staff_id)` → `work_order_assignments` | S | Closes the active row and returns it; null when none (no event). `work_order_closed`. |
 | `add_service_line(line_id, work_order_id, service_id, quantity line_quantity = 1, unit_sale_price = null, unit_direct_cost = null, description = null)` → `uuid` | S; a cost needs P(view_costs) (D14) | Locks the job, then `private.insert_service_line`: replay by line id first (same job, type and service → id; else `line_conflict`), then `work_order_locked`, P0002 / `service_unavailable`, snapshots (description, price, cost, `cult_commons_rate_at(now)`), insert. Returns the id only. |

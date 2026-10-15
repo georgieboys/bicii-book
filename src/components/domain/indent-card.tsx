@@ -3,8 +3,6 @@
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 
 import {
-  cancelPartRequestAction,
-  fitPartRequestAction,
   orderPartRequestsAction,
   proposePartAction,
   proposeServiceAction,
@@ -34,12 +32,10 @@ import { formatDateTime } from "@/lib/dates";
 import type { IndentPanel, IndentProductOption, PartRequest } from "@/lib/domain/indent";
 import type { JobDeposit } from "@/lib/domain/payments";
 import {
-  COST_MISSING_NOTE,
   QUOTE_DAYS,
   canCancelRequest,
   canFit,
   isUnfitted,
-  neverOrderedNote,
   notFittedNote,
   quoteMessage,
   requestBadge,
@@ -47,18 +43,13 @@ import {
   whatsappHref,
 } from "@/lib/indent";
 import { formatMoney, formatQuantity, sumMoney } from "@/lib/money";
-import {
-  DEPOSIT_STATE_LABELS,
-  DEPOSIT_STATE_TONES,
-  depositBlockedIds,
-  depositStates,
-  type DepositState,
-} from "@/lib/payments";
+import { depositBlockedIds, depositStates, type DepositState } from "@/lib/payments";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
 import type { WorkOrderStatus } from "@/lib/workshop";
 
 import { CopyText } from "./copy-text";
+import { CancelSheet, DepositBadge, FitSheet } from "./indent-sheets";
 
 type Errors = Record<string, string[]> | undefined;
 const errorsOf = (r: ActionResult<unknown> | null): Errors =>
@@ -79,6 +70,9 @@ const errorsOf = (r: ActionResult<unknown> | null): Errors =>
  * manager cancels it (D149), and Fit is never offered. An item still on
  * the open quote there is "Not answered"; on a collected or cancelled job
  * an admin or manager cancels it too, which withdraws the quote.
+ * Fit on an approved part never ordered in BICII offers "Bought outside
+ * BICII" to cost and purchasing holders (D149a, FitSheet in
+ * indent-sheets.tsx, shared with the settle checklist of D149b).
  */
 export function IndentCard({
   id,
@@ -237,7 +231,11 @@ export function IndentCard({
                         {formatMoney(r.lineTotal, r.currency)}
                       </span>
                       <Badge tone={badge.tone}>{badge.label}</Badge>
-                      {depositBadge(r, depositByRequest, !open)}
+                      <DepositBadge
+                        request={r}
+                        depositByRequest={depositByRequest}
+                        showPaid={!open}
+                      />
                     </span>
                   </div>
                   {r.order ? (
@@ -346,7 +344,12 @@ export function IndentCard({
         />
       ) : null}
       {sheet && typeof sheet === "object" && "fit" in sheet ? (
-        <FitSheet request={sheet.fit} locationName={defaultLocationName} onClose={close} />
+        <FitSheet
+          request={sheet.fit}
+          locationName={defaultLocationName}
+          purchaseData={purchaseData}
+          onClose={close}
+        />
       ) : null}
       {sent ? (
         <QuoteSentSheet
@@ -364,23 +367,6 @@ export function IndentCard({
       ) : null}
     </Card>
   );
-}
-
-/**
- * "Deposit due", "Being confirmed" or "Deposit refunded" on an approved or
- * ordered part (D152); "Deposit paid" too with `showPaid`, on a job that is
- * no longer open, where the money is held for a part not on the bill
- * (R-082).
- */
-function depositBadge(
-  r: PartRequest,
-  depositByRequest: ReadonlyMap<string, DepositState>,
-  showPaid = false,
-) {
-  if (r.kind !== "part" || (r.status !== "approved" && r.status !== "ordered")) return null;
-  const state = depositByRequest.get(r.id);
-  if (state === undefined || state === "none" || (state === "paid" && !showPaid)) return null;
-  return <Badge tone={DEPOSIT_STATE_TONES[state]}>{DEPOSIT_STATE_LABELS[state]}</Badge>;
 }
 
 type ProductPick = PickerOption & { product: IndentProductOption };
@@ -1042,178 +1028,6 @@ function OrderSheet({
           checked={moveToWaiting}
           onCheckedChange={setMoveToWaiting}
         />
-      </div>
-    </Sheet>
-  );
-}
-
-/**
- * Put an approved or ordered item on the job as an ordinary line (D146).
- * For a part it warns before the fit: an order not received yet, a part
- * never ordered in BICII (it comes out of the default location's stock,
- * which may go below zero, D23), and, for cost holders, a product with no
- * cost (D24: Fit would be refused with part_cost_missing).
- */
-function FitSheet({
-  request,
-  locationName,
-  onClose,
-}: {
-  request: PartRequest;
-  locationName: string | null;
-  onClose: () => void;
-}) {
-  const { toast } = useToast();
-  const [lineId] = useState(newId);
-  const [result, setResult] = useState<ActionResult<{ lineId: string }> | null>(null);
-  const [pending, start] = useTransition();
-  const notArrived = request.kind === "part" && request.order !== null && !request.order.arrived;
-  const neverOrdered = request.kind === "part" && request.order === null;
-  const costMissing = request.kind === "part" && request.costMissing === true;
-
-  const submit = () =>
-    start(async () => {
-      const r = await fitPartRequestAction({
-        requestId: request.id,
-        lineId,
-        locationId: request.order?.arrived ? (request.order.locationId ?? "") : "",
-      });
-      setResult(r);
-      if (r.ok) {
-        toast({ title: `${request.description} is on the job.`, tone: "success" });
-        onClose();
-      }
-    });
-
-  return (
-    <Sheet
-      open
-      onOpenChange={(next) => (next ? null : onClose())}
-      dismissible={!pending}
-      title={request.kind === "service" ? "Add to job" : "Fit part"}
-      description={
-        request.kind === "service"
-          ? "Adds the service to the job's lines at the quoted price."
-          : "Adds the part to the job's lines at the quoted price and takes it out of stock."
-      }
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose} disabled={pending}>
-            Cancel
-          </Button>
-          <Button onClick={submit} pending={pending} pendingLabel="Adding…" disabled={costMissing}>
-            {request.kind === "service" ? "Add to job" : "Fit part"}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        {result && !result.ok ? (
-          <p role="alert" className="text-sm font-medium text-danger-deep">
-            {result.error}
-          </p>
-        ) : null}
-        <p>
-          {formatQuantity(request.quantity)} × {request.description} at{" "}
-          {formatMoney(request.unitSalePrice, request.currency)} ={" "}
-          <strong>{formatMoney(request.lineTotal, request.currency)}</strong>
-        </p>
-        {costMissing ? (
-          <p role="alert" className="rounded-xl bg-danger-soft p-3 text-sm text-danger-deep">
-            {COST_MISSING_NOTE}{" "}
-            {request.productId ? (
-              <a href={`/products/${request.productId}`} className="font-medium underline">
-                Open the product
-              </a>
-            ) : null}
-          </p>
-        ) : null}
-        {notArrived ? (
-          <p role="status" className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
-            Its order ({request.order!.poNumber}) has not been received yet. Fitting it now may take
-            the stock count below zero.
-          </p>
-        ) : null}
-        {neverOrdered ? (
-          <p role="status" className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
-            {neverOrderedNote(locationName)}
-          </p>
-        ) : null}
-      </div>
-    </Sheet>
-  );
-}
-
-/**
- * Cancel a proposed, answered or ordered item, with a reason; on a collected
- * or cancelled job (`closed`, admins and managers only, D149) it also says
- * to refund any deposit in Stripe.
- */
-function CancelSheet({
-  request,
-  closed,
-  onClose,
-}: {
-  request: PartRequest;
-  closed: boolean;
-  onClose: () => void;
-}) {
-  const { toast } = useToast();
-  const [reason, setReason] = useState("");
-  const [result, setResult] = useState<ActionResult<null> | null>(null);
-  const [pending, start] = useTransition();
-  const errors = errorsOf(result);
-
-  const submit = () =>
-    start(async () => {
-      const r = await cancelPartRequestAction({ requestId: request.id, reason });
-      setResult(r);
-      if (r.ok) {
-        toast({
-          title:
-            request.status === "quoted"
-              ? `${request.description} cancelled. The quote was withdrawn.`
-              : `${request.description} cancelled.`,
-          tone: "success",
-        });
-        onClose();
-      }
-    });
-
-  return (
-    <Sheet
-      open
-      onOpenChange={(next) => (next ? null : onClose())}
-      dismissible={!pending}
-      title={`Cancel ${request.description}`}
-      description={
-        (request.status === "ordered"
-          ? "It stays on its purchase order: change the order in Purchasing if needed."
-          : request.status === "quoted"
-            ? "It is on the quote the customer can no longer answer: cancelling it withdraws that quote (its link stops working) and its other items go back to Proposed. The reason is kept in the timeline."
-            : "It is removed from the proposed items. The reason is kept in the timeline.") +
-        (closed ? " The job is closed and stays closed; refund any deposit for it in Stripe." : "")
-      }
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose} disabled={pending}>
-            Back
-          </Button>
-          <Button variant="danger" onClick={submit} pending={pending} pendingLabel="Cancelling…">
-            Cancel item
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        {result && !result.ok && !errors ? (
-          <p role="alert" className="text-sm font-medium text-danger-deep">
-            {result.error}
-          </p>
-        ) : null}
-        <Field label="Reason" error={errors?.reason?.[0]} required>
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
-        </Field>
       </div>
     </Sheet>
   );

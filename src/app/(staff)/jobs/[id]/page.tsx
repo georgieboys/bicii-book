@@ -30,7 +30,6 @@ import { listPhotos } from "@/lib/domain/attachments";
 import { getIndentPanel, getUnfittedSummary } from "@/lib/domain/indent";
 import { getJobPayments } from "@/lib/domain/payments";
 import { isUnfitted, unfittedMemo } from "@/lib/indent";
-import { formatMoney } from "@/lib/money";
 import { paidOnlineSummary } from "@/lib/payments";
 import { listLocations } from "@/lib/domain/inventory";
 import { getWorkOrderYield } from "@/lib/domain/reports";
@@ -90,7 +89,8 @@ function sharedRate(job: WorkOrderDetail): string | null {
  * parts and quote (Phase 13), the Customer payments card once a deposit
  * or an online payment exists (Phase 14, D154; hidden if its read fails),
  * approved indent items not on the bill as a memo under the total, never in
- * it, and what a closed job holds above its bill (R-082),
+ * it, and what a closed job holds above its bill (R-082); Complete and the
+ * other moves out of the open statuses settle those items first (D149b),
  * photos, the people on it, notes and the timeline. A job checked in from an
  * appointment (D40) links back to it under the header. Straight after intake (`?intake=photos`) the intake photos come first: the job
  * has to exist before a photo can be recorded against it. The timeline
@@ -142,13 +142,22 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   // D154 at the counter: a deposit paid online, shown by the total and on Collected.
   const paidOnline = paidOnlineSummary(payments?.totals ?? null);
   // R-082: approved indent items not on the bill: a memo under the total
-  // (never in it), and named on the Collected confirmation.
+  // (never in it); the moves out of the open statuses settle them first
+  // (D149b), so the Collected confirmation no longer names them.
   const memo = unfittedMemo(unfitted, open);
-  const unfittedItems = indent.requests
-    .filter((r) => isUnfitted(r.status))
-    .map((r) => ({ description: r.description, total: formatMoney(r.lineTotal, r.currency) }));
   const defaultLocationName =
     locations.locations.find((l) => l.id === locations.defaultLocationId)?.name ?? null;
+  // D149b, D149c: what the settle checklist lists before the job leaves the
+  // open statuses (approved and ordered items) and the quote it withdraws.
+  const settle = {
+    items: indent.requests.filter((r) => isUnfitted(r.status)),
+    quote: indent.quote,
+    quotedItems: indent.requests.filter((r) => r.status === "quoted").length,
+    purchaseData,
+    canOrder,
+    defaultLocationName,
+    deposits: payments?.deposits ?? [],
+  };
   const target = { entityType: "work_order" as const, entityId: job.id };
   const lockedReason = open
     ? null
@@ -220,7 +229,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
         status={job.status}
         heldUnits={heldUnits}
         paidOnline={paidOnline}
-        unfitted={unfittedItems}
+        settle={settle}
       />
 
       {intake ? (

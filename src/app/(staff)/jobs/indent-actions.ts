@@ -5,9 +5,11 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { ActionError, staffAction } from "@/lib/actions";
+import { FORBIDDEN_ERROR } from "@/lib/db-errors";
 import { hasPermission } from "@/lib/auth/permissions";
 import {
   cancelPartRequest,
+  fitPartBoughtOutside,
   fitPartRequest,
   getQuoteRecipient,
   orderPartRequests,
@@ -28,8 +30,9 @@ import { REASON_MAX_LENGTH } from "@/lib/reasons";
  * Indent parts and quotes on a job (Phase 13; PLAN D140-D147, ADR-024).
  * Every write is an RPC that checks again: any staff member proposes,
  * quotes, cancels and fits on an open job; ordering needs Manage purchasing;
- * a cost or supplier needs View costs or Manage purchasing (D60, D147);
- * creating a new product needs Manage inventory.
+ * a cost or supplier needs View costs or Manage purchasing (D60, D147), as
+ * does recording a part bought outside BICII (D149a, D149c(3)); creating a
+ * new product needs Manage inventory.
  */
 
 const MAX_MONEY = new Decimal("9999999.99");
@@ -322,6 +325,42 @@ export const fitPartRequestAction = staffAction(
   { name: "indent.fit" },
   async (input, { supabase }) => {
     const lineId = await fitPartRequest(supabase, input);
+    refresh();
+    return { lineId };
+  },
+);
+
+/** What the shop paid for one part bought outside BICII (D149a): 0 to 99,999.99. */
+const MAX_OUTSIDE_COST = new Decimal("99999.99");
+
+/**
+ * Fit an approved part never ordered in BICII as bought outside BICII
+ * (D149a): the purchase is recorded at `unitCost` (which becomes the
+ * product's cost, D149c(4)) and the part is fitted at once, at the default
+ * location, so the stock count there does not change. View costs or Manage
+ * purchasing (D149c(3)); the RPC checks again.
+ */
+export const fitPartBoughtOutsideAction = staffAction(
+  z.object({
+    requestId: z.uuid({ error: "Unknown item." }),
+    lineId: z.uuid({ error: "Open the form again." }),
+    unitCost: money("cost each").refine((v) => new Decimal(v).lte(MAX_OUTSIDE_COST), {
+      error: "The cost each is too large.",
+    }),
+    locationId: optionalId("Unknown location."),
+    reference: z
+      .string()
+      .trim()
+      .max(100, { error: "Keep where you bought it under 100 characters." })
+      .default("")
+      .transform((v) => v || null),
+  }),
+  { name: "indent.fit_bought_outside" },
+  async (input, { supabase, staff }) => {
+    if (!hasPermission(staff, "view_costs") && !hasPermission(staff, "manage_purchasing")) {
+      throw new ActionError(FORBIDDEN_ERROR);
+    }
+    const lineId = await fitPartBoughtOutside(supabase, input);
     refresh();
     return { lineId };
   },

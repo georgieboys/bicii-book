@@ -1,10 +1,12 @@
 /**
- * Indent parts and quotes (Phase 13; PLAN D140-D146, D149, ADR-024): the
- * words and links the job page and the quote page share. Pure, so the
- * browser, the server and the unit tests use the same rules.
+ * Indent parts and quotes (Phase 13; PLAN D140-D146, D149, D149a-c,
+ * ADR-024): the words and links the job page and the quote page share.
+ * Pure, so the browser, the server and the unit tests use the same rules.
  */
 import type { Database } from "@/lib/database.types";
+import { formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
+import { isOpenStatus } from "@/lib/workshop";
 
 type JobStatus = Database["public"]["Enums"]["work_order_status"];
 
@@ -148,19 +150,127 @@ export function unfittedMemo(
 }
 
 /**
- * The Fit sheet's warning for a part that was never ordered in BICII (no
- * purchase order line): it comes out of stock at the default location,
- * which may go below zero (D23) when it was bought outside BICII.
+ * Whether Fit offers "Bought outside BICII" (D149a): an approved part never
+ * ordered in BICII (no purchase order), for staff with View costs or Manage
+ * purchasing (`purchaseData`, D149c(3)). A part on a purchase order is
+ * received in Purchasing first; fitting from stock stays for everyone.
+ * public.fit_part_bought_outside checks again.
  */
-export function neverOrderedNote(locationName: string | null): string {
-  return `Never ordered in BICII: fitting takes it out of stock at ${
-    locationName ?? "the default location"
-  }. If it was bought outside BICII, that count may go below zero until the stock is corrected.`;
+export function canBuyOutside(
+  request: { kind: PartRequestKind; status: PartRequestStatus; order: unknown },
+  purchaseData: boolean,
+): boolean {
+  return (
+    purchaseData &&
+    request.kind === "part" &&
+    request.status === "approved" &&
+    request.order === null
+  );
+}
+
+/**
+ * The Fit sheet's note for a part never ordered in BICII (no purchase order
+ * line). Fitting it from stock takes it from the default location, which
+ * may go below zero (D23) if the shop really bought it elsewhere: staff who
+ * can record a purchase are pointed at "Bought outside BICII" (D149a),
+ * everyone else at who can.
+ */
+export function neverOrderedNote(locationName: string | null, canBuy: boolean): string {
+  const where = locationName ?? "the default location";
+  return canBuy
+    ? `Never ordered in BICII. If you bought it outside BICII, choose Bought outside BICII so the stock count stays right and the job uses what you paid. From stock, it comes out of ${where}.`
+    : `Never ordered in BICII: fitting takes it out of stock at ${where}. If it was bought outside BICII, ask someone with View costs or Manage purchasing to fit it as bought outside, so the stock count stays right.`;
 }
 
 /** The Fit sheet's note when the product has no cost (D24, part_cost_missing), for cost holders. */
 export const COST_MISSING_NOTE =
   "This part has no cost yet, so it can't be fitted: its yield can't be worked out. Set its cost on the product's page first.";
+
+/** The same, when the part may be bought outside BICII (D149a): From stock stays refused. */
+export const COST_MISSING_BUY_NOTE =
+  "This part has no cost yet, so it can't be fitted from stock. If you bought it outside BICII, choose Bought outside BICII and enter what you paid; otherwise set its cost on the product's page first.";
+
+/** Fit from stock refused with part_cost_missing, when Bought outside BICII is offered. */
+export const COST_MISSING_SWITCH_NOTE =
+  "This part has no cost yet. If you bought it outside BICII, enter what you paid; otherwise ask someone with View costs to set the product's cost.";
+
+/** Fit refused with part_cost_missing for a part on a purchase order. */
+export const COST_SET_ON_RECEIPT_NOTE =
+  "Its cost is set when its order is received in Purchasing. Receive it first.";
+
+// ---------------------------------------------------------------------------
+// Settle before closing (D149b, D149c)
+// ---------------------------------------------------------------------------
+
+/** The statuses a job cannot enter while an item is approved or ordered. */
+export type ClosingStatus = "completed" | "ready_for_collection" | "collected" | "cancelled";
+
+/**
+ * Whether moving a job to `to` must wait for its approved and ordered items
+ * (D149b, D149c(1)): `to` is not open and an item is approved or ordered.
+ * Mirrors private.work_orders_require_settled_requests, which refuses the
+ * move with work_order_has_unfitted_requests whatever the screen shows.
+ */
+export function settleNeeded(
+  to: JobStatus,
+  requests: readonly { status: PartRequestStatus }[],
+): to is ClosingStatus {
+  return !isOpenStatus(to) && requests.some((r) => isUnfitted(r.status));
+}
+
+const SETTLE_TITLES: Record<ClosingStatus, (job: string) => string> = {
+  completed: (job) => `Before completing ${job}`,
+  ready_for_collection: (job) => `Before marking ${job} ready`,
+  collected: (job) => `Before marking ${job} collected`,
+  cancelled: (job) => `Before cancelling ${job}`,
+};
+
+/** The checklist's title for a move to `to`. */
+export function settleTitle(to: ClosingStatus, jobNumber: string): string {
+  return SETTLE_TITLES[to](jobNumber);
+}
+
+/** The checklist's description: Fit or cancel, or (cancelling the job) cancel only. */
+export function settleDescription(to: ClosingStatus): string {
+  return to === "cancelled"
+    ? "Cancel each approved or ordered item first. A cancelled job can't keep items waiting."
+    : "Fit or cancel each approved or ordered item first.";
+}
+
+/**
+ * What staff read when the database refused a cancel for unsettled items (a
+ * stale page): the trigger's own sentence for a cancel. db-errors maps the
+ * code to "Fit or cancel…", which is wrong here: a fitted line would stop
+ * the cancel too (work_order_has_lines, D16).
+ */
+export const CANCEL_UNSETTLED_REFUSAL =
+  "Cancel the job's approved and ordered items before cancelling it.";
+
+const LEAVING: Record<ClosingStatus, string> = {
+  completed: "Completing the job",
+  ready_for_collection: "Marking it ready",
+  collected: "Marking it collected",
+  cancelled: "Cancelling the job",
+};
+
+/**
+ * What happens to an open quote when the job leaves the open statuses
+ * (D149c(2)): withdrawn, its link says so, its items go back to proposed.
+ * Null when the job has no quote stored as open (an expired one is still
+ * open in the database, so it is named too).
+ */
+export function quoteWithdrawNote(
+  quote: { state: QuoteState; sentAt: string } | null,
+  to: ClosingStatus,
+  quotedItems: number,
+): string | null {
+  if (!quote || (quote.state !== "open" && quote.state !== "expired")) return null;
+  const items =
+    quotedItems === 0
+      ? ""
+      : `, and ${quotedItems === 1 ? "its item goes" : `its ${quotedItems} items go`} back to Proposed`;
+  return `${LEAVING[to]} withdraws the quote sent ${formatDateTime(quote.sentAt)}: the customer's link will say it was withdrawn${items}.`;
+}
 
 /** Quote validity the database accepts (D141). */
 export const QUOTE_DAYS = { min: 1, max: 30, default: 7 } as const;

@@ -5,15 +5,64 @@ const setWorkOrderStatus = vi.fn();
 vi.mock("@/app/(staff)/jobs/actions", () => ({
   setWorkOrderStatus: (...args: unknown[]) => setWorkOrderStatus(...args),
 }));
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }));
+vi.mock("@/app/(staff)/jobs/indent-actions", () => ({
+  cancelPartRequestAction: vi.fn(),
+  fitPartRequestAction: vi.fn(),
+  fitPartBoughtOutsideAction: vi.fn(),
+}));
 
 import { JobStatusActions } from "@/components/domain/job-status-actions";
+import type { SettleContext } from "@/components/domain/settle-items-sheet";
 import { ToastProvider } from "@/components/ui/toast";
+import type { PartRequest } from "@/lib/domain/indent";
 import type { WorkOrderStatus } from "@/lib/workshop";
 
 beforeEach(() => {
   setWorkOrderStatus.mockReset();
   setWorkOrderStatus.mockResolvedValue({ ok: true, data: null });
+  refresh.mockReset();
 });
+
+const brakePad: PartRequest = {
+  id: "00000000-0000-4000-8000-0000000000a1",
+  kind: "part",
+  status: "approved",
+  description: "Brake pad",
+  quantity: "1.00",
+  unitSalePrice: "2.00",
+  lineTotal: "2.00",
+  currency: "SGD",
+  productId: "00000000-0000-4000-8000-0000000000b1",
+  serviceId: null,
+  cancelReason: null,
+  lineId: null,
+  order: null,
+};
+
+const settleWith = (items: PartRequest[], extra: Partial<SettleContext> = {}): SettleContext => ({
+  items,
+  quote: null,
+  quotedItems: 0,
+  purchaseData: false,
+  canOrder: false,
+  defaultLocationName: "Shop floor",
+  deposits: [],
+  ...extra,
+});
+
+const withItems = (status: WorkOrderStatus, settle: SettleContext) => (
+  <ToastProvider>
+    <JobStatusActions
+      workOrderId="00000000-0000-4000-8000-000000000001"
+      jobNumber="J-000123"
+      customerLabel="Priya Raman"
+      status={status}
+      settle={settle}
+    />
+  </ToastProvider>
+);
 
 const ui = (status: WorkOrderStatus) => (
   <ToastProvider>
@@ -94,37 +143,6 @@ describe("JobStatusActions", () => {
     );
   });
 
-  it("names approved indent items not on the bill and ties the paid-ahead money to them (R-082)", async () => {
-    render(
-      <ToastProvider>
-        <JobStatusActions
-          workOrderId="00000000-0000-4000-8000-000000000001"
-          jobNumber="J-000123"
-          customerLabel="Priya Raman"
-          status="ready_for_collection"
-          paidOnline={{
-            paid: "$2.00",
-            stillToPay: "$0.00",
-            paidAhead: "$2.00",
-            moreThanBill: null,
-          }}
-          unfitted={[{ description: "Brake pad", total: "$2.00" }]}
-        />
-      </ToastProvider>,
-    );
-    const collected = screen.getByRole("button", { name: "Collected…" });
-    await waitFor(() => expect(collected).toBeEnabled());
-    fireEvent.click(collected);
-    const group = screen.getByRole("group");
-    expect(group).toHaveTextContent(
-      "$2.00 was paid online. That is $2.00 more than the job total, paid for parts that are not on the bill.",
-    );
-    expect(group).not.toHaveTextContent("take nothing more");
-    expect(group).toHaveTextContent(
-      "Not on the bill: Brake pad $2.00, approved and not fitted. To bill it, reopen the job and fit it; otherwise cancel it and refund any deposit in Stripe.",
-    );
-  });
-
   it("says nothing about online payments when there are none", async () => {
     render(ui("ready_for_collection"));
     const collected = screen.getByRole("button", { name: "Collected…" });
@@ -179,36 +197,278 @@ describe("Change status sheet", () => {
     expect(within(sheet).getByText(/Collected is final/)).toBeInTheDocument();
     expect(within(sheet).queryByText(/paid online/)).toBeNull();
   });
+});
 
-  it("says what was paid online and names items not on the bill when Collected is picked (R-082)", () => {
-    render(
-      <ToastProvider>
-        <JobStatusActions
-          workOrderId="00000000-0000-4000-8000-000000000001"
-          jobNumber="J-000123"
-          customerLabel="Priya Raman"
-          status="completed"
-          paidOnline={{
-            paid: "$2.00",
-            stillToPay: "$0.00",
-            paidAhead: "$2.00",
-            moreThanBill: null,
-          }}
-          unfitted={[{ description: "Brake pad", total: "$2.00" }]}
-        />
-      </ToastProvider>,
-    );
+describe("settle before closing (D149b, D149c)", () => {
+  it("Complete with approved items opens the checklist and changes nothing", async () => {
+    render(withItems("in_progress", settleWith([brakePad])));
+    const complete = screen.getByRole("button", { name: "Complete…" });
+    await waitFor(() => expect(complete).toBeEnabled());
+    fireEvent.click(complete);
+    expect(setWorkOrderStatus).not.toHaveBeenCalled();
+    const sheet = screen.getByRole("dialog", { name: "Before completing J-000123" });
+    expect(sheet).toHaveTextContent("Fit or cancel each approved or ordered item first.");
+    const item = within(sheet).getByRole("listitem", { name: "Brake pad" });
+    expect(item).toHaveTextContent("1 × Brake pad · $2.00");
+    expect(within(item).getByRole("button", { name: "Fit" })).toBeInTheDocument();
+    expect(within(item).getByRole("button", { name: /^Cancel item/ })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Complete job" })).toBeDisabled();
+  });
+
+  it("goes on once nothing is left: the list comes from the page", async () => {
+    const { rerender } = render(withItems("in_progress", settleWith([brakePad])));
+    const complete = screen.getByRole("button", { name: "Complete…" });
+    await waitFor(() => expect(complete).toBeEnabled());
+    fireEvent.click(complete);
+    rerender(withItems("in_progress", settleWith([])));
+    const sheet = screen.getByRole("dialog", { name: "Before completing J-000123" });
+    expect(sheet).toHaveTextContent("All settled.");
+    const go = within(sheet).getByRole("button", { name: "Complete job" });
+    expect(go).toBeEnabled();
+    await act(async () => {
+      fireEvent.click(go);
+    });
+    expect(setWorkOrderStatus).toHaveBeenCalledWith({
+      workOrderId: "00000000-0000-4000-8000-000000000001",
+      status: "completed",
+    });
+  });
+
+  it("the Change status sheet opens the same checklist for a move out of the open statuses", () => {
+    render(withItems("in_progress", settleWith([brakePad])));
     fireEvent.click(screen.getByRole("button", { name: "Change status" }));
     const sheet = screen.getByRole("dialog", { name: "Change status" });
-    expect(within(sheet).queryByText(/Not on the bill/)).toBeNull();
-    fireEvent.click(within(sheet).getByLabelText("Collected"));
+    fireEvent.click(within(sheet).getByLabelText("Completed"));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Change status" }));
+    expect(setWorkOrderStatus).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Before completing J-000123" })).toBeInTheDocument();
+  });
+
+  it("Cancel job offers Cancel item only, and its own Cancel job… waits for the list", () => {
+    const ordered: PartRequest = {
+      ...brakePad,
+      id: "00000000-0000-4000-8000-0000000000a2",
+      description: "Chain",
+      status: "ordered",
+      order: { purchaseOrderId: "po-1", poNumber: "PO-000012", arrived: false, locationId: null },
+    };
+    render(withItems("in_progress", settleWith([brakePad, ordered], { canOrder: true })));
+    fireEvent.click(screen.getByRole("button", { name: "Change status" }));
+    const change = screen.getByRole("dialog", { name: "Change status" });
+    expect(change).toHaveTextContent("cancel its approved and ordered indent items");
+    fireEvent.click(within(change).getByRole("button", { name: "Cancel job…" }));
+    const sheet = screen.getByRole("dialog", { name: "Before cancelling J-000123" });
+    expect(sheet).toHaveTextContent(
+      "Cancel each approved or ordered item first. A cancelled job can't keep items waiting.",
+    );
+    expect(within(sheet).queryByRole("button", { name: "Fit" })).toBeNull();
+    expect(within(sheet).getAllByRole("button", { name: /^Cancel item/ })).toHaveLength(2);
+    const chain = within(sheet).getByRole("listitem", { name: "Chain" });
+    expect(chain).toHaveTextContent("Ordered · PO-000012 · Not arrived yet");
+    expect(within(chain).getByRole("link", { name: "Open PO-000012" })).toHaveAttribute(
+      "href",
+      "/purchasing/orders/po-1",
+    );
+    expect(within(sheet).getByRole("button", { name: "Cancel job…" })).toBeDisabled();
+    expect(setWorkOrderStatus).not.toHaveBeenCalled();
+  });
+
+  it("a job completed before the guard: Collected lists the items, to reopen and fit or to cancel", async () => {
+    render(withItems("completed", settleWith([brakePad])));
+    const collected = screen.getByRole("button", { name: "Collected…" });
+    expect(screen.getByRole("button", { name: "Ready for collection…" })).toBeInTheDocument();
+    await waitFor(() => expect(collected).toBeEnabled());
+    fireEvent.click(collected);
+    expect(screen.queryByRole("group", { name: /Mark J-000123 collected/ })).toBeNull();
+    const sheet = screen.getByRole("dialog", { name: "Before marking J-000123 collected" });
+    expect(sheet).toHaveTextContent("Reopen the job with Change status to fit it, or cancel it.");
+    expect(within(sheet).queryByRole("button", { name: "Fit" })).toBeNull();
+    expect(within(sheet).getByRole("button", { name: /^Cancel item/ })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Collected…" })).toBeDisabled();
+  });
+
+  it("after the checklist, Collected… still asks for the confirmation", async () => {
+    const { rerender } = render(withItems("ready_for_collection", settleWith([brakePad])));
+    const collected = screen.getByRole("button", { name: "Collected…" });
+    await waitFor(() => expect(collected).toBeEnabled());
+    fireEvent.click(collected);
+    rerender(withItems("ready_for_collection", settleWith([])));
+    const sheet = screen.getByRole("dialog", { name: "Before marking J-000123 collected" });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Collected…" }));
+    expect(screen.queryByRole("dialog", { name: /Before marking/ })).toBeNull();
     expect(
-      within(sheet).getByText(
-        "$2.00 was paid online. That is $2.00 more than the job total, paid for parts that are not on the bill.",
+      screen.getByRole("group", { name: "Mark J-000123 collected by Priya Raman?" }),
+    ).toBeInTheDocument();
+    expect(setWorkOrderStatus).not.toHaveBeenCalled();
+  });
+
+  it("names an open quote the move withdraws", async () => {
+    render(
+      withItems(
+        "in_progress",
+        settleWith([brakePad], {
+          quote: {
+            id: "q",
+            state: "open",
+            channel: "whatsapp",
+            total: "27.00",
+            currency: "SGD",
+            sentAt: "2026-10-15T02:00:00Z",
+            expiresAt: "2026-10-22T02:00:00Z",
+            answeredAt: null,
+            answeredName: null,
+          },
+          quotedItems: 2,
+        }),
       ),
-    ).toBeInTheDocument();
+    );
+    const complete = screen.getByRole("button", { name: "Complete…" });
+    await waitFor(() => expect(complete).toBeEnabled());
+    fireEvent.click(complete);
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      /Completing the job withdraws the quote sent .*: the customer's link will say it was withdrawn, and its 2 items go back to Proposed\./,
+    );
+  });
+
+  it("keeps the Change status note through the checklist and the Collected confirmation", async () => {
+    const note = "Customer asked for a quick finish";
+    const { rerender } = render(withItems("in_progress", settleWith([brakePad])));
+    fireEvent.click(screen.getByRole("button", { name: "Change status" }));
+    let change = screen.getByRole("dialog", { name: "Change status" });
+    fireEvent.click(within(change).getByLabelText("Completed"));
+    fireEvent.change(within(change).getByRole("textbox", { name: "Note" }), {
+      target: { value: note },
+    });
+    fireEvent.click(within(change).getByRole("button", { name: "Change status" }));
+    rerender(withItems("in_progress", settleWith([])));
+    const sheet = screen.getByRole("dialog", { name: "Before completing J-000123" });
+    await act(async () => {
+      fireEvent.click(within(sheet).getByRole("button", { name: "Complete job" }));
+    });
+    expect(setWorkOrderStatus).toHaveBeenCalledWith({
+      workOrderId: "00000000-0000-4000-8000-000000000001",
+      status: "completed",
+      note,
+    });
+
+    // Collected: the note waits for the confirmation's Mark collected.
+    setWorkOrderStatus.mockClear();
+    rerender(withItems("ready_for_collection", settleWith([brakePad])));
+    fireEvent.click(screen.getByRole("button", { name: "Change status" }));
+    change = screen.getByRole("dialog", { name: "Change status" });
+    fireEvent.click(within(change).getByLabelText("Collected"));
+    fireEvent.change(within(change).getByRole("textbox", { name: "Note" }), {
+      target: { value: "Collected by her brother" },
+    });
+    fireEvent.click(within(change).getByRole("button", { name: "Change status" }));
+    rerender(withItems("ready_for_collection", settleWith([])));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Before marking J-000123 collected" })).getByRole(
+        "button",
+        { name: "Collected…" },
+      ),
+    );
+    const confirm = within(
+      screen.getByRole("group", { name: "Mark J-000123 collected by Priya Raman?" }),
+    ).getByRole("button", { name: "Mark collected" });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+    expect(setWorkOrderStatus).toHaveBeenCalledWith({
+      workOrderId: "00000000-0000-4000-8000-000000000001",
+      status: "collected",
+      note: "Collected by her brother",
+    });
+  });
+
+  it("drops the note when the checklist is left with Back", async () => {
+    const { rerender } = render(withItems("in_progress", settleWith([brakePad])));
+    fireEvent.click(screen.getByRole("button", { name: "Change status" }));
+    const change = screen.getByRole("dialog", { name: "Change status" });
+    fireEvent.click(within(change).getByLabelText("Completed"));
+    fireEvent.change(within(change).getByRole("textbox", { name: "Note" }), {
+      target: { value: "Not this time" },
+    });
+    fireEvent.click(within(change).getByRole("button", { name: "Change status" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Before completing J-000123" })).getByRole(
+        "button",
+        { name: "Back" },
+      ),
+    );
+    rerender(withItems("in_progress", settleWith([])));
+    const complete = screen.getByRole("button", { name: "Complete" });
+    await waitFor(() => expect(complete).toBeEnabled());
+    await act(async () => {
+      fireEvent.click(complete);
+    });
+    expect(setWorkOrderStatus).toHaveBeenCalledTimes(1);
+    expect(setWorkOrderStatus.mock.calls[0][0]).toMatchObject({ status: "completed" });
+    expect(setWorkOrderStatus.mock.calls[0][0].note).toBeUndefined();
+  });
+
+  it("a stale Cancel job refused for items says to cancel them, never to fit them", async () => {
+    setWorkOrderStatus.mockResolvedValue({
+      ok: false,
+      error: "Fit or cancel the job's approved and ordered items first.",
+      code: "work_order_has_unfitted_requests",
+    });
+    // Confirms past the reason step's double-tap guard.
+    const confirmCancel = async (container: HTMLElement) => {
+      fireEvent.change(within(container).getByRole("textbox", { name: /Why is this job/ }), {
+        target: { value: "Customer withdrew" },
+      });
+      const later = Date.now() + 1_000;
+      const clock = vi.spyOn(Date, "now").mockReturnValue(later);
+      try {
+        await act(async () => {
+          fireEvent.click(within(container).getByRole("button", { name: "Cancel job" }));
+        });
+      } finally {
+        clock.mockRestore();
+      }
+    };
+    render(withItems("in_progress", settleWith([])));
+    // Change status: the page showed nothing to settle.
+    fireEvent.click(screen.getByRole("button", { name: "Change status" }));
+    const change = screen.getByRole("dialog", { name: "Change status" });
+    fireEvent.click(within(change).getByRole("button", { name: "Cancel job…" }));
+    await confirmCancel(change);
+    expect(refresh).toHaveBeenCalled();
+    expect(await screen.findByText("Job not cancelled")).toBeInTheDocument();
     expect(
-      within(sheet).getByText(/^Not on the bill: Brake pad \$2\.00, approved and not fitted\./),
+      screen.getByText("Cancel the job's approved and ordered items before cancelling it."),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Fit or cancel the job's/)).toBeNull();
+    const sheet = screen.getByRole("dialog", { name: "Before cancelling J-000123" });
+    // The checklist's own Cancel job, still stale: the same sentence.
+    fireEvent.click(within(sheet).getByRole("button", { name: "Cancel job…" }));
+    await confirmCancel(sheet);
+    expect(setWorkOrderStatus).toHaveBeenCalledTimes(2);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText("Cancel the job's approved and ordered items before cancelling it."),
+      ).toHaveLength(2),
+    );
+    expect(screen.queryByText(/Fit or cancel the job's/)).toBeNull();
+  });
+
+  it("a stale page refused by the database toasts, refreshes and opens the checklist", async () => {
+    setWorkOrderStatus.mockResolvedValue({
+      ok: false,
+      error: "Fit or cancel the job's approved and ordered items first.",
+      code: "work_order_has_unfitted_requests",
+    });
+    render(withItems("in_progress", settleWith([])));
+    const complete = screen.getByRole("button", { name: "Complete" });
+    await waitFor(() => expect(complete).toBeEnabled());
+    await act(async () => {
+      fireEvent.click(complete);
+    });
+    expect(setWorkOrderStatus).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalled();
+    expect(await screen.findByText("Status not changed")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Before completing J-000123" })).toBeInTheDocument();
   });
 });

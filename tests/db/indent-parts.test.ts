@@ -53,6 +53,7 @@ import {
 import {
   answer,
   answerAll,
+  beforeTheGuard,
   fit,
   orderParts,
   proposePart,
@@ -530,10 +531,28 @@ describe("answer_quote (D142)", () => {
 
   it("refuses an answer once the job is no longer open", async () => {
     await inTransaction(conn, async (tx) => {
+      // D149c(2): completing withdraws the open quote, so the link says so
+      // and an answer (built while it was open) is refused.
       const q = await quoted(tx);
+      await actAs(tx, ANON);
+      const items = (await quoteByToken(tx, q.token))!.items!;
+      const decisions = items.map((i) => ({ item_id: i.id, approve: true }));
+      await actAs(tx, ADMIN);
       await completeJob(tx, q.job.id);
       await actAs(tx, ANON);
-      await failsWith(tx, () => answerAll(tx, q.token), p0001("quote_not_open"));
+      expect(await quoteByToken(tx, q.token)).toEqual({
+        status: "withdrawn",
+        job_number: q.job.job_number,
+      });
+      await failsWith(tx, () => answer(tx, q.token, decisions), p0001("quote_not_open"));
+
+      // A quote left open on a job completed before 20261014000900: the
+      // job-status check refuses it.
+      await actAs(tx, ADMIN);
+      const old = await quoted(tx);
+      await beforeTheGuard(tx, () => completeJob(tx, old.job.id));
+      await actAs(tx, ANON);
+      await failsWith(tx, () => answerAll(tx, old.token), p0001("quote_not_open"));
     });
   });
 
@@ -841,7 +860,8 @@ describe("cancel_part_request on collected and cancelled jobs (D149)", () => {
   it("only an active admin or manager cancels an unfitted request there, with a reason, on the timeline", async () => {
     await inTransaction(conn, async (tx) => {
       const q = await approved(tx);
-      await walkTo(tx, q.job.id, "collected");
+      // Collected before 20261014000900's guard, as J-000002 was.
+      await beforeTheGuard(tx, () => walkTo(tx, q.job.id, "collected"));
 
       // Anyone else: collected stays final (work_order_closed), even with
       // Manage purchasing as extra access (a role check, as D152's).
@@ -937,7 +957,7 @@ describe("cancel_part_request on collected and cancelled jobs (D149)", () => {
       // A cancelled job (no live lines) with an ordered part.
       const c = await approved(tx);
       await orderParts(tx, [c.partId], c.supplierId);
-      await setStatus(tx, c.job.id, "cancelled", "Customer withdrew");
+      await beforeTheGuard(tx, () => setStatus(tx, c.job.id, "cancelled", "Customer withdrew"));
       await actAs(tx, MECHANIC2);
       await failsWith(tx, () => cancelRequest(tx, c.partId), p0001("work_order_closed"));
       await actAs(tx, ADMIN);
@@ -956,7 +976,7 @@ describe("cancel_part_request on collected and cancelled jobs (D149)", () => {
       // A fitted request: void the line instead (refused on a closed job).
       const f = await approved(tx);
       await fit(tx, f.serviceRequestId);
-      await walkTo(tx, f.job.id, "collected");
+      await beforeTheGuard(tx, () => walkTo(tx, f.job.id, "collected"));
       await actAs(tx, MANAGER);
       await failsWith(
         tx,
@@ -974,8 +994,12 @@ describe("cancel_part_request on collected and cancelled jobs (D149)", () => {
       ] as const) {
         await actAs(tx, ADMIN);
         const o = await quoted(tx);
-        if (status === "cancelled") await setStatus(tx, o.job.id, "cancelled", "Customer withdrew");
-        else await walkTo(tx, o.job.id, status);
+        // Closed before 20261014000900, which now withdraws the quote then.
+        await beforeTheGuard(tx, () =>
+          status === "cancelled"
+            ? setStatus(tx, o.job.id, "cancelled", "Customer withdrew")
+            : walkTo(tx, o.job.id, status),
+        );
         const quoteId = await openQuoteId(tx, o.job.id);
         const quoteStatus = () =>
           readAsOwner(tx, () =>
@@ -1030,11 +1054,11 @@ describe("cancel_part_request on collected and cancelled jobs (D149)", () => {
         await tx.query("select public.withdraw_quote($1)", [quoteId]);
       }
 
-      // On a completed job the open quote still needs a withdraw (any staff
-      // member) before its items are cancelled.
+      // On a job completed before 20261014000900 the open quote still needs
+      // a withdraw (any staff member) before its items are cancelled.
       await actAs(tx, ADMIN);
       const c = await quoted(tx);
-      await completeJob(tx, c.job.id);
+      await beforeTheGuard(tx, () => completeJob(tx, c.job.id));
       await actAs(tx, MECHANIC1);
       await failsWith(tx, () => cancelRequest(tx, c.partId), p0001("part_request_quoted"));
     });
@@ -1043,7 +1067,7 @@ describe("cancel_part_request on collected and cancelled jobs (D149)", () => {
   it("an admin or manager who is no longer active is refused on a closed job", async () => {
     await inTransaction(conn, async (tx) => {
       const q = await approved(tx);
-      await walkTo(tx, q.job.id, "collected");
+      await beforeTheGuard(tx, () => walkTo(tx, q.job.id, "collected"));
       // As the owner with no session (staff_enforce_rules refuses a
       // signed-in user deactivating their own row).
       await ownerMode(tx);
@@ -1059,13 +1083,15 @@ describe("cancel_part_request on collected and cancelled jobs (D149)", () => {
 
   it("keeps open, completed and ready jobs as before: any staff member cancels", async () => {
     await inTransaction(conn, async (tx) => {
+      // Completed and made ready before 20261014000900's guard (R-082's
+      // residual).
       const q = await approved(tx);
-      await completeJob(tx, q.job.id);
+      await beforeTheGuard(tx, () => completeJob(tx, q.job.id));
       await actAs(tx, MECHANIC1);
       await cancelRequest(tx, q.partId, "Customer no longer wants it");
       expect(await requestStatus(tx, q.partId)).toBe("cancelled");
       await actAs(tx, ADMIN);
-      await setStatus(tx, q.job.id, "ready_for_collection");
+      await beforeTheGuard(tx, () => setStatus(tx, q.job.id, "ready_for_collection"));
       await actAs(tx, MECHANIC2);
       await cancelRequest(tx, q.serviceRequestId, "Customer no longer wants it");
       expect(await requestStatus(tx, q.serviceRequestId)).toBe("cancelled");
@@ -1078,7 +1104,8 @@ describe("order_part_requests and withdraw_quote on jobs that are not open (R-08
     await inTransaction(conn, async (tx) => {
       const q = await approved(tx);
       const poId = await orderParts(tx, [q.partId], q.supplierId, randomUUID(), false);
-      await completeJob(tx, q.job.id);
+      // Jobs closed with approved or ordered parts: before 20261014000900.
+      await beforeTheGuard(tx, () => completeJob(tx, q.job.id));
       // The replay of an ordered set answers whatever the job's status.
       expect(await orderParts(tx, [q.partId], q.supplierId)).toBe(poId);
 
@@ -1089,8 +1116,11 @@ describe("order_part_requests and withdraw_quote on jobs that are not open (R-08
         "cancelled",
       ] as const) {
         const j = await approved(tx);
-        if (status === "cancelled") await setStatus(tx, j.job.id, "cancelled", "Customer withdrew");
-        else await walkTo(tx, j.job.id, status);
+        await beforeTheGuard(tx, () =>
+          status === "cancelled"
+            ? setStatus(tx, j.job.id, "cancelled", "Customer withdrew")
+            : walkTo(tx, j.job.id, status),
+        );
         await actAs(tx, MANAGER);
         await failsWith(
           tx,
@@ -1104,7 +1134,7 @@ describe("order_part_requests and withdraw_quote on jobs that are not open (R-08
       // One closed job among open ones refuses the whole order.
       const open = await approved(tx);
       const done = await approved(tx);
-      await completeJob(tx, done.job.id);
+      await beforeTheGuard(tx, () => completeJob(tx, done.job.id));
       await failsWith(
         tx,
         () => orderParts(tx, [open.partId, done.partId], open.supplierId),
@@ -1118,8 +1148,10 @@ describe("order_part_requests and withdraw_quote on jobs that are not open (R-08
     await inTransaction(conn, async (tx) => {
       const withdraw = (id: string) => tx.query("select public.withdraw_quote($1)", [id]);
 
+      // Quotes left open on jobs that closed before 20261014000900 (which
+      // now withdraws them then, and its one-off withdrew those it found).
       const done = await quoted(tx);
-      await completeJob(tx, done.job.id);
+      await beforeTheGuard(tx, () => completeJob(tx, done.job.id));
       const doneQuote = await openQuoteId(tx, done.job.id);
       await actAs(tx, MECHANIC1);
       await withdraw(doneQuote);
@@ -1128,8 +1160,11 @@ describe("order_part_requests and withdraw_quote on jobs that are not open (R-08
       for (const status of ["collected", "cancelled"] as const) {
         await actAs(tx, ADMIN);
         const j = await quoted(tx);
-        if (status === "cancelled") await setStatus(tx, j.job.id, "cancelled", "Customer withdrew");
-        else await walkTo(tx, j.job.id, status);
+        await beforeTheGuard(tx, () =>
+          status === "cancelled"
+            ? setStatus(tx, j.job.id, "cancelled", "Customer withdrew")
+            : walkTo(tx, j.job.id, status),
+        );
         const quoteId = await openQuoteId(tx, j.job.id);
         for (const claims of [MECHANIC1, ADMIN]) {
           await actAs(tx, claims);

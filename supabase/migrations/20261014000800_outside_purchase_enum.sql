@@ -1,0 +1,11 @@
+-- The ledger type for an indent part bought outside BICII (PLAN D149a
+-- INDENT-FIT-OUTSIDE, D149c(5); ADR-024 amendment 2026-10-15; DATA-MODEL §7).
+--
+-- A new enum value cannot be used in the transaction that adds it, and every
+-- migration runs in its own transaction, so it is added here on its own (as
+-- 20261014000100_indent_enum_values does). 20261014000900 writes it, through
+-- public.fit_part_bought_outside only: one positive, costed, job-linked row
+-- per part bought outside BICII, followed in the same transaction by the
+-- ordinary job_consumption of the fit. It extends SPEC §12's list of eleven
+-- movement types (a build default the owner confirms, PRODUCT question 34).
+alter type public.movement_type add value if not exists 'outside_purchase' after 'purchase_received';

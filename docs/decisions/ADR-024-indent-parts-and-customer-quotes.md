@@ -2,10 +2,13 @@
 
 Date: 2026-10-14 (design, before Phase 13 is built; on
 `claude/brave-clarke-kfqhgt` from `main` 511aac6); amended 2026-10-15
-(D149, [below](#amendment-2026-10-15-d149-indent-close)). Status: proposed. The
-owner decided the workflow and three of its rules on 2026-10-14; the rest
-are build defaults for the owner to confirm
-([PRODUCT question 31](../PRODUCT.md#open-assumptions-and-owner-questions)).
+(D149, [below](#amendment-2026-10-15-d149-indent-close)) and again
+2026-10-15 (D149a–c,
+[below](#amendment-2026-10-15-closing-indent-items-d149a-d149b-d149c)).
+Status: proposed. The owner decided the workflow and three of its rules on
+2026-10-14, D149 and D149a–b on 2026-10-15; the rest are build defaults
+for the owner to confirm
+([PRODUCT questions 31 and 34](../PRODUCT.md#open-assumptions-and-owner-questions)).
 Decision owner: Abhishek Cherian George (owner) for business meaning;
 defaults proposed by the build agent.
 
@@ -118,12 +121,13 @@ completed, ready or collected job is the payment issue
 not account for); an item on a quote left open on a job that is no longer
 open shows "Not answered"; a closed job shows what was paid above its bill
 (`work_order_payment_totals.held_over_total`); both ways to Collected
-name the unfitted items; the Fit sheet warns before fitting a part never
-ordered in BICII or one with no cost; the quote page says "Ask the shop
-about your deposit." once the job closed without the parts (its deposit
-object gains `job_closed`, D143 otherwise unchanged). The containment
-covers approved and ordered requests only: a fitted request whose line
-was later voided stays fitted and unflagged
+named the unfitted items (replaced by D149b's checklist, below); the Fit
+sheet warns before fitting a part never ordered in BICII or one with no
+cost; the quote page says "Ask the shop about your deposit." once the job
+closed without the parts (its deposit object gains `job_closed`, D143
+otherwise unchanged). The containment covers approved and ordered requests
+only: a fitted request whose line was later voided stays fitted and
+unflagged
 ([R-083](../RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged),
 owner to decide).
 
@@ -131,21 +135,106 @@ owner to decide).
 customer approves or pays (rejected again: it is the first alternative
 above, and would also make a payment write a line, against D154); a
 block on Complete until each approved item is fitted or cancelled
-(Option C of the analysis) or only a warning at Complete: the owner has
-not decided ("not all orders will happen via the app"), so neither is
-built and the choice will take its own number from D160.
+(Option C of the analysis) or only a warning at Complete: the owner had
+not decided then ("not all orders will happen via the app"), so neither
+was built with D149; the owner chose the block the same day (D149b, in
+the amendment below, with D149a for parts bought outside BICII).
 
 **Consequences.** A deposit for a part that was never supplied can now
 be closed out: cancel the request (D149), then refund in Stripe (D155);
 `paid_parts_cancelled` asks for the refund until it arrives (or, when
 other parts of that quote were fitted, the closed job's "more than the
-bill" shows what is left). Staff can
+bill" shows what is left). Staff could
 still complete a job without fitting; the memo, the card and the issue
-make it visible rather than impossible.
+made it visible rather than impossible, until D149b (below).
+
+## Amendment 2026-10-15: closing indent items (D149a, D149b, D149c)
+
+**Context.** The owner answered the Complete question of D149 (PRODUCT
+question 33, R-082): block. The owner also noted that "not all orders will
+happen via the app". A part bought elsewhere could then only be fitted
+from stock the shop never recorded, which would take the count below zero
+(D23) and cost the line at a stale or missing product cost (D24:
+`part_cost_missing` when there is none). This is analysis of the code, not
+something the owner's test showed: on J-000002 the part was never ordered
+or fitted (above). Built in
+`20261014000800_outside_purchase_enum` and
+`20261014000900_indent_settle_and_outside_purchase`.
+
+**Bought outside BICII (D149a, owner decision 2026-10-15 SGT).** The
+owner's rule: Fit gets "Bought outside BICII" for an approved indent part
+never ordered through BICII purchasing; staff enter the unit cost; BICII
+records it as received at that cost and fits it in one step (stock never
+goes below zero; the yield uses the real cost). Parts on a BICII purchase
+order are received through Purchasing, then fitted; fitting from existing
+stock stays.
+
+How it is built, with the D149c build defaults it rests on marked:
+`fit_part_bought_outside` records the receipt as one movement of the new
+type `outside_purchase` (D149c(5)): +quantity at the entered cost, linked
+to the job, its `request_id` the new line's id. It sets the product's cost
+to that cost as a purchase receipt does (D149c(4); D5, D63; reason "Bought
+outside BICII for J-…", with where it was bought when given), and adds the
+ordinary line through `add_inventory_line` at the same location in the
+same transaction. Only View costs or Manage purchasing holders may record
+it (D149c(3)). On-hand there is unchanged, so it never goes below zero;
+the line and its yield use the real cost, and D24 ("the cost is never
+overridden") holds because the line still takes the product's cost. A
+part on a BICII purchase order is refused (`part_request_ordered`), so a
+later receipt never counts it twice.
+
+**Settle before closing (D149b, owner decision 2026-10-15 SGT).** The
+owner's rule: Complete is blocked until every approved (or ordered,
+arrived or not, and not fitted) indent part is fitted or cancelled;
+Complete opens a checklist with Fit and Cancel for each. Built as: a job
+cannot be completed while any of its requests is approved or ordered
+(`work_order_has_unfitted_requests`, a BEFORE UPDATE OF status trigger for
+every writer, after the transition, reason and live-line checks, so
+`set_work_order_status` is not replaced). Complete opens a checklist of
+those items with Fit (or Add to job) and Cancel item…; Complete job is
+available once none is left. Proposed, quoted, declined, fitted and
+cancelled items never block.
+
+**Build defaults (D149c, owner to confirm, PRODUCT question 34).**
+(1) The same guard covers the moves into ready for collection, collected
+and cancelled, so a job completed before it is settled at Ready or
+Collected, and Cancel job lists the items with Cancel only (a fitted line
+would block the cancel, D16). (2) An open quote is withdrawn by an AFTER
+trigger when its job leaves the open statuses (completed, ready for
+collection, collected or cancelled), its quoted items going back
+to proposed, so the customer's link says withdrawn instead of open; (6)
+the migration withdrew those already left open on jobs that were not open.
+(3) Recording an outside purchase needs View costs or Manage purchasing
+(D147's rule for an expected cost, D60's for a receipt), where the owner
+wrote "staff". (4) The entered cost becomes the product's cost, as a
+purchase receipt's does. (5) The new ledger type `outside_purchase`
+extends SPEC §12's list of eleven movement types.
+
+**Alternatives considered.**
+
+| Option | Outcome |
+|---|---|
+| A spot purchase order | Rejected: it needs a supplier, Manage purchasing and a PO number for something not bought through BICII. |
+| A costed `stock_adjustment` | Rejected: every purchase would count as a manual, D33-significant correction on Today, in the daily summary and in reports. |
+| A cost override on the line | Rejected: it changes D24. |
+| Only a warning at Complete | Rejected by the owner (block). |
+| Blocking Complete while a quote is open | Rejected: stricter than the owner's rule, and a third action on the checklist. |
+| A guard inside `work_order_transition_rule` | Rejected: that function is immutable and pair-only (the app mirrors it). |
+
+**Consequences.** No job can become closed with an approved or ordered
+item; jobs closed before the guard keep D149's admin or manager cancel and
+`paid_parts_not_fitted`
+([R-082](../RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)).
+A part bought outside rests on a typed cost with no supplier or document
+and is missing from D105's purchase totals
+([R-084](../RISKS.md#r-084--a-part-bought-outside-bicii-rests-on-a-typed-cost)).
+Yield and Cult Commons formulas, inventory ownership (shop-owned only; D50
+refuses the new type on consigned stock) and consignment liability are
+unchanged; no snapshot changes.
 
 ## Revisit trigger
 
-The owner's Complete decision (block or warn, R-082); the owner's answer to question 31; a request for hard reservation, for
+The owner's answer to question 34 (D149c); the owner's answer to question 31; a request for hard reservation, for
 customers to see quotes on the public site, or for messages other than
 quotes.
 

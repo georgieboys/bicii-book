@@ -1155,8 +1155,11 @@ URLs, or customer data in this file.
 ## R-039 — Hosted email delivery and Auth settings are unverified
 
 - Category: unverified assumption / operational gap (D10, D70, D71).
-- Status and owner: partly resolved 2026-10-12; owner (the Resend domain,
-  the Auth dashboard), build agent (procedure).
+- Status and owner: resolved for delivery 2026-10-15 SGT: the shop's
+  domain is verified in Resend and Auth sends from it (owner's report),
+  so codes reach addresses other than the owner's; the Auth templates and
+  settings are still to be checked against RUNBOOK; owner (the Resend
+  domain, the Auth dashboard), build agent (procedure).
 - Trigger: inviting the first staff member; opening customer sign-in on
   the public site; any change of mail provider or sender.
 - Impact: without working email nobody can sign in. Production's Auth
@@ -1192,13 +1195,13 @@ URLs, or customer data in this file.
 - Workaround or containment: until the domain is verified only the owner
   signs in; RUNBOOK says to test with the owner's own address after any
   SMTP change.
-- Next action: the owner finishes Resend's domain verification and sets
-  the shop's address as the Auth sender; then sends a code to a second
-  address before the first staff invitation, and checks the templates and
-  Auth settings against RUNBOOK "Hosted Supabase projects" step 2.
+- Next action: the first staff invitation (a code to an address other
+  than the owner's), then check the templates and Auth settings against
+  RUNBOOK "Hosted Supabase projects" step 2.
 - Revisit trigger: the domain is verified; a change of provider or sender.
-- Last checked: 2026-10-12, hosted Auth log and read-only SQL, the owner's
-  sign-in.
+- Last checked: 2026-10-15 SGT, the owner's report that Auth sends
+  through Resend from the verified domain; 2026-10-12, hosted Auth log and
+  read-only SQL, the owner's sign-in.
 
 ## R-040 — Shopify webhook payloads hold customer personal data until purged by hand
 
@@ -2061,7 +2064,11 @@ URLs, or customer data in this file.
 ## R-079 — Email quotes need the Resend domain and API key
 
 - Category: operational gap (D144).
-- Status and owner: open; owner (Resend domain, key in Vercel).
+- Status and owner: resolved 2026-10-15 SGT: the owner verified the
+  shop's domain in Resend and set `RESEND_API_KEY` and `EMAIL_FROM` in
+  Vercel Production; production was redeployed, and a test quote emailed
+  from a test job arrived (owner's report); owner (Resend domain, key in
+  Vercel).
 - Trigger: sending a quote by email.
 - Impact: the Admin sends email through Resend's API, which needs the
   shop's domain verified and `RESEND_API_KEY` and `EMAIL_FROM` set in
@@ -2073,12 +2080,12 @@ URLs, or customer data in this file.
 - Evidence and confidence: high; Resend shows the domain as not verified
   (2026-10-12).
 - Workaround or containment: WhatsApp and the copied link work without it.
-- Next action: owner finishes the domain verification and creates an API
-  key restricted to sending; set both variables (names only) in Vercel
-  Production and send a test quote to their own address
-  ([RUNBOOK](RUNBOOK.md#quote-emails)).
-- Revisit trigger: the domain is verified.
-- Last checked: 2026-10-14.
+- Next action: none. If an email ever fails, the sheet says so and the
+  server log has Resend's status ([RUNBOOK](RUNBOOK.md#quote-emails)).
+- Revisit trigger: a change of sending domain, key or provider.
+- Last checked: 2026-10-15 SGT, the owner's test quote email; the
+  redeployed production served `/login`, a quote page and the webhook
+  route, so `EMAIL_FROM` passes env.ts.
 
 ## R-080 — Arrived indent stock is not held for its job
 
@@ -2128,9 +2135,9 @@ URLs, or customer data in this file.
 - Category: product gap (business process; D140, D149, D149b, D151, D154).
 - Status and owner: mitigated 2026-10-15 SGT: contained by D149 (PR #26),
   then closed for new jobs by D149b, the owner's answer to the Complete
-  question (block), and D149c(1) (`20261014000900`, on
-  `claude/brave-clarke-kfqhgt`, not deployed); what remains is the jobs
-  that closed before the guard (below); build agent.
+  question (block), and D149c(1) (`20261014000900`, in production since
+  PR #27 merged on 2026-10-15); the jobs that closed before the guard
+  (below) were checked the same day and none holds an item; build agent.
 - Trigger: a job with an approved or ordered indent item is completed and
   collected without the item being fitted, for example because the part
   was bought outside BICII or never arrived, or because Fit was missed.
@@ -2206,17 +2213,19 @@ URLs, or customer data in this file.
   (`paid_parts_not_fitted`); a job without a deposit shows its items as
   "Not fitted" on its page but in no list. RUNBOOK "Indent items on jobs
   closed before the guard" has a read-only query that lists them all.
-- Next action: for J-000002 once deployed: an admin or manager cancels the
-  request with a reason and refunds the S$2.00 in Stripe (RUNBOOK "Stripe:
-  resolving problems"); the owner runs the RUNBOOK query once after
-  `20261014000900` is applied. Later: an operational exception for every
-  closed job with an approved or ordered item, not only those with a paid
-  deposit.
+- Next action: none now. Done on 2026-10-15 SGT: J-000002's request was
+  cancelled with a reason (D149) and its S$2.00 refunded in Stripe (no
+  payment issue left), and after `20261014000900` was applied the RUNBOOK
+  query returned no rows (read-only). Later, if it is ever needed: an
+  operational exception for every closed job with an approved or ordered
+  item, not only those with a paid deposit.
 - Revisit trigger: the RUNBOOK query finds rows; a deposit flagged
   `paid_parts_not_fitted` in production.
 - Last checked: 2026-10-15 SGT, `tests/db/indent-close.test.ts` (the
   guard's 110 pairs for the RPC and direct writers; a job completed before
-  the guard settled at Collected; J-000002's cancel), unit tests, E2E.
+  the guard settled at Collected; J-000002's cancel), unit tests, E2E; in
+  production, read-only: the RUNBOOK query (no rows) and J-000002
+  (request cancelled, payment Refunded).
 
 ## R-083 — A fitted indent request whose line was voided is stuck and unflagged
 
@@ -2325,9 +2334,18 @@ URLs, or customer data in this file.
   deployed on 2026-10-14 (PR #24); the owner set the restricted key, the
   webhook secret and `ADMIN_ORIGIN` in Vercel Production the same day,
   and Stripe is on in production since the Admin's own domain served
-  (2026-10-15 SGT), not yet verified with a real event or payment; the
-  deposit percent is 0; owner (Stripe account and keys), build
-  agent (procedure).
+  (2026-10-15 SGT). Verified live on 2026-10-15 on test job J-000002: a
+  S$2.00 deposit paid through Checkout and applied from the signed
+  `checkout.session.completed` webhook on its first delivery, then
+  refunded in Stripe. The refund reached BICII only through *Check with
+  Stripe* (a `read.refund`, `refund_recorded`): the webhook destination
+  was subscribed to `charge.refunded`, which BICII stores and ignores
+  (`type_not_handled`), and not to `refund.*`. The owner then subscribed
+  it to the seven events in RUNBOOK "Stripe: account and webhook
+  endpoint" (owner's report; no refund has happened since to show a
+  `refund.*` delivery). The deposit percent is 100% (the owner's
+  setting, 2026-10-15); owner (Stripe account and keys), build agent
+  (procedure).
 - Trigger: going live with Stripe; rotating a key; a leaked key.
 - Impact: a secret key can create or expire Checkout Sessions and read
   refunds; a webhook secret proves events come from Stripe. Both live only
@@ -2389,11 +2407,15 @@ URLs, or customer data in this file.
   gate with no real deposit; detection is *Check with Stripe* (step 2),
   which shows Stripe's truth, and the response is rolling the secret. A
   leaked live key could create or expire Checkout Sessions.
-- Next action: verify per RUNBOOK "Stripe:
-  switching on" (Live, the test delivery, one live deposit paid and
-  refunded), then a rotation drill (RUNBOOK "Stripe: rotating keys").
-- Revisit trigger: go-live; any key exposure.
-- Last checked: 2026-10-14, the recheck of the Phase 14 fixes.
+- Next action: on the next refund, confirm in Settings → Customer
+  payments (recent deliveries) that a `refund.*` event is applied without
+  *Check with Stripe*; then a rotation drill (RUNBOOK "Stripe: rotating
+  keys").
+- Revisit trigger: any key exposure; a refund that shows only after
+  *Check with Stripe*.
+- Last checked: 2026-10-15 SGT, the live deposit and refund on J-000002
+  (read-only on the hosted project: the payment, its refund and the
+  `stripe_events` rows).
 
 ## R-086 — A payment stays pending until Stripe's webhook arrives
 

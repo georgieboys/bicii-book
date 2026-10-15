@@ -946,7 +946,11 @@ keys before switching on.
    `checkout.session.async_payment_succeeded`,
    `checkout.session.async_payment_failed`, `checkout.session.expired`,
    `refund.created`, `refund.updated`, `refund.failed`. Anything else is
-   stored and ignored (`type_not_handled`).
+   stored and ignored (`type_not_handled`). Stripe's own suggestion for
+   refunds, `charge.refunded`, is one of those: with it alone a refund
+   reaches the job only when someone presses *Check with Stripe* (seen in
+   the live test of 2026-10-15), so check that the three `refund.*`
+   events are selected.
 4. Reveal the endpoint's **signing secret** (`whsec_…`) and put it into
    Vercel Production as `STRIPE_WEBHOOK_SECRET` (Sensitive). Test mode and
    live mode endpoints have different secrets.

@@ -172,11 +172,9 @@ document is corrected.
   2026-10-12 run 10 applied all 56 files to the production project; the
   Phase 13 and Phase 14 merges added the rest, and on 2026-10-14, after
   PR #24 merged, its migration history held 61 versions, the last
-  `20261014000500` (read-only); PR #25 added `20261014000600` (62
-  versions, as reported when this branch started from `main` be1ad17; not
-  re-read here). `20261014000700` reaches it when PR #26 merges, and
-  `20261014000800` and `20261014000900` when this branch's next commit
-  does.
+  `20261014000500` (read-only); PRs #25–#27 added `20261014000600` to
+  `20261014000900`, and on 2026-10-15 its history held all 65 versions,
+  the last `20261014000900` (read-only).
   There is no staging project
   ([R-001](RISKS.md#r-001--nothing-is-deployed)).
 

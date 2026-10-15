@@ -58,7 +58,7 @@ Admin never replaces the public site.
   printers are known; no marketing CRM or automated messaging. Changed by
   the owner on 2026-10-14: quotes for indent parts that the customer
   approves per item from a link sent by WhatsApp or email (Phase 13,
-  D140–D148; built, email off until it is configured), and customer
+  D140–D148; built, email on since 2026-10-15), and customer
   payments through Stripe, starting with deposits on those quotes (Phase
   14, D150–D159; steps 1 and 2 built and deployed on 2026-10-14, the
   owner's keys set and Stripe on; the owner set the deposit to 100% in

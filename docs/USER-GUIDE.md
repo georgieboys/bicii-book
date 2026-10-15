@@ -167,7 +167,9 @@ managers.
     Left empty, the line is marked cost pending.").
   - To remove a line: **Void…** on its row, give the reason, **Void line**.
     Nothing is deleted; **Show voided** lists them. Voiding a part returns
-    it to stock.
+    it to stock. Voiding the line a fitted indent item became puts the
+    item back to approved or ordered, to fit again or cancel (D160, see
+    [indent parts](#quote-and-order-a-part-the-shop-doesnt-stock-indent-part)).
 - Success looks like: a toast such as "Added 1 × <part>. 39 left at Shop
   floor." (a unique item: "It is on hold for this job."), and the totals
   update.
@@ -314,6 +316,28 @@ while an approved or ordered item is neither fitted nor cancelled:
      part**; with the Bought outside option, the sheet switches to it and
      asks what you paid). Once every approved item is fitted, the memo
      under the total goes, and the job can be completed.
+     **Voiding a fitted item's line** (a wrong part, D160): **Void…** on
+     its row in **Lines** says "Voiding puts <part> back to approved: fit
+     it again or cancel it before completing the job." (or "back to
+     ordered" for a part on a purchase order), then what goes back to
+     stock. Give the reason and press **Void line**; the toast reads
+     "<part> is back to approved". The item is **Approved** (or
+     **Ordered**) again in **Indent parts and quote**, with **Fit** and
+     **Cancel** and "Its line was voided, so it is not on the bill: fit it
+     again or cancel it.", the memo under the total counts it again, and
+     the timeline reads "<part> back to approved: its line was voided".
+     The part itself went back to stock with the void. An ordered part
+     keeps its purchase order: if the order had been received it is
+     **Arrived** and reserved for the job again; if it was fitted before
+     its order came in, it reads "not arrived yet" until the order is
+     received. A part bought outside
+     BICII stays bought: the void put it into stock, so the card says
+     "The part bought outside BICII went back into stock: fit it from
+     stock, or cancel it.", and the Fit sheet says "It went back into
+     stock when its line was voided: fit it from stock. Bought outside
+     BICII would record a second purchase." Complete (and Ready,
+     Collected and Cancel job) wait for it like any approved item. Anyone
+     who can void a line can do this.
   7. Once a deposit is asked, the job shows a **Customer payments** card
      (every staff member sees it): first anything that needs attention, in
      a sentence (for example "$120.00 is held but this job is cancelled.
@@ -400,6 +424,8 @@ while an approved or ordered item is neither fitted nor cancelled:
     job."
   - "It is on the quote the customer has. Withdraw the quote first."
   - "Only approved items can be ordered or put on the job."
+  - "That line was voided. Reload the job and fit the item again." (a Fit
+    sent again for a line that was voided meanwhile, D160).
   - Bought outside BICII: "It is on a purchase order. Receive it in
     Purchasing, then fit it." "Only a part can be bought outside BICII.
     Add a service with Add to job." Under **Cost each**: "Enter the cost

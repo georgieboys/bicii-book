@@ -1,0 +1,12 @@
+-- The job timeline type for a fitted indent item whose line was voided
+-- (PLAN D160, owner decision 2026-10-15 SGT; ADR-024 amendment "D160";
+-- DATA-MODEL §5; RISKS R-083).
+--
+-- A new enum value cannot be used in the transaction that adds it, and every
+-- migration runs in its own transaction, so it is added here on its own (as
+-- 20261014000100_indent_enum_values does). 20261014001100 writes it, through
+-- private.unfit_part_request only: the request went back to approved or
+-- ordered because its line was voided. The staff timeline describes it
+-- (src/lib/workshop-timeline.ts); the customer timeline never shows it
+-- (my_work_order_timeline lists its own types, D8).
+alter type public.work_order_event_type add value if not exists 'part_request_unfitted' after 'part_fitted';

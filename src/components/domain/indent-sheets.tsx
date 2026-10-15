@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/toast";
 import type { ActionResult } from "@/lib/actions";
 import type { PartRequest } from "@/lib/domain/indent";
 import {
+  BACK_IN_STOCK_NOTE,
   COST_MISSING_BUY_NOTE,
   COST_MISSING_NOTE,
   COST_MISSING_SWITCH_NOTE,
@@ -79,7 +80,8 @@ type Source = "stock" | "outside";
  * purchase at that cost and fits the part in one step at the default
  * location, so the stock count there does not change, and the cost becomes
  * the product's cost (D149c(4)). A From stock fit refused for a missing
- * cost switches to it.
+ * cost switches to it. A part bought outside BICII whose line was voided
+ * (D160) is back in stock, so the sheet says to fit it from stock.
  */
 export function FitSheet({
   request,
@@ -285,7 +287,9 @@ export function FitSheet({
             ) : null}
             {neverOrdered ? (
               <p role="status" className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
-                {neverOrderedNote(locationName, canBuy)}
+                {request.unfitted?.boughtOutside
+                  ? BACK_IN_STOCK_NOTE
+                  : neverOrderedNote(locationName, canBuy)}
               </p>
             ) : null}
           </>

@@ -147,7 +147,9 @@ describe("API surface (tests/fixtures/api-surface.ts)", () => {
   // payment views run as the caller on tables and RLS only (payment_issues
   // reads each refund's own status_changed_at, not the admins-only
   // stripe_events), and the apply paths run inside the service-role RPCs.
-  it("no API role can execute private.integration_exceptions, the purges or Phase 14's private functions", async () => {
+  // Nor does D160 (20261014001100): the un-fit and the live-line guard are
+  // owner-only triggers on a void and on a request's link.
+  it("no API role can execute private.integration_exceptions, the purges, Phase 14's or D160's private functions", async () => {
     const { rows: phase14 } = await conn.query<{ fn: string }>(
       `select p.oid::regprocedure::text as fn
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -161,6 +163,9 @@ describe("API surface (tests/fixtures/api-surface.ts)", () => {
       "private.integration_exceptions()",
       "private.purge_integration_events(interval)",
       "private.purge_stripe_events(interval)",
+      "private.unfit_part_request(uuid)",
+      "private.work_order_line_items_unfit_part_request()",
+      "private.job_part_requests_require_live_line()",
       ...phase14.map((r) => r.fn),
     ]) {
       for (const role of ["anon", "authenticated", "service_role"]) {

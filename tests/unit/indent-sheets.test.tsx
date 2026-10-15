@@ -191,3 +191,25 @@ describe("FitSheet: Bought outside BICII (D149a)", () => {
     expect(refresh).toHaveBeenCalled();
   });
 });
+
+describe("FitSheet after a void (D160)", () => {
+  it("a part bought outside BICII whose line was voided is back in stock: fit it from stock", () => {
+    sheet({ ...part, unfitted: { boughtOutside: true } });
+    const dialog = screen.getByRole("dialog", { name: "Fit part" });
+    expect(dialog).toHaveTextContent(
+      "It went back into stock when its line was voided: fit it from stock. Bought outside BICII would record a second purchase.",
+    );
+    expect(dialog).not.toHaveTextContent("Never ordered in BICII");
+    expect(within(dialog).getByRole("radio", { name: "From stock" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("a part fitted from stock whose line was voided reads as before", () => {
+    sheet({ ...part, unfitted: { boughtOutside: false } });
+    expect(screen.getByRole("dialog", { name: "Fit part" })).toHaveTextContent(
+      "Never ordered in BICII.",
+    );
+  });
+});

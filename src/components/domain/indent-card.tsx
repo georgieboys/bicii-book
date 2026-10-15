@@ -40,6 +40,7 @@ import {
   quoteMessage,
   requestBadge,
   unansweredQuoteNote,
+  unfittedNote,
   whatsappHref,
 } from "@/lib/indent";
 import { formatMoney, formatQuantity, sumMoney } from "@/lib/money";
@@ -73,6 +74,8 @@ const errorsOf = (r: ActionResult<unknown> | null): Errors =>
  * Fit on an approved part never ordered in BICII offers "Bought outside
  * BICII" to cost and purchasing holders (D149a, FitSheet in
  * indent-sheets.tsx, shared with the settle checklist of D149b).
+ * An item whose fitted line was voided is approved or ordered again with
+ * Fit and Cancel, and says why (D160).
  */
 export function IndentCard({
   id,
@@ -250,6 +253,11 @@ export function IndentCard({
                   ) : null}
                   {notFitted ? (
                     <p className="text-sm text-danger-deep">{notFittedNote(jobStatus)}</p>
+                  ) : open && r.unfitted ? (
+                    // D160: its fitted line was voided; it is back to approved or ordered.
+                    <p className="text-sm text-waiting-deep">
+                      {unfittedNote(r.unfitted.boughtOutside)}
+                    </p>
                   ) : null}
                   {fittable || cancellable ? (
                     <div className="flex flex-wrap gap-2">

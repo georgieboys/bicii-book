@@ -8269,6 +8269,7 @@ export type Database = {
         | "quote_answered"
         | "part_ordered"
         | "part_fitted"
+        | "part_request_unfitted"
         | "payment_received"
         | "payment_refunded"
         | "payment_refund_failed";
@@ -9307,6 +9308,7 @@ export const Constants = {
         "quote_answered",
         "part_ordered",
         "part_fitted",
+        "part_request_unfitted",
         "payment_received",
         "payment_refunded",
         "payment_refund_failed",

@@ -301,6 +301,21 @@ export function describeEvent(
         tone: "done",
       };
     }
+    case "part_request_unfitted": {
+      // D160: its fitted line was voided, so the item is back where it was
+      // before Fit (approved, or ordered when on a purchase order) and must
+      // be fitted again or cancelled before the job completes.
+      const what = text(p, "description") ?? "The fitted item";
+      const back = p.status === "ordered" ? "ordered" : "approved";
+      return {
+        title: `${what} back to ${back}: its line was voided`,
+        detail:
+          p.bought_outside === true
+            ? "The part bought outside BICII went back into stock. Fit it again or cancel it."
+            : "Fit it again or cancel it.",
+        tone: "waiting",
+      };
+    }
     // Phase 14 (D153, D155, D159): customer payments, from Stripe's word
     // only. Payloads carry customer amounts (money held, not revenue,
     // D154), never a cost; amounts are formatted here, never computed.

@@ -428,6 +428,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   outside_purchase_cost_invalid: `Enter a unit cost between ${formatMoney("0")} and ${formatMoney("99999.99")}.`,
   outside_purchase_reference_too_long: "Keep where you bought it under 100 characters.",
   work_order_has_unfitted_requests: "Fit or cancel the job's approved and ordered items first.",
+  // D160: voiding a fitted line puts its request back; a stale Fit with the
+  // voided line's id (a retried form) is refused.
+  part_request_line_voided: "That line was voided. Reload the job and fit the item again.",
 };
 
 /** 23505 unique violations by constraint name. */

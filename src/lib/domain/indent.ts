@@ -51,6 +51,13 @@ export type PartRequest = {
    * for services.
    */
   costMissing?: boolean;
+  /**
+   * D160: an approved or ordered item that was fitted and whose line was
+   * voided since (its latest part_request_unfitted entry), and whether it
+   * had been bought outside BICII (the part is then back in stock). Absent
+   * otherwise.
+   */
+  unfitted?: { boughtOutside: boolean };
 };
 
 export type JobQuote = {
@@ -82,14 +89,16 @@ function returned<T>(value: T | null, what: string): T {
 /**
  * The job's indent requests (oldest first) and its latest quote. With
  * `viewCosts`, each part says whether its product has a cost (Fit needs
- * one, D24), read from public.product_costs (view_costs only).
+ * one, D24), read from public.product_costs (view_costs only). An approved
+ * or ordered item whose fitted line was voided says so (D160, from the
+ * job's part_request_unfitted entries, which any staff member reads).
  */
 export async function getIndentPanel(
   supabase: ServerSupabase,
   workOrderId: string,
   { purchaseData, viewCosts = false }: { purchaseData: boolean; viewCosts?: boolean },
 ): Promise<IndentPanel> {
-  const [requests, quotes, arrivals] = await Promise.all([
+  const [requests, quotes, arrivals, unfits] = await Promise.all([
     supabase
       .from("job_part_requests")
       .select(
@@ -107,10 +116,27 @@ export async function getIndentPanel(
       .order("sent_at", { ascending: false })
       .limit(1),
     supabase.rpc("part_request_arrivals", { work_order_id: workOrderId }),
+    // D160: items whose fitted line was voided (the job's timeline entries).
+    supabase
+      .from("work_order_events")
+      .select("payload")
+      .eq("work_order_id", workOrderId)
+      .eq("event_type", "part_request_unfitted")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
   ]);
   const rows = unwrap(requests) ?? [];
   const arrivalRows = unwrap(arrivals) ?? [];
   const byRequest = new Map(arrivalRows.map((a) => [a.request_id, a]));
+  // The latest entry per request wins (it may have been fitted and voided again).
+  const unfitted = new Map<string, { boughtOutside: boolean }>();
+  for (const { payload } of unwrap(unfits) ?? []) {
+    const p =
+      typeof payload === "object" && payload !== null && !Array.isArray(payload) ? payload : {};
+    if (typeof p.request_id === "string") {
+      unfitted.set(p.request_id, { boughtOutside: p.bought_outside === true });
+    }
+  }
 
   let purchase = new Map<
     string,
@@ -201,6 +227,9 @@ export async function getIndentPanel(
           : {}),
         ...(withoutCost && r.kind === "part" && r.product_id
           ? { costMissing: withoutCost.has(r.product_id) }
+          : {}),
+        ...((r.status === "approved" || r.status === "ordered") && unfitted.has(r.id)
+          ? { unfitted: unfitted.get(r.id)! }
           : {}),
       };
     }),

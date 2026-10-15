@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { formatDateTime } from "@/lib/dates";
 import type { Line } from "@/lib/domain/lines";
+import type { FittedIndentLine } from "@/lib/indent";
 import { signedQuantity } from "@/lib/inventory";
 import { formatMoney, formatQuantity } from "@/lib/money";
 
@@ -47,17 +48,22 @@ type Layout = (typeof LAYOUT)[keyof typeof LAYOUT];
  * cost carries a "Cost pending" badge for everyone (D14): its placeholder 0
  * is not a real cost, and only someone with cost access can fix it. A part
  * line (Phase 4) links its P- or U- record and shows what is left where it
- * was taken from ("37 left"); voiding it says what goes back to stock.
+ * was taken from ("37 left"); voiding it says what goes back to stock, and
+ * voiding a line a fitted indent item became says the item goes back to
+ * approved or ordered (D160).
  */
 export function LineTable({
   lines,
   viewCosts,
   canVoid,
+  indentLines = {},
 }: {
   lines: Line[];
   viewCosts: boolean;
   /** The job is open (D15): lines can be voided. */
   canVoid: boolean;
+  /** The job's fitted indent items by line id (D160, fittedIndentLines). */
+  indentLines?: Readonly<Record<string, FittedIndentLine>>;
 }) {
   const [showVoided, setShowVoided] = useState(false);
   const voidedCount = lines.filter((l) => l.voided).length;
@@ -114,6 +120,7 @@ export function LineTable({
                   costs={costs}
                   layout={layout}
                   canVoid={canVoid && !line.voided}
+                  indent={indentLines[line.id] ?? null}
                 />
               ))}
             </tbody>
@@ -141,11 +148,13 @@ function LineRow({
   costs,
   layout,
   canVoid,
+  indent,
 }: {
   line: Line;
   costs: boolean;
   layout: Layout;
   canVoid: boolean;
+  indent: FittedIndentLine | null;
 }) {
   const money = (v: string) => formatMoney(v, line.currency);
   const struck = line.voided ? "text-dust-500 line-through" : undefined;
@@ -179,6 +188,7 @@ function LineRow({
               lineId={line.id}
               description={line.description}
               stockReturn={line.part ? stockReturn(line.part) : undefined}
+              indent={indent}
             />
           ) : null}
         </div>

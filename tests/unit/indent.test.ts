@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Constants } from "@/lib/database.types";
 import {
+  BACK_IN_STOCK_NOTE,
   CANCELLABLE,
   COST_MISSING_BUY_NOTE,
   COST_MISSING_NOTE,
@@ -12,6 +13,7 @@ import {
   canBuyOutside,
   canCancelRequest,
   canFit,
+  fittedIndentLines,
   isUnfitted,
   neverOrderedNote,
   notFittedNote,
@@ -23,7 +25,10 @@ import {
   settleNeeded,
   settleTitle,
   unansweredQuoteNote,
+  unfitStatus,
   unfittedMemo,
+  unfittedNote,
+  voidIndentNote,
   whatsappHref,
   whatsappNumber,
   type ClosingStatus,
@@ -307,5 +312,46 @@ describe("settle before closing (D149b, D149c)", () => {
       "cancelled",
     ];
     for (const to of targets) expect(quoteWithdrawNote(open, to, 1)).toContain("withdraws");
+  });
+});
+
+describe("voiding a fitted indent line (D160)", () => {
+  const order = { purchaseOrderId: "po", poNumber: "PO-000001", arrived: true, locationId: null };
+
+  it("goes back to ordered when on a purchase order, else approved (private.unfit_part_request)", () => {
+    expect(unfitStatus({ order: null })).toBe("approved");
+    expect(unfitStatus({ order })).toBe("ordered");
+  });
+
+  it("keys the job's fitted items by their line, and nothing else", () => {
+    const requests = REQUEST_STATUSES.map((status, i) => ({
+      status,
+      lineId: status === "fitted" ? "line-fitted" : `line-${i}`,
+      description: `Item ${status}`,
+      order: null,
+    }));
+    expect(fittedIndentLines(requests)).toEqual({
+      "line-fitted": { description: "Item fitted", backTo: "approved" },
+    });
+    expect(
+      fittedIndentLines([
+        { status: "fitted", lineId: "a", description: "Disc rotor", order },
+        { status: "fitted", lineId: null, description: "No line", order: null },
+      ]),
+    ).toEqual({ a: { description: "Disc rotor", backTo: "ordered" } });
+  });
+
+  it("says in plain words what the void does to the item", () => {
+    expect(voidIndentNote({ description: "Disc rotor", backTo: "approved" })).toBe(
+      "Voiding puts Disc rotor back to approved: fit it again or cancel it before completing the job.",
+    );
+    expect(voidIndentNote({ description: "Rohloff hub", backTo: "ordered" })).toBe(
+      "Voiding puts Rohloff hub back to ordered: fit it again or cancel it before completing the job.",
+    );
+    expect(unfittedNote(false)).toBe(
+      "Its line was voided, so it is not on the bill: fit it again or cancel it.",
+    );
+    expect(unfittedNote(true)).toContain("went back into stock: fit it from stock");
+    expect(BACK_IN_STOCK_NOTE).toContain("fit it from stock");
   });
 });

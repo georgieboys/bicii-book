@@ -77,9 +77,9 @@ Admin never replaces the public site.
   product's cost and leaves the stock count unchanged; an open quote is
   withdrawn when its job is completed or cancelled (the permission, the
   product's cost and the quote withdrawal are build defaults, confirmed by
-  the owner on 2026-10-15, question 34). From D160 (built, not yet
-  deployed): voiding the line a fitted indent item became puts the item
-  back to approved (or ordered, when it is on a purchase order), to be
+  the owner on 2026-10-15, question 34). From D160 (in production since
+  2026-10-16 SGT, PR #30): voiding the line a fitted indent item became
+  puts the item back to approved (or ordered, when it is on a purchase order), to be
   fitted again or cancelled before the job closes
   ([R-083](RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)).
 

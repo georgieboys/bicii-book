@@ -48,13 +48,11 @@ URLs, or customer data in this file.
   `supabase/seed.sql` off the hosted project (it never runs there:
   `migrate.yml` has no seed step). A migration added from now on must sort
   after the newest file on `main` (`HANDOVER.md` "Migrations after
-  go-live"); since the Phase 14 recheck (PR #25) that is
-  `20261014000600_payment_exception_dedupe.sql`
-  (`20261014000700_indent_closed_jobs.sql` once
+  go-live"); since D160 (PR #30, applied by `migrate.yml` run 16 on
+  2026-10-16 SGT) that is `20261014001100_indent_unfit_on_void.sql`
+  (before it `20261014000600` after PR #25, `20261014000700` after
   [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
-  containment merges, `20261014000900_indent_settle_and_outside_purchase.sql`
-  after D149a–c, and `20261014001100_indent_unfit_on_void.sql` since
-  D160, PR #30).
+  containment in PR #26, and `20261014000900` after D149a–c in PR #27).
 - Next action: the owner decides whether to create a staging project
   before staff and customers use production; until then each migration
   is dry-run by `migrate.yml` before it applies.
@@ -2289,16 +2287,17 @@ URLs, or customer data in this file.
 - Options the owner did not choose: D149's cancel also accepting a fitted
   request whose line is voided; a separate payment issue for such
   deposits that ignores a job with a live line of the same item.
-- Residual: a request the one-off un-fits on a job where staff had
-  already added the part again by hand (R-083's workaround) is approved
-  again beside that line, so it must be cancelled before the job's next
-  move. The NOTICE counts the un-fitted requests whose job has a live line
-  of the same item added after the void that no request is linked to;
-  staff check each such job and cancel the request only if the line was a
-  hand re-add (RUNBOOK "Indent items on jobs closed before the guard").
-  Production had no such request as far as known. A request un-fitted on
-  a collected or cancelled job is closed by D149's admin or manager
-  cancel and listed by the same RUNBOOK section.
+- Residual: none in production. After `migrate.yml` run 16 (read-only,
+  2026-10-16 SGT) there is no `part_request_unfitted` event, so the
+  one-off un-fitted no request there, beside a hand re-add or on a closed
+  job. Wherever it does un-fit one (another database the migration is
+  applied to), its NOTICE reaches no `migrate.yml` log (`supabase db push`
+  does not print server notices); RUNBOOK "Indent items on jobs closed
+  before the guard" lists such items from the timeline. A request
+  un-fitted on a job where staff had already added the part again by hand
+  (R-083's workaround) is approved again beside that line: staff check the
+  job and cancel the request only if the line was a hand re-add. One on a
+  collected or cancelled job is closed by D149's admin or manager cancel.
 - Next action: none; done 2026-10-16 SGT. After `migrate.yml` run 16,
   read-only on production: no `part_request_unfitted` event without an
   actor (the one-off put nothing back; its NOTICE is not printed by
@@ -2307,15 +2306,15 @@ URLs, or customer data in this file.
   nothing.
 - Revisit trigger: a fitted indent item found on a voided line; a
   `part_request_line_voided` refusal in production logs.
-- Last checked: 2026-10-15 SGT, on `claude/brave-clarke-kfqhgt`:
+- Last checked: 2026-10-16 SGT: PR #30's CI and full e2e run on a325577,
+  then read-only on production after `migrate.yml` run 16 applied
+  `20261014001100` (the checks under Next action). Before that,
+  2026-10-15 SGT on `claude/brave-clarke-kfqhgt`:
   `tests/db/indent-unfit.test.ts` (17 tests, red without
   `20261014001100`, green with it; a direct owner void un-fits too),
   `tests/db/indent-close.test.ts` (voiding a bought-outside line now
-  leaves the request approved), unit
-  tests and `tests/e2e/indent.spec.ts` (fit, void, back to approved with
-  Fit, fitted again) on phone and iPad; PR #30's CI and full e2e run on
-  a325577; on production, read-only, after `20261014001100` was applied
-  (the checks under Next action).
+  leaves the request approved), unit tests and `tests/e2e/indent.spec.ts`
+  (fit, void, back to approved with Fit, fitted again) on phone and iPad.
 
 ## R-084 — A part bought outside BICII rests on a typed cost
 
@@ -2543,7 +2542,7 @@ URLs, or customer data in this file.
   parts or jobs are surfaced, now by these issues on the job and in
   Exceptions, and in step 3 by the Reports list (D154). Since
   [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
-  containment (2026-10-15, not yet deployed), a deposit held for parts a
+  containment (PR #26, in production since 2026-10-15), a deposit held for parts a
   completed or collected job never fitted is `paid_parts_not_fitted`, a
   closed job shows what was paid above its bill, and an admin or manager
   can cancel such a part on a collected job (D149) before refunding.

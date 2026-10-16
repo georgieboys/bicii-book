@@ -11,10 +11,12 @@ the owner set it to 100% in production on 2026-10-15 SGT, so every quote
 sent since asks the full price of its approved parts; the build default is
 50%) and the recheck (PR #25: Exceptions sentences in full, each Stripe
 problem listed once, and why *Check with Stripe* could not read
-everything), plus, on `claude/brave-clarke-kfqhgt` and not yet deployed,
-what happens to approved indent items a job is completed without
-([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job),
-D149). On a developer machine: http://localhost:3000. Staff sign in with
+everything), plus what happens to approved indent items a job is
+completed without
+([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job);
+D149 and D149a–c, PRs #26 and #27, since 2026-10-15 SGT) and voiding a
+fitted indent item's line (D160, PR #30, since 2026-10-16 SGT). On a
+developer machine: http://localhost:3000. Staff sign in with
 an emailed code.
 
 Last walkthrough: not walked through by a person. These flows are exercised

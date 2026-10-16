@@ -5,8 +5,10 @@ exercised, per section (as of 2026-10-12):
 
 - Hosted sections, on the production project (there is no staging
   project, [R-001](RISKS.md#r-001--nothing-is-deployed)):
-  - Applying migrations: 2026-10-12, `migrate.yml` run 10 from GitHub
-    Actions, 56 files; the CLI from a workstation never.
+  - Applying migrations: first 2026-10-12, `migrate.yml` run 10 from
+    GitHub Actions, 56 files; last 2026-10-16 SGT, run 16
+    (`20261014001000`, `20261014001100`; 67 in all); the CLI from a
+    workstation never.
   - Creating the first admin: 2026-10-12. The login was created through
     Auth's admin API without a password (the dashboard's step 1
     equivalent), then step 2's SQL returned one admin row, then the owner
@@ -719,14 +721,13 @@ order by e.created_at;
 ```
 
 No rows: nothing changed (production, 2026-10-16 SGT, after `migrate.yml`
-run 16: no rows). Otherwise run this section's first query again: the
-items on jobs that are not open are among its rows, settled as above. For each job
-listed, open it and check whether the part was added again by hand after
-the void (a line of the same part or service, added after the voided
-one, that no indent item is on). If it was, press **Cancel** on
-the item with a reason ("Added by hand"; on a collected or cancelled job
-an admin or manager does it); otherwise fit it again or settle it as
-above.
+run 16: no rows). Otherwise, for each item this query lists, open its job
+and check whether the part was added again by hand after the void (a
+line of the same part or service, added after the voided one, that no
+indent item is on). If it was, press **Cancel** on the item with a reason
+("Added by hand"; on a collected or cancelled job an admin or manager
+does it); otherwise fit it again or settle it as above. Items on jobs
+that are not open are also among the rows of this section's first query.
 
 ## Shopify
 

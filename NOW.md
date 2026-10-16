@@ -1,26 +1,33 @@
 # Current state
 
-Updated: 2026-10-15 SGT by the go-live session, on
-`claude/brave-clarke-kfqhgt` restarted at `main` d7ee99d (PR #29 merged),
-in one local commit (not pushed) that builds D160, the owner's fix for
+Updated: 2026-10-16 SGT by the go-live session, on
+`claude/brave-clarke-kfqhgt` restarted at `main` 384789f (PR #30 merged),
+in a docs-only commit that records D160's release. D160, the owner's fix
+for
 [R-083](docs/RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)
-chosen that day: voiding the job line a fitted indent item became puts
-the item back to approved (or ordered, when it is on a purchase order),
-with a timeline entry, to be fitted again or cancelled
-(`20261014001000_part_unfitted_enum`, `20261014001100_indent_unfit_on_void`;
-the void's confirmation, the indent card and the Fit sheet say so).
-Verified locally, with the review's fixes amended in (row "Voiding a
-fitted indent line" below); none of it
-is on `main` or in production. Before it, a docs-only commit recorded the
-production checks of 2026-10-15. On `main` and in production: D149 (PR #26) and D149a–c (PR #27): an admin
+chosen on 2026-10-15, is on `main` and in production since 2026-10-16
+SGT: voiding the job line a fitted indent item became puts the item back to approved (or ordered,
+when it is on a purchase order), with a timeline entry, to be fitted
+again or cancelled (`20261014001000_part_unfitted_enum`,
+`20261014001100_indent_unfit_on_void`; the void's confirmation, the
+indent card and the Fit sheet say so). PR #30's CI (check, test, build)
+and its full e2e run passed on a325577; `migrate.yml` run 16 applied both
+files and Vercel deployed 384789f to production (READY). Read-only on the
+hosted project afterwards: all 67 migrations, last `20261014001100`; both
+new triggers present; no `part_request_unfitted` event, so the one-off
+put nothing back (it records one for each item it puts back); no fitted
+indent item on a voided line; RUNBOOK "Indent items on jobs closed before
+the guard" lists nothing. The one-off's NOTICE is not in the run's log
+(`supabase db push` does not print server notices), so RUNBOOK now reads
+its result from the timeline. Also on `main` and in production: D149 (PR #26) and D149a–c (PR #27): an admin
 or manager cancels a never-fitted request on a collected or cancelled
 job; Complete (and Ready, Collected, Cancel job) waits until every
 approved or ordered indent item is fitted or cancelled, with a checklist;
 Fit offers "Bought outside BICII" (the entered cost recorded as an
 `outside_purchase` and the part fitted in one step). `migrate.yml` run 15
-applied `20261014000800` and `20261014000900`: the hosted project holds
-all 65 migrations, last `20261014000900` (read-only check). Production
-checks the same day (read-only SQL unless stated):
+applied `20261014000800` and `20261014000900` on 2026-10-15 SGT (65
+migrations then, read-only check). Production checks on 2026-10-15 SGT
+(read-only SQL unless stated):
 - The live Stripe test is complete on job J-000002: the S$2.00 deposit
   was paid through Checkout (`checkout.session.completed` applied on the
   first delivery), its leftover request cancelled with a reason (D149) and
@@ -44,11 +51,15 @@ checks the same day (read-only SQL unless stated):
   the owner's.
 The owner also loaded the service catalogue and product categories into
 production on 2026-10-12–14 (through `create_service` as the owner's
-admin login). Evidence checked: `git fetch` and `git log`; GitHub Actions
-(`migrate.yml` runs 14 and 15); the hosted project read-only (migration
-history, indent requests, quotes, payments, refunds, Stripe events,
-payment issues); the Vercel production deployment. Earlier rows keep the
-evidence of their own phase.
+admin login). Evidence checked for the 2026-10-15 checks: `git fetch`
+and `git log`; GitHub Actions (`migrate.yml` runs 14 and 15); the hosted
+project read-only (migration history, indent requests, quotes, payments,
+refunds, Stripe events, payment issues); the Vercel production
+deployment. For D160's release: PR #30's CI and label-triggered e2e runs
+on a325577; `migrate.yml` run 16; the hosted project read-only (migration
+history, the two D160 triggers, `part_request_unfitted` events, fitted
+requests on voided lines, RUNBOOK's two queries); the Vercel production
+deployment of 384789f. Earlier rows keep the evidence of their own phase.
 
 ## Return in two minutes
 
@@ -60,11 +71,13 @@ evidence of their own phase.
   (PR #14, `migrate.yml`), the public site's backend (PR #15, Phase 11
   step 1), indent parts and quotes (Phase 13, PRs #22 and #23), Stripe
   payments with indent deposits (Phase 14 steps 1 and 2, PR #24) and their
-  recheck (PR #25, be1ad17).
+  recheck (PR #25, be1ad17), the indent closing rules (D149, D149a–c,
+  PRs #26 and #27) and voiding a fitted indent line (D160, PR #30,
+  384789f).
 - Go-live state (2026-10-12): production is live.
-  - Database: the hosted project holds `main`'s 65 migrations, last
-    `20261014000900_indent_settle_and_outside_purchase` (applied by
-    `migrate.yml` run 15 when PR #27 merged, read-only check 2026-10-15;
+  - Database: the hosted project holds `main`'s 67 migrations, last
+    `20261014001100_indent_unfit_on_void` (applied by `migrate.yml`
+    run 16 when PR #30 merged, read-only check 2026-10-16;
     ENGINEERING "Migrations"); no seed; buckets in place; Postgres 17.
   - Admin: Vercel project `bicii-book` deploys `main` to production
     (functions in sin1) with the Supabase URL, anon key and service-role
@@ -99,19 +112,14 @@ evidence of their own phase.
 - Current objective: Phase 14 step 3 (balance links D156, Reports D154;
   [PLAN Phase 14](docs/PLAN.md#phase-14--customer-payments-through-stripe),
   [ADR-025](docs/decisions/ADR-025-stripe-payments.md)). Phases 13 and 14
-  steps 1 and 2 are merged and live (PRs #22–#27), with the indent
-  closing rules D149 and D149a–c. Also waiting: staff and the public site
+  steps 1 and 2 are merged and live (PRs #22–#27 and #30), with the
+  indent closing rules D149, D149a–c and D160. Also waiting: staff and the public site
   (Phase 11 step 2,
   [PLAN Phase 11](docs/PLAN.md#phase-11--public-site-integration-in-the-bicii-repo),
   D120–D125, [ADR-023](docs/decisions/ADR-023-public-site.md)), whose
   screens wait as a draft pull request in repository `bicii`.
 - Next action:
-  0. D160 (this branch's local commit): push it for a pull request when
-     the owner asks; once it merges, `migrate.yml` applies
-     `20261014001000` and `20261014001100` (67 migrations): read the
-     one-off's NOTICE in the run's log and run RUNBOOK "Indent items on
-     jobs closed before the guard" (read-only), settling anything listed.
-     Owner decisions: answer question 32 (D151–D159, GST time of supply,
+  0. Owner decisions: answer question 32 (D151–D159, GST time of supply,
      the privacy notice, counter payments). On the next refund in Stripe,
      check that a `refund.*` event is applied without *Check with Stripe*
      (Settings → Customer payments, recent deliveries).
@@ -138,7 +146,7 @@ evidence of their own phase.
      conflicts with D108 (`integration_failed` stays admin-only), so it
      needs a design pass first.
   6. Any new migration sorts after the newest file
-     (`20261014001100_indent_unfit_on_void.sql` once this branch merges);
+     (`20261014001100_indent_unfit_on_void.sql` since PR #30);
      `migrate.yml` applies it to production on merge and skips applied
      versions, so a merged migration is never edited in place.
 - Phase 9 reporting, step 1 of 4 (database), on `main` (PR #18): `20261006001000_report_periods` and
@@ -270,9 +278,9 @@ evidence of their own phase.
   since 2026-10-15; the residual, jobs closed before the guard, was
   checked that day: none),
   [R-083](docs/RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)
-  (a fitted indent request whose line was voided; resolved on this branch
-  by D160, the owner's choice of 2026-10-15 SGT, local commit, not
-  deployed) and
+  (a fitted indent request whose line was voided; resolved by D160, the
+  owner's choice of 2026-10-15 SGT, in production since 2026-10-16,
+  PR #30; production held no such item) and
   [R-084](docs/RISKS.md#r-084--a-part-bought-outside-bicii-rests-on-a-typed-cost)
   (a part bought outside BICII rests on a typed cost; accepted for MVP,
   D149c confirmed by the owner).
@@ -288,10 +296,10 @@ evidence of their own phase.
 CI runs `check`, `test (unit + db)` and `build` in one run per head; e2e is
 a separate, label-triggered run. All listed results are success.
 
-Everything on `main` through d7ee99d (PR #29; PRs #28 and #29 changed
+Everything on `main` through 384789f (PR #30; PRs #28 and #29 changed
 docs only) is in production since
-2026-10-15 (`migrate.yml` runs 13–15 succeeded and the hosted project
-holds all 65 migrations; Vercel deployed each merge). The Deployed column
+2026-10-16 (`migrate.yml` runs 13–16 succeeded and the hosted project
+holds all 67 migrations; Vercel deployed each merge). The Deployed column
 keeps each row's state when the row was written.
 
 | Capability | Implemented | Verified and how | Deployed |
@@ -350,17 +358,18 @@ keeps each row's state when the row was written.
 | Closing indent items (D149a, D149b: the owner's decisions of 2026-10-15 SGT, PRODUCT question 33 answered "block"; D149c build defaults, question 34; one commit, "Closing indent items", amended after an independent review): `fit_part_bought_outside` (View costs or Manage purchasing; an approved part never ordered in BICII recorded as one `outside_purchase` movement at the entered cost and fitted through `add_inventory_line` at the same location in one transaction, so on-hand never moves; the products row locked after the stock lock before the cost is read, so a concurrent cost edit cannot split the receipt's cost from the line's; the product's cost becomes the entered cost with a `cost_changed` reason naming the job; ordered parts `part_request_ordered`); the settle guard (a BEFORE UPDATE OF status trigger for every writer: no move into completed, ready, collected or cancelled while a request is approved or ordered, `work_order_has_unfitted_requests`, after the transition, reason and live-line checks); an AFTER trigger withdrawing the open quote when a job leaves the open statuses, and a one-off withdrawal of those already left open. On screen: Complete…, Ready for collection…, Collected… and Change status open "Before completing J-…" (and the others) with Fit and Cancel item… per item (Cancel only for Cancel job; "Reopen the job…" on a job completed before the guard), the open-quote note and the move's own button once "All settled."; the Change status note kept through the checklist and the Collected confirmation; a stale page refused by the database refreshes into the checklist, a refused cancel saying to cancel the items (never to fit them); the Fit sheet's "Bought outside BICII" (Cost each prefilled with the expected cost, Bought from, the cost total, Record and fit; a stock fit refused for a missing cost switches to it); "Bought outside BICII" in the product's movements and on the timeline; nested sheets keep the outer sheet's toast inset | Yes, `claude/brave-clarke-kfqhgt`, the commit with this update (local only, not pushed): migrations `20261014000800_outside_purchase_enum` and `20261014000900_indent_settle_and_outside_purchase` (65 files; no existing function replaced), `database.types.ts`, `src/lib/indent.ts` (`canBuyOutside`, `settleNeeded`, `settleTitle`, `settleDescription`, `quoteWithdrawNote`, the notes), `src/lib/domain/indent.ts` (`fitPartBoughtOutside`), `indent-actions.ts` (`fitPartBoughtOutsideAction`), `db-errors.ts`, `inventory.ts`, `workshop-timeline.ts`, `payments.ts` (`collectedNotes` the paid-online sentence only), new `indent-sheets.tsx` (Fit and Cancel moved out of the card) and `settle-items-sheet.tsx`, `job-status-actions.tsx`, `indent-card.tsx`, the job page, `sheet.tsx`; tests: new `tests/db/indent-close.test.ts` (24, the cost race among them), `indent-parts` and `indent-deposits` building pre-guard states with `beforeTheGuard`, `api-surface`; unit `indent`, `job-status-actions`, `payments`, `inventory`, `workshop-timeline`, `sheet`, new `indent-sheets`; E2E `indent.spec.ts` (two new tests), `payments.spec.ts` (tests 4 and 5 build the pre-guard state with `closeBeforeTheGuard`); docs: PLAN (Phase 13 follow-up, D149 row with D149a–c), ADR-024 amendment, decisions index, DATA-MODEL (authority 65 files, applied state, §4, §5 "Closing indent items", §6, §7, §14, §15, §16), USER-GUIDE, PRODUCT (a domain rule, question 33 answered, question 34), RISKS (R-082 mitigated with its residual, R-083, new R-084, R-001), TESTING, RUNBOOK (the read-only query), DESIGN, ARCHITECTURE, ENGINEERING | Locally on 2026-10-15 SGT: the new database tests written first fail without the two migrations (23 of 23) and pass with them; `npm run db:reset` applied all 65 files (`65\|20261014000900`); `npm run check` pass (typegen, tsc, eslint, prettier); `npm run check:types` pass (types regenerated and staged, no diff); `npm test` 179 files and 2,723 tests passed (the first run right after `db:reset` had 1 failure, `stack.smoke` "Database error finding user" from Auth, which passed alone and in the full rerun); the docs link check 43 files, 1,156 links, 0 problems; `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npx playwright test` on `indent`, `payments`, `exceptions`, `today`, `workshop`, `purchasing` and `inventory` specs pass, 72 tests on phone and tablet in 14.0 minutes, none failed, flaky or skipped (it reset `bicii_dev`; earlier runs of the two new indent tests had failed on a toast covering the checklist's footer on the tablet, fixed in `sheet.tsx`, and on the reason confirm's 400 ms guard in the spec). After the review, before the amend (2026-10-15 SGT, local): the new cost race fails with the products-row lock removed (the line and its `job_consumption` at 35.00 against a 30.00 receipt) and passes with it; the new note and stale-cancel unit tests fail on the reviewed component and pass; `npm run db:reset` applied all 65 files (`65\|20261014000900`), again after a comment-only reflow of `20261014000900`, with `indent-close`, `indent-parts`, `indent-deposits` and `job-status-actions` rerun (104 tests passed); `npm run check` pass; `npm run check:types` pass (no diff); `npm test` 179 files and 2,727 tests passed (the first run after `db:reset` again had the one `stack.smoke` Auth failure, "Database error finding user", which passed alone and in the full rerun); the docs link check 43 files, 1,159 links, 0 problems; `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npx playwright test` on the `indent`, `payments`, `workshop`, `today`, `consignment` and `reports` specs (every spec that drives the job's status controls) passed, 50 tests on phone and tablet in 10.1 minutes, none failed, flaky or skipped (it reset `bicii_dev`). Not rerun after the review: the `exceptions`, `purchasing` and `inventory` specs (their screens did not change) | Not deployed; production still has `20261014000600` |
 | Production checks after the indent and Stripe go-live (2026-10-15 SGT: the live Stripe test, quote emails, Auth email, the indent guard's residual) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 349acbc, in its own pull request: NOW.md, OPERATIONS (the hosted project, email, Resend, Stripe and Production rows), RISKS (R-039, R-079 resolved; R-082 residual empty; R-085 live test and the webhook-events gap), RUNBOOK ("Stripe: account and webhook endpoint": what a missing `refund.*` subscription looks like), PRODUCT, DATA-MODEL (applied state) | Read-only on the hosted project on 2026-10-15: 65 migrations, last `20261014000900`; J-000002's request cancelled, its payment Refunded (S$2.00 refunded, one succeeded refund), deposit refunded, no payment issue; Stripe events: `checkout.session.completed` applied, `charge.refunded` ignored (`type_not_handled`), the refund recorded by a *Check with Stripe* read; no approved or ordered request on a closed job; no open quote. Vercel: production redeployed with the email variables (READY; `/login`, a quote page and the webhook route answered). Owner's reports: the test quote email arrived; Auth codes go through Resend from the verified domain; the webhook destination now has the seven events. The docs link check and prettier were run for this commit (results in its pull request) | Production: 349acbc, 65 migrations; quote emails and Auth email on; Stripe on at 100% deposits |
 | Voiding a fitted indent line (D160: the owner's decision of 2026-10-15 SGT, the first of R-083's three options; one commit, "Void a fitted indent line back to approved or ordered (D160)"): when a job line that a fitted indent request points at is voided, by any writer, the request goes back to ordered (on a purchase order line) or approved, its line, `fitted_at`, `fitted_by` and `outside_purchase_movement_id` cleared, with `part_request_unfitted` on the timeline; the void's stock reversal, totals, yield and Cult Commons unchanged (a part bought outside BICII keeps its receipt and is back in stock); build defaults with it: a request is never linked to a voided line (`part_request_line_voided`, so a stale Fit retry cannot bring R-083 back) and a one-off un-fits those already left that way, with a NOTICE. On screen: the void's confirmation "Voiding puts <part> back to approved: fit it again or cancel it before completing the job." and the toast "<part> is back to approved"; the indent card's Approved (or Ordered) item with Fit and Cancel and "Its line was voided…"; the Fit sheet's "It went back into stock when its line was voided: fit it from stock." for a part bought outside; the timeline's "<part> back to approved: its line was voided" | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): migrations `20261014001000_part_unfitted_enum` and `20261014001100_indent_unfit_on_void` (67 files; `private.unfit_part_request`, the triggers `work_order_line_items_unfit_part_request` and `job_part_requests_require_live_line`; `void_line` and every other existing function unchanged), `database.types.ts`, `db-errors.ts` (`part_request_line_voided`), `src/lib/indent.ts`, `src/lib/domain/indent.ts` (the item's latest `part_request_unfitted`), `workshop-timeline.ts`, `void-line-control.tsx`, `line-table.tsx`, the job page, `indent-card.tsx`, `indent-sheets.tsx`; tests: new `tests/db/indent-unfit.test.ts` (17), `indent-close` (its void test now expects approved), `meta`, api-surface (comment only: no API change), unit (`indent`, `workshop-timeline`, `indent-sheets`, new `void-line-control`), `tests/e2e/indent.spec.ts` (test 4: fit, void, back to approved with Fit and Cancel, Complete waits, fitted again from stock); docs: PLAN (§6 D160, Phase 13), ADR-024 (amendment D160), the decisions index, DATA-MODEL (authority, applied state, §5 "Voiding a fitted indent line", §16, §19), RISKS (R-083 resolved; R-082, R-001), USER-GUIDE, PRODUCT, TESTING, ARCHITECTURE, ENGINEERING, RUNBOOK (reading the one-off's NOTICE; the closed-jobs query's last production run). Review fixes amended into the same commit: a direct owner void (with and without a session) and the live-line guard's INSERT branch are tested; an ordered part fitted before its order was received is tested and documented as not arrived after the void until the order is received (USER-GUIDE, DATA-MODEL); the one-off counts as a possible hand re-add only a live line of the same item added after the void that no request is linked to, and RUNBOOK and DATA-MODEL tell staff to check before cancelling | Locally on 2026-10-15 SGT, after the review fixes: `indent-unfit.test.ts` 17 of 17 (41 with `indent-close.test.ts`); with `20261014001100` moved out 16 of 17 fail (only the negative case passes); the one-off test fails (count 2, not 1) with either new exclusion removed; `npm run db:reset` applied all 67 files (`67\|20261014001100`); `npm run check` pass; `npm run check:types` pass (no diff); `npm test` pass, 181 files and 2,752 tests; docs link check 43 files / 1,171 links / 0 problems; Playwright not rerun (the review fixes change no screen; the run below stands). Before the review: tests first: `indent-unfit.test.ts` failed 14 of 15 before either migration existed and again with `20261014001100` moved out (only the negative case, voiding any other line, passed), then passed 15 of 15 with it (39 with `indent-close.test.ts`); `npm run db:reset` applied all 67 files (`67\|20261014001100`); `npm run check` pass (typegen, tsc, eslint, prettier); `npm run check:types` pass (types staged, no diff); `npm test` pass, 181 files and 2,750 tests (a first run right after `db:reset` failed only `stack.smoke.test.ts` with Auth's "Database error finding user", the known race; it passed alone, 9 tests, and on the full rerun); docs link check 43 files / 1,171 links / 0 problems; `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test tests/e2e/indent.spec.ts tests/e2e/payments.spec.ts tests/e2e/workshop.spec.ts tests/e2e/inventory.spec.ts` pass, 32 tests on phone and tablet in 11.6 minutes, no failures, flaky or skipped (it reset `bicii_dev`; the indent spec alone passed earlier the same day, 8 tests) | Not deployed; production holds 65 migrations, last `20261014000900` |
+| D160 released (2026-10-16 SGT) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 384789f, in its own pull request: NOW.md; RUNBOOK (the one-off's result read from the timeline, as `supabase db push` prints no server notices; the closed-jobs query's run); RISKS (R-083's status, residual, next action and last check; R-001's newest migration; R-087); PLAN (the D160 row); DATA-MODEL (applied state); ENGINEERING (the newest migration); OPERATIONS (67 migrations, applying migrations last exercised); PRODUCT and the decisions index (D160 in production); USER-GUIDE and README (what production runs: D149, D149a–c and D160 were still described as not deployed). The second commit applies an independent review's findings (two reviewers, each finding checked by a skeptic: 22 confirmed, overlapping, all fixed; 5 refuted) | PR #30: CI `check`, `test (unit + db)` and `build` and the label-triggered `e2e (Playwright)` run (full suite) succeeded on a325577; merged as 384789f; `migrate.yml` run 16 succeeded, applying `20261014001000` and `20261014001100`; read-only on the hosted project: 67 migrations, last `20261014001100`; the triggers `work_order_line_items_unfit_part_request` and `job_part_requests_require_live_line` present; no `part_request_unfitted` event (the one-off un-fitted nothing); no fitted request on a voided line; the closed-jobs query no rows; Vercel's production deployment of 384789f READY; after the review fixes: docs link check 43 files / 1,172 links / 0 problems, prettier on the changed files pass, CI `check`, `test (unit + db)` and `build` green on the first commit (1267d08) | In production (D160) |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
 
 ## Work location and continuation
 
-- `main` on origin holds PRs #1–#11, #13–#18 and #22–#29 (through D149a–c
-  and the docs of 2026-10-15, d7ee99d) and is what production runs. The local `main` ref is stale; use `origin/main`.
+- `main` on origin holds PRs #1–#11, #13–#18 and #22–#30 (through D160,
+  384789f) and is what production runs. The local `main` ref is stale; use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted
-  from `main` after each merge (PRs #14–#18, #22–#29); now `main` d7ee99d
-  plus one local commit, D160 (not pushed).
+  from `main` after each merge (PRs #14–#18, #22–#30); now `main` 384789f
+  plus one docs commit recording D160's release (its own pull request).
 - The build session's branches, paused for the handover: `feat/p8-labels`
   (3f09d22) and `wip/feat/p8-labels` (01cb3da), merged through PR #16;
   `wip/feat/p10-shopify` (8dbe6c4: 3b5341c, merged through PR #17, plus

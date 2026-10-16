@@ -1,15 +1,17 @@
 # BICII Admin (bicii-book)
 
 The phone-first staff app for BICII, a custom bicycle workshop in
-Singapore. Built so far (not deployed; see [NOW.md](NOW.md)): staff
-sign-in with emailed one-time codes, intake, work orders, appointments,
-inventory, consignment and in-store sales, and purchasing. Labels, staff
-roles, reporting, the Shopify boundary and the public site's integration
-are planned or on other branches.
+Singapore, in production since 2026-10-12 (what is live and the latest
+release: [NOW.md](NOW.md)). Built: staff sign-in with emailed one-time
+codes, staff roles, intake, work orders, appointments, inventory,
+consignment and in-store sales, purchasing, labels, reporting, the
+Shopify boundary (no store connected), the public site's backend, indent
+parts with customer quotes, and Stripe deposits. The public site's
+screens (Phase 11 step 2) wait in the public site's repository.
 
 Owner: Abhishek Cherian George (George), GitHub
 [abhishekcheriangeorge-ops](https://github.com/abhishekcheriangeorge-ops).
-Application: not deployed.
+Application: in production since 2026-10-12 ([NOW.md](NOW.md)).
 
 It shares one Supabase backend with the public site
 (`abhishekcheriangeorge-ops/bicii`), which stays the customer-facing

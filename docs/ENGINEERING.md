@@ -228,9 +228,8 @@ from the code:
   of 2026-10-15 took `20261014000700`, closing indent items, D149a–c,
   `20261014000800` and `20261014000900`, and voiding a fitted indent
   line, D160, `20261014001000` and `20261014001100`). Main and the hosted
-  project end at `20261014000900_indent_settle_and_outside_purchase.sql`
-  since PR #27 (`20261014001100_indent_unfit_on_void.sql` once D160
-  merges), so a
+  project end at `20261014001100_indent_unfit_on_void.sql` since PR #30,
+  so a
   new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).

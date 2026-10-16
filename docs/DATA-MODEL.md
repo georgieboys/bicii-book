@@ -183,9 +183,9 @@ document is corrected.
   PR #24 merged, its migration history held 61 versions, the last
   `20261014000500` (read-only); PRs #25–#27 added `20261014000600` to
   `20261014000900`, and on 2026-10-15 its history held all 65 versions,
-  the last `20261014000900` (read-only). `20261014001000` and
-  `20261014001100` (D160) are on `claude/brave-clarke-kfqhgt` only, not
-  applied there.
+  the last `20261014000900` (read-only). PR #30 added `20261014001000`
+  and `20261014001100` (D160), applied by run 16; on 2026-10-16 the
+  history held all 67 versions, the last `20261014001100` (read-only).
   There is no staging project
   ([R-001](RISKS.md#r-001--nothing-is-deployed)).
 

@@ -42,9 +42,10 @@ exercised, per section (as of 2026-10-12):
   never on a real label printer
   ([R-075](RISKS.md#r-075--label-output-is-unverified-on-a-real-label-printer-and-on-ios)).
 - Indent items on jobs closed before the guard: the query was last run
-  read-only on production on 2026-10-15 SGT, after `20261014000900` was
-  applied (no rows); it is run again, with the D160 one-off's NOTICE,
-  once `20261014001100` is applied.
+  read-only on production on 2026-10-16 SGT, after `20261014001100` was
+  applied (no rows; on 2026-10-15 after `20261014000900`, no rows). The
+  D160 one-off put nothing back there: no `part_request_unfitted` event
+  without an actor, and no fitted indent item on a voided line.
 - CI: the `e2e` label exists, and PRs #2–#7 carry it, each with a
   successful `e2e` workflow run (e.g.
   [PR #7 e2e](https://github.com/abhishekcheriangeorge-ops/bicii-book/actions/runs/37276834195/job/111655595521));
@@ -699,16 +700,30 @@ job leaves the open statuses.
 puts back to approved or ordered, once, every indent item still marked
 fitted whose job line was voided
 ([R-083](RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged));
-from then on voiding a fitted item's line does it at once. In the
-`migrate.yml` run's log, read its NOTICE: "D160 one-off: N fitted indent
-request(s) whose line was voided went back to approved or ordered; M of
-them on jobs that are not open, K on a job with a live line of the same
-item added after the void (check whether it was added by hand)." With
-N = 0 nothing changed. Otherwise run the query above again: the M items
-on jobs that are not open are among its rows, settled as above. For each
-of the K, open the job and check whether the part was added again by
-hand after the void (a line of the same part or service, added after the
-voided one, that no indent item is on). If it was, press **Cancel** on
+from then on voiding a fitted item's line does it at once. The one-off
+raises a NOTICE with its counts, but `supabase db push` (the
+`migrate.yml` run) does not print server notices, so it is not in the
+run's log. Read the result from the timeline instead: the one-off records
+`part_request_unfitted` with no actor for each item it puts back (a
+staff void records the staff member). Read only, as above:
+
+```sql
+select w.job_number, w.status as job_status,
+       e.payload->>'description' as item, e.payload->>'status' as back_to,
+       e.created_at
+from public.work_order_events e
+join public.work_orders w on w.id = e.work_order_id
+where e.event_type = 'part_request_unfitted'
+  and e.actor_staff_id is null and e.actor_user_id is null
+order by e.created_at;
+```
+
+No rows: nothing changed (production, 2026-10-16 SGT, after `migrate.yml`
+run 16: no rows). Otherwise run this section's first query again: the
+items on jobs that are not open are among its rows, settled as above. For each job
+listed, open it and check whether the part was added again by hand after
+the void (a line of the same part or service, added after the voided
+one, that no indent item is on). If it was, press **Cancel** on
 the item with a reason ("Added by hand"; on a collected or cancelled job
 an admin or manager does it); otherwise fit it again or settle it as
 above.

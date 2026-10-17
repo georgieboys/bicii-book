@@ -7,7 +7,8 @@ codes, staff roles, intake, work orders, appointments, inventory,
 consignment and in-store sales, purchasing, labels, reporting, the
 Shopify boundary (no store connected), the public site's backend, indent
 parts with customer quotes, and Stripe deposits. The public site's
-screens (Phase 11 step 2) wait in the public site's repository.
+screens (Phase 11 step 2) are merged and deployed in its own repository,
+with customer accounts closed until the owner opens them.
 
 Owner: Abhishek Cherian George (George), GitHub
 [abhishekcheriangeorge-ops](https://github.com/abhishekcheriangeorge-ops).

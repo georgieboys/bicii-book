@@ -2599,8 +2599,10 @@ URLs, or customer data in this file.
   `ADMIN_ORIGIN` is refused in Production when it is a loopback host, so
   a value copied from local setup cannot send paying customers to their
   own machine (`tests/unit/stripe-config.test.ts`).
-- Next action: name Stripe in the privacy notice (PRODUCT question 32)
-  and keep Stripe Dashboard users few; if the shop wants a Checkout
+- Next action: name Stripe in the privacy notice (the owner agreed on
+  2026-10-17 SGT, question 32; on the public site's privacy text and the
+  Admin's customer payment pages, with Phase 14 step 3) and keep Stripe
+  Dashboard users few; if the shop wants a Checkout
   custom domain, allow its host explicitly first (an env value validated
   by `stripeConfig`).
 - Revisit trigger: step 3's balance-link page (consider token-free return
@@ -2617,7 +2619,8 @@ URLs, or customer data in this file.
 - Impact: not recorded at all: **card disputes** (`charge.dispute.*` is
   not subscribed, so a lost chargeback leaves a deposit shown as paid;
   PayNow has no disputes), Stripe fees and payouts, payments taken outside
-  BICII's Checkout, and the GST time of supply for deposits (question 32).
+  BICII's Checkout (the GST time of supply for deposits does not arise:
+  the owner answered "not GST" on 2026-10-17 SGT, question 32).
   A deposit paid at the counter is one of those: after an admin or
   manager orders the parts with a reason (D152), the deposit stays due,
   and the customer's page keeps Pay deposit; from the final review it
@@ -2625,7 +2628,9 @@ URLs, or customer data in this file.
   the shop before paying if they paid another way, but a second, online
   payment is still possible and is not flagged (`paid_twice` compares
   Stripe payments only); staff refund it in Stripe (D155). Recording
-  counter payments stays a later owner decision (ADR-025).
+  counter payments: from D161 (the owner's decision of 2026-10-17 SGT,
+  to be built in Phase 14 step 3) an admin records a payment taken at the
+  counter, and it counts; until then the above holds.
   Recorded and flagged to admins but not applied: an event for an unknown
   payment, a mismatched session or mode, a refund in another mode or
   currency than its payment (kept on the payment, not deducted),

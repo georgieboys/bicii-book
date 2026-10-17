@@ -1,8 +1,17 @@
 # Current state
 
-Updated: 2026-10-16 SGT by the go-live session, on
-`claude/brave-clarke-kfqhgt` restarted at `main` 384789f (PR #30 merged),
-in a docs-only commit that records D160's release. D160, the owner's fix
+Updated: 2026-10-17 SGT by the go-live session, on
+`claude/brave-clarke-kfqhgt` restarted at `main` 604ae6e (PR #31 merged),
+in a docs-only commit that records the owner's answers to PRODUCT question
+32 that day: D151–D159 confirmed as built; GST "not GST" (deposits get no
+GST treatment); Stripe to be named in the privacy notice; Stripe stays the
+only way customers pay, with an admin option to record a counter payment
+(D161, [ADR-025](docs/decisions/ADR-025-stripe-payments.md#amendment-2026-10-17-the-owners-answers-to-question-32-d161));
+and "build the full payments", Phase 14 step 3, next. The owner also
+reported staff invited. Nothing else changed since the D160 release
+recorded on 2026-10-16 SGT:
+
+D160, the owner's fix
 for
 [R-083](docs/RISKS.md#r-083--a-fitted-indent-request-whose-line-was-voided-is-stuck-and-unflagged)
 chosen on 2026-10-15, is on `main` and in production since 2026-10-16
@@ -119,13 +128,17 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
   D120–D125, [ADR-023](docs/decisions/ADR-023-public-site.md)), whose
   screens wait as a draft pull request in repository `bicii`.
 - Next action:
-  0. Owner decisions: answer question 32 (D151–D159, GST time of supply,
-     the privacy notice, counter payments). On the next refund in Stripe,
+  0. Build Phase 14 step 3 with D161 (question 32 answered 2026-10-17
+     SGT: D151–D159 confirmed, GST "not GST", Stripe named in the privacy
+     notice, an admin option for counter payments): balance links (D156),
+     payments and deposits held in Reports (D154), an admin's counter
+     payment (D161), and the privacy line on the Admin's customer payment
+     pages and the public site. Owner: on the next refund in Stripe,
      check that a `refund.*` event is applied without *Check with Stripe*
-     (Settings → Customer payments, recent deliveries).
-  1. Owner: invite staff from Settings → Staff now that codes reach any
-     address, and check the Auth templates and settings against RUNBOOK
-     "Hosted Supabase projects" step 2.
+     (Settings → Customer payments, recent deliveries); in the Dashboard,
+     check that PayNow is on.
+  1. Done (owner's report, 2026-10-17 SGT): staff invited from Settings →
+     Staff.
   2. Admin: set the QR address before the first print
      ([RUNBOOK](docs/RUNBOOK.md#labels-the-qr-address-before-the-first-print)),
      the shop hours and appointment types

@@ -969,8 +969,8 @@ keys before switching on.
 
 ### Stripe: account and webhook endpoint
 
-1. A Stripe account for the shop's Singapore entity (the owner creates it;
-   PRODUCT question 32).
+1. A Stripe account for the shop's Singapore entity (the owner created it;
+   live since 2026-10-15).
 2. In the Dashboard, Settings → Payment methods: **Cards** and **PayNow**
    on; **Adaptive Pricing off** (so amounts stay in SGD). BICII never sends
    `payment_method_types`; the Dashboard decides the methods.

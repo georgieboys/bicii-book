@@ -1,10 +1,11 @@
 # ADR-025: Customer payments through Stripe
 
 Date: 2026-10-14 (design, before Phase 14 is built; on
-`claude/brave-clarke-kfqhgt` from `main` 511aac6). Status: proposed. The
-owner decided on 2026-10-14 to take payments through Stripe, starting with
-deposits on indent parts; the rules below are build defaults for the owner
-to confirm
+`claude/brave-clarke-kfqhgt` from `main` 511aac6); amended 2026-10-17
+(D161, [below](#amendment-2026-10-17-the-owners-answers-to-question-32-d161)).
+Status: accepted. The owner decided on 2026-10-14 to take payments through
+Stripe, starting with deposits on indent parts, and on 2026-10-17 SGT
+confirmed the build defaults below as built
 ([PRODUCT question 32](../PRODUCT.md#open-assumptions-and-owner-questions)).
 Decision owner: Abhishek Cherian George (owner) for business meaning;
 defaults proposed by the build agent.
@@ -169,15 +170,15 @@ S$0.50; to be confirmed on Stripe's own pricing page before go-live).
 | D | Rule (short) | Status | Implemented in |
 |---|---|---|---|
 | D150 | PAYMENTS-PROVIDER: customers pay through Stripe's hosted Checkout (cards and PayNow, SGD). Card details never reach BICII. The secret key and the webhook secret are server-only environment variables (Production: live keys; Preview: test keys or none); every Stripe call goes through one adapter, with an in-memory fake for tests and development, as Shopify's does (D81–D88) | Owner decision 2026-10-14 (Stripe); rest build default | Phase 14 step 1 |
-| D151 | DEPOSIT: a quote that includes indent parts asks for a deposit of 50% of the approved parts' total (an admin setting, `shop_settings.indent_deposit_percent`; 0 asks for none), rounded to the cent in Postgres. After answering, the customer is offered Stripe Checkout for the deposit. The approval stands whether or not they pay; staff see "Deposit due" | Build default | Phase 14 step 2 (built in step 2) |
-| D152 | ORDER-AFTER-DEPOSIT: an indent part is ordered (D145) only once its quote's deposit is paid, unless an admin or manager orders it anyway with a reason, which is recorded | Build default | Phase 14 step 2 (built in step 2) |
-| D153 | PAYMENT-RECORD: a payment (`payments`: job, quote, kind deposit or balance, amount, currency, status pending, paid, failed, expired, refunded or partially refunded, the refunded amount, Stripe's ids, paid at) is created when a Checkout session is started and changes only when Stripe confirms it: the webhook checks Stripe's signature on the raw body, stores every delivery once by event id (rejected ones as evidence without a body, as D88 does) and applies it through a service-role RPC. Staff never type a payment in | Build default | Phase 14 step 1 |
-| D154 | PAYMENT-MEANING: a payment is money held against a job, not revenue: recognition (D3, D30–D34), job totals, yield and Cult Commons do not change. The job shows what was paid and the balance due (job total less paid, net of refunds). Reports list payments and the deposits held on open jobs separately from sales | Build default | Step 2: the job's Customer payments card and balance (built); Reports in step 3 |
-| D155 | REFUNDS: refunds are made in the Stripe dashboard and recorded from Stripe's refund events; the Admin starts no refund in the first build | Build default | Phase 14 step 1 |
-| D156 | BALANCE-LINK: staff can send a payment link for a job's balance due by WhatsApp or email (the same Checkout, kind balance); paying it does not collect the job | Build default | Phase 14 step 3 |
-| D157 | PAYMENTS-ROLLOUT: the deposit percent ships at 0 in every database and is refused above 0 while Stripe is off. Stripe is on only when every variable is valid for the deployment: never in a Vercel Preview; a key whose mode matches (live only in Production, test only elsewhere); the webhook secret, the service-role key and `ADMIN_ORIGIN` set and well-formed; the fake only outside production. Anything else turns Stripe off with a named reason and never stops the app. Switch off by setting the percent to 0, then removing the keys | Build default, owner to confirm | Phase 14 step 1 (`stripeConfig`); step 2 (the setting) |
-| D158 | DEPOSIT-RULES: the quote stores the percent when sent and the amount when answered (approved part lines only, in Postgres); SGD only; nothing asked under S$0.50 or over S$999,999.99; offered while the job is open and an approved part is still live; one 60-minute Checkout session per quote, reused until 2 minutes before expiry; partly refunded counts as paid, fully refunded as unpaid | Build default, owner to confirm | Phase 14 step 2 |
-| D159 | PAYMENT-TRUTH: only verified data changes a payment (a signed webhook or the server's own read). What Stripe confirms is recorded with Stripe's amount, even when it looks wrong, and flagged; BICII never refunds on its own. Refunds per Stripe Refund, only succeeded ones count. `paid_at` is Stripe's time. Stored objects are an allow-listed projection. Disputes are not handled (R-089) | Build default, owner to confirm | Phase 14 step 1 (recording); step 2 (flags) |
+| D151 | DEPOSIT: a quote that includes indent parts asks for a deposit of 50% of the approved parts' total (an admin setting, `shop_settings.indent_deposit_percent`; 0 asks for none), rounded to the cent in Postgres. After answering, the customer is offered Stripe Checkout for the deposit. The approval stands whether or not they pay; staff see "Deposit due" | Build default, confirmed 2026-10-17 SGT | Phase 14 step 2 (built in step 2) |
+| D152 | ORDER-AFTER-DEPOSIT: an indent part is ordered (D145) only once its quote's deposit is paid, unless an admin or manager orders it anyway with a reason, which is recorded | Build default, confirmed 2026-10-17 SGT | Phase 14 step 2 (built in step 2) |
+| D153 | PAYMENT-RECORD: a payment (`payments`: job, quote, kind deposit or balance, amount, currency, status pending, paid, failed, expired, refunded or partially refunded, the refunded amount, Stripe's ids, paid at) is created when a Checkout session is started and changes only when Stripe confirms it: the webhook checks Stripe's signature on the raw body, stores every delivery once by event id (rejected ones as evidence without a body, as D88 does) and applies it through a service-role RPC. Staff never type a payment in | Build default, confirmed 2026-10-17 SGT | Phase 14 step 1 |
+| D154 | PAYMENT-MEANING: a payment is money held against a job, not revenue: recognition (D3, D30–D34), job totals, yield and Cult Commons do not change. The job shows what was paid and the balance due (job total less paid, net of refunds). Reports list payments and the deposits held on open jobs separately from sales | Build default, confirmed 2026-10-17 SGT | Step 2: the job's Customer payments card and balance (built); Reports in step 3 |
+| D155 | REFUNDS: refunds are made in the Stripe dashboard and recorded from Stripe's refund events; the Admin starts no refund in the first build | Build default, confirmed 2026-10-17 SGT | Phase 14 step 1 |
+| D156 | BALANCE-LINK: staff can send a payment link for a job's balance due by WhatsApp or email (the same Checkout, kind balance); paying it does not collect the job | Build default, confirmed 2026-10-17 SGT | Phase 14 step 3 |
+| D157 | PAYMENTS-ROLLOUT: the deposit percent ships at 0 in every database and is refused above 0 while Stripe is off. Stripe is on only when every variable is valid for the deployment: never in a Vercel Preview; a key whose mode matches (live only in Production, test only elsewhere); the webhook secret, the service-role key and `ADMIN_ORIGIN` set and well-formed; the fake only outside production. Anything else turns Stripe off with a named reason and never stops the app. Switch off by setting the percent to 0, then removing the keys | Build default, confirmed 2026-10-17 SGT | Phase 14 step 1 (`stripeConfig`); step 2 (the setting) |
+| D158 | DEPOSIT-RULES: the quote stores the percent when sent and the amount when answered (approved part lines only, in Postgres); SGD only; nothing asked under S$0.50 or over S$999,999.99; offered while the job is open and an approved part is still live; one 60-minute Checkout session per quote, reused until 2 minutes before expiry; partly refunded counts as paid, fully refunded as unpaid | Build default, confirmed 2026-10-17 SGT | Phase 14 step 2 |
+| D159 | PAYMENT-TRUTH: only verified data changes a payment (a signed webhook or the server's own read). What Stripe confirms is recorded with Stripe's amount, even when it looks wrong, and flagged; BICII never refunds on its own. Refunds per Stripe Refund, only succeeded ones count. `paid_at` is Stripe's time. Stored objects are an allow-listed projection. Disputes are not handled (R-089) | Build default, confirmed 2026-10-17 SGT | Phase 14 step 1 (recording); step 2 (flags) |
 
 Full text: [PLAN §6](../PLAN.md#6-open-decisions-for-the-owner), rows
 D150–D159.
@@ -222,14 +223,47 @@ D150–D159.
 - The Admin starts holding customer money records; payments taken in the
   shop by other means are not in it.
 
+## Amendment 2026-10-17: the owner's answers to question 32 (D161)
+
+**Context.** Question 32 asked the owner to confirm D151–D159, to ask the
+accountant about GST on deposits, to name Stripe in the privacy notice and
+to decide about payments taken at the counter, which BICII does not record
+([R-089](../RISKS.md#r-089--what-bicii-does-not-record-or-cannot-apply-from-stripe)).
+
+**The owner's answers (2026-10-17 SGT).**
+
+- D151–D159: "all good", confirmed as built (D151's percent is 100% in
+  production since 2026-10-15). "Lets build the full payments": Phase 14
+  step 3 (D156's balance links and D154's Reports) is next.
+- GST: "not GST". Deposits get no GST time-of-supply treatment, and step
+  3's Reports add nothing for GST.
+- The privacy notice names Stripe as the processor of online payments: on
+  the public site's privacy text and on the Admin's customer payment
+  pages.
+- Counter payments: "lets keep to Stripe only. That will make things
+  easier. But lets have an admin option for counter payment."
+
+| D | Rule (short) | Status | Implemented in |
+|---|---|---|---|
+| D161 | COUNTER-PAYMENT: Stripe stays the only way a customer pays through BICII, and no staff member types a payment in (D153). An admin, and only an admin, can record a payment the shop took at the counter on a job (cash, card or PayNow outside BICII), so the job's paid and still to pay, and the deposit BICII asks for, count it. How it is recorded, voided and shown are build defaults | Owner decision 2026-10-17 SGT; details build defaults | Phase 14 step 3 |
+
+**Consequences.** D153 keeps its rule for Stripe payments; D161 is the one
+exception, for admins. A counter payment is money held against the job
+like a Stripe payment (D154): it changes no recognition, total, yield or
+Cult Commons. Its build defaults (the method list, voiding, how it meets
+D152's ordering gate and the quote page, Reports) are recorded with step
+3's build.
+
 ## Revisit trigger
 
-The owner's answer to question 32; a request for counter payments, refunds
-from the Admin, or full payment at collection.
+A request for staff other than admins to record counter payments, for
+refunds from the Admin, or for full payment at collection; BICII becoming
+GST-registered.
 
 ## Evidence and links
 
-- The owner's answer of 2026-10-14 (this session).
+- The owner's answer of 2026-10-14 (this session), and their answers to
+  question 32 of 2026-10-17 SGT (D161).
 - SPEC §18, §30; [ADR-011](ADR-011-recognition-and-financial-reporting.md)
   (D3, D30–D34); [ADR-020](ADR-020-shopify.md) (the adapter, webhook and
   delivery-evidence pattern this follows).

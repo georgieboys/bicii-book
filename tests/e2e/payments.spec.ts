@@ -9,7 +9,15 @@ import {
 } from "../fixtures/stripe";
 import { AUTH_USER } from "../fixtures/ids";
 import { closeBeforeTheGuard, sql } from "./db";
-import { createJobViaIntake, createProduct, section, signIn, tagFor, toast } from "./helpers";
+import {
+  createJobViaIntake,
+  createProduct,
+  pickPart,
+  section,
+  signIn,
+  tagFor,
+  toast,
+} from "./helpers";
 import { createSupplier } from "./purchasing-helpers";
 
 /**
@@ -30,6 +38,16 @@ import { createSupplier } from "./purchasing-helpers";
  * withdraws an open quote (D149c(2)); one left open on a job closed before
  * the guard shows "Not answered", and an admin's cancel of its item there
  * withdraws it (D149).
+ *
+ * Phase 14 step 3 (D156, D161; journey 8's additions): on a completed job
+ * staff send a payment link (Copy link); the customer's page shows the bill
+ * without the unit's serial or U- number, under no-referrer, noindex and
+ * no-store headers, and pays the balance through the fake and a signed
+ * webhook; the card shows it paid, Collected says what was paid and that
+ * nothing is left, and Collected stops the link. An admin records a deposit
+ * taken at the counter on a due quote, the order sheet no longer holds the
+ * part back, and the admin records the money as given back, which makes the
+ * deposit due again.
  *
  * Every spec shares one reset database (workers: 1), so the deposit goes
  * back to 0 straight after each quote is sent (the quote already holds its
@@ -116,17 +134,18 @@ async function answerAll(browser: Browser, page: Page, q: QuotedJob) {
   return { context, customer };
 }
 
-/** The job's one pending deposit payment (the row the fake's session belongs to). */
+/** The job's pending Stripe payments (the rows the fake's sessions belong to). */
 async function pendingPayment(jobNumber: string) {
   return sql<{
     id: string;
+    kind: string;
     session_id: string;
     cents: number;
     work_order_id: string;
     quote_id: string;
   }>(
-    `select p.id, p.stripe_checkout_session_id as session_id, p.amount_cents::int as cents,
-            p.work_order_id, p.quote_id
+    `select p.id, p.kind::text as kind, p.stripe_checkout_session_id as session_id,
+            p.amount_cents::int as cents, p.work_order_id, p.quote_id
        from public.payments p join public.work_orders w on w.id = p.work_order_id
       where w.job_number = $1 and p.status = 'pending'`,
     [jobNumber],
@@ -280,8 +299,8 @@ test("deposit: asked, paid through Stripe (fake) and a signed webhook, then orde
   // 9. Staff after payment: paid ahead, on the timeline, and ordered without a reason.
   await page.reload();
   await expect(payments.getByRole("list", { name: "Deposits" })).toContainText("Deposit paid");
-  await expect(payments.getByLabel("Paid online")).toContainText("$120.00");
-  await expect(payments.getByLabel("Paid online")).toContainText(
+  await expect(payments.getByLabel("Payment totals")).toContainText("$120.00");
+  await expect(payments.getByLabel("Payment totals")).toContainText(
     "Indent parts join the job total when they're fitted.",
   );
   await expect(payments).toContainText("Paid ahead");
@@ -448,7 +467,7 @@ test("a cancelled Checkout can be paid later with the same session", async ({
   await page.reload();
   await expect(payments.getByRole("list", { name: "Payment problems" })).toHaveText(sentence);
   const lines = section(page, "Lines");
-  await expect(lines.getByRole("link", { name: "Paid online $119.99" })).toBeVisible();
+  await expect(lines.getByRole("link", { name: "Paid $119.99" })).toBeVisible();
 
   await page.goto("/reports/exceptions");
   const row = page.getByRole("link").filter({ hasText: q.job.jobNumber });
@@ -520,7 +539,7 @@ test("a deposit for parts not fitted: the memo, Complete's checklist, and an adm
   await expect(memo).toHaveText(
     "Approved, not on the bill yet: 2 items, $275.00. Fit them to bill them.",
   );
-  await expect(lines.getByRole("link", { name: "Paid online $120.00" })).toBeVisible();
+  await expect(lines.getByRole("link", { name: "Paid $120.00" })).toBeVisible();
   await expect(lines).toContainText("Paid ahead $120.00");
 
   // 2. Complete… lists the items first (D149b), the part with its paid
@@ -553,13 +572,13 @@ test("a deposit for parts not fitted: the memo, Complete's checklist, and an adm
   const payments = section(page, "Customer payments");
 
   // 4. Closed: what was paid against what was billed, and why.
-  await expect(lines.getByRole("link", { name: "Paid online $120.00" })).toBeVisible();
+  await expect(lines.getByRole("link", { name: "Paid $120.00" })).toBeVisible();
   await expect(lines).toContainText("· $120.00 more than the bill");
   await expect(memo).toHaveText("Approved but never fitted: $275.00 (not billed).");
   await expect(payments.getByRole("list", { name: "Payment problems" })).toHaveText(
     "$120.00 is held for parts that never went on this job. Cancel them and refund in Stripe, or agree with the customer how it counts.",
   );
-  await expect(payments.getByLabel("Paid online")).toContainText(
+  await expect(payments.getByLabel("Payment totals")).toContainText(
     "$120.00 was paid online above this job's bill of $0.00. Refund it in Stripe if it is due back, or agree with the customer how it counts.",
   );
   await expect(part).toContainText(
@@ -613,7 +632,7 @@ test("a deposit for parts not fitted: the memo, Complete's checklist, and an adm
   );
   await page.reload();
   await expect(payments.getByRole("list", { name: "Payment problems" })).toHaveCount(0);
-  await expect(lines.getByRole("link", { name: /^Paid online/ })).toHaveCount(0);
+  await expect(lines.getByRole("link", { name: /^Paid / })).toHaveCount(0);
 });
 
 test("a quote left unanswered on a job closed before the guard: Not answered, and an admin's cancel withdraws it (D149)", async ({
@@ -661,5 +680,283 @@ test("a quote left unanswered on a job closed before the guard: Not answered, an
   await expect(customer.getByRole("main")).toContainText(
     "The shop replaced or withdrew this quote.",
   );
+  await context.close();
+});
+
+/** The headers every customer page answers with (next.config.ts): private, unindexed, no referrer. */
+function expectPrivatePage(headers: Record<string, string>) {
+  expect(headers["referrer-policy"]).toBe("no-referrer");
+  expect(headers["x-robots-tag"]).toContain("noindex");
+  expect(headers["cache-control"]).toContain("private");
+  expect(headers["cache-control"]).toContain("no-store");
+}
+
+test("a payment link: sent on a completed job, the bill without serials, paid through Stripe (fake) and a signed webhook, and Collected takes nothing", async ({
+  page,
+  browser,
+  request,
+}, testInfo) => {
+  test.setTimeout(300_000);
+  const project = testInfo.project.name;
+  const tag = tagFor(testInfo);
+  const frame = `Pay frame ${tag}`;
+  const serial = `SN-PAY-${tag}`;
+  await signIn(page, "admin");
+
+  // 1. A unique frame with a serial ($100.00), fitted to a job with Wheel True ($35.00).
+  await page.goto("/inventory");
+  await page.getByRole("button", { name: "New product" }).first().click();
+  const productSheet = page.getByRole("dialog", { name: "New product" });
+  await productSheet.getByRole("radio", { name: "Unique" }).click();
+  await productSheet.getByLabel("Name").fill(frame);
+  await productSheet.getByLabel("Sale price", { exact: true }).fill("100.00");
+  await productSheet.getByLabel("Cost", { exact: true }).fill("60.00");
+  await productSheet
+    .getByRole("region", { name: "First unit" })
+    .getByLabel("Serial number")
+    .fill(serial);
+  await productSheet.getByRole("button", { name: "Add product" }).click();
+  await expect(page).toHaveURL(/\/products\/[0-9a-f-]{36}$/);
+  const unitShortId = (await page
+    .getByRole("list", { name: "Units" })
+    .getByText(/^U-\d{6}$/)
+    .textContent())!.trim();
+
+  const job = await createJobViaIntake(page, {
+    tag,
+    requestedWork: "Frame swap, pay by link",
+    services: ["Wheel True"],
+  });
+  const { sheet: partSheet, choice } = await pickPart(page, frame, new RegExp(frame));
+  await choice.click();
+  await partSheet.getByRole("button", { name: "Add part" }).click();
+  await expect(partSheet).toBeHidden();
+  // The staff line names the unit and its serial; the customer's never does.
+  await expect(page.getByRole("row", { name: new RegExp(frame) })).toContainText(serial);
+  await page.getByRole("button", { name: "Start work" }).click();
+  await expect(toast(page, `${job.jobNumber}: In progress`)).toBeVisible();
+  await page.getByRole("button", { name: "Complete" }).click();
+  await expect(toast(page, `${job.jobNumber}: Completed`)).toBeVisible();
+
+  // 2. Send payment link: no mobile number or email on file, so Copy link.
+  const payments = section(page, "Customer payments");
+  await payments.getByRole("button", { name: "Send payment link" }).click();
+  const sendSheet = page.getByRole("dialog", { name: "Send payment link" });
+  await expect(sendSheet).toContainText(/Still to pay\s*\$135\.00/);
+  await expect(
+    sendSheet
+      .getByRole("radiogroup", { name: "Send by" })
+      .getByRole("radio", { name: "Copy link" }),
+  ).toHaveAttribute("aria-checked", "true");
+  await expect(sendSheet).toContainText(
+    "No WhatsApp: the customer has no mobile number it can use.",
+  );
+  await sendSheet.getByRole("button", { name: "Create link" }).click();
+  const sent = page.getByRole("dialog", { name: "Payment link ready to send" });
+  const link = (await sent.getByLabel("payment link", { exact: true }).textContent())!.trim();
+  expect(link).toMatch(/\/pay\/[A-Za-z0-9_-]{43}$/);
+  await expect(sent).toContainText("It asks $135.00 now and works until");
+  await sent.getByRole("button", { name: "Done" }).click();
+  await expect(sent).toBeHidden();
+  await expect(payments.getByLabel("Payment link")).toContainText(
+    /^Payment link sent .+ \(\$135\.00 when sent\), valid until .+\.$/,
+  );
+  const timeline = section(page, "Timeline");
+  await expect(timeline).toContainText("Payment link for $135.00 sent");
+
+  // 3. The customer, signed out: the bill, never the unit's serial or U- number.
+  const context = await browser.newContext({ viewport: page.viewportSize() ?? undefined });
+  const customer = await context.newPage();
+  const opened = await customer.goto(link);
+  expectPrivatePage(opened!.headers());
+  await expect(customer).toHaveTitle("Your bill · BICII");
+  const main = customer.getByRole("main");
+  await expect(main).toContainText(`Job ${job.jobNumber}`);
+  await expect(main).toContainText("Hi Intake, here is your bill");
+  const bill = customer.getByRole("list", { name: "Your bill" });
+  await expect(bill.getByRole("listitem")).toHaveCount(2);
+  await expect(bill).toContainText(frame);
+  await expect(bill).toContainText("Wheel True");
+  await expect(main).toContainText(/Job total\s*\$135\.00/);
+  await expect(main).toContainText(/Paid so far\s*\$0\.00/);
+  await expect(main).toContainText(/Balance due\s*\$135\.00/);
+  for (const hidden of [serial, unitShortId, "S/N"]) {
+    await expect(main).not.toContainText(hidden);
+  }
+  await expect(main).toContainText(
+    "Payments are taken by Stripe on its own page, so Stripe's privacy policy applies to them; BICII never sees or keeps your card details.",
+  );
+
+  // 4. Pay: the fake sends the customer straight back, still private and unindexed.
+  const back = customer.waitForResponse(
+    (r) => r.url().endsWith("?balance=returned") && r.request().resourceType() === "document",
+  );
+  await customer.getByRole("button", { name: "Pay $135.00" }).click();
+  expectPrivatePage((await back).headers());
+  await expect(customer).toHaveURL(`${link}?balance=returned`);
+  await expect(
+    customer.getByText("Thanks. We're confirming your payment with Stripe…"),
+  ).toBeVisible();
+
+  // 5. One pending balance payment for 13500 cents (from Postgres), no quote.
+  const rows = await pendingPayment(job.jobNumber);
+  expect(rows).toHaveLength(1);
+  const [row] = rows;
+  expect(row).toMatchObject({ kind: "balance", cents: 13500, quote_id: null });
+
+  // 6. Stripe confirms with a signed webhook.
+  const raw = JSON.stringify(
+    stripeEvent({
+      id: `evt_e2e_${project}_b${Date.now()}`,
+      type: "checkout.session.completed",
+      object: sessionObject({
+        id: row.session_id,
+        paymentId: row.id,
+        workOrderId: row.work_order_id,
+        quoteId: null,
+        kind: "balance",
+        amountCents: 13500,
+        paymentIntent: `pi_e2e_${project}_b${Date.now()}`,
+      }),
+    }),
+  );
+  const delivered = await request.post("/api/stripe/webhooks", {
+    data: raw,
+    headers: stripeWebhookHeaders({ raw }),
+  });
+  expect(delivered.status()).toBe(200);
+  expect(await delivered.json()).toMatchObject({ duplicate: false });
+
+  // 7. The page's own refreshes find it paid, and the marker leaves the URL.
+  await expect(customer.getByText("Nothing is left to pay. Thank you.")).toBeVisible({
+    timeout: 70_000,
+  });
+  await expect(main).toContainText(/Paid so far\s*\$135\.00/);
+  await expect(main).toContainText(/Balance due\s*\$0\.00/);
+  await expect(customer.getByRole("button", { name: /^Pay / })).toHaveCount(0);
+  await expect(customer).toHaveURL(link);
+
+  // 8. Staff: paid online, nothing left to send, and on the timeline.
+  await page.reload();
+  const online = payments.getByRole("list", { name: "Online payments" });
+  await expect(online.getByRole("listitem", { name: "Balance Paid" })).toContainText("$135.00");
+  const totals = payments.getByLabel("Payment totals");
+  await expect(totals).toContainText(/Paid online\s*\$135\.00/);
+  await expect(totals).toContainText(/Still to pay\s*\$0\.00/);
+  await expect(payments.getByRole("button", { name: "Send payment link" })).toHaveCount(0);
+  await expect(section(page, "Lines").getByRole("link", { name: "Paid $135.00" })).toBeVisible();
+  await expect(timeline).toContainText("Balance of $135.00 paid online");
+
+  // 9. Collected says what was paid and takes nothing; it stops the link.
+  await page.getByRole("button", { name: "Ready for collection" }).click();
+  await expect(toast(page, `${job.jobNumber}: Ready for collection`)).toBeVisible();
+  await page.getByRole("button", { name: "Collected…" }).click();
+  const collect = page.getByRole("group", {
+    name: new RegExp(`^Mark ${job.jobNumber} collected by`),
+  });
+  await expect(collect).toContainText(
+    "$135.00 was paid online. Nothing is left to pay; take nothing.",
+  );
+  await expect(collect).not.toContainText("Take only");
+  await collect.getByRole("button", { name: "Mark collected" }).click();
+  await expect(toast(page, `${job.jobNumber}: Collected`)).toBeVisible();
+  await expect(timeline).toContainText("Payment link stopped (collected)");
+  await customer.reload();
+  await expect(main).toContainText(
+    "This payment link was replaced or stopped. Ask the shop for a new one.",
+  );
+  await expect(main).not.toContainText(frame);
+  await context.close();
+});
+
+test("an admin records a deposit taken at the counter, the part can be ordered, and the money is recorded as given back", async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.setTimeout(240_000);
+  await signIn(page, "admin");
+  await sql("update public.shop_settings set indent_deposit_percent = 50 where id = 1");
+  const q = await quotedJob(page, testInfo);
+  const { context, customer } = await answerAll(browser, page, q);
+
+  await page.goto(`/jobs/${q.job.id}`);
+  const payments = section(page, "Customer payments");
+  const deposits = payments.getByRole("list", { name: "Deposits" });
+  await expect(deposits).toContainText("Deposit due");
+
+  // 1. Record counter payment: towards the bill warns that the deposit is still asked online.
+  await payments.getByRole("button", { name: "Record counter payment" }).click();
+  const sheet = page.getByRole("dialog", { name: "Record counter payment" });
+  await expect(sheet.getByRole("list", { name: "Before you record it" })).toContainText(
+    "The customer's quote page still asks the full $120.00 deposit online. Record the deposit instead if this money is for it.",
+  );
+  // The deposit, at its fixed amount (the row is the label; the radio is visually hidden).
+  await sheet.getByText(/^Record the \$120\.00 deposit for the quote answered /).click();
+  await expect(
+    sheet.getByRole("radio", { name: /^Record the \$120\.00 deposit for the quote/ }),
+  ).toBeChecked();
+  await expect(sheet).toContainText(/Amount \(the deposit\)\s*\$120\.00/);
+  await expect(sheet.getByRole("list", { name: "Before you record it" })).toHaveCount(0);
+  await sheet
+    .getByRole("radiogroup", { name: "Paid by" })
+    .getByRole("radio", { name: "PayNow" })
+    .click();
+  await sheet.getByLabel("Reference").fill(`PN-${q.tag}`);
+
+  // 2. Two steps that repeat the amount and the method.
+  await sheet.getByRole("button", { name: "Record $120.00 by PayNow…" }).click();
+  const confirm = sheet.getByRole("group", { name: "Record $120.00 by PayNow?" });
+  await expect(confirm).toContainText(`as the deposit on ${q.job.jobNumber}?`);
+  await expect(confirm.getByRole("button", { name: "Back" })).toBeFocused();
+  await confirm.getByRole("button", { name: "Record $120.00", exact: true }).click();
+  await expect(sheet).toBeHidden();
+  await expect(toast(page, `Recorded $120.00 at the counter on ${q.job.jobNumber}`)).toBeVisible();
+
+  // 3. The card: the deposit paid, the counter row and its total.
+  await expect(deposits).toContainText("Deposit paid");
+  const counter = payments.getByRole("region", { name: "At the counter" });
+  const row = counter.getByRole("listitem", { name: "Deposit $120.00, PayNow" });
+  await expect(row).toContainText(`Ref PN-${q.tag}`);
+  await expect(row).toContainText("recorded by");
+  await expect(payments.getByLabel("Payment totals")).toContainText(
+    /Paid at the counter\s*\$120\.00/,
+  );
+  const timeline = section(page, "Timeline");
+  await expect(timeline).toContainText("Deposit of $120.00 taken at the counter (PayNow)");
+
+  // 4. The order sheet no longer holds the part back, and the customer's page says it is paid.
+  const indent = section(page, "Indent parts and quote");
+  const items = indent.getByRole("list", { name: "Proposed items" });
+  await expect(items.getByRole("listitem", { name: q.partName })).not.toContainText("Deposit due");
+  await indent.getByRole("button", { name: "Order approved parts" }).click();
+  const orderSheet = page.getByRole("dialog", { name: "Order approved parts" });
+  await expect(
+    orderSheet.getByRole("checkbox", { name: `2 × ${q.partName}`, exact: true }),
+  ).toBeChecked();
+  await expect(orderSheet.getByText(/hasn't paid the deposit/)).toHaveCount(0);
+  await expect(orderSheet.getByRole("button", { name: "Add to order" })).toBeEnabled();
+  await orderSheet.getByRole("button", { name: "Cancel" }).click();
+  await expect(orderSheet).toBeHidden();
+  await customer.reload();
+  await expect(customer.getByText("Deposit of $120.00 paid. Thank you.")).toBeVisible();
+  await expect(customer.getByRole("button", { name: "Pay $120.00 deposit" })).toHaveCount(0);
+
+  // 5. Given back: its own confirmation, the other void hidden meanwhile.
+  await row.getByRole("button", { name: "Given back… Deposit $120.00, PayNow" }).click();
+  await expect(row.getByRole("button", { name: /^Void \(recorded in error\)…/ })).toHaveCount(0);
+  await expect(row).toContainText("BICII moves no money: give it back first.");
+  await row.getByLabel(/^Why was it given back\?/).fill("Customer paid online instead");
+  await page.waitForTimeout(500);
+  await row.getByRole("button", { name: "Record as given back" }).click();
+  await expect(toast(page, "$120.00 recorded as given back")).toBeVisible();
+  await expect(row).toContainText("Given back: Customer paid online instead");
+  await expect(row.getByRole("button")).toHaveCount(0);
+  await expect(timeline).toContainText("Counter payment of $120.00 voided (given back)");
+
+  // 6. The deposit is due again, here and on the customer's page.
+  await expect(deposits).toContainText("Deposit due");
+  await expect(items.getByRole("listitem", { name: q.partName })).toContainText("Deposit due");
+  await customer.reload();
+  await expect(customer.getByRole("button", { name: "Pay $120.00 deposit" })).toBeVisible();
   await context.close();
 });

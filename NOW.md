@@ -1,8 +1,31 @@
 # Current state
 
-Updated: 2026-10-17 SGT by the go-live session, on
+Updated: 2026-10-18 SGT by the go-live session, on
+`claude/brave-clarke-kfqhgt` from `main` cb41d23 (PR #35, the docs
+commit recording PR A's release, merged): Phase 14 step 3's PR B, the
+app, is built and reviewed on `claude/brave-clarke-kfqhgt`, committed and
+pushed in its own pull request, not merged. It adds no migration and
+changes no SQL. It builds, on PR A's database and the build defaults
+D154a–e, D156a–h and D161a–j: the customer's payment page `/pay/[token]`
+(the bill without costs, unit numbers or serials, Pay through Stripe
+Checkout for what is left, no-referrer, noindex and no-store, per-client
+and per-token limits), the privacy line naming Stripe under every Pay on
+both customer pages, **Send payment link** for any staff member, the
+admin's **Record counter payment** with **Void (recorded in error)…** and
+**Given back…**, the best-effort closing of a job's open Checkout
+sessions after a counter payment or a resend, the job card, the line
+under Lines, Collected and the timeline counting counter money, and
+Reports' **Customer payments** with **Held on jobs now**,
+`/reports/payments` and two CSVs; with 14 new unit test files, 13
+extended, three new E2E journeys and the docs. Its local evidence is the
+"Phase 14 step 3 PR B" row in "What is actually working". Next action:
+merge PR B (its pull request's CI and e2e run first), then the public
+site's small BICII pull request widening its privacy text from "workshop
+quotes" to "workshop quotes and bills".
+
+Earlier on 2026-10-17 SGT, the go-live session, on
 `claude/brave-clarke-kfqhgt` restarted at `main` 56bc12c (PR #34 merged),
-in a docs-only change that records the release of Phase 14 step 3's PR A,
+made a docs-only change that records the release of Phase 14 step 3's PR A,
 the database. It is on `main` and in production since 2026-10-17 SGT:
 counter payments recorded by an admin (D161), balance links (D156) and
 payment reports (D154), in `20261014001200_payment_step3_enums` to
@@ -19,13 +42,11 @@ the jobs with payments) return the same rows as before the run (md5 of
 their rows compared before and after); `work_order_payment_totals` now
 has a row for every job (4 jobs, 4 rows); `counter_payments` and
 `balance_links` hold no rows. Nothing a user sees changes until PR B, the
-app: no screen records a counter payment or sends a link yet. The build's
-local evidence is in the "What is actually working" rows below. Its
-build defaults D154a–e, D156a–h and D161a–j are
+app: in production no screen records a counter payment or sends a link
+yet. The build's local evidence is in the "What is actually working" rows
+below. Its build defaults D154a–e, D156a–h and D161a–j are
 [PRODUCT question 35](docs/PRODUCT.md#open-assumptions-and-owner-questions),
-forks first. Next action: PR B, the app (the payment page, Send payment
-link, the admin's Record and Void, the Reports section, the privacy
-line).
+forks first.
 
 Earlier on 2026-10-17 SGT, the go-live session, on
 `claude/brave-clarke-kfqhgt` restarted at `main` 604ae6e (PR #31 merged),
@@ -155,7 +176,8 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
   [PLAN Phase 14](docs/PLAN.md#phase-14--customer-payments-through-stripe),
   [ADR-025](docs/decisions/ADR-025-stripe-payments.md)): PR A, the
   database, merged (PR #34) and in production since 2026-10-17 SGT; PR B,
-  the app, next. Phases 13 and 14
+  the app, built on `claude/brave-clarke-kfqhgt` on 2026-10-18 SGT, not
+  merged. Phases 13 and 14
   steps 1 and 2 are merged and live (PRs #22–#27 and #30), with the
   indent closing rules D149, D149a–c and D160. The public site's screens
   (Phase 11 step 2,
@@ -164,19 +186,19 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
   and deployed since 2026-10-17 SGT, with customer accounts closed until
   the owner opens them.
 - Next action:
-  0. Phase 14 step 3 PR B, the app, on PR A's database (in production
-     since 2026-10-17 SGT, PR #34): the payment page
-     `/pay/[token]` (no-referrer, noindex, no-store, a per-client and
-     per-token limit, return URLs from `ADMIN_ORIGIN`), Send payment link
-     (any staff member), the admin's Record and Void counter payment, the
-     best-effort expiry of open Checkout sessions after a counter payment
-     or a resend, the job card, Collected and timeline wording that counts
-     counter money, the Reports section and its exports, the privacy line
-     naming Stripe on the Admin's customer payment pages and the public
-     site, with unit and E2E tests and the user guide. The owner answers
+  0. Merge Phase 14 step 3 PR B, the app (built on
+     `claude/brave-clarke-kfqhgt`, not merged; see the header): its own
+     pull request with CI (`check`, `test`, `build`) and the label-run
+     e2e; it has no migration, so `migrate.yml` applies nothing. Then the
+     public site's small BICII pull request (branch
+     `claude/brave-clarke-kfqhgt` from its `main`): the `/contact`
+     privacy text from "workshop quotes" to "workshop quotes and bills"
+     (`src/lib/content.ts`, a README note). Before relying on payment
+     links in production, rehearse RUNBOOK "Stripe: verify before
+     go-live" steps 11 and 12 in Stripe's test mode. The owner answers
      PRODUCT question 35 (step 3's build defaults, forks first). AGENTS.md
-     item 2 now allocates R-090–R-094 as Stripe payments' later entries
-     and notes D160 and D161 taken. Owner: on the next refund in Stripe,
+     item 2 allocates R-090–R-094 as Stripe payments' later entries and
+     notes D160 and D161 taken. Owner: on the next refund in Stripe,
      check that a `refund.*` event is applied without *Check with Stripe*
      (Settings → Customer payments, recent deliveries); in the Dashboard,
      check that PayNow is on.
@@ -330,9 +352,14 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
   [R-091](docs/RISKS.md#r-091--a-balance-link-is-a-payment-capability)
   (a balance link is a payment capability) and
   [R-092](docs/RISKS.md#r-092--open-checkout-tabs-can-still-be-paid-for-up-to-60-minutes)
-  (open Checkout tabs can still be paid for up to 60 minutes); R-055,
+  (open Checkout tabs can still be paid for up to 60 minutes);
+  [R-093](docs/RISKS.md#r-093--mark-collected-is-allowed-while-stripe-is-confirming-a-payment)
+  (Mark collected is allowed while Stripe is confirming a payment; PR B's
+  review, wording only, a guard is for the owner); R-055,
   R-087, R-088 (token return URLs kept for the balance link, with the
-  reason) and R-089 updated.
+  reason) and R-089 updated. PR B (not merged) records its built
+  containment in R-055, R-088 and R-090–R-092 (last checked 2026-10-18
+  SGT).
 - Phase 14 risks (Stripe range R-085–R-089): R-085 (keys and the webhook,
   with step 1's database and adapter evidence), R-086 (a payment stays
   pending until Stripe confirms it; contained in steps 1 and 2: Check
@@ -434,18 +461,20 @@ keeps each row's state when the row was written.
 | D160 released (2026-10-16 SGT) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 384789f, in its own pull request: NOW.md; RUNBOOK (the one-off's result read from the timeline, as `supabase db push` prints no server notices; the closed-jobs query's run); RISKS (R-083's status, residual, next action and last check; R-001's newest migration; R-087); PLAN (the D160 row); DATA-MODEL (applied state); ENGINEERING (the newest migration); OPERATIONS (67 migrations, applying migrations last exercised); PRODUCT and the decisions index (D160 in production); USER-GUIDE and README (what production runs: D149, D149a–c and D160 were still described as not deployed). The second commit applies an independent review's findings (two reviewers, each finding checked by a skeptic: 22 confirmed, overlapping, all fixed; 5 refuted) | PR #30: CI `check`, `test (unit + db)` and `build` and the label-triggered `e2e (Playwright)` run (full suite) succeeded on a325577; merged as 384789f; `migrate.yml` run 16 succeeded, applying `20261014001000` and `20261014001100`; read-only on the hosted project: 67 migrations, last `20261014001100`; the triggers `work_order_line_items_unfit_part_request` and `job_part_requests_require_live_line` present; no `part_request_unfitted` event (the one-off un-fitted nothing); no fitted request on a voided line; the closed-jobs query no rows; Vercel's production deployment of 384789f READY; after the review fixes: docs link check 43 files / 1,172 links / 0 problems, prettier on the changed files pass, CI `check`, `test (unit + db)` and `build` green on the first commit (1267d08) | In production (D160) |
 | Phase 14 step 3 PR A, the database (D154, D156, D161 with the build defaults D154a–e, D156a–h, D161a–j; PRODUCT question 35): counter payments an active admin records and voids (`counter_payments`, `counter_payment_voids`, append-only for every role; `record_counter_payment`, replay-safe, with the job lock first; `void_counter_payment`, recorded in error or given back), counted by the replaced `quote_deposits` (a counter deposit is paid), `work_order_payment_totals` (a row for every job; `paid_at_counter`, `net_paid`, `processing_online`) and `payment_issues` (`paid_online_and_counter`, `paid_above_bill`, counter `paid_job_cancelled` and `paid_parts_cancelled`); balance links any staff member sends on a completed or ready job (`balance_links`, a hashed token, one live link per job, withdrawn on a resend, a reopen and Collected; `send_balance_link`, `balance_by_token`, `prepare_balance_checkout`, `record_balance_checkout`; the deposit Checkout RPCs replaced with the same signatures; a live or processing balance payment never beside another open one); payment reports for View financial reports (`reporting.payment_movements`, `report_payment_summary`, `report_payment_items`, `report_payments_held`; sales figures unchanged); the card's totals only with a Stripe or counter payment | Yes, `claude/brave-clarke-kfqhgt` at `main` 308654d, working tree (local, not committed or pushed at this update): migrations `20261014001200_payment_step3_enums`, `20261014001300_counter_payments`, `20261014001400_balance_links`, `20261014001500_payment_reports` (71 files); `tests/db/counter-payments.test.ts`, `balance-links.test.ts`, `payment-reports.test.ts`, `payment-fixtures.ts`; `stripe-payments`, `period-reports`, `customer-access` and `meta` tests extended; `tests/fixtures/api-surface.ts`; `src/lib/db-errors.ts`; `src/lib/database.types.ts`; `src/lib/workshop-timeline.ts`; `src/lib/payments.ts`, `src/lib/domain/payments.ts`, `src/components/domain/payments-card.tsx` and `tests/unit/payments-card.test.tsx`; DATA-MODEL, PLAN, ADR-025 and the decisions index, RISKS (R-090–R-092 new; R-055, R-087–R-089), TESTING, ENGINEERING, PRODUCT (question 35), NOW | Locally on 2026-10-17 (database `bicii_dev`): each new database test file written first and failing before its migration (30 of 30, 33 of 33, 18 of 18), then passing, with 24 deliberate breaks of the migrations each caught; the review's 13 findings fixed the same day (8 database tests added and 2 extended, 6 of them failing before their fixes; 14 more breaks, each caught); `npm run db:reset` pass (`71\|20261014001500`, seed applied); `npm run check` pass; `npm run check:types`: the regenerated file byte-identical on a second run and the gate passing against a temporary git index (on the uncommitted tree its diff step reports the regenerated file itself); `npm test` 185 files / 2,848 tests passed (unit 109 files, database 76), the stack smoke test included, on its first run after the reset; docs link check 43 files / 0 problems and prettier on every changed doc; Playwright not run | Not deployed (local only) |
 | Phase 14 step 3 PR A released (2026-10-17 SGT) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 56bc12c in its own pull request: NOW.md; DATA-MODEL (applied state, the §19 status row); ENGINEERING (the newest migration); OPERATIONS (71 migrations, applying migrations last exercised); RUNBOOK (applying migrations last exercised); RISKS (R-001's newest migration; R-090–R-092 last checked); PLAN (Phase 14 step 3, the D154, D156 and D161 rows); ADR-025's status update and the decisions index; ARCHITECTURE; PRODUCT (step 3's database in production, nothing on screen until PR B) | PR #34: CI `check`, `test (unit + db)` and `build` and the `e2e (Playwright)` run (full suite) succeeded on 66e66b5; merged as 56bc12c on 2026-10-17 SGT; `migrate.yml` run 17 succeeded, applying `20261014001200`, `20261014001300`, `20261014001400` and `20261014001500`; read-only on the hosted project afterwards: 71 migrations, last `20261014001500`; `quote_deposits`, `payment_issues` and `work_order_payment_totals` (for the jobs with payments) byte-identical to before the run (md5 of their rows compared before and after); `work_order_payment_totals` one row per job (4 jobs, 4 rows); `counter_payments` and `balance_links` no rows; Vercel's production deployment of 56bc12c READY; docs link check 43 files / 0 problems and prettier on the changed files pass | In production (step 3's database; nothing a user sees changes until PR B) |
+| Phase 14 step 3 PR B, the app (D154, D156, D161 on the build defaults D154a–e, D156a–h, D161a–j; no migration, no SQL change): the Stripe layer's one Pay loop for the deposit and the balance (`startBalanceCheckout`, `confirmBalanceReturn`, the per-flow redirect check, the deposit's `replace` and `job_payment_processing`) and `expireOpenCheckouts` after a counter payment or a resend; `link` redacted by the logger; the customer's payment page `/pay/[token]` (the token shape, then the view limit, then `balance_by_token` as anon; no-referrer, noindex, no-store on the page and its return; the bill without costs, unit numbers or serials; Pay; one check on the return, then the page's own refreshes); the privacy line naming Stripe under every Pay on both customer pages; on the job, Send payment link (any staff member), the admin's Record counter payment, Void (recorded in error) and Given back, the card, the line under Lines, Collected and the timeline counting counter money; Reports' Customer payments with Held on jobs now, `/reports/payments` and the `payments` and `payments_held` CSVs | Yes, `claude/brave-clarke-kfqhgt` from `main` cb41d23, committed and pushed in its own pull request: `src/lib/integrations/stripe/checkout.ts` and `records.ts`, `src/lib/logger.ts`; `src/app/(customer)/pay/[token]/` (page, actions, `pay-balance-button.tsx`, `balance-return.tsx`), `src/app/(customer)/stripe-privacy-line.tsx`, `src/lib/balance-page.ts`, `src/lib/balance-limits.ts`, `src/lib/admin/balance-throttle.ts`, `link-throttle.ts`, `quote-throttle.ts`, `next.config.ts`, `src/lib/auth/routes.ts`; `src/lib/domain/payments.ts`, `src/lib/payments.ts`, `src/lib/auth/permissions.ts`, `role-change.ts`, `src/app/(staff)/jobs/payment-actions.ts`, `src/components/domain/payments-card.tsx`, `balance-link-sheets.tsx`, `counter-payment-sheet.tsx`, `job-status-actions.tsx`, `src/lib/integrations/email/balance.ts`, `src/lib/workshop-timeline.ts`, the job page and Profile; `src/lib/payment-reports.ts`, `src/lib/domain/payment-reports.ts`, `src/components/domain/reports/payment-sections.tsx`, `src/app/(staff)/reports/payments/page.tsx`, `src/lib/report-exports.ts`, `src/lib/domain/report-exports.ts`; 14 new unit test files and 13 extended; `tests/e2e/payments.spec.ts` (two new journeys), `reports.spec.ts` (one new, the mechanic's refusals extended), `tests/e2e/api.ts` (`insert`); USER-GUIDE, DESIGN, ARCHITECTURE, PRODUCT, RUNBOOK, OPERATIONS, TESTING, RISKS (R-055, R-088, R-090–R-093), PLAN (D154, D156, D161, Phase 14 step 3), ADR-025 and the decisions index, DATA-MODEL (§16 rows, §19 status), NOW | Locally on 2026-10-18 SGT (database `bicii_dev`, the in-memory Stripe with signed webhooks): `npm run check` pass; `npm run check:types` pass (the regenerated file matches the committed one); `npm test` 199 files / 3,110 tests passed on its first run (stack smoke included); `npm run build` pass (`/pay/[token]` and `/reports/payments` dynamic); `tests/e2e/payments.spec.ts` and `reports.spec.ts` on the phone and iPad projects after a reset: 26 passed, 0 failed (6.5 min; the Customer payments test also passed 2 of 2 earlier the same day on a kept database, `E2E_RESET=0`); each stage's mutation checks (stage 1: 11, stage 2: 23, stage 3: 22, stage 4: 19), every one caught; docs link check 43 files / 1,236 links / 0 problems and prettier on every changed doc. After the review's fixes (the same day: Collected names no amount to take while Stripe confirms a payment and says "Nothing is left to pay; take nothing." on a paid bill; a replayed counter payment expires the open sessions too; the fake redirect check parses the URL; the counter sheet's cap and focus; the link sheet's expired wording; the return's paid-but-still-due line; R-093 added), each fix's test seen failing first, then `npm run check`, `npm run check:types`, `npm test` 199 files / 3,123 tests, `npm run build`, `payments.spec.ts` and `reports.spec.ts` on both projects after a reset (26 passed, 0 failed, 6.4 min) and the docs link check (43 files / 1,240 links / 0 problems) pass again. Not run: a balance in Stripe's test mode (RUNBOOK "Stripe: verify before go-live" steps 11 and 12); email and WhatsApp end to end (unit-tested); the full E2E suite (the payments, indent, workshop, roles, today, staff, auth and reports specs were run in earlier stages of this build) | Not deployed (on `claude/brave-clarke-kfqhgt`, not merged) |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1, merged 2026-10-17 SGT: see the header) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
 
 ## Work location and continuation
 
-- `main` on origin holds PRs #1–#11, #13–#18 and #22–#34 (through
-  56bc12c) and is what production runs (code through Phase 14 step 3
-  PR A, 56bc12c). The local `main` ref is stale; use `origin/main`.
+- `main` on origin holds PRs #1–#11, #13–#18 and #22–#35 (through
+  cb41d23) and is what production runs (code through Phase 14 step 3
+  PR A, 56bc12c; #35 is docs only). The local `main` ref is stale; use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted
-  from `main` after each merge (PRs #14–#18, #22–#34); now `main` 56bc12c
-  plus one docs commit recording PR A's release (its own pull request).
+  from `main` after each merge (PRs #14–#18, #22–#35); now `main` cb41d23
+  (PR #35, PR A's release record) plus Phase 14 step 3 PR B (committed and
+  pushed in its own pull request; not merged).
 - The build session's branches, paused for the handover: `feat/p8-labels`
   (3f09d22) and `wip/feat/p8-labels` (01cb3da), merged through PR #16;
   `wip/feat/p10-shopify` (8dbe6c4: 3b5341c, merged through PR #17, plus

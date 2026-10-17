@@ -78,8 +78,8 @@ describe("permission resolution (mirrors private.has_permission)", () => {
 });
 
 describe("isPublicPath", () => {
-  it("opens only the login page, the dev gallery, health checks and quote links", () => {
-    for (const p of ["/login", "/dev/ui", "/api/health", "/quote/abc"]) {
+  it("opens only the login page, the dev gallery, health checks, quote links and payment links", () => {
+    for (const p of ["/login", "/dev/ui", "/api/health", "/quote/abc", "/pay/abc"]) {
       expect(isPublicPath(p)).toBe(true);
     }
     for (const p of [
@@ -92,6 +92,10 @@ describe("isPublicPath", () => {
       "/quote",
       "/quotes/abc",
       "/jobs/quote/abc",
+      "/pay",
+      "/payments/abc",
+      "/payx/abc",
+      "/jobs/pay/abc",
     ]) {
       expect(isPublicPath(p)).toBe(false);
     }

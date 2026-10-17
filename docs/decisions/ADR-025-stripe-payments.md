@@ -5,7 +5,9 @@ Date: 2026-10-14 (design, before Phase 14 is built; on
 (D161, [below](#amendment-2026-10-17-the-owners-answers-to-question-32-d161));
 status update 2026-10-17 (step 3's database, the build defaults D154a–e,
 D156a–h and D161a–j,
-[below](#status-update-2026-10-17-step-3s-database)).
+[below](#status-update-2026-10-17-step-3s-database)); status update
+2026-10-18 SGT (step 3's app, PR B, built and not merged,
+[below](#status-update-2026-10-18-step-3s-app)).
 Status: accepted. The owner decided on 2026-10-14 to take payments through
 Stripe, starting with deposits on indent parts, and on 2026-10-17 SGT
 confirmed the build defaults below as built
@@ -378,6 +380,74 @@ balance link is a payment capability) and
 (open Checkout tabs can still be paid for up to 60 minutes); R-055,
 R-087, R-088 and R-089 updated. D157a is unchanged: a deposit is asked
 only while Stripe is on, though it can now be paid at the counter.
+
+## Status update 2026-10-18: step 3's app
+
+Phase 14 step 3's PR B, the app, is built on `claude/brave-clarke-kfqhgt`
+(on `main` 56bc12c, PR A's database) and not merged; it adds no
+migration and changes no SQL. What it builds, on the build defaults
+D154a–e, D156a–h and D161a–j:
+
+- **The Stripe layer.** One Pay loop for the deposit and the balance
+  (`payLoop` over a prepare/record pair in `checkout.ts`), with the
+  deposit's behaviour and tests kept and its two new outcomes handled
+  (`replace`: expire and record the named balance session;
+  `job_payment_processing`: stop with "A payment for this job is being
+  confirmed by Stripe. Try again in a few minutes."). The balance flow
+  passes Postgres's cents and expiry through unchanged and reuses a
+  session only while it is open and more than 120 s from expiry:
+  `prepare_balance_checkout` as built returns no amount check of its own,
+  and its `replace` already takes a session at another amount, so the app
+  compares no money. `validateRedirect` takes each flow's own page, and
+  `expireOpenCheckouts` closes the job's open sessions after a counter
+  payment (that quote's deposit and any balance) and after a resend
+  (balance only), best effort.
+- **The payment page** `/pay/[token]` (D156f): the token shape, then a
+  per-client and per-token limit, then `balance_by_token` as anon, parsed
+  with its two key sets pinned; no-referrer, noindex and no-store on the
+  page and its return; one check at Stripe on the return, then the page's
+  own refreshes; the privacy line naming Stripe under every Pay on both
+  customer pages.
+- **On the job**: **Send payment link** for any staff member while Stripe
+  is on and the bill is final (the link from `ADMIN_ORIGIN`, shown once,
+  WhatsApp, email or Copy link); the admin's **Record counter payment**
+  (a deposit at its fixed amount, or towards the bill; a confirm step
+  that repeats the amount and method; warnings that never refuse) and its
+  two voids, **Void (recorded in error)…** and **Given back…**; the card,
+  the line under Lines and the Collected confirmation counting counter
+  money and what Stripe is still confirming; the timeline's wording.
+- **Reports** (D154): the Customer payments section outside Figures (the
+  five figures with counts and the two notes), **Held on jobs now** in
+  three lists each with its own total and no grand total,
+  `/reports/payments` (100 a page, keyset, a bad cursor is not found) and
+  the `payments` and `payments_held` CSVs. Each list's total is added up
+  on screen from the fixed-2 amounts `report_payments_held` returns
+  (exact decimals, display only, never stored or exported), because the
+  function returns no totals; a later migration could return them
+  ([R-055](../RISKS.md#r-055--past-report-periods-change-after-a-reopen-a-back-dated-sale-or-a-back-dated-receipt)).
+- **After review** (same branch, app and docs only): while Stripe is
+  confirming a payment the Collected confirmation names no amount to take
+  and says to press Check with Stripe first (processing money is never in
+  `balance_due`); a job paid in full says "Nothing is left to pay; take
+  nothing."; a replayed counter payment also expires the open sessions
+  the RPC reports; the fake's redirect check parses the URL (dot
+  segments); back from Stripe, a paid return whose bill is still due
+  shows Pay at the live amount; refusing Collected while a payment is
+  being confirmed would be a migration, put to the owner as
+  [R-093](../RISKS.md#r-093--mark-collected-is-allowed-while-stripe-is-confirming-a-payment).
+
+Verified locally on 2026-10-18 SGT: the unit project, `npm run check`,
+the payments and reports E2E specs on the phone and iPad projects against
+the real RPCs and the fake Stripe with signed webhooks, and the gates in
+NOW.md's row for this build. Not yet verified: a balance paid in Stripe's
+test mode (RUNBOOK "Stripe: verify before go-live" steps 11 and 12);
+email and WhatsApp end to end (unit-tested). Risks updated:
+[R-088](../RISKS.md#r-088--the-quote-link-is-a-payment-capability-that-reaches-stripe),
+[R-090](../RISKS.md#r-090--a-counter-payment-rests-on-an-admins-word),
+[R-091](../RISKS.md#r-091--a-balance-link-is-a-payment-capability),
+[R-092](../RISKS.md#r-092--open-checkout-tabs-can-still-be-paid-for-up-to-60-minutes),
+R-093 and R-055. The public site's privacy text ("workshop quotes" to "workshop
+quotes and bills") follows in a small BICII pull request.
 
 ## Revisit trigger
 

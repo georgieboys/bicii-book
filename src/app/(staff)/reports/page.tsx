@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { HeldOnJobs, PaymentSummaryFigures } from "@/components/domain/reports/payment-sections";
 import { BasisControl, ReportControls } from "@/components/domain/reports/report-controls";
 import {
   ActivityFigures,
@@ -45,6 +46,7 @@ import {
   type BreakdownCursor,
   type ReportParams,
 } from "@/lib/period-reports";
+import { getPaymentSummary, getPaymentsHeld } from "@/lib/domain/payment-reports";
 import { getExceptionCounts } from "@/lib/domain/reconciliation";
 import { logger } from "@/lib/logger";
 import { exceptionTotal } from "@/lib/reconciliation";
@@ -69,6 +71,8 @@ const BREAKDOWN_ROWS = 25;
  * Financial content needs view_financial_reports; cost-derived figures
  * need view_costs, which the database enforces (NULL otherwise, D30) and
  * the layout follows. Activity is for every active staff member.
+ * Customer payments (Phase 14 step 3, D154) sits in the financial part
+ * but outside Figures: money held, not sales, and not driven by the basis.
  */
 export default async function ReportsPage({ searchParams }: PageProps<"/reports">) {
   const staff = await requireStaff();
@@ -178,7 +182,10 @@ async function ExceptionCountBadge({ supabase }: { supabase: ServerSupabase }) {
   );
 }
 
-/** The financial section (view_financial_reports): basis, figures, buckets, breakdown, stock value. */
+/**
+ * The financial section (view_financial_reports): basis, figures, buckets,
+ * breakdown, customer payments, stock value.
+ */
 async function FinancialSection({
   supabase,
   report,
@@ -326,6 +333,47 @@ async function FinancialSection({
                 </>
               )
             }
+          </SectionLoader>
+        </Suspense>
+      </ReportSection>
+
+      <ReportSection
+        id="reports-payments"
+        title="Customer payments"
+        description={`Money taken and given back in ${range}, by the day it moved, whatever the basis.`}
+        actions={<ExportLink href={exportHref("payments", params)} name="customer payments" />}
+      >
+        <Suspense fallback={<SectionSkeleton rows={3} />}>
+          <SectionLoader
+            name="report-payments"
+            load={() => getPaymentSummary(supabase, report.from, report.to)}
+          >
+            {(summary) => <PaymentSummaryFigures summary={summary} />}
+          </SectionLoader>
+        </Suspense>
+        <p>
+          <Link
+            href={reportHref("/reports/payments", params)}
+            className="inline-flex min-h-tap items-center gap-1 text-sm font-semibold underline"
+          >
+            See each payment
+            <ChevronRightIcon className="size-4" />
+          </Link>
+        </p>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h3 id="reports-payments-held" className="text-lg">
+              Held on jobs now
+            </h3>
+            <p className="text-sm text-dust-500">
+              What is held at this moment, whatever period is chosen above.
+            </p>
+          </div>
+          <ExportLink href={exportHref("payments_held", {})} name="money held on jobs now" />
+        </div>
+        <Suspense fallback={<SectionSkeleton rows={4} />}>
+          <SectionLoader name="report-payments-held" load={() => getPaymentsHeld(supabase)}>
+            {(rows) => <HeldOnJobs rows={rows} />}
           </SectionLoader>
         </Suspense>
       </ReportSection>

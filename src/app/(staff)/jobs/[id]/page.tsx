@@ -21,16 +21,22 @@ import { Card } from "@/components/ui/card";
 import { CalendarIcon, CheckIcon } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatAppointmentMoment } from "@/lib/appointments/format";
+import { balanceEmailEnabled } from "@/lib/integrations/email/balance";
 import { quoteEmailEnabled } from "@/lib/integrations/email/quote";
 import { stripeIsOn } from "@/lib/integrations/stripe/client";
-import { canOverrideDeposit, canRecordRefund, hasPermission } from "@/lib/auth/permissions";
+import {
+  canOverrideDeposit,
+  canRecordCounterPayment,
+  canRecordRefund,
+  hasPermission,
+} from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, shopDaysBetween } from "@/lib/dates";
 import { listPhotos } from "@/lib/domain/attachments";
 import { getIndentPanel, getUnfittedSummary } from "@/lib/domain/indent";
 import { getJobPayments } from "@/lib/domain/payments";
 import { fittedIndentLines, isUnfitted, unfittedMemo } from "@/lib/indent";
-import { paidOnlineSummary } from "@/lib/payments";
+import { canSendLink, paidSummary, showsPaymentsCard } from "@/lib/payments";
 import { listLocations } from "@/lib/domain/inventory";
 import { getWorkOrderYield } from "@/lib/domain/reports";
 import {
@@ -86,10 +92,13 @@ function sharedRate(job: WorkOrderDetail): string | null {
  * first; then what the customer asked for, the lines with running totals
  * (services, parts from stock and manual lines; costs, yield and Cult
  * Commons only with view_costs: the DTO has none otherwise), the indent
- * parts and quote (Phase 13), the Customer payments card once a deposit
- * or an online payment exists (Phase 14, D154; hidden if its read fails),
- * approved indent items not on the bill as a memo under the total, never in
- * it, and what a closed job holds above its bill (R-082); Complete and the
+ * parts and quote (Phase 13), the Customer payments card once a deposit,
+ * an online payment or a counter payment exists, or when a payment link
+ * can be sent or an admin can record a counter payment (Phase 14, D154,
+ * D156, D161; hidden if its read fails), what was paid (online and at the
+ * counter) and what is left under the total, approved indent items not on
+ * the bill as a memo under the total, never in it, and what a closed job
+ * holds above its bill (R-082); Complete and the
  * other moves out of the open statuses settle those items first (D149b),
  * and voiding a line a fitted indent item became puts it back among them
  * (D160),
@@ -141,8 +150,28 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   const overdue = isOverdue({ status: job.status, checkedInAt: job.stamps.checkedInAt }, now);
   const tel = telHref(job.customer.phone);
   const stripeOn = stripeIsOn();
-  // D154 at the counter: a deposit paid online, shown by the total and on Collected.
-  const paidOnline = paidOnlineSummary(payments?.totals ?? null);
+  // D154, D161 at the counter: what was paid online and at the counter,
+  // shown by the total and on Collected, with what Stripe is confirming.
+  const paid = paidSummary(payments?.totals ?? null);
+  const canRecordCounter = canRecordCounterPayment(staff);
+  const showPayments =
+    payments !== null &&
+    showsPaymentsCard({
+      deposits: payments.deposits.length,
+      payments: payments.payments.length,
+      counterPayments: payments.counterPayments.length,
+      canSendLink:
+        payments.totals !== null &&
+        canSendLink({
+          stripeOn,
+          jobStatus: job.status,
+          currency: payments.totals.currency,
+          balanceDue: payments.totals.balanceDue,
+          processingOnline: payments.totals.processingOnline,
+        }),
+      canRecordCounter,
+      jobStatus: job.status,
+    });
   // R-082: approved indent items not on the bill: a memo under the total
   // (never in it); the moves out of the open statuses settle them first
   // (D149b), so the Collected confirmation no longer names them.
@@ -230,7 +259,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
         customerLabel={job.customer.label}
         status={job.status}
         heldUnits={heldUnits}
-        paidOnline={paidOnline}
+        paid={paid}
         settle={settle}
       />
 
@@ -337,19 +366,44 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
                 </a>
               </p>
             ) : null}
-            {paidOnline ? (
-              // D154 where the counter looks: the deposit paid online is
-              // not in the total above (money held, not a sale).
-              <p className="flex flex-wrap gap-x-2 border-t border-hairline px-4 py-3 text-sm font-semibold sm:px-5">
-                <a href="#customer-payments" className="underline underline-offset-4">
-                  Paid online {paidOnline.paid}
-                </a>
-                {paidOnline.paidAhead ? (
-                  <span>· Paid ahead {paidOnline.paidAhead}</span>
-                ) : paidOnline.stillToPay ? (
-                  <span>· Still to pay {paidOnline.stillToPay}</span>
-                ) : paidOnline.moreThanBill ? (
-                  <span>· {paidOnline.moreThanBill} more than the bill</span>
+            {paid ? (
+              // D154, D161 where the counter looks: what was paid (online
+              // and at the counter) is not in the total above (money held,
+              // not a sale), and Stripe money being confirmed is not taken
+              // again.
+              <p
+                aria-label="Paid and still to pay"
+                className="flex flex-wrap gap-x-2 border-t border-hairline px-4 py-3 text-sm font-semibold sm:px-5"
+              >
+                {paid.paid ? (
+                  <>
+                    <a href="#customer-payments" className="underline underline-offset-4">
+                      Paid {paid.paid}
+                    </a>
+                    {paid.source === "both" ? (
+                      <span className="font-normal">
+                        ({paid.online} online, {paid.counter} at the counter)
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  <a href="#customer-payments" className="underline underline-offset-4">
+                    {paid.processing} being confirmed by Stripe
+                  </a>
+                )}
+                {paid.paidAhead ? (
+                  <span>
+                    · {open ? "Paid ahead" : "Paid above the bill"} {paid.paidAhead}
+                  </span>
+                ) : paid.stillToPay ? (
+                  <span>· Still to pay {paid.stillToPay}</span>
+                ) : paid.moreThanBill ? (
+                  <span>· {paid.moreThanBill} more than the bill</span>
+                ) : null}
+                {paid.paid && paid.processing ? (
+                  <span className="text-waiting-deep">
+                    · {paid.processing} being confirmed by Stripe
+                  </span>
                 ) : null}
               </p>
             ) : null}
@@ -377,13 +431,28 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             defaultLocationName={defaultLocationName}
           />
 
-          {payments && (payments.deposits.length > 0 || payments.payments.length > 0) ? (
+          {payments && showPayments ? (
             <PaymentsCard
               id="customer-payments"
+              job={{
+                id: job.id,
+                jobNumber: job.jobNumber,
+                status: job.status,
+                open,
+                currency: job.currency,
+                checkedInAt: job.stamps.checkedInAt,
+              }}
               payments={payments}
               canCheck={stripeOn}
               canOpenStripe={canRecordRefund(staff)}
               payOnline={stripeOn}
+              canRecordCounter={canRecordCounter}
+              customer={{
+                firstName: job.customer.firstName,
+                phone: job.customer.phone,
+                email: job.customer.email,
+              }}
+              emailEnabled={balanceEmailEnabled()}
             />
           ) : null}
 

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { StripePrivacyLine } from "../../stripe-privacy-line";
 import { checkDepositAction } from "./actions";
 import { PayDepositButton } from "./pay-deposit-button";
 
@@ -93,7 +94,12 @@ export function ConfirmingPayment({
           ? "If you didn't finish, you can pay below."
           : "The shop will tell you how to pay the deposit."}
       </p>
-      {payOnline ? <PayDepositButton token={token} amountLabel={amountLabel} /> : null}
+      {payOnline ? (
+        <>
+          <PayDepositButton token={token} amountLabel={amountLabel} />
+          <StripePrivacyLine />
+        </>
+      ) : null}
     </div>
   );
 }

@@ -42,6 +42,10 @@ describe("proxy matcher", () => {
     "/api/labels/x/pdf",
     "/settings/shopify",
     "/api/stripe",
+    // The customer pages run it too: no session is needed there, but the
+    // request still gets its correlation id (isPublicPath lets it through).
+    "/quote/x",
+    "/pay/x",
   ])("runs on %s", (url) => {
     expect(matches(url)).toBe(true);
   });

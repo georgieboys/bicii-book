@@ -6,6 +6,13 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
 ];
 
+/** A page whose path carries a link token: no referrer, not indexed, never cached. */
+const customerPageHeaders = [
+  { key: "Referrer-Policy", value: "no-referrer" },
+  { key: "X-Robots-Tag", value: "noindex, nofollow" },
+  { key: "Cache-Control", value: "private, no-store" },
+];
+
 const nextConfig: NextConfig = {
   experimental: {
     // forbidden() / unauthorized() and forbidden.tsx / unauthorized.tsx
@@ -23,11 +30,13 @@ const nextConfig: NextConfig = {
         // referrer leaves it, nothing caches it and search engines skip it.
         // Later rules override the catch-all's Referrer-Policy.
         source: "/quote/:token*",
-        headers: [
-          { key: "Referrer-Policy", value: "no-referrer" },
-          { key: "X-Robots-Tag", value: "noindex, nofollow" },
-          { key: "Cache-Control", value: "private, no-store" },
-        ],
+        headers: customerPageHeaders,
+      },
+      {
+        // The customer's payment link (D156f, R-091): the same, for the
+        // same reason, with or without Stripe's ?balance= return marker.
+        source: "/pay/:token*",
+        headers: customerPageHeaders,
       },
       {
         // Per the PWA guide: never cache the service worker itself, so a new

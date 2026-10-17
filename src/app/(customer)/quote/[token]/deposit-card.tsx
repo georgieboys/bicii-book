@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
 import type { DepositReturn, QuoteDeposit } from "@/lib/quote-page";
 
+import { StripePrivacyLine } from "../../stripe-privacy-line";
 import { ConfirmingPayment } from "./confirming-payment";
 import { PayDepositButton } from "./pay-deposit-button";
 
@@ -104,6 +105,7 @@ function DepositState({
                 Pay securely by card or PayNow with Stripe. You&apos;ll come back to this page.
                 Pressing again never charges you twice.
               </p>
+              <StripePrivacyLine />
             </>
           ) : (
             <p className="text-dust-700">The shop will tell you how to pay the deposit.</p>

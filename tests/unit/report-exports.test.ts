@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { effectivePermissions, type PermissionKey } from "@/lib/auth/permissions";
 import { toCsv } from "@/lib/csv";
+import type { HeldJob, PaymentItem } from "@/lib/payment-reports";
 import type { PeriodSummary } from "@/lib/period-reports";
 import {
+  BASIS_FREE_KINDS,
   EXPORT_KINDS,
   EXPORT_KIND_VALUES,
   SNAPSHOT_KINDS,
@@ -153,7 +155,7 @@ describe("the snapshot exports (Phase 9 step 4; D106–D108)", () => {
       // No cost column, so nothing differs without view_costs.
       expect(headers(kind, false), kind).toEqual(headers(kind, true));
     }
-    expect(SNAPSHOT_KINDS).toEqual(new Set(["exceptions", "stock", "units"]));
+    expect(SNAPSHOT_KINDS).toEqual(new Set(["exceptions", "stock", "units", "payments_held"]));
   });
 
   it("writes the brief's exception columns", () => {
@@ -231,5 +233,153 @@ describe("the snapshot exports (Phase 9 step 4; D106–D108)", () => {
       "bicii-breakdown-sale-2026-10-05_2026-10-11.csv",
     );
     expect(exportHref("stock", { all: "1" })).toBe("/reports/export?kind=stock&all=1");
+  });
+});
+
+describe("the Customer payments exports (Phase 14 step 3; D154)", () => {
+  const JOB = "66666666-7777-4888-9999-000000000001";
+  const PAY = "11111111-2222-4333-8444-000000000001";
+  const COUNTER = "22222222-3333-4444-8555-000000000001";
+
+  it("adds payments (a period) and payments_held (a snapshot of now)", () => {
+    expect(EXPORT_KIND_VALUES).toEqual(expect.arrayContaining(["payments", "payments_held"]));
+    expect(exportKindSchema.safeParse("payments").success).toBe(true);
+    expect(exportKindSchema.safeParse("payments_held").success).toBe(true);
+    expect(SNAPSHOT_KINDS.has("payments_held")).toBe(true);
+    expect(SNAPSHOT_KINDS.has("payments")).toBe(false);
+    expect(BASIS_FREE_KINDS).toEqual(new Set(["payments"]));
+  });
+
+  it("needs View financial reports for both (D154d), whatever else the caller holds", () => {
+    for (const kind of ["payments", "payments_held"] as const) {
+      expect(EXPORT_KINDS[kind].permission, kind).toBe("view_financial_reports");
+      expect(mayExport(kind, canAs("mechanic")), kind).toBe(false);
+      expect(mayExport(kind, canAs("mechanic", ["view_costs"])), kind).toBe(false);
+      expect(mayExport(kind, canAs("mechanic", ["manage_purchasing"])), kind).toBe(false);
+      expect(mayExport(kind, canAs("mechanic", ["view_financial_reports"])), kind).toBe(true);
+      expect(mayExport(kind, canAs("manager")), kind).toBe(true);
+      expect(mayExport(kind, canAs("admin")), kind).toBe(true);
+    }
+  });
+
+  it("writes the same columns with or without View costs: nothing is cost-derived", () => {
+    expect(headers("payments", true)).toEqual([
+      "date",
+      "movement",
+      "job_number",
+      "customer",
+      "kind",
+      "method",
+      "amount",
+      "currency",
+      "other_currency",
+      "recorded_at",
+      "recorded_by",
+    ]);
+    expect(headers("payments", false)).toEqual(headers("payments", true));
+    expect(headers("payments_held", true)).toEqual([
+      "group",
+      "job_number",
+      "status",
+      "customer",
+      "amount",
+      "net_paid",
+      "net_paid_online",
+      "paid_at_counter",
+      "job_total",
+      "balance_due",
+      "paid_ahead",
+      "currency",
+    ]);
+    expect(headers("payments_held", false)).toEqual(headers("payments_held", true));
+    for (const kind of ["payments", "payments_held"] as const) {
+      expect(
+        EXPORT_KINDS[kind].columns.some((c) => c.costs),
+        kind,
+      ).toBe(false);
+    }
+  });
+
+  it("writes a movement signed, the counter recorder only on counter rows, a formula-like name as text", () => {
+    const base: PaymentItem = {
+      at: "2026-10-16T02:00:00+00:00",
+      id: PAY,
+      movement: "online_payment",
+      workOrderId: JOB,
+      jobNumber: "J-000007",
+      jobHref: `/jobs/${JOB}`,
+      customerLabel: "=Ana Lim",
+      kind: "deposit",
+      method: "stripe",
+      amount: "300.00",
+      signedAmount: "300.00",
+      currency: "SGD",
+      otherCurrency: false,
+      recordedAt: null,
+      recordedByName: null,
+    };
+    const csv = toCsv(exportColumns("payments", false), [
+      base,
+      {
+        ...base,
+        id: COUNTER,
+        movement: "counter_given_back",
+        kind: "balance",
+        method: "cash",
+        customerLabel: "Ana Lim",
+        amount: "45.00",
+        signedAmount: "-45.00",
+        recordedAt: "2026-10-16T09:30:00+00:00",
+        recordedByName: "Sam Tan",
+      },
+    ]);
+    const lines = csv.split("\r\n");
+    expect(lines[1]).toBe(
+      "2026-10-16 10:00,online_payment,J-000007,'=Ana Lim,deposit,stripe,300.00,SGD,false,,",
+    );
+    expect(lines[2]).toBe(
+      "2026-10-16 10:00,counter_given_back,J-000007,Ana Lim,balance,cash,-45.00,SGD,false,2026-10-16 17:30,Sam Tan",
+    );
+  });
+
+  it("writes a held job, empty where a collected job has no balance", () => {
+    const row: HeldJob = {
+      group: "above_bill",
+      workOrderId: JOB,
+      jobNumber: "J-000007",
+      jobHref: `/jobs/${JOB}`,
+      status: "collected",
+      customerLabel: "Ana Lim",
+      amount: "20.00",
+      netPaid: "165.00",
+      netPaidOnline: "120.00",
+      paidAtCounter: "45.00",
+      jobTotal: "145.00",
+      balanceDue: null,
+      paidAhead: null,
+      currency: "SGD",
+    };
+    const csv = toCsv(exportColumns("payments_held", false), [row]);
+    expect(csv.split("\r\n")[1]).toBe(
+      "above_bill,J-000007,collected,Ana Lim,20.00,165.00,120.00,45.00,145.00,,,SGD",
+    );
+  });
+
+  it("names payments by the range only and payments_held by the day it was taken", () => {
+    const params = { basis: "check_in", from: "2026-10-05", to: "2026-10-11" } as const;
+    expect(exportFilename("payments", params, "2026-10-17")).toBe(
+      "bicii-payments-2026-10-05_2026-10-11.csv",
+    );
+    expect(exportFilename("payments_held", params, "2026-10-17")).toBe(
+      "bicii-payments_held-2026-10-17.csv",
+    );
+    // The other period kinds keep their basis in the name.
+    expect(exportFilename("mechanics", params, "2026-10-17")).toBe(
+      "bicii-mechanics-check_in-2026-10-05_2026-10-11.csv",
+    );
+    expect(exportHref("payments", { period: "week", date: "2026-10-07" })).toBe(
+      "/reports/export?kind=payments&period=week&date=2026-10-07",
+    );
+    expect(exportHref("payments_held", {})).toBe("/reports/export?kind=payments_held");
   });
 });

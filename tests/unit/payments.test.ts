@@ -27,8 +27,9 @@ import {
   incompleteCheckNote,
   collectedNotes,
   heldOverSentence,
-  paidOnlineSummary,
+  paidSummary,
   paymentStatusLabel,
+  type PaidSummary,
   showsPaymentTotals,
   stripeConnectionLabel,
   stripeDashboardHref,
@@ -142,100 +143,207 @@ describe("the deposit setting's rollout guard (D157a)", () => {
 });
 
 describe("the card's totals (D161: a totals row for every job)", () => {
-  const totals = { paidAtCounter: "0.00" };
-  it("show only with a Stripe payment (any attempt) or a live counter payment", () => {
-    expect(showsPaymentTotals({ payments: [], totals })).toBe(false);
+  const totals = { paidAtCounter: "0.00", processingOnline: "0.00" };
+  it("show only with a Stripe payment, a counter payment, money being confirmed or a live link", () => {
+    expect(showsPaymentTotals({ payments: [], counterPayments: [], link: null, totals })).toBe(
+      false,
+    );
     expect(showsPaymentTotals({ payments: [{}], totals })).toBe(true);
-    expect(showsPaymentTotals({ payments: [], totals: { paidAtCounter: "45.00" } })).toBe(true);
+    expect(
+      showsPaymentTotals({ payments: [], totals: { ...totals, paidAtCounter: "45.00" } }),
+    ).toBe(true);
+    // A voided counter payment still shows what is left to pay.
+    expect(showsPaymentTotals({ payments: [], counterPayments: [{}], totals })).toBe(true);
+    expect(
+      showsPaymentTotals({ payments: [], totals: { ...totals, processingOnline: "10.00" } }),
+    ).toBe(true);
+    expect(showsPaymentTotals({ payments: [], link: {}, totals })).toBe(true);
     expect(showsPaymentTotals({ payments: [{}], totals: null })).toBe(false);
   });
 });
 
-describe("paid online at the counter (D154)", () => {
+describe("what was paid, at the counter (D154, D161)", () => {
   const totals = {
     currency: "SGD",
+    netPaid: "60.00",
     netPaidOnline: "60.00",
+    paidAtCounter: "0.00",
+    processingOnline: "0.00",
     balanceDue: "85.00",
     paidAhead: "0.00",
   };
+  const base: PaidSummary = {
+    paid: "$60.00",
+    source: "online",
+    online: null,
+    counter: null,
+    stillToPay: "$85.00",
+    paidAhead: null,
+    moreThanBill: null,
+    processing: null,
+    nothingLeft: false,
+  };
+
   it("says what was paid online and what is left, as Postgres computed it", () => {
-    expect(paidOnlineSummary(totals)).toEqual({
-      paid: "$60.00",
-      stillToPay: "$85.00",
-      paidAhead: null,
-      moreThanBill: null,
-    });
-    expect(paidOnlineSummary({ ...totals, balanceDue: "0.00", paidAhead: "35.00" })).toEqual({
-      paid: "$60.00",
+    expect(paidSummary(totals)).toEqual(base);
+    expect(paidSummary({ ...totals, balanceDue: "0.00", paidAhead: "35.00" })).toEqual({
+      ...base,
       stillToPay: "$0.00",
       paidAhead: "$35.00",
-      moreThanBill: null,
     });
     // Closed (collected or cancelled): no balance, the payment still shows.
-    expect(paidOnlineSummary({ ...totals, balanceDue: null, paidAhead: null })).toEqual({
-      paid: "$60.00",
+    expect(paidSummary({ ...totals, balanceDue: null, paidAhead: null })).toEqual({
+      ...base,
       stillToPay: null,
-      paidAhead: null,
-      moreThanBill: null,
     });
+  });
+
+  it("says when nothing is left to pay, from Postgres's own zero (no arithmetic)", () => {
+    // Paid in full through the link: balance_due 0 and nothing paid ahead.
+    expect(paidSummary({ ...totals, balanceDue: "0.00", paidAhead: "0.00" })).toEqual({
+      ...base,
+      stillToPay: "$0.00",
+      nothingLeft: true,
+    });
+    // Paid ahead is not "nothing left": it says how much more was paid instead.
+    expect(paidSummary({ ...totals, balanceDue: "0.00", paidAhead: "35.00" })!.nothingLeft).toBe(
+      false,
+    );
+    // A closed job has no balance, so never "nothing left".
+    expect(paidSummary({ ...totals, balanceDue: null, paidAhead: null })!.nothingLeft).toBe(false);
+  });
+
+  it("a job paid only at the counter is not 'nothing paid' (step3-critique C3)", () => {
+    const counterOnly = {
+      ...totals,
+      netPaid: "45.00",
+      netPaidOnline: "0.00",
+      paidAtCounter: "45.00",
+      balanceDue: "100.00",
+    };
+    expect(paidSummary(counterOnly)).toEqual({
+      ...base,
+      paid: "$45.00",
+      source: "counter",
+      stillToPay: "$100.00",
+    });
+  });
+
+  it("names both parts when money came online and at the counter", () => {
+    expect(
+      paidSummary({
+        ...totals,
+        netPaid: "345.00",
+        netPaidOnline: "300.00",
+        paidAtCounter: "45.00",
+        balanceDue: "35.00",
+      }),
+    ).toEqual({
+      ...base,
+      paid: "$345.00",
+      source: "both",
+      online: "$300.00",
+      counter: "$45.00",
+      stillToPay: "$35.00",
+    });
+  });
+
+  it("says what Stripe is still confirming, apart from what was paid", () => {
+    expect(paidSummary({ ...totals, processingOnline: "35.00" })).toEqual({
+      ...base,
+      processing: "$35.00",
+    });
+    // Nothing paid yet, but a PayNow payment is being confirmed: not null.
+    expect(
+      paidSummary({ ...totals, netPaid: "0.00", netPaidOnline: "0.00", processingOnline: "35.00" }),
+    ).toEqual({ ...base, paid: null, processing: "$35.00" });
   });
 
   it("says how much a closed job holds above its bill (R-082, held_over_total)", () => {
-    const closed = { ...totals, netPaidOnline: "2.00", balanceDue: null, paidAhead: null };
-    expect(paidOnlineSummary({ ...closed, heldOverTotal: "2.00" })).toEqual({
+    const closed = {
+      ...totals,
+      netPaid: "2.00",
+      netPaidOnline: "2.00",
+      balanceDue: null,
+      paidAhead: null,
+    };
+    expect(paidSummary({ ...closed, heldOverTotal: "2.00" })).toEqual({
+      ...base,
       paid: "$2.00",
       stillToPay: null,
-      paidAhead: null,
       moreThanBill: "$2.00",
     });
-    expect(paidOnlineSummary({ ...closed, heldOverTotal: "0.00" })!.moreThanBill).toBeNull();
+    expect(paidSummary({ ...closed, heldOverTotal: "0.00" })!.moreThanBill).toBeNull();
     // Open jobs say Paid ahead or Still to pay instead, whatever is held over.
     expect(
-      paidOnlineSummary({
-        ...totals,
-        balanceDue: "0.00",
-        paidAhead: "35.00",
-        heldOverTotal: "35.00",
-      })!.moreThanBill,
+      paidSummary({ ...totals, balanceDue: "0.00", paidAhead: "35.00", heldOverTotal: "35.00" })!
+        .moreThanBill,
     ).toBeNull();
-
-    expect(
-      heldOverSentence({
-        currency: "SGD",
-        jobTotal: "0.00",
-        balanceDue: null,
-        heldOverTotal: "2.00",
-      }),
-    ).toBe(
-      "$2.00 was paid online above this job's bill of $0.00. Refund it in Stripe if it is due back, or agree with the customer how it counts.",
-    );
-    expect(
-      heldOverSentence({
-        currency: "SGD",
-        jobTotal: "0.00",
-        balanceDue: "0.00",
-        heldOverTotal: "2.00",
-      }),
-    ).toBeNull();
-    expect(
-      heldOverSentence({
-        currency: "SGD",
-        jobTotal: "5.00",
-        balanceDue: null,
-        heldOverTotal: "0.00",
-      }),
-    ).toBeNull();
-    expect(heldOverSentence({ currency: "SGD", jobTotal: "5.00", balanceDue: null })).toBeNull();
   });
 
-  it("is null when nothing is held online", () => {
-    expect(paidOnlineSummary(null)).toBeNull();
-    expect(paidOnlineSummary({ ...totals, netPaidOnline: "0.00" })).toBeNull();
+  it("is null only when nothing is paid and nothing is being confirmed", () => {
+    expect(paidSummary(null)).toBeNull();
+    expect(paidSummary({ ...totals, netPaid: "0.00", netPaidOnline: "0.00" })).toBeNull();
+    // A refunded online payment with counter money still counts the counter money.
+    expect(
+      paidSummary({ ...totals, netPaid: "10.00", netPaidOnline: "0.00", paidAtCounter: "10.00" })
+        ?.source,
+    ).toBe("counter");
   });
 });
 
-describe("the Collected confirmation's sentence (D154; D149b)", () => {
-  const paid = { paid: "$2.00", stillToPay: "$0.00", paidAhead: "$2.00", moreThanBill: null };
+describe("held above the bill on a closed job names the source (R-082, D161d)", () => {
+  const closed = { currency: "SGD", jobTotal: "0.00", balanceDue: null, heldOverTotal: "2.00" };
+  it("online money is refunded in Stripe", () => {
+    expect(heldOverSentence({ ...closed, netPaidOnline: "2.00", paidAtCounter: "0.00" })).toBe(
+      "$2.00 was paid online above this job's bill of $0.00. Refund it in Stripe if it is due back, or agree with the customer how it counts.",
+    );
+    // Without the split (older callers) it reads as before.
+    expect(heldOverSentence(closed)).toBe(
+      "$2.00 was paid online above this job's bill of $0.00. Refund it in Stripe if it is due back, or agree with the customer how it counts.",
+    );
+  });
+
+  it("counter money given back is recorded by an admin, never 'refund it in Stripe'", () => {
+    const sentence = heldOverSentence({ ...closed, netPaidOnline: "0.00", paidAtCounter: "2.00" });
+    expect(sentence).toBe(
+      "$2.00 was paid at the counter above this job's bill of $0.00. If it is given back, an admin records it as given back; or agree with the customer how it counts.",
+    );
+    expect(sentence).not.toContain("Stripe");
+  });
+
+  it("both: the online part in Stripe, the counter part by an admin", () => {
+    expect(
+      heldOverSentence({
+        ...closed,
+        heldOverTotal: "50.00",
+        jobTotal: "100.00",
+        netPaidOnline: "100.00",
+        paidAtCounter: "50.00",
+      }),
+    ).toBe(
+      "$50.00 was paid above this job's bill of $100.00. Refund the online part in Stripe, or an admin records counter money given back; or agree with the customer how it counts.",
+    );
+  });
+
+  it("nothing while the job is open or nothing is held over", () => {
+    expect(heldOverSentence({ ...closed, balanceDue: "0.00" })).toBeNull();
+    expect(heldOverSentence({ ...closed, heldOverTotal: "0.00" })).toBeNull();
+    expect(heldOverSentence({ currency: "SGD", jobTotal: "5.00", balanceDue: null })).toBeNull();
+  });
+});
+
+describe("the Collected confirmation's sentences (D154, D161; D149b)", () => {
+  const paid: PaidSummary = {
+    paid: "$2.00",
+    source: "online",
+    online: null,
+    counter: null,
+    stillToPay: "$0.00",
+    paidAhead: "$2.00",
+    moreThanBill: null,
+    processing: null,
+  };
 
   it("says what was paid online and what to take; nothing when nothing was", () => {
     expect(collectedNotes(paid)).toEqual([
@@ -248,6 +356,97 @@ describe("the Collected confirmation's sentence (D154; D149b)", () => {
       "$2.00 was paid online. Take only what is left of the job total.",
     ]);
     expect(collectedNotes(null)).toEqual([]);
+  });
+
+  it("a counter-only job says 'at the counter', so staff never take the full total again", () => {
+    expect(
+      collectedNotes({ ...paid, source: "counter", paidAhead: null, stillToPay: "$35.00" }),
+    ).toEqual(["$2.00 was paid at the counter. Take only $35.00."]);
+  });
+
+  it("a mixed job names both parts", () => {
+    expect(
+      collectedNotes({
+        ...paid,
+        paid: "$345.00",
+        source: "both",
+        online: "$300.00",
+        counter: "$45.00",
+        paidAhead: null,
+        stillToPay: "$35.00",
+      }),
+    ).toEqual(["$345.00 was paid ($300.00 online, $45.00 at the counter). Take only $35.00."]);
+  });
+
+  it("says take nothing once nothing is left to pay, never 'Take only $0.00.'", () => {
+    const notes = collectedNotes({
+      ...paid,
+      paid: "$135.00",
+      paidAhead: null,
+      stillToPay: "$0.00",
+      nothingLeft: true,
+    });
+    expect(notes).toEqual(["$135.00 was paid online. Nothing is left to pay; take nothing."]);
+    expect(notes.join(" ")).not.toContain("Take only");
+  });
+
+  it("names no amount to take while Stripe is still confirming a payment (no double charge)", () => {
+    // $200 job, $50 deposit paid, the $150 balance paid by PayNow and pending.
+    const confirming = collectedNotes({
+      ...paid,
+      paid: "$50.00",
+      paidAhead: null,
+      stillToPay: "$150.00",
+      processing: "$150.00",
+    });
+    expect(confirming).toEqual([
+      "$50.00 was paid online.",
+      "Stripe is still confirming $150.00 paid online, so $150.00 still to pay may already be covered. Press Check with Stripe before taking anything.",
+    ]);
+    expect(confirming.join(" ")).not.toContain("Take only");
+    // Nothing paid yet, only Stripe money being confirmed: the same warning.
+    const onlyProcessing = collectedNotes({
+      ...paid,
+      paid: null,
+      paidAhead: null,
+      stillToPay: "$200.00",
+      processing: "$150.00",
+    });
+    expect(onlyProcessing).toEqual([
+      "Stripe is still confirming $150.00 paid online, so $200.00 still to pay may already be covered. Press Check with Stripe before taking anything.",
+    ]);
+    expect(onlyProcessing.join(" ")).not.toContain("Take only");
+    // No balance (outside SGD): no amount at all.
+    const noBalance = collectedNotes({
+      ...paid,
+      paidAhead: null,
+      stillToPay: null,
+      processing: "$85.00",
+    });
+    expect(noBalance).toEqual([
+      "$2.00 was paid online.",
+      "Stripe is still confirming $85.00 paid online, so what is left of the job total may already be covered. Press Check with Stripe before taking anything.",
+    ]);
+    expect(noBalance.join(" ")).not.toContain("Take only");
+  });
+
+  it("keeps 'take nothing' and adds the plain sentence when nothing is left anyway", () => {
+    expect(collectedNotes({ ...paid, processing: "$85.00" })).toEqual([
+      "$2.00 was paid online. That is $2.00 more than the job total; take nothing more.",
+      "$85.00 paid online is being confirmed by Stripe; don't take it again.",
+    ]);
+    expect(
+      collectedNotes({
+        ...paid,
+        paidAhead: null,
+        stillToPay: "$0.00",
+        nothingLeft: true,
+        processing: "$85.00",
+      }),
+    ).toEqual([
+      "$2.00 was paid online. Nothing is left to pay; take nothing.",
+      "$85.00 paid online is being confirmed by Stripe; don't take it again.",
+    ]);
   });
 });
 

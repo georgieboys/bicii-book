@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PERMISSIONS,
   canOverrideDeposit,
+  canRecordCounterPayment,
   canRecordRefund,
   canViewConsignmentMoney,
   canViewSaleCosts,
@@ -389,5 +391,19 @@ describe("ordering an indent part before its deposit is paid (D152, Phase 14)", 
     expect(canOverrideDeposit(who("mechanic", ["manage_purchasing", "view_costs"]))).toBe(false);
     expect(canOverrideDeposit(who("admin", [], false))).toBe(false);
     expect(canOverrideDeposit(who("manager", [], false))).toBe(false);
+  });
+});
+
+describe("recording a counter payment (D161a, Phase 14 step 3)", () => {
+  it("is an active admin only, by role (private.require_admin)", () => {
+    expect(canRecordCounterPayment(who("admin"))).toBe(true);
+    expect(canRecordCounterPayment(who("admin", [], false))).toBe(false);
+  });
+
+  it("is never a manager or a mechanic, whatever permissions they hold", () => {
+    expect(canRecordCounterPayment(who("manager"))).toBe(false);
+    expect(canRecordCounterPayment(who("mechanic"))).toBe(false);
+    expect(canRecordCounterPayment(who("manager", [...PERMISSIONS]))).toBe(false);
+    expect(canRecordCounterPayment(who("mechanic", [...PERMISSIONS]))).toBe(false);
   });
 });

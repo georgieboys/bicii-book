@@ -273,3 +273,14 @@ export function canRecordRefund(staff: Pick<StaffDTO, "role" | "active">): boole
 export function canOverrideDeposit(staff: Pick<StaffDTO, "role" | "active">): boolean {
   return canRecordRefund(staff);
 }
+
+/**
+ * Recording money the shop took at the counter on a job, and voiding it
+ * (D161a, Phase 14 step 3): mirrors private.require_admin() in
+ * record_counter_payment and void_counter_payment: an active admin, by
+ * role. No permission or exception grants it; every active staff member
+ * still sees counter payments on the job (D154).
+ */
+export function canRecordCounterPayment(staff: Pick<StaffDTO, "role" | "active">): boolean {
+  return staff.active && staff.role === "admin";
+}

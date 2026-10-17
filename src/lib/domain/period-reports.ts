@@ -437,9 +437,10 @@ export class ExportError extends DomainError {
 /**
  * Runs `attempt` and, when its line counts disagree (a concurrent change
  * between pages), once more; a second disagreement is ExportError
- * ('changed').
+ * ('changed'). The payment list's export (src/lib/domain/payment-reports.ts)
+ * uses it too.
  */
-async function withOneRetry<T>(attempt: () => Promise<T | "mismatch">): Promise<T> {
+export async function withOneRetry<T>(attempt: () => Promise<T | "mismatch">): Promise<T> {
   for (let i = 0; i < 2; i++) {
     const result = await attempt();
     if (result !== "mismatch") return result;

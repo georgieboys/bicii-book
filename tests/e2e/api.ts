@@ -131,3 +131,21 @@ export async function select<T = unknown>(token: string, pathAndQuery: string): 
   if (!res.ok) throw new Error(`select ${pathAndQuery} failed: ${res.status} ${text}`);
   return JSON.parse(text) as T[];
 }
+
+/**
+ * POST /rest/v1/<table> as the token's user (an RLS insert, as the Admin's
+ * customer and bike forms make it), e.g. insert(token, "customers", {...}).
+ * Throws with PostgREST's error on failure; returns nothing.
+ */
+export async function insert(
+  token: string,
+  table: string,
+  row: Record<string, unknown>,
+): Promise<void> {
+  const res = await fetch(`${GATEWAY_URL()}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { ...headers(token), prefer: "return=minimal" },
+    body: JSON.stringify(row),
+  });
+  if (!res.ok) throw new Error(`insert into ${table} failed: ${res.status} ${await res.text()}`);
+}

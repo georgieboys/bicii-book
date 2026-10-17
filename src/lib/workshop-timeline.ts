@@ -9,6 +9,7 @@
 import { formatAppointmentMoment } from "@/lib/appointments/format";
 import type { Database } from "@/lib/database.types";
 import { DEFAULT_CURRENCY, formatMoney, formatQuantity } from "@/lib/money";
+import { COUNTER_METHOD_LABELS, type CounterMethod } from "@/lib/payments";
 import { isUuid } from "@/lib/uuid";
 import {
   STATUS_LABELS,
@@ -71,15 +72,6 @@ const DETAIL_FIELDS: Record<string, string> = {
   intake_notes: "Condition on arrival",
   internal_notes: "Internal notes",
   completion_notes: "Completion notes",
-};
-
-/** How a counter payment's method reads (D161b). */
-const COUNTER_METHODS: Record<string, string> = {
-  cash: "cash",
-  card: "card terminal",
-  paynow: "PayNow",
-  bank_transfer: "bank transfer",
-  other: "other",
 };
 
 function joinWords(words: string[]): string {
@@ -329,7 +321,7 @@ export function describeEvent(
     // only. Payloads carry customer amounts (money held, not revenue,
     // D154), never a cost; amounts are formatted here, never computed.
     case "payment_received": {
-      const what = p.kind === "deposit" ? "Deposit" : "Payment";
+      const what = p.kind === "deposit" ? "Deposit" : p.kind === "balance" ? "Balance" : "Payment";
       const paidCurrency = text(p, "currency") ?? currency;
       const received = amount(p, "amount");
       const asked = amount(p, "asked");
@@ -382,7 +374,7 @@ export function describeEvent(
       const channel =
         p.channel === "whatsapp" ? " by WhatsApp" : p.channel === "email" ? " by email" : "";
       return {
-        title: `Payment link sent${channel}${asked !== null ? ` for ${formatMoney(asked, currency)}` : ""}`,
+        title: `Payment link${asked !== null ? ` for ${formatMoney(asked, currency)}` : ""} sent${channel}`,
         detail: null,
         tone: "info",
       };
@@ -390,39 +382,38 @@ export function describeEvent(
     case "balance_link_withdrawn": {
       const why =
         p.reason === "replaced"
-          ? "A new link replaced it"
+          ? " (replaced)"
           : p.reason === "reopened"
-            ? "The job was reopened"
+            ? " (job reopened)"
             : p.reason === "collected"
-              ? "The bike was collected"
-              : null;
-      return { title: "Payment link withdrawn", detail: why, tone: "neutral" };
+              ? " (collected)"
+              : "";
+      return { title: `Payment link stopped${why}`, detail: null, tone: "neutral" };
     }
     // Phase 14 step 3 (D161): money the shop took itself, recorded by an
     // admin; a void is the only correction (BICII moves no money).
     case "counter_payment_recorded": {
-      const what = p.kind === "deposit" ? "Deposit" : "Payment";
       const paid = amount(p, "amount");
-      const method = COUNTER_METHODS[String(p.method)];
+      const method = COUNTER_METHOD_LABELS[String(p.method) as CounterMethod];
+      const money = paid !== null ? formatMoney(paid, currency) : null;
+      const what =
+        p.kind === "deposit" ? `Deposit${money ? ` of ${money}` : ""}` : (money ?? "A payment");
       return {
-        title: `${what}${paid !== null ? ` of ${formatMoney(paid, currency)}` : ""} recorded at the counter${method ? ` (${method})` : ""}`,
+        title: `${what} taken at the counter${method ? ` (${method})` : ""}`,
         detail: null,
         tone: "done",
       };
     }
     case "counter_payment_voided": {
       const paid = amount(p, "amount");
-      const what = `Counter payment${paid !== null ? ` of ${formatMoney(paid, currency)}` : ""}`;
-      return {
-        title:
-          p.void_kind === "given_back"
-            ? `${what} given back`
-            : p.void_kind === "recorded_in_error"
-              ? `${what} voided: recorded in error`
-              : `${what} voided`,
-        detail: text(p, "reason"),
-        tone: "neutral",
-      };
+      const what = `Counter payment${paid !== null ? ` of ${formatMoney(paid, currency)}` : ""} voided`;
+      const kind =
+        p.void_kind === "given_back"
+          ? " (given back)"
+          : p.void_kind === "recorded_in_error"
+            ? " (recorded in error)"
+            : "";
+      return { title: `${what}${kind}`, detail: text(p, "reason"), tone: "neutral" };
     }
     default: {
       const unknown: never = event.type;

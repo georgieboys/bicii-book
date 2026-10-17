@@ -12,6 +12,13 @@
  * stock reconciliation's `stock` and `units` (D106; `all=1` and
  * `product=<uuid>` as on the screen). None has a cost column.
  *
+ * Phase 14 step 3 (D154) adds the Customer payments kinds, both for View
+ * financial reports and with no cost column: `payments` (the period's
+ * movements, newest first; not driven by the date basis, so its file is
+ * named by the range only) and `payments_held` (a snapshot of the money
+ * held on jobs now, D154c). Neither writes a total row: the summary's
+ * figures are on the screen, and the held lists have no grand total.
+ *
  * Cost-gated columns (`costs: true`, D30) are OMITTED from the header and
  * the rows when the caller lacks view_costs: the database already returns
  * NULL for them, and an empty column would read like a figure of nothing.
@@ -29,6 +36,7 @@ import type {
   SeriesBucket,
   StockValueRow,
 } from "@/lib/period-reports";
+import type { HeldJob, PaymentItem } from "@/lib/payment-reports";
 import type { StockReconciliationRow, UnitReconciliationRow } from "@/lib/reconciliation";
 import type { OperationalException } from "@/lib/reports";
 
@@ -64,6 +72,9 @@ export type ExportRows = {
   exceptions: OperationalException;
   stock: StockReconciliationRow;
   units: UnitReconciliationRow;
+  // Phase 14 step 3 (D154): customer money, View financial reports.
+  payments: PaymentItem;
+  payments_held: HeldJob;
 };
 
 export type ExportKind = keyof ExportRows;
@@ -77,13 +88,26 @@ export const EXPORT_KIND_VALUES = [
   "exceptions",
   "stock",
   "units",
+  "payments",
+  "payments_held",
 ] as const satisfies readonly ExportKind[];
 
 /**
  * Kinds that are a snapshot of now, whatever period the URL carries: their
  * file is named by the day of the export, not by a period and basis.
  */
-export const SNAPSHOT_KINDS: ReadonlySet<ExportKind> = new Set(["exceptions", "stock", "units"]);
+export const SNAPSHOT_KINDS: ReadonlySet<ExportKind> = new Set([
+  "exceptions",
+  "stock",
+  "units",
+  "payments_held",
+]);
+
+/**
+ * Period kinds the date basis does not drive (D154a): their file is named
+ * by the range only, `bicii-<kind>-<from>_<to>.csv`.
+ */
+export const BASIS_FREE_KINDS: ReadonlySet<ExportKind> = new Set(["payments"]);
 
 export const exportKindSchema = z.enum(EXPORT_KIND_VALUES);
 
@@ -258,6 +282,46 @@ export const EXPORT_KINDS: {
       { header: "last_movement_at", kind: "datetime", value: (r) => r.lastMovementAt },
     ],
   },
+  // D154b: one row per movement, as report_payment_items lists it. The
+  // amount is signed (a refund or a give-back is negative); recorded_at and
+  // recorded_by are set for counter rows only, so back-dating shows.
+  payments: {
+    permission: "view_financial_reports",
+    title: "customer payments",
+    columns: [
+      { header: "date", kind: "datetime", value: (r) => r.at },
+      text("movement", (r) => r.movement),
+      text("job_number", (r) => r.jobNumber),
+      text("customer", (r) => r.customerLabel),
+      text("kind", (r) => r.kind),
+      text("method", (r) => r.method),
+      money("amount", (r) => r.signedAmount),
+      text("currency", (r) => r.currency),
+      { header: "other_currency", kind: "boolean", value: (r) => r.otherCurrency },
+      { header: "recorded_at", kind: "datetime", value: (r) => r.recordedAt },
+      text("recorded_by", (r) => r.recordedByName),
+    ],
+  },
+  // D154c: now, per job and group (open, awaiting_collection, above_bill),
+  // from the job card's own totals; no grand total.
+  payments_held: {
+    permission: "view_financial_reports",
+    title: "money held on jobs now",
+    columns: [
+      text("group", (r) => r.group),
+      text("job_number", (r) => r.jobNumber),
+      text("status", (r) => r.status),
+      text("customer", (r) => r.customerLabel),
+      money("amount", (r) => r.amount),
+      money("net_paid", (r) => r.netPaid),
+      money("net_paid_online", (r) => r.netPaidOnline),
+      money("paid_at_counter", (r) => r.paidAtCounter),
+      money("job_total", (r) => r.jobTotal),
+      money("balance_due", (r) => r.balanceDue),
+      money("paid_ahead", (r) => r.paidAhead),
+      text("currency", (r) => r.currency),
+    ],
+  },
 };
 
 /** The columns `kind` writes for a caller with or without view_costs. */
@@ -299,9 +363,10 @@ export function breakdownTotalRow(summary: PeriodSummary): BreakdownCsvRow {
 }
 
 /**
- * `bicii-<kind>-<basis>-<from>_<to>.csv`, or `bicii-<kind>-<asOf>.csv` for
- * a snapshot kind (SNAPSHOT_KINDS) given the shop day of the export (safe
- * characters only).
+ * `bicii-<kind>-<basis>-<from>_<to>.csv`, `bicii-<kind>-<from>_<to>.csv`
+ * for a kind the basis does not drive (BASIS_FREE_KINDS), or
+ * `bicii-<kind>-<asOf>.csv` for a snapshot kind (SNAPSHOT_KINDS) given the
+ * shop day of the export (safe characters only).
  */
 export function exportFilename(
   kind: ExportKind,
@@ -309,6 +374,7 @@ export function exportFilename(
   asOf?: string,
 ): string {
   if (asOf && SNAPSHOT_KINDS.has(kind)) return `bicii-${kind}-${asOf}.csv`;
+  if (BASIS_FREE_KINDS.has(kind)) return `bicii-${kind}-${params.from}_${params.to}.csv`;
   return `bicii-${kind}-${params.basis}-${params.from}_${params.to}.csv`;
 }
 

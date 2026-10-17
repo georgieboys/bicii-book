@@ -379,7 +379,8 @@ export function whatsappHref(phone: string | null | undefined, text: string): st
   return number ? `https://wa.me/${number}?text=${encodeURIComponent(text)}` : null;
 }
 
-const escapeHtml = (value: string) =>
+/** Text made safe inside HTML (the quote and payment link emails). */
+export const escapeHtml = (value: string) =>
   value.replace(
     /[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,

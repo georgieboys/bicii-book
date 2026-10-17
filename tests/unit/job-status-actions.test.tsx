@@ -75,6 +75,19 @@ const ui = (status: WorkOrderStatus) => (
   </ToastProvider>
 );
 
+/** A job ready for collection whose customer already paid something (paidSummary). */
+const withPaid = (paid: Parameters<typeof JobStatusActions>[0]["paid"]) => (
+  <ToastProvider>
+    <JobStatusActions
+      workOrderId="00000000-0000-4000-8000-000000000001"
+      jobNumber="J-000123"
+      customerLabel="Priya Raman"
+      status="ready_for_collection"
+      paid={paid}
+    />
+  </ToastProvider>
+);
+
 describe("JobStatusActions", () => {
   it("keeps the one-tap row disabled for a moment after each status change (double tap)", async () => {
     const { rerender } = render(ui("in_progress"));
@@ -110,21 +123,18 @@ describe("JobStatusActions", () => {
     });
   });
 
-  it("says what the customer already paid online, so staff take only what is left (D154)", async () => {
-    const withPaid = (paidOnline: Parameters<typeof JobStatusActions>[0]["paidOnline"]) => (
-      <ToastProvider>
-        <JobStatusActions
-          workOrderId="00000000-0000-4000-8000-000000000001"
-          jobNumber="J-000123"
-          customerLabel="Priya Raman"
-          status="ready_for_collection"
-          paidOnline={paidOnline}
-        />
-      </ToastProvider>
-    );
-    const { unmount } = render(
-      withPaid({ paid: "$60.00", stillToPay: "$85.00", paidAhead: null, moreThanBill: null }),
-    );
+  it("says what the customer already paid, so staff take only what is left (D154, D161)", async () => {
+    const summary = {
+      paid: "$60.00",
+      source: "online" as const,
+      online: null,
+      counter: null,
+      stillToPay: "$85.00",
+      paidAhead: null,
+      moreThanBill: null,
+      processing: null,
+    };
+    const { unmount } = render(withPaid(summary));
     const collected = screen.getByRole("button", { name: "Collected…" });
     await waitFor(() => expect(collected).toBeEnabled());
     fireEvent.click(collected);
@@ -132,8 +142,8 @@ describe("JobStatusActions", () => {
     expect(group).toHaveTextContent("$60.00 was paid online. Take only $85.00.");
     unmount();
 
-    render(
-      withPaid({ paid: "$120.00", stillToPay: "$0.00", paidAhead: "$35.00", moreThanBill: null }),
+    const second = render(
+      withPaid({ ...summary, paid: "$120.00", stillToPay: "$0.00", paidAhead: "$35.00" }),
     );
     const again = screen.getByRole("button", { name: "Collected…" });
     await waitFor(() => expect(again).toBeEnabled());
@@ -141,6 +151,75 @@ describe("JobStatusActions", () => {
     expect(screen.getByRole("group")).toHaveTextContent(
       "$120.00 was paid online. That is $35.00 more than the job total; take nothing more.",
     );
+    second.unmount();
+
+    // A job paid only at the counter, with a payment Stripe is still confirming.
+    render(
+      withPaid({
+        ...summary,
+        paid: "$45.00",
+        source: "counter",
+        stillToPay: "$100.00",
+        processing: "$100.00",
+      }),
+    );
+    const third = screen.getByRole("button", { name: "Collected…" });
+    await waitFor(() => expect(third).toBeEnabled());
+    fireEvent.click(third);
+    const group3 = screen.getByRole("group");
+    expect(group3).toHaveTextContent("$45.00 was paid at the counter.");
+    expect(group3).toHaveTextContent(
+      "Stripe is still confirming $100.00 paid online, so $100.00 still to pay may already be covered. Press Check with Stripe before taking anything.",
+    );
+    // Never an amount to take while Stripe confirms: the customer may already have paid it.
+    expect(group3).not.toHaveTextContent("Take only");
+  });
+
+  it("names no amount to take when the only money is still being confirmed by Stripe", async () => {
+    render(
+      withPaid({
+        paid: null,
+        source: "online",
+        online: null,
+        counter: null,
+        stillToPay: "$200.00",
+        paidAhead: null,
+        moreThanBill: null,
+        processing: "$150.00",
+      }),
+    );
+    const collected = screen.getByRole("button", { name: "Collected…" });
+    await waitFor(() => expect(collected).toBeEnabled());
+    fireEvent.click(collected);
+    const group = screen.getByRole("group");
+    expect(group).toHaveTextContent(
+      "Stripe is still confirming $150.00 paid online, so $200.00 still to pay may already be covered. Press Check with Stripe before taking anything.",
+    );
+    expect(group).not.toHaveTextContent("Take only");
+  });
+
+  it("says take nothing on a job paid in full, never 'Take only $0.00.'", async () => {
+    render(
+      withPaid({
+        paid: "$135.00",
+        source: "online",
+        online: null,
+        counter: null,
+        stillToPay: "$0.00",
+        paidAhead: null,
+        moreThanBill: null,
+        processing: null,
+        nothingLeft: true,
+      }),
+    );
+    const collected = screen.getByRole("button", { name: "Collected…" });
+    await waitFor(() => expect(collected).toBeEnabled());
+    fireEvent.click(collected);
+    const group = screen.getByRole("group");
+    expect(group).toHaveTextContent(
+      "$135.00 was paid online. Nothing is left to pay; take nothing.",
+    );
+    expect(group).not.toHaveTextContent("Take only");
   });
 
   it("says nothing about online payments when there are none", async () => {

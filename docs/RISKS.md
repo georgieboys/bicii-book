@@ -48,9 +48,10 @@ URLs, or customer data in this file.
   `supabase/seed.sql` off the hosted project (it never runs there:
   `migrate.yml` has no seed step). A migration added from now on must sort
   after the newest file on `main` (`HANDOVER.md` "Migrations after
-  go-live"); since D160 (PR #30, applied by `migrate.yml` run 16 on
-  2026-10-16 SGT) that is `20261014001100_indent_unfit_on_void.sql`
-  (before it `20261014000600` after PR #25, `20261014000700` after
+  go-live"); since Phase 14 step 3 PR A (PR #34, applied by `migrate.yml`
+  run 17 on 2026-10-17 SGT) that is `20261014001500_payment_reports.sql`
+  (before it `20261014001100` after D160 in PR #30, `20261014000600` after
+  PR #25, `20261014000700` after
   [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
   containment in PR #26, and `20261014000900` after D149a–c in PR #27).
 - Next action: the owner decides whether to create a staging project
@@ -2760,7 +2761,7 @@ URLs, or customer data in this file.
   owner answers question 35 (forks 1, 2, 5 and 7).
 - Revisit trigger: a request to reconcile the till, or for staff other
   than admins to record (question 35 fork 2); a disputed counter record.
-- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; on `claude/brave-clarke-kfqhgt`, not merged or deployed).
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; merged in PR #34 and in production since 2026-10-17 SGT; the app is PR B).
 
 ## R-091 — A balance link is a payment capability
 
@@ -2804,7 +2805,7 @@ URLs, or customer data in this file.
   the logger redacting a `link` field.
 - Revisit trigger: a leaked link; a request to pay a link after collection
   (question 35 fork 3).
-- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; on `claude/brave-clarke-kfqhgt`, not merged or deployed).
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; merged in PR #34 and in production since 2026-10-17 SGT; the app is PR B).
 
 ## R-092 — Open Checkout tabs can still be paid for up to 60 minutes
 
@@ -2853,4 +2854,4 @@ URLs, or customer data in this file.
   gateway.
 - Revisit trigger: the first `paid_above_bill` or `paid_online_and_counter`
   in production.
-- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; on `claude/brave-clarke-kfqhgt`, not merged or deployed).
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; merged in PR #34 and in production since 2026-10-17 SGT; the app is PR B).

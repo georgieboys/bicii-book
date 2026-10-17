@@ -298,8 +298,8 @@ deposit (`src/app/(customer)/quote/[token]/`), Settings → Customer
 payments and the job's Customer payments card
 ([ADR-025](decisions/ADR-025-stripe-payments.md), D150–D159). Balance
 links, Reports and an admin's counter payments are step 3 (D154, D156,
-D161): their database is built (PR A, on `claude/brave-clarke-kfqhgt`, not merged or deployed;
-[DATA-MODEL §19](DATA-MODEL.md#19-customer-payments-stripe)), and PR B
+D161): their database is built and in production since 2026-10-17 SGT
+(PR A, PR #34; [DATA-MODEL §19](DATA-MODEL.md#19-customer-payments-stripe)), and PR B
 adds the screens and the balance Checkout flow in `checkout.ts`, which
 calls the service-role `prepare_balance_checkout` and
 `record_balance_checkout` as the deposit flow calls its pair. Counter

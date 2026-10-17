@@ -1,24 +1,31 @@
 # Current state
 
-Updated: 2026-10-17 SGT by the Phase 14 step 3 build, on
-`claude/brave-clarke-kfqhgt` at `main` 308654d (PR #33 merged). Step 3's
-PR A, the database, is built, reviewed and pushed for its pull request
-(not merged or deployed): counter payments recorded by an
-admin (D161), balance links (D156) and payment reports (D154), in
-`20261014001200_payment_step3_enums` to `20261014001500_payment_reports`,
-with their database tests written first, the API-surface fixture, the
-error messages, the generated types, the timeline's words and one app
-guard (the job's Customer payments card shows its totals only once the job
-has a Stripe or counter payment). Verified locally on 2026-10-17:
-`npm run db:reset` (71 migrations), `npm run check`, `npm run check:types`
-(against a temporary git index, the tree being uncommitted) and `npm test`
-(185 files, 2,848 tests, after the review's fixes) pass; Playwright not run (no screen changed but
-the guard); details in the "What is actually working" row below. Its
+Updated: 2026-10-17 SGT by the go-live session, on
+`claude/brave-clarke-kfqhgt` restarted at `main` 56bc12c (PR #34 merged),
+in a docs-only change that records the release of Phase 14 step 3's PR A,
+the database. It is on `main` and in production since 2026-10-17 SGT:
+counter payments recorded by an admin (D161), balance links (D156) and
+payment reports (D154), in `20261014001200_payment_step3_enums` to
+`20261014001500_payment_reports`, with their database tests written
+first, the API-surface fixture, the error messages, the generated types,
+the timeline's words and one app guard (the job's Customer payments card
+shows its totals only once the job has a Stripe or counter payment).
+PR #34's CI (check, test, build) and its full e2e run passed on 66e66b5;
+it merged as 56bc12c; `migrate.yml` run 17 applied the four files and
+Vercel deployed 56bc12c to production (READY). Read-only on the hosted
+project afterwards: all 71 migrations, last `20261014001500`;
+`quote_deposits`, `payment_issues` and `work_order_payment_totals` (for
+the jobs with payments) return the same rows as before the run (md5 of
+their rows compared before and after); `work_order_payment_totals` now
+has a row for every job (4 jobs, 4 rows); `counter_payments` and
+`balance_links` hold no rows. Nothing a user sees changes until PR B, the
+app: no screen records a counter payment or sends a link yet. The build's
+local evidence is in the "What is actually working" rows below. Its
 build defaults D154a–e, D156a–h and D161a–j are
 [PRODUCT question 35](docs/PRODUCT.md#open-assumptions-and-owner-questions),
-forks first. Nothing of it is on `main` or in production. Next action: PR
-B, the app (the payment page, Send payment link, the admin's Record and
-Void, the Reports section, the privacy line).
+forks first. Next action: PR B, the app (the payment page, Send payment
+link, the admin's Record and Void, the Reports section, the privacy
+line).
 
 Earlier on 2026-10-17 SGT, the go-live session, on
 `claude/brave-clarke-kfqhgt` restarted at `main` 604ae6e (PR #31 merged),
@@ -105,12 +112,13 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
   step 1), indent parts and quotes (Phase 13, PRs #22 and #23), Stripe
   payments with indent deposits (Phase 14 steps 1 and 2, PR #24) and their
   recheck (PR #25, be1ad17), the indent closing rules (D149, D149a–c,
-  PRs #26 and #27) and voiding a fitted indent line (D160, PR #30,
-  384789f).
+  PRs #26 and #27), voiding a fitted indent line (D160, PR #30,
+  384789f) and Phase 14 step 3's database (D154, D156, D161; PR #34,
+  56bc12c).
 - Go-live state (2026-10-12): production is live.
-  - Database: the hosted project holds `main`'s 67 migrations, last
-    `20261014001100_indent_unfit_on_void` (applied by `migrate.yml`
-    run 16 when PR #30 merged, read-only check 2026-10-16;
+  - Database: the hosted project holds `main`'s 71 migrations, last
+    `20261014001500_payment_reports` (applied by `migrate.yml`
+    run 17 when PR #34 merged, read-only check 2026-10-17 SGT;
     ENGINEERING "Migrations"); no seed; buckets in place; Postgres 17.
   - Admin: Vercel project `bicii-book` deploys `main` to production
     (functions in sin1) with the Supabase URL, anon key and service-role
@@ -146,7 +154,8 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
   counter payments D161;
   [PLAN Phase 14](docs/PLAN.md#phase-14--customer-payments-through-stripe),
   [ADR-025](docs/decisions/ADR-025-stripe-payments.md)): PR A, the
-  database, built and in its pull request (not merged); PR B, the app, next. Phases 13 and 14
+  database, merged (PR #34) and in production since 2026-10-17 SGT; PR B,
+  the app, next. Phases 13 and 14
   steps 1 and 2 are merged and live (PRs #22–#27 and #30), with the
   indent closing rules D149, D149a–c and D160. The public site's screens
   (Phase 11 step 2,
@@ -155,9 +164,8 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
   and deployed since 2026-10-17 SGT, with customer accounts closed until
   the owner opens them.
 - Next action:
-  0. Merge PR A once CI is green (`migrate.yml` then applies
-     `20261014001200` to `20261014001500`; check the hosted history read-only).
-     Then Phase 14 step 3 PR B, the app, on PR A's database: the payment page
+  0. Phase 14 step 3 PR B, the app, on PR A's database (in production
+     since 2026-10-17 SGT, PR #34): the payment page
      `/pay/[token]` (no-referrer, noindex, no-store, a per-client and
      per-token limit, return URLs from `ADMIN_ORIGIN`), Send payment link
      (any staff member), the admin's Record and Void counter payment, the
@@ -199,8 +207,8 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
      conflicts with D108 (`integration_failed` stays admin-only), so it
      needs a design pass first.
   6. Any new migration sorts after the newest file
-     (`20261014001500_payment_reports.sql` on this branch, Phase 14 step
-     3 PR A; `main` ends at `20261014001100_indent_unfit_on_void.sql`);
+     (`20261014001500_payment_reports.sql`, on `main` and the hosted
+     project since PR #34, Phase 14 step 3 PR A);
      `migrate.yml` applies it to production on merge and skips applied
      versions, so a merged migration is never edited in place.
 - Phase 9 reporting, step 1 of 4 (database), on `main` (PR #18): `20261006001000_report_periods` and
@@ -361,10 +369,10 @@ deployment of 384789f. Earlier rows keep the evidence of their own phase.
 CI runs `check`, `test (unit + db)` and `build` in one run per head; e2e is
 a separate, label-triggered run. All listed results are success.
 
-Everything on `main` through 384789f (PR #30; PRs #28 and #29 changed
-docs only) is in production since
-2026-10-16 (`migrate.yml` runs 13–16 succeeded and the hosted project
-holds all 67 migrations; Vercel deployed each merge). The Deployed column
+Everything on `main` through 56bc12c (PR #34; PRs #28, #29 and #31–#33
+changed docs only) is in production since
+2026-10-17 SGT (`migrate.yml` runs 13–17 succeeded and the hosted project
+holds all 71 migrations; Vercel deployed each merge). The Deployed column
 keeps each row's state when the row was written.
 
 | Capability | Implemented | Verified and how | Deployed |
@@ -425,21 +433,19 @@ keeps each row's state when the row was written.
 | Voiding a fitted indent line (D160: the owner's decision of 2026-10-15 SGT, the first of R-083's three options; one commit, "Void a fitted indent line back to approved or ordered (D160)"): when a job line that a fitted indent request points at is voided, by any writer, the request goes back to ordered (on a purchase order line) or approved, its line, `fitted_at`, `fitted_by` and `outside_purchase_movement_id` cleared, with `part_request_unfitted` on the timeline; the void's stock reversal, totals, yield and Cult Commons unchanged (a part bought outside BICII keeps its receipt and is back in stock); build defaults with it: a request is never linked to a voided line (`part_request_line_voided`, so a stale Fit retry cannot bring R-083 back) and a one-off un-fits those already left that way, with a NOTICE. On screen: the void's confirmation "Voiding puts <part> back to approved: fit it again or cancel it before completing the job." and the toast "<part> is back to approved"; the indent card's Approved (or Ordered) item with Fit and Cancel and "Its line was voided…"; the Fit sheet's "It went back into stock when its line was voided: fit it from stock." for a part bought outside; the timeline's "<part> back to approved: its line was voided" | Yes, `claude/brave-clarke-kfqhgt` (local commit, not pushed): migrations `20261014001000_part_unfitted_enum` and `20261014001100_indent_unfit_on_void` (67 files; `private.unfit_part_request`, the triggers `work_order_line_items_unfit_part_request` and `job_part_requests_require_live_line`; `void_line` and every other existing function unchanged), `database.types.ts`, `db-errors.ts` (`part_request_line_voided`), `src/lib/indent.ts`, `src/lib/domain/indent.ts` (the item's latest `part_request_unfitted`), `workshop-timeline.ts`, `void-line-control.tsx`, `line-table.tsx`, the job page, `indent-card.tsx`, `indent-sheets.tsx`; tests: new `tests/db/indent-unfit.test.ts` (17), `indent-close` (its void test now expects approved), `meta`, api-surface (comment only: no API change), unit (`indent`, `workshop-timeline`, `indent-sheets`, new `void-line-control`), `tests/e2e/indent.spec.ts` (test 4: fit, void, back to approved with Fit and Cancel, Complete waits, fitted again from stock); docs: PLAN (§6 D160, Phase 13), ADR-024 (amendment D160), the decisions index, DATA-MODEL (authority, applied state, §5 "Voiding a fitted indent line", §16, §19), RISKS (R-083 resolved; R-082, R-001), USER-GUIDE, PRODUCT, TESTING, ARCHITECTURE, ENGINEERING, RUNBOOK (reading the one-off's NOTICE; the closed-jobs query's last production run). Review fixes amended into the same commit: a direct owner void (with and without a session) and the live-line guard's INSERT branch are tested; an ordered part fitted before its order was received is tested and documented as not arrived after the void until the order is received (USER-GUIDE, DATA-MODEL); the one-off counts as a possible hand re-add only a live line of the same item added after the void that no request is linked to, and RUNBOOK and DATA-MODEL tell staff to check before cancelling | Locally on 2026-10-15 SGT, after the review fixes: `indent-unfit.test.ts` 17 of 17 (41 with `indent-close.test.ts`); with `20261014001100` moved out 16 of 17 fail (only the negative case passes); the one-off test fails (count 2, not 1) with either new exclusion removed; `npm run db:reset` applied all 67 files (`67\|20261014001100`); `npm run check` pass; `npm run check:types` pass (no diff); `npm test` pass, 181 files and 2,752 tests; docs link check 43 files / 1,171 links / 0 problems; Playwright not rerun (the review fixes change no screen; the run below stands). Before the review: tests first: `indent-unfit.test.ts` failed 14 of 15 before either migration existed and again with `20261014001100` moved out (only the negative case, voiding any other line, passed), then passed 15 of 15 with it (39 with `indent-close.test.ts`); `npm run db:reset` applied all 67 files (`67\|20261014001100`); `npm run check` pass (typegen, tsc, eslint, prettier); `npm run check:types` pass (types staged, no diff); `npm test` pass, 181 files and 2,750 tests (a first run right after `db:reset` failed only `stack.smoke.test.ts` with Auth's "Database error finding user", the known race; it passed alone, 9 tests, and on the full rerun); docs link check 43 files / 1,171 links / 0 problems; `PLAYWRIGHT_CHROMIUM_EXECUTABLE=… npx playwright test tests/e2e/indent.spec.ts tests/e2e/payments.spec.ts tests/e2e/workshop.spec.ts tests/e2e/inventory.spec.ts` pass, 32 tests on phone and tablet in 11.6 minutes, no failures, flaky or skipped (it reset `bicii_dev`; the indent spec alone passed earlier the same day, 8 tests) | Not deployed; production holds 65 migrations, last `20261014000900` |
 | D160 released (2026-10-16 SGT) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 384789f, in its own pull request: NOW.md; RUNBOOK (the one-off's result read from the timeline, as `supabase db push` prints no server notices; the closed-jobs query's run); RISKS (R-083's status, residual, next action and last check; R-001's newest migration; R-087); PLAN (the D160 row); DATA-MODEL (applied state); ENGINEERING (the newest migration); OPERATIONS (67 migrations, applying migrations last exercised); PRODUCT and the decisions index (D160 in production); USER-GUIDE and README (what production runs: D149, D149a–c and D160 were still described as not deployed). The second commit applies an independent review's findings (two reviewers, each finding checked by a skeptic: 22 confirmed, overlapping, all fixed; 5 refuted) | PR #30: CI `check`, `test (unit + db)` and `build` and the label-triggered `e2e (Playwright)` run (full suite) succeeded on a325577; merged as 384789f; `migrate.yml` run 16 succeeded, applying `20261014001000` and `20261014001100`; read-only on the hosted project: 67 migrations, last `20261014001100`; the triggers `work_order_line_items_unfit_part_request` and `job_part_requests_require_live_line` present; no `part_request_unfitted` event (the one-off un-fitted nothing); no fitted request on a voided line; the closed-jobs query no rows; Vercel's production deployment of 384789f READY; after the review fixes: docs link check 43 files / 1,172 links / 0 problems, prettier on the changed files pass, CI `check`, `test (unit + db)` and `build` green on the first commit (1267d08) | In production (D160) |
 | Phase 14 step 3 PR A, the database (D154, D156, D161 with the build defaults D154a–e, D156a–h, D161a–j; PRODUCT question 35): counter payments an active admin records and voids (`counter_payments`, `counter_payment_voids`, append-only for every role; `record_counter_payment`, replay-safe, with the job lock first; `void_counter_payment`, recorded in error or given back), counted by the replaced `quote_deposits` (a counter deposit is paid), `work_order_payment_totals` (a row for every job; `paid_at_counter`, `net_paid`, `processing_online`) and `payment_issues` (`paid_online_and_counter`, `paid_above_bill`, counter `paid_job_cancelled` and `paid_parts_cancelled`); balance links any staff member sends on a completed or ready job (`balance_links`, a hashed token, one live link per job, withdrawn on a resend, a reopen and Collected; `send_balance_link`, `balance_by_token`, `prepare_balance_checkout`, `record_balance_checkout`; the deposit Checkout RPCs replaced with the same signatures; a live or processing balance payment never beside another open one); payment reports for View financial reports (`reporting.payment_movements`, `report_payment_summary`, `report_payment_items`, `report_payments_held`; sales figures unchanged); the card's totals only with a Stripe or counter payment | Yes, `claude/brave-clarke-kfqhgt` at `main` 308654d, working tree (local, not committed or pushed at this update): migrations `20261014001200_payment_step3_enums`, `20261014001300_counter_payments`, `20261014001400_balance_links`, `20261014001500_payment_reports` (71 files); `tests/db/counter-payments.test.ts`, `balance-links.test.ts`, `payment-reports.test.ts`, `payment-fixtures.ts`; `stripe-payments`, `period-reports`, `customer-access` and `meta` tests extended; `tests/fixtures/api-surface.ts`; `src/lib/db-errors.ts`; `src/lib/database.types.ts`; `src/lib/workshop-timeline.ts`; `src/lib/payments.ts`, `src/lib/domain/payments.ts`, `src/components/domain/payments-card.tsx` and `tests/unit/payments-card.test.tsx`; DATA-MODEL, PLAN, ADR-025 and the decisions index, RISKS (R-090–R-092 new; R-055, R-087–R-089), TESTING, ENGINEERING, PRODUCT (question 35), NOW | Locally on 2026-10-17 (database `bicii_dev`): each new database test file written first and failing before its migration (30 of 30, 33 of 33, 18 of 18), then passing, with 24 deliberate breaks of the migrations each caught; the review's 13 findings fixed the same day (8 database tests added and 2 extended, 6 of them failing before their fixes; 14 more breaks, each caught); `npm run db:reset` pass (`71\|20261014001500`, seed applied); `npm run check` pass; `npm run check:types`: the regenerated file byte-identical on a second run and the gate passing against a temporary git index (on the uncommitted tree its diff step reports the regenerated file itself); `npm test` 185 files / 2,848 tests passed (unit 109 files, database 76), the stack smoke test included, on its first run after the reset; docs link check 43 files / 0 problems and prettier on every changed doc; Playwright not run | Not deployed (local only) |
+| Phase 14 step 3 PR A released (2026-10-17 SGT) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 56bc12c in its own pull request: NOW.md; DATA-MODEL (applied state, the §19 status row); ENGINEERING (the newest migration); OPERATIONS (71 migrations, applying migrations last exercised); RUNBOOK (applying migrations last exercised); RISKS (R-001's newest migration; R-090–R-092 last checked); PLAN (Phase 14 step 3, the D154, D156 and D161 rows); ADR-025's status update and the decisions index; ARCHITECTURE; PRODUCT (step 3's database in production, nothing on screen until PR B) | PR #34: CI `check`, `test (unit + db)` and `build` and the `e2e (Playwright)` run (full suite) succeeded on 66e66b5; merged as 56bc12c on 2026-10-17 SGT; `migrate.yml` run 17 succeeded, applying `20261014001200`, `20261014001300`, `20261014001400` and `20261014001500`; read-only on the hosted project afterwards: 71 migrations, last `20261014001500`; `quote_deposits`, `payment_issues` and `work_order_payment_totals` (for the jobs with payments) byte-identical to before the run (md5 of their rows compared before and after); `work_order_payment_totals` one row per job (4 jobs, 4 rows); `counter_payments` and `balance_links` no rows; Vercel's production deployment of 56bc12c READY; docs link check 43 files / 0 problems and prettier on the changed files pass | In production (step 3's database; nothing a user sees changes until PR B) |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1, merged 2026-10-17 SGT: see the header) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).
 
 ## Work location and continuation
 
-- `main` on origin holds PRs #1–#11, #13–#18 and #22–#33 (through
-  308654d) and is what production runs (code through D160, 384789f). The
-  local `main` ref is stale; use `origin/main`.
+- `main` on origin holds PRs #1–#11, #13–#18 and #22–#34 (through
+  56bc12c) and is what production runs (code through Phase 14 step 3
+  PR A, 56bc12c). The local `main` ref is stale; use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted
-  from `main` after each merge (PRs #14–#18, #22–#33); now `main` 308654d
-  with Phase 14 step 3 PR A in the working tree (four migrations, three
-  database test files, the shared `tests/db/payment-fixtures.ts`, the
-  fixture, error messages, types, timeline, the card guard and the docs):
-  local, not committed or pushed at this update.
+  from `main` after each merge (PRs #14–#18, #22–#34); now `main` 56bc12c
+  plus one docs commit recording PR A's release (its own pull request).
 - The build session's branches, paused for the handover: `feat/p8-labels`
   (3f09d22) and `wip/feat/p8-labels` (01cb3da), merged through PR #16;
   `wip/feat/p10-shopify` (8dbe6c4: 3b5341c, merged through PR #17, plus

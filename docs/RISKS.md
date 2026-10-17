@@ -1688,8 +1688,8 @@ URLs, or customer data in this file.
   The export's file name names the period and basis, not the time it was
   taken (`bicii-<kind>-<basis>-<from>_<to>.csv`); the download's own time
   is the only record of when.
-  Phase 14 step 3's screens (PR B, built on `claude/brave-clarke-kfqhgt`,
-  not merged) show Customer payments by the day the money moved,
+  Phase 14 step 3's screens (PR B, merged in PR #36 and in production
+  since 2026-10-18 SGT) show Customer payments by the day the money moved,
   whatever the basis, with "Recorded at the counter: only what an admin
   recorded in BICII; not the till's takings."; `/reports/payments` and
   the `payments` CSV show each counter row's received day and, beside it,
@@ -1705,7 +1705,7 @@ URLs, or customer data in this file.
   file (a header row or the name).
 - Revisit trigger: an accountant or the owner needs closed periods, or a
   report is disputed after a restatement.
-- Last checked: 2026-10-18 SGT (Phase 14 step 3 PR B: the Customer payments screens; PR A: the payment reports' restatement; Phase 9 step 4 earlier).
+- Last checked: 2026-10-18 SGT (Phase 14 step 3 PR B: the Customer payments screens, merged in PR #36 and in production since 2026-10-18 SGT, where no counter payment exists yet; PR A: the payment reports' restatement; Phase 9 step 4 earlier).
 
 ## R-056 — Stock value uses each product's last cost, not the cost of the units on hand
 
@@ -2566,7 +2566,7 @@ URLs, or customer data in this file.
   parts or jobs are surfaced, now by these issues on the job and in
   Exceptions, and from step 3 by Reports' "held on jobs now"
   (`report_payments_held`, D154c, database built in step 3 PR A; the
-  screen in PR B): money paid above the bill on any job that is not open
+  screen in PR B, in production since 2026-10-18 SGT): money paid above the bill on any job that is not open
   is its own list, to refund in Stripe or give back. Since step 3 the
   issues also cover counter money (D161): `paid_online_and_counter`,
   `paid_above_bill`, and counter `paid_job_cancelled` and
@@ -2631,19 +2631,23 @@ URLs, or customer data in this file.
   `ADMIN_ORIGIN` is refused in Production when it is a loopback host, so
   a value copied from local setup cannot send paying customers to their
   own machine (`tests/unit/stripe-config.test.ts`).
-- Next action: name Stripe in the privacy notice (the owner agreed on
+- Done: Stripe is named in the privacy notice (the owner agreed on
   2026-10-17 SGT, question 32): the public site's privacy text names
-  Stripe since 2026-10-17 SGT, and Phase 14 step 3's PR B (built on
-  `claude/brave-clarke-kfqhgt`, not merged) adds the line "Payments are
+  Stripe since 2026-10-17 SGT; Phase 14 step 3's PR B (PR #36, in
+  production since 2026-10-18 SGT) adds the line "Payments are
   taken by Stripe on its own page, so Stripe's privacy policy applies to
   them; BICII never sees or keeps your card details." under every Pay on
   the Admin's two customer pages (the quote page's deposit and the payment
   page; `tests/unit/deposit-components.test.tsx`, `pay-page.test.tsx`,
-  `tests/e2e/payments.spec.ts`); the public site's "workshop quotes" is
-  widened to "workshop quotes and bills" in a small BICII pull request
-  after PR B. Keep Stripe Dashboard users few; if the shop wants a
+  `tests/e2e/payments.spec.ts`); and the public site's "workshop quotes"
+  was widened to "workshop quotes and bills" in georgieboys/BICII#2
+  (merged as ea057ac, in production since 2026-10-18 SGT: the live
+  `/contact` page reads "Online payments for workshop quotes and bills
+  are taken by Stripe").
+- Next action: keep Stripe Dashboard users few; if the shop wants a
   Checkout custom domain, allow its host explicitly first (an env value
-  validated by `stripeConfig`).
+  validated by `stripeConfig`). The public site still lacks a full
+  privacy notice and a named PDPA contact (owner).
 - Step 3 (D156, 2026-10-17): the balance link's payment page keeps
   token return URLs, as the quote page does; token-free return URLs
   (a done page by payment id) were considered and not taken. After a
@@ -2655,8 +2659,8 @@ URLs, or customer data in this file.
   done page would remove one copy of several, at the cost of a second
   anonymous route, a service-role RPC and another rate-limit bucket. The
   balance link's own risk is
-  [R-091](#r-091--a-balance-link-is-a-payment-capability). PR B (built,
-  not merged) builds the balance's return URLs from `ADMIN_ORIGIN` as
+  [R-091](#r-091--a-balance-link-is-a-payment-capability). PR B (PR #36,
+  in production since 2026-10-18 SGT) builds the balance's return URLs from `ADMIN_ORIGIN` as
   `/pay/<token>?balance=returned|cancelled`, and `validateRedirect` takes
   each flow's own page prefix, so in fake mode the deposit flow refuses a
   `/pay/` page and the balance flow a `/quote/` page; it parses the URL
@@ -2665,7 +2669,7 @@ URLs, or customer data in this file.
   fix; `tests/unit/stripe-balance-checkout.test.ts`).
 - Revisit trigger: a request for a Checkout custom domain; a leaked quote
   or balance link.
-- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the privacy line on both customer pages and the per-flow redirect check; built on `claude/brave-clarke-kfqhgt`, not merged).
+- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the privacy line on both customer pages and the per-flow redirect check; merged in PR #36 as ed6a08a and in production since 2026-10-18 SGT; the public site's widened privacy text in georgieboys/BICII#2, merged as ea057ac and live the same day).
 
 ## R-089 — What BICII does not record or cannot apply from Stripe
 
@@ -2691,8 +2695,9 @@ URLs, or customer data in this file.
   database is built in Phase 14 step 3 PR A (`counter_payments`, a counter
   deposit makes the deposit paid, opening D152's gate and closing the
   quote page's Pay; a deposit paid both online and at the counter is
-  `paid_online_and_counter`), and the admin's screen comes with PR B;
-  until PR B ships, nothing records one and the above holds
+  `paid_online_and_counter`), and the admin's screen came with PR B (PR
+  #36, in production since 2026-10-18 SGT); none has been recorded in
+  production yet (read-only, 2026-10-18 SGT: `counter_payments` no rows)
   ([R-090](#r-090--a-counter-payment-rests-on-an-admins-word)).
   Recorded and flagged to admins but not applied: an event for an unknown
   payment, a mismatched session or mode, a refund in another mode or
@@ -2728,12 +2733,13 @@ URLs, or customer data in this file.
 - Workaround or containment: Stripe emails the owner about every dispute
   and the response happens in Stripe's Dashboard; the owner notes the
   outcome on the job (RUNBOOK "Stripe: resolving problems").
-- Next action: add `charge.dispute.*` through the same apply path in step
-  3 if a dispute occurs.
+- Next action: add `charge.dispute.*` through the same apply path if a
+  dispute occurs (Phase 14 step 3, PRs #34 and #36, did not add it; it
+  would be its own change).
 - Revisit trigger: the first dispute, the first `needs_attention` row, a
   customer who paid twice (counter and online), or BICII becoming
   GST-registered (the owner answered "not GST" on 2026-10-17 SGT).
-- Last checked: 2026-10-17, Phase 14 step 3 PR A (counter payments recorded from D161's database).
+- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B in production (the admin's Record counter payment, PR #36); 2026-10-17, PR A (counter payments recorded from D161's database).
 
 ## R-090 — A counter payment rests on an admin's word
 
@@ -2778,8 +2784,8 @@ URLs, or customer data in this file.
   the bill; Reports date a counter payment by when it was received and
   show when and by whom it was recorded beside it, so back-dating is
   visible ([R-055](#r-055--past-report-periods-change-after-a-reopen-a-back-dated-sale-or-a-back-dated-receipt)).
-- Built in PR B (on `claude/brave-clarke-kfqhgt`, not merged; checked
-  2026-10-18 SGT): **Record counter payment** and the two voids are offered
+- Built in PR B (checked 2026-10-18 SGT; merged in PR #36 as ed6a08a and
+  in production since 2026-10-18 SGT): **Record counter payment** and the two voids are offered
   to an active admin only (`canRecordCounterPayment`, mirroring
   `private.require_admin()`; the actions are `staffAction({ admin: true
   })`, `tests/unit/payment-actions.test.ts`, `consignment.test.ts`); the
@@ -2802,11 +2808,13 @@ URLs, or customer data in this file.
   managers see counter problems on the card and in Exceptions but only an
   admin can void, so a manager must ask an admin; money taken at
   collection is not recorded (D161e), so the counter figure is a subset.
-- Next action: merge PR B; the owner answers question 35 (forks 1, 2, 5
-  and 7).
+  No counter payment has been recorded in production yet (read-only,
+  2026-10-18 SGT: `counter_payments` no rows), so the screens are proved
+  by the tests above, not by a real record.
+- Next action: the owner answers question 35 (forks 1, 2, 5 and 7).
 - Revisit trigger: a request to reconcile the till, or for staff other
   than admins to record (question 35 fork 2); a disputed counter record.
-- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the app; built on `claude/brave-clarke-kfqhgt`, not merged; the database merged in PR #34 and in production since 2026-10-17 SGT).
+- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the app; merged in PR #36 and in production since 2026-10-18 SGT; the database merged in PR #34 and in production since 2026-10-17 SGT).
 
 ## R-091 — A balance link is a payment capability
 
@@ -2844,8 +2852,8 @@ URLs, or customer data in this file.
   no-referrer, noindex and no-store, a rate limit like the quote page's,
   return URLs from `ADMIN_ORIGIN` only and redirects only to
   `checkout.stripe.com` (the fake: the Admin's own `/pay/` path).
-- Built in PR B (on `claude/brave-clarke-kfqhgt`, not merged; checked
-  2026-10-18 SGT): `/pay/[token]` checks the 43-character shape before
+- Built in PR B (checked 2026-10-18 SGT; merged in PR #36 as ed6a08a and
+  in production since 2026-10-18 SGT): `/pay/[token]` checks the 43-character shape before
   anything else, then a per-client and per-token view limit (60 per 5
   minutes; Pay 10 per 5 minutes; keys hashed with their own salt, failing
   open and logged when the service role is missing), then reads
@@ -2860,18 +2868,30 @@ URLs, or customer data in this file.
   shown to staff once, emailed with the key `balance-<link id>` and never
   logged (the logger redacts `link`; `tests/unit/payment-actions.test.ts`,
   `balance-email.test.ts`, `logger.test.ts`); resending stops the old link
-  and closes its open Checkout where it can.
+  and closes its open Checkout where it can. In production on 2026-10-18
+  SGT, signed out: the payment page with a malformed token answers 200
+  with the "link is not valid" page and `Referrer-Policy: no-referrer`,
+  `X-Robots-Tag: noindex, nofollow` and `Cache-Control: private,
+  no-cache, no-store, max-age=0, must-revalidate` (not exactly the
+  `private, no-store` that `next.config.ts` sets, but it contains both
+  `private` and `no-store`); no balance link exists
+  there yet (read-only: `balance_links` no rows).
 - Residual: until it expires (at most 30 days), a live link on a completed
   or ready job shows the current bill to whoever holds it; the limits fail
   open without the service-role key; the token stays in the copies listed
   under Impact.
-- Next action: merge PR B, then widen the public site's privacy text to
-  "workshop quotes and bills".
+- Next action: rehearse RUNBOOK "Stripe: verify before go-live" steps 11
+  and 12 in Stripe's test mode before relying on links in production; on
+  the first real link, check that its email and WhatsApp message arrive
+  (both unit-tested only); the owner answers question 35. Done: PR B
+  merged (PR #36) and the public site's privacy text widened to
+  "workshop quotes and bills" (georgieboys/BICII#2), both in production
+  since 2026-10-18 SGT.
 - Revisit trigger: a leaked link; a request to pay a link after collection
   (question 35 fork 3), or a customer who paid on a tab left open across
   Collected or reopen and was told the link was stopped (R-092's residual:
   the return page makes no check on a stopped link).
-- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the payment page; built on `claude/brave-clarke-kfqhgt`, not merged; the database merged in PR #34 and in production since 2026-10-17 SGT).
+- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the payment page; merged in PR #36 and in production since 2026-10-18 SGT, checked there signed out with a malformed token; the database merged in PR #34 and in production since 2026-10-17 SGT).
 
 ## R-092 — Open Checkout tabs can still be paid for up to 60 minutes
 
@@ -2911,8 +2931,8 @@ URLs, or customer data in this file.
   so the app expires them, best effort; detection: `paid_online_and_counter`,
   `paid_above_bill` and `paid_twice` reach admins and managers as
   `payment_attention` on Exceptions and Today.
-- Built in PR B (on `claude/brave-clarke-kfqhgt`, not merged; checked
-  2026-10-18 SGT): `expireOpenCheckouts` closes the job's open Checkout
+- Built in PR B (checked 2026-10-18 SGT; merged in PR #36 as ed6a08a and
+  in production since 2026-10-18 SGT): `expireOpenCheckouts` closes the job's open Checkout
   sessions at Stripe and records each read, after an admin's counter
   payment (that quote's deposit and any balance, whenever
   `open_checkouts` is above 0, a replay of the same id included, so a
@@ -2945,11 +2965,12 @@ URLs, or customer data in this file.
   recorded (D159b) and flagged; the customer is not told it went through.
   A possible fix is a service-role RPC that maps a withdrawn link's token
   to its newest payment on the job, read once on return.
-- Next action: merge PR B; rehearse steps 11 and 12 in Stripe's test mode
-  before relying on links in production.
+- Next action: rehearse steps 11 and 12 in Stripe's test mode before
+  relying on links in production (not done as of 2026-10-18 SGT; PR B is
+  in production since that day, PR #36).
 - Revisit trigger: the first `paid_above_bill` or `paid_online_and_counter`
   in production.
-- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the expiry; built on `claude/brave-clarke-kfqhgt`, not merged; the database merged in PR #34 and in production since 2026-10-17 SGT).
+- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the expiry; merged in PR #36 and in production since 2026-10-18 SGT, where no balance link or counter payment exists yet; the database merged in PR #34 and in production since 2026-10-17 SGT).
 
 ## R-093 — Mark collected is allowed while Stripe is confirming a payment
 
@@ -2971,8 +2992,8 @@ URLs, or customer data in this file.
   `counter_payment_stripe_processing`.
 - Evidence and confidence: high. The review of PR B found the Collected
   confirmation said "Take only $Y" with the money being confirmed inside
-  $Y. Since the review fix (on `claude/brave-clarke-kfqhgt`, not merged;
-  2026-10-18 SGT) `collectedNotes` names no amount to take while
+  $Y. Since the review fix (in PR B, merged in PR #36 and in production
+  since 2026-10-18 SGT) `collectedNotes` names no amount to take while
   `processing` is set: "Stripe is still confirming $Z paid online, so $Y
   still to pay may already be covered. Press Check with Stripe before
   taking anything.", also when nothing else is paid yet
@@ -2986,9 +3007,10 @@ URLs, or customer data in this file.
 - Next action: put to the owner whether Collected should be refused while
   a payment is being confirmed (a guard in a migration on the status
   change, like `record_counter_payment`'s refusal); it is not part of PR B,
-  which changes no SQL.
+  which changes no SQL. Awaiting the owner as of 2026-10-18 SGT.
 - Revisit trigger: a customer charged twice at collection; the first
   PayNow payment in production that takes more than a few minutes to
   confirm.
-- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B review (the Collected
-  wording; no database guard).
+- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the Collected
+  wording from its review, merged in PR #36 and in production since
+  2026-10-18 SGT; no database guard; the owner's decision still open).

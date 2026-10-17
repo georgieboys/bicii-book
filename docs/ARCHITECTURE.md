@@ -300,8 +300,8 @@ payments and the job's Customer payments card
 links, Reports and an admin's counter payments are step 3 (D154, D156,
 D161): their database is built and in production since 2026-10-17 SGT
 (PR A, PR #34; [DATA-MODEL §19](DATA-MODEL.md#19-customer-payments-stripe)), and PR B
-(built on `claude/brave-clarke-kfqhgt`, not merged) adds the screens and
-the balance Checkout flow (step 8 below). Counter payments never touch
+(merged in PR #36 and in production since 2026-10-18 SGT) adds the
+screens and the balance Checkout flow (step 8 below). Counter payments never touch
 Stripe: an admin's RPC records them in their own table, and the payment
 views count both. Stripe is on only when `stripeConfig` finds every variable
 right for the deployment (D157); otherwise it is off with a named reason
@@ -562,8 +562,8 @@ All records: [decisions/README.md](decisions/README.md).
   only) before calling the database, failing open because the token
   cannot be guessed and a quote is answered once
   ([R-078](RISKS.md#r-078--whoever-holds-a-quote-link-can-answer-it)).
-- The customer's payment page (Phase 14 step 3, D156f; PR B, not
-  merged): `/pay/<token>` in the same `(customer)` group, let through
+- The customer's payment page (Phase 14 step 3, D156f; PR B, PR #36,
+  in production since 2026-10-18 SGT): `/pay/<token>` in the same `(customer)` group, let through
   `proxy.ts` by `isPublicPath`, read through `createAnonClient()` and
   `balance_by_token`, with the same three headers from `next.config.ts`
   (one constant for both pages) and its own counters (`balance-` keys,

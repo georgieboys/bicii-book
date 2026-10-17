@@ -259,9 +259,11 @@ D152's ordering gate and the quote page, Reports) are recorded with step
 
 ## Status update 2026-10-17: step 3's database
 
-Phase 14 step 3 is built in two pull requests. PR A, the database, is
-built on `claude/brave-clarke-kfqhgt` (not merged or deployed); PR B, the
-app, is next. Every choice below that the owner's words do not settle is
+Phase 14 step 3 is built in two pull requests. PR A, the database, was
+merged in PR #34 and is in production since 2026-10-17 SGT (`migrate.yml`
+run 17; read-only afterwards, the replaced views returned the same rows
+as before); PR B, the app, is next. Every choice below that the owner's
+words do not settle is
 a build default, recorded as a lettered clause (as D149a–c) and put to the
 owner as
 [PRODUCT question 35](../PRODUCT.md#open-assumptions-and-owner-questions),

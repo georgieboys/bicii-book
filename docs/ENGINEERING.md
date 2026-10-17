@@ -230,9 +230,8 @@ from the code:
   line, D160, `20261014001000` and `20261014001100`; Phase 14 step 3
   continues the Stripe range with `20261014001200` to `20261014001500`).
   Main and the hosted project end at
-  `20261014001100_indent_unfit_on_void.sql` since PR #30; the newest file
-  is `20261014001500_payment_reports.sql` on `claude/brave-clarke-kfqhgt`
-  (Phase 14 step 3 PR A, not merged or deployed), so a
+  `20261014001500_payment_reports.sql` since PR #34 (Phase 14 step 3
+  PR A, applied by `migrate.yml` run 17 on 2026-10-17 SGT), so a
   new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).

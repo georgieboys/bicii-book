@@ -65,8 +65,9 @@ Admin never replaces the public site.
   production on 2026-10-15 SGT (D151's build default is 50%, D157) and
   paid a first live deposit on a test job, refunded on 2026-10-15;
   balances and reports are step 3, with an admin's record of a counter
-  payment, D161: its database is built, not yet pushed, and its screens
-  come next). An approved indent part reaches the
+  payment, D161: its database is in production since 2026-10-17 SGT;
+  its screens come next, and until then no screen records a counter
+  payment or sends a link). An approved indent part reaches the
   bill only when it is fitted (D140); since the live test, a part a job
   was completed without is shown as not billed, its deposit is flagged,
   and an admin or manager can cancel it on a collected job (D149,

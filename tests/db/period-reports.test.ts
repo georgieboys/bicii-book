@@ -1637,6 +1637,14 @@ describe("Report queries are indexed", () => {
       ["inventory_movements", "created_at"],
       ["purchase_receipts", "received_at"],
       ["appointments", "starts_at"],
+      // D154 payment reports (20261014001500): Stripe's paid_at, a refund's
+      // stripe_created_at or (without it) created_at, a counter payment's
+      // received_at and a void's voided_at.
+      ["payments", "paid_at"],
+      ["payment_refunds", "stripe_created_at"],
+      ["payment_refunds", "created_at"],
+      ["counter_payments", "received_at"],
+      ["counter_payment_voids", "voided_at"],
     ]) {
       const n = await scalar<number>(
         conn,

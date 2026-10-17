@@ -51,6 +51,13 @@ import {
   readAsOwner,
 } from "./inventory-fixtures";
 import { race } from "./lock-race";
+import {
+  pay as payBalance,
+  recordCounter,
+  sendLink,
+  startBalanceCheckout,
+  voidCounter,
+} from "./payment-fixtures";
 import { shopToday } from "./reporting-fixtures";
 import { addServiceLine, failsWith, makeService, ownerMode, setStatus } from "./workshop-fixtures";
 
@@ -1792,6 +1799,45 @@ describe("D154: payments are money held, not revenue", () => {
       await deliver(tx, "refund.failed", refund(p, rid, 5000, "failed"));
       expect((await paymentRow(tx, p.id)).status).toBe("partially_refunded");
       expect(await snapshot()).toEqual(before);
+
+      // Phase 14 step 3 (D161, D156): counter money live, voided in error
+      // and given back, then the rest paid by a balance link. Net online
+      // 50.00 + 10.00 at the counter leaves 60.00 for the link.
+      const live = await recordCounter(tx, { workOrderId: job.id, amount: "10.00" });
+      expect(live.replayed).toBe(false);
+      const error = await recordCounter(tx, { workOrderId: job.id, amount: "20.00" });
+      await voidCounter(tx, error.counter_payment_id, "recorded_in_error");
+      const back = await recordCounter(tx, { workOrderId: job.id, amount: "30.00" });
+      await voidCounter(tx, back.counter_payment_id, "given_back", "Handed back in cash");
+      const link = await sendLink(tx, job.id);
+      expect(link.amount).toBe("60.00");
+      const balance = await startBalanceCheckout(tx, link.token);
+      await payBalance(tx, balance);
+      expect((await paymentRow(tx, balance.paymentId)).status).toBe("paid");
+      expect(await snapshot()).toEqual(before);
+      // The money shows only in the payment reports (20261014001500).
+      await actAs(tx, ADMIN);
+      const figures = (
+        await tx.query<{
+          online_total: string;
+          refund_total: string;
+          counter_total: string;
+          given_back_total: string;
+          net_total: string;
+        }>(
+          `select online_total::text, refund_total::text, counter_total::text,
+                  given_back_total::text, net_total::text
+             from public.report_payment_summary($1::date, $1::date)`,
+          [day],
+        )
+      ).rows[0];
+      expect(figures).toEqual({
+        online_total: "180.00",
+        refund_total: "70.00",
+        counter_total: "40.00",
+        given_back_total: "30.00",
+        net_total: "120.00",
+      });
     });
   });
 });

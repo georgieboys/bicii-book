@@ -29,6 +29,7 @@ import {
   heldOverSentence,
   paidOnlineSummary,
   paymentStatusLabel,
+  showsPaymentTotals,
   stripeConnectionLabel,
   stripeDashboardHref,
   stripeOutcomeLabel,
@@ -137,6 +138,16 @@ describe("the deposit setting's rollout guard (D157a)", () => {
     expect(depositPercentRefusal(0, false)).toBeNull();
     expect(depositPercentRefusal(0, true)).toBeNull();
     expect(depositPercentRefusal(100, true)).toBeNull();
+  });
+});
+
+describe("the card's totals (D161: a totals row for every job)", () => {
+  const totals = { paidAtCounter: "0.00" };
+  it("show only with a Stripe payment (any attempt) or a live counter payment", () => {
+    expect(showsPaymentTotals({ payments: [], totals })).toBe(false);
+    expect(showsPaymentTotals({ payments: [{}], totals })).toBe(true);
+    expect(showsPaymentTotals({ payments: [], totals: { paidAtCounter: "45.00" } })).toBe(true);
+    expect(showsPaymentTotals({ payments: [{}], totals: null })).toBe(false);
   });
 });
 

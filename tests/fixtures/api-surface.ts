@@ -27,6 +27,9 @@ export const ANON_FUNCTIONS: readonly string[] = [
   // the token is checked against its stored SHA-256, nothing else is read
   "public.answer_quote(text, jsonb, text)",
   "public.quote_by_token(text)",
+  // Phase 14 step 3 (D156f): the payment link page, for whoever holds a
+  // balance link; the token is checked against its stored SHA-256
+  "public.balance_by_token(text)",
 ];
 
 /**
@@ -247,6 +250,17 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // percent is admin only; ordering a part whose deposit is not paid needs
   // an active admin or manager and a reason (order_part_requests above)
   "public.set_indent_deposit_percent(integer)",
+  // Phase 14 step 3 (D154, D156, D161): counter payments are recorded and
+  // voided by an active admin only (the functions check); any active staff
+  // member sends a balance link; the payment link page is callable signed
+  // in too; the payment reports need view_financial_reports
+  "public.record_counter_payment(uuid, uuid, uuid, money_amount, counter_payment_method, timestamp with time zone, text, text)",
+  "public.void_counter_payment(uuid, counter_void_kind, text)",
+  "public.balance_by_token(text)",
+  "public.send_balance_link(uuid, uuid, quote_channel, integer)",
+  "public.report_payment_items(date, date, integer, timestamp with time zone, uuid)",
+  "public.report_payment_summary(date, date)",
+  "public.report_payments_held()",
 ];
 
 /**
@@ -392,6 +406,12 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   // not on the bill yet, counted and totalled; security invoker over
   // job_part_requests' RLS and column grants, no cost
   "public.work_order_unfitted_requests": ["SELECT"],
+  // Phase 14 step 3 (D156, D161): counter payments and their voids
+  // (not the request fingerprint) and balance links (not the token hash),
+  // readable by active staff; append-only, written only through the RPCs
+  "public.balance_links": ["SELECT"],
+  "public.counter_payment_voids": ["SELECT"],
+  "public.counter_payments": ["SELECT"],
 };
 
 /**
@@ -405,8 +425,10 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
  * called only from src/lib/integrations/stripe/: the webhook's
  * record_stripe_event and the server's own reads, record_stripe_read
  * (step 1), and the quote page's Checkout start, prepare_deposit_checkout
- * and record_deposit_checkout (step 2; anon gains nothing). Nothing in
- * `private` (the Stripe purge is owner-only).
+ * and record_deposit_checkout (step 2; anon gains nothing), and the
+ * payment link page's Checkout start, prepare_balance_checkout and
+ * record_balance_checkout (step 3, D156). Nothing in `private` (the
+ * Stripe purge is owner-only).
  */
 export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.note_sign_in_attempt(text[], integer)",
@@ -422,6 +444,8 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.record_stripe_read(uuid, jsonb, text)",
   "public.prepare_deposit_checkout(text)",
   "public.record_deposit_checkout(uuid, uuid, jsonb)",
+  "public.prepare_balance_checkout(text)",
+  "public.record_balance_checkout(uuid, uuid, bigint, jsonb)",
 ];
 
 /**

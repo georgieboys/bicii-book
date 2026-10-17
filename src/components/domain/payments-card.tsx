@@ -18,6 +18,7 @@ import {
   incompleteCheckNote,
   PAYMENT_STATUS_TONES,
   paymentStatusLabel,
+  showsPaymentTotals,
   stripeDashboardHref,
 } from "@/lib/payments";
 
@@ -135,7 +136,7 @@ export function PaymentsCard({
           </ul>
         ) : null}
 
-        {totals ? (
+        {totals && showsPaymentTotals(payments) ? (
           <dl aria-label="Paid online" className="flex flex-col gap-1 rounded-xl bg-sunken p-3">
             <div className="flex flex-wrap justify-between gap-2">
               <dt>Paid online</dt>

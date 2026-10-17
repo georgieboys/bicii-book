@@ -431,6 +431,43 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   // D160: voiding a fitted line puts its request back; a stale Fit with the
   // voided line's id (a retried form) is refused.
   part_request_line_voided: "That line was voided. Reload the job and fit the item again.",
+  // Counter payments (Phase 14 step 3, D161): an admin records money the
+  // shop took itself, and voids a record (recorded in error or given back).
+  work_order_cancelled: "This job is cancelled. Nothing more can be recorded on it.",
+  counter_payment_currency: "Counter payments are recorded in Singapore dollars only.",
+  counter_payment_in_future: "A counter payment can't be dated in the future.",
+  counter_payment_before_job:
+    "A counter payment can't be dated before the job was checked in, or before the customer answered the quote for a deposit.",
+  counter_payment_too_old: "A counter payment can't be dated more than 30 days ago.",
+  counter_payment_conflict:
+    "That payment clashes with one already recorded. Reload the job and check before recording again.",
+  counter_payment_quote_mismatch: "That quote isn't on this job. Reload the job and try again.",
+  counter_deposit_amount:
+    "A counter deposit must be the deposit's exact amount. Record any other amount towards the bill.",
+  deposit_already_paid: "This deposit is already paid.",
+  deposit_processing:
+    "Stripe is still confirming an online payment of this deposit. Press Check with Stripe first.",
+  counter_payment_stripe_processing:
+    "Stripe is still confirming an online payment on this job. Press Check with Stripe first.",
+  counter_payment_immutable:
+    "A counter payment can't be changed or deleted. Void it with a reason instead.",
+  counter_payment_not_found: "That counter payment no longer exists. Reload the job.",
+  counter_payment_already_voided: "That counter payment has already been voided.",
+  // Balance links (Phase 14 step 3, D156): any staff member sends one on a
+  // completed or ready job; the customer's payment page and its Checkout.
+  balance_link_validity_invalid: "A payment link is valid for 1 to 30 days.",
+  balance_link_already_sent: "That payment link was already sent. Reload the job.",
+  balance_link_not_ready: "A payment link can be sent once the job is completed.",
+  balance_link_currency: "Payment links are in Singapore dollars only.",
+  balance_too_small: `Less than ${formatMoney("0.50")} is left to pay, too little for a payment link.`,
+  balance_too_large: "This balance is too large to pay online. It can be paid at the shop.",
+  balance_payment_processing:
+    "Stripe is still confirming an online payment on this job. Press Check with Stripe first.",
+  balance_link_immutable: "A payment link can't be changed or deleted. Send a new one instead.",
+  balance_link_not_found: "This link is not valid. Ask the shop for a new one.",
+  balance_link_withdrawn: "This link was replaced or withdrawn. Ask the shop for a new one.",
+  balance_link_expired: "This link has expired. Ask the shop for a new one.",
+  balance_link_job_closed: "This link can't be paid any more. Ask the shop.",
 };
 
 /** 23505 unique violations by constraint name. */
@@ -562,6 +599,14 @@ export const UNIQUE_ERRORS: Record<string, string> = {
   payments_one_open_deposit: "A payment for this deposit is already open.",
   payment_refunds_pkey: "That refund has already been recorded.",
   payment_refunds_refund_key: "That refund has already been recorded.",
+  // Counter payments and balance links (Phase 14 step 3, D156, D161): the
+  // RPCs answer a reused id first; these keys are the backstop.
+  counter_payments_pkey: "That payment has already been recorded.",
+  counter_payment_voids_pkey: "That counter payment has already been voided.",
+  balance_links_pkey: "That payment link was already sent. Reload the job.",
+  balance_links_token_hash_key: "That payment link was already sent. Reload the job.",
+  balance_links_one_live: "This job already has a live payment link. Send a new one to replace it.",
+  payments_one_open_balance: "A payment of this job's balance is already open.",
 };
 
 /** 23514 check violations by constraint name. */
@@ -954,6 +999,21 @@ export const CHECK_ERRORS: Record<string, string> = {
   quotes_deposit_percent_check: "Choose a deposit from 0 to 100%.",
   quotes_deposit_amount_check: `A deposit must be between ${formatMoney("0.50")} and ${formatMoney("999999.99")}.`,
   quotes_deposit_shape: "Only an answered quote in Singapore dollars asks a deposit.",
+  // Counter payments (Phase 14 step 3, D161).
+  counter_payments_kind_quote: "A deposit belongs to a quote; a payment towards the bill doesn't.",
+  counter_payments_amount_check: `A counter payment must be more than ${formatMoney("0")} and at most ${formatMoney("999999.99")}.`,
+  counter_payments_currency_check: "Counter payments are recorded in Singapore dollars only.",
+  counter_payments_reference_check: "Keep the reference under 200 characters.",
+  counter_payments_note_check: "Keep the note under 2,000 characters.",
+  counter_payment_voids_reason_check: "Give a reason, under 500 characters.",
+  // Balance links (Phase 14 step 3, D156).
+  balance_links_token_hash_length: "That payment link is not valid.",
+  balance_links_valid_days_check: "A payment link is valid for 1 to 30 days.",
+  balance_links_amount_check: `A payment link asks between ${formatMoney("0.50")} and ${formatMoney("999999.99")}.`,
+  balance_links_withdrawn_reason_check: "That is not a reason a payment link is withdrawn.",
+  balance_links_withdrawn_shape: "A withdrawn payment link needs its time and reason.",
+  balance_links_replaced_shape: "Only a replaced payment link names the link that replaced it.",
+  payments_balance_link_kind: "Only a balance payment comes from a payment link.",
 };
 
 /** Other fixed SQLSTATEs our RPCs raise on purpose. */

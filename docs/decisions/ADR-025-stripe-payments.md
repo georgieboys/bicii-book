@@ -2,7 +2,10 @@
 
 Date: 2026-10-14 (design, before Phase 14 is built; on
 `claude/brave-clarke-kfqhgt` from `main` 511aac6); amended 2026-10-17
-(D161, [below](#amendment-2026-10-17-the-owners-answers-to-question-32-d161)).
+(D161, [below](#amendment-2026-10-17-the-owners-answers-to-question-32-d161));
+status update 2026-10-17 (step 3's database, the build defaults D154a–e,
+D156a–h and D161a–j,
+[below](#status-update-2026-10-17-step-3s-database)).
 Status: accepted. The owner decided on 2026-10-14 to take payments through
 Stripe, starting with deposits on indent parts, and on 2026-10-17 SGT
 confirmed the build defaults below as built
@@ -190,7 +193,7 @@ D150–D159.
 | Stripe Payment Links made by hand in the Stripe dashboard | Rejected: nothing would tie a payment to its job or quote; Checkout sessions created by the server carry the job and quote in their metadata |
 | Stripe Elements (card form inside the Admin's page) | Rejected: puts card entry in BICII's pages and widens its PCI scope; hosted Checkout keeps it at Stripe and adds PayNow |
 | Take the deposit through Shopify checkout | Rejected: Shopify sells catalogue products online (Phase 10); a deposit on one customer's quote is not a product, and its order would become an online sale (D80) |
-| Staff record deposits taken at the counter | Not now: the owner asked for Stripe; a counter payment can be a later decision with its own record |
+| Staff record deposits taken at the counter | Not in the first build: the owner asked for Stripe. Decided on 2026-10-17 as D161 (an admin only), built in step 3 ([below](#status-update-2026-10-17-step-3s-database)) |
 | Count a deposit as revenue when paid | Rejected: the part is not sold until it is fitted and the job is completed (D3); counting deposits would double the revenue in reports |
 | Reuse `integration_events` and the Shopify queue for Stripe deliveries | Rejected: those tables, the job kinds and the queue runner are wired to Shopify (a provider check, a kind enum, a runner that syncs products); Stripe has its own `stripe_events`, applied in the same transaction |
 | `charge.refunded` as the source of refunds | Rejected: it carries the charge, not each Refund; `refund.created`, `refund.updated` and `refund.failed` give one row per Refund with its own status, which PayNow refunds need (they can fail after succeeding) |
@@ -254,10 +257,132 @@ Cult Commons. Its build defaults (the method list, voiding, how it meets
 D152's ordering gate and the quote page, Reports) are recorded with step
 3's build.
 
+## Status update 2026-10-17: step 3's database
+
+Phase 14 step 3 is built in two pull requests. PR A, the database, is
+built on `claude/brave-clarke-kfqhgt` (not merged or deployed); PR B, the
+app, is next. Every choice below that the owner's words do not settle is
+a build default, recorded as a lettered clause (as D149a–c) and put to the
+owner as
+[PRODUCT question 35](../PRODUCT.md#open-assumptions-and-owner-questions),
+its forks first. Applying PR A changes nothing a user sees: no counter
+payment, balance link or balance payment exists, the replaced views keep
+every column (new ones are appended) and return the same values, and the
+deposit Checkout RPCs keep their signatures and behave the same while no
+balance payment exists.
+
+- **Migrations.** `20261014001200_payment_step3_enums.sql` (four timeline
+  types, on their own), `20261014001300_counter_payments.sql` (D161, and
+  the three replaced views), `20261014001400_balance_links.sql` (D156, and
+  the two deposit Checkout RPCs replaced) and
+  `20261014001500_payment_reports.sql` (D154). Every table ships with its
+  RLS and grants; every definer function pins `search_path = ''`; no
+  private function is executable by an API role. Lock order: the job
+  first, then the quote or the link, then the payment or counter row,
+  then the timeline ([DATA-MODEL §19](../DATA-MODEL.md#19-customer-payments-stripe)).
+- **Tests, written first.** `tests/db/counter-payments.test.ts` (30),
+  `tests/db/balance-links.test.ts` (33), `tests/db/payment-reports.test.ts`
+  (18), the D154 snapshot test extended and the report-index test
+  extended; each failed before its migration and passes after it.
+- **One app change.** `work_order_payment_totals` now has a row for every
+  job, so the job's Customer payments card shows its totals only once the
+  job has a Stripe payment or a live counter payment (as before for Stripe
+  payments; `tests/unit/payments-card.test.tsx`).
+
+| D | Rule (short) | Status | Implemented in |
+|---|---|---|---|
+| D154a | WHAT: a Customer payments section on Reports, apart from the sales figures and not driven by the date basis: taken online, refunded online, recorded at the counter and given back at the counter in the period, by the day it moved, and what is held on jobs now; nothing for GST | Build default | Step 3 (database in PR A; screen in PR B) |
+| D154b | DATES AND AMOUNTS: online by Stripe's paid time at the amount Stripe took; a refund by Stripe's created time (BICII's own time when Stripe sent none), counted as the job card counts it; counter by when it was received; a recorded-in-error void removes its payment (the day restates, D101); a given-back void keeps the payment and adds the money handed back on the void's day, or just after the payment when the payment was dated later (up to 5 minutes ahead), so it never comes before its payment | Build default | Step 3 |
+| D154c | HELD NOW: three lists with no grand total: paid on open jobs; paid on jobs awaiting collection (at most the bill, still to pay beside it); paid above the bill on any job that is not open; read from the job card's totals | Build default | Step 3 |
+| D154d | WHO: View financial reports (D30); nothing cost-derived; "Recorded at the counter" is only what an admin recorded, not the till's takings | Build default | Step 3 |
+| D154e | OBJECTS: `reporting.payment_movements` (no API grant), `report_payment_summary`, `report_payment_items`, `report_payments_held`; sales reports never change | Build default | Step 3 |
+| D156a | WHEN: sent only on a completed or ready-for-collection job; not payable once the job leaves those statuses | Build default | Step 3 |
+| D156b | AMOUNT: the live balance (job total less Stripe net and live counter payments), computed in Postgres at every read and Pay; S$0.50 to S$999,999.99, SGD | Build default | Step 3 |
+| D156c | LINK: a random token shown once, only its hash kept; 1–30 days (7); one live link per job; changed only to withdraw it | Build default | Step 3 |
+| D156d | WITHDRAWN: on a resend, a reopen and Collected; completed to ready keeps it; completing again does not revive it | Build default | Step 3 |
+| D156e | WHO SENDS: any active staff member (as D147's quotes) | Build default | Step 3 |
+| D156f | THE PAGE: shop, job number, bike, first name, the bill's lines at sale prices, total, paid, balance and whether it can be paid; never costs, notes, staff, contacts, other jobs, ids, unit ids, serial numbers, Stripe ids or URLs; a withdrawn, expired or closed link shows only its status and job number | Build default | Step 3 |
+| D156g | CHECKOUT: a fresh 60-minute Checkout of kind balance on each Pay; a live or confirming balance payment never sits beside another open or confirming Stripe payment on the job, and a job has at most one pending linked balance payment; a row past its expiry that Stripe has not answered yet holds up neither kind (R-092) | Build default | Step 3 |
+| D156h | RPCs: `send_balance_link`, `balance_by_token`, `prepare_balance_checkout`, `record_balance_checkout`; the deposit Checkout RPCs answer `job_payment_processing` (a balance payment being confirmed), `replace` (a live one) or `existing` | Build default | Step 3 |
+| D161a | WHO: an active admin by role (not a manager); every active staff member sees counter payments | Build default (reading "admin option") | Step 3 |
+| D161b | METHOD: cash, card (the shop's terminal), PayNow (the shop's QR), bank transfer, other | Build default | Step 3 |
+| D161c | RECORD: amount (0.01 to 999,999.99, SGD), method, when received, optional reference and note, who recorded it; append-only | Build default | Step 3 |
+| D161d | VOID: the only correction, once, with a reason and a kind (recorded in error, or given back: cash handed back outside BICII, not a refund from the Admin); any job status | Build default | Step 3 |
+| D161e | WHEN AND WHY: for money that reaches the shop before the bike leaves; money taken at collection need not be recorded; allowed on completed, ready and collected jobs, refused on a cancelled one; SGD only | Build default | Step 3 |
+| D161f | DEPOSIT OR BALANCE: a deposit at exactly its amount while due or refunded, then paid; any other amount towards the bill, even before the work is done | Build default | Step 3 |
+| D161g | STRIPE CONFIRMING: refused while Stripe is confirming a payment on the job; the open sessions it leaves are counted for the app to expire | Build default | Step 3 |
+| D161h | TIME: now unless given; at most 5 minutes ahead, not before check-in (or the quote's answer for a deposit), at most 30 days back | Build default | Step 3 |
+| D161i | RPCs: `record_counter_payment`, `void_counter_payment`; a retried request replays | Build default | Step 3 |
+| D161j | VIEWS: `quote_deposits`, `work_order_payment_totals` (a row for every job) and `payment_issues` count counter money | Build default | Step 3 |
+
+**A void and the deposit.** A void takes the counter deposit out of the
+deposit's state, which falls back to what the Stripe payments and the
+parts give it: paid, refunded, processing, due or none, as before it was
+recorded. The quote page offers Pay again only when that state is due and
+the job is open (D158c); D152's gate is closed again unless a Stripe
+deposit is paid. `record_counter_payment` refuses a quote whose deposit is
+`none`, or that asked none, with one staff-worded code, `deposit_not_due`,
+where `prepare_deposit_checkout` says `deposit_parts_cancelled` for
+`none`.
+
+**Choices made in the build, beyond the design (recorded, not owner
+decisions).** Times of a record, a void and a link use the transaction's
+clock time (`clock_timestamp()`, as the settlement and workshop RPCs do),
+so rows of one transaction keep their order and a void is never stamped
+before its payment. An amount, reference or note out of range is refused
+with its CHECK constraint's 23514, mapped by name. Sending a link again
+also records `balance_link_withdrawn` (reason replaced) for the old one, as
+`send_quote` records `quote_withdrawn`. The payment page's `shop_name` is
+"BICII" (the database has no shop-name setting). `prepare_deposit_checkout`
+answers `replace` for a pending balance payment only just before it would
+check or create a deposit session, so a closed job still answers
+`deposit_job_closed` rather than expiring the customer's balance tab, and
+`prepare_balance_checkout` also replaces another link's pending row whose
+session has passed its expiry (it still holds the one-pending index until
+Stripe's answer is recorded). While a balance payment on the job is being
+confirmed, `prepare_deposit_checkout` answers `job_payment_processing`
+(its own outcome, since the deposit itself is not being confirmed), so the
+quote page's Pay creates no session that the record would refuse.
+`paid_above_bill` is left out beside a deposit held for cancelled parts or
+for parts not fitted, as beside `paid_twice`: those already name the same
+money and ask for its refund, and once that deposit is refunded or voided
+what is still above the bill shows. A given-back movement is dated at the
+void, or one microsecond after the payment when the payment was dated
+later, so it never comes before its payment and the report list's (at,
+id) keyset stays unique. The payment page shows a unit line's name cut
+before its short id, or the product's current name when the line does not
+carry the short id, never the rest of the description. The movements' `other_currency_count`
+counts movements outside the shop currency and Stripe payments taken in
+another currency (counted at the amount asked, as on the card). Held now
+lists shop-currency jobs only, and a collected job's lists add up to what
+it holds above its bill (a collected job paid exactly is in no list).
+
+**Alternatives considered for step 3.**
+
+| Option | Why chosen or rejected |
+|---|---|
+| Counter payments as rows in `payments`, with a source column | Rejected: `payments` has Stripe's NOT NULL session, expiry and mode, an insert-pending-only guard and Stripe-only status moves; a counter branch would open a hole in "a Stripe-owned column changes only while citing a received event, for every role" (D153, D159a). A separate append-only table, modelled on consignor settlements, keeps Stripe's provenance intact; the views read both |
+| Balance link as a Stripe Checkout URL made at send time (Option B) | Rejected: a session lives at most 24 hours, freezes the amount when sent, puts a long Stripe URL in WhatsApp, and would need a record RPC accepting a 24-hour session; a BICII token page makes a 60-minute Checkout at the live balance on each Pay, as the deposit does, and stores no Stripe URL (as "Store the Checkout URL" above) |
+| Token-free return URLs for the balance link (a done page by payment id) | Rejected: after expiry, withdrawal or closure the token in Stripe's stored URLs reads only `{status, job_number}`; the same token stays in WhatsApp, the email and the logs, so a done page removes one copy of several at the cost of a second anonymous route, a service-role RPC and another rate-limit bucket ([R-088](../RISKS.md#r-088--the-quote-link-is-a-payment-capability-that-reaches-stripe), [R-091](../RISKS.md#r-091--a-balance-link-is-a-payment-capability)) |
+| One pending balance payment per link | Rejected: a resent link's old session, a deposit session or a payment still being confirmed could be paid beside the new one; the rule is per job, under the job lock, with a unique index as the backstop |
+| Leave a voided counter payment out of Reports in every case | Rejected for money given back: cash that came in and went out would vanish from both days; a given-back void is a dated negative movement, as refunds sit beside gross (D102), while a recorded-in-error void restates (D101) |
+
+**Consequences.** New risks
+[R-090](../RISKS.md#r-090--a-counter-payment-rests-on-an-admins-word) (a
+counter payment rests on an admin's word),
+[R-091](../RISKS.md#r-091--a-balance-link-is-a-payment-capability) (a
+balance link is a payment capability) and
+[R-092](../RISKS.md#r-092--open-checkout-tabs-can-still-be-paid-for-up-to-60-minutes)
+(open Checkout tabs can still be paid for up to 60 minutes); R-055,
+R-087, R-088 and R-089 updated. D157a is unchanged: a deposit is asked
+only while Stripe is on, though it can now be paid at the counter.
+
 ## Revisit trigger
 
 A request for staff other than admins to record counter payments, for
-refunds from the Admin, or for full payment at collection; BICII becoming
+refunds from the Admin, or for full payment at collection (recording every
+till payment, or requiring payment before Collected: D161 does not cover
+it); a request to pay a balance link after collection; BICII becoming
 GST-registered.
 
 ## Evidence and links

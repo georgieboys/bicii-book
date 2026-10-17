@@ -151,6 +151,8 @@ export type PaymentTotals = {
   paidAhead: string | null;
   /** Net paid online above the job total, in every status (R-082); null outside SGD. */
   heldOverTotal: string | null;
+  /** Live counter payments an admin recorded (D161); "0.00" when none. */
+  paidAtCounter: string;
 };
 
 export type JobPayments = {
@@ -205,7 +207,7 @@ export async function getJobPayments(
     supabase
       .from("work_order_payment_totals")
       .select(
-        "currency, paid_online, refunded_online, net_paid_online, job_total, balance_due, paid_ahead, held_over_total",
+        "currency, paid_online, refunded_online, net_paid_online, job_total, balance_due, paid_ahead, held_over_total, paid_at_counter",
       )
       .eq("work_order_id", workOrderId)
       .maybeSingle(),
@@ -268,6 +270,7 @@ export async function getJobPayments(
           balanceDue: moneyOrNull(t.balance_due),
           paidAhead: moneyOrNull(t.paid_ahead),
           heldOverTotal: moneyOrNull(t.held_over_total ?? null),
+          paidAtCounter: toMoneyString(t.paid_at_counter ?? 0),
         }
       : null,
   };

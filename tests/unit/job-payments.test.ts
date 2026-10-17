@@ -105,6 +105,7 @@ const ROWS: Record<string, Result> = {
     balance_due: 0,
     paid_ahead: 75,
     held_over_total: 75,
+    paid_at_counter: 0,
   }),
 };
 
@@ -163,6 +164,7 @@ describe("getJobPayments", () => {
         balanceDue: "0.00",
         paidAhead: "75.00",
         heldOverTotal: "75.00",
+        paidAtCounter: "0.00",
       },
     });
     for (const table of [

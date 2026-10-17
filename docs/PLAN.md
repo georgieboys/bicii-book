@@ -928,7 +928,10 @@ replay-safe client ids, D37) and `/q/[shortId]` (D125). Unit tests for the
 helpers, and E2E journey 6 (SPEC §27.3: a customer signs in and sees only
 their own appointments, bikes and history) against this repository's
 devstack, in that repository's CI. Its pull request merges only once the
-Admin is live on the same hosted database.
+Admin is live on the same hosted database. Merged at the owner's request
+on 2026-10-17 SGT (georgieboys/BICII#1, 12ee59e; its CI `check` and
+journey 6 green against this repository's `main`) and served by the
+public site's production deployment; customer accounts stay closed (its sign-in page says online accounts aren't open yet) until RUNBOOK "The public site: customer accounts" steps 2, 3 and 6 are done.
 
 Not in Phase 11: Buy online (waits for Phase 10's storefront addresses,
 D125), a services listing for anonymous visitors (no screen needs one;

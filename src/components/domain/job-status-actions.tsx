@@ -19,7 +19,7 @@ import {
   type PartRequestStatus,
 } from "@/lib/indent";
 import { reopenUnitNote } from "@/lib/inventory";
-import { collectedNotes, type paidOnlineSummary } from "@/lib/payments";
+import { collectedNotes, type PaidSummary } from "@/lib/payments";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import {
   STATUS_LABELS,
@@ -59,7 +59,8 @@ function cancelRefusal<T>(result: ActionResult<T>): ActionResult<T> {
  * final, so it is never one tap: it opens a confirmation naming the job and
  * the customer, focus on Back, whose confirm button is armed after the same
  * guard. Cancelling and reopening need a reason (ReasonConfirm). Both ways
- * to Collected (the button and Change status) say what was paid online.
+ * to Collected (the button and Change status) say what was paid, online
+ * or at the counter, and what Stripe is still confirming (D154, D161).
  *
  * D149b, D149c(1): a move into completed, ready for collection, collected
  * or cancelled while an indent item is approved or ordered opens the settle
@@ -75,7 +76,7 @@ export function JobStatusActions({
   customerLabel,
   status,
   heldUnits = [],
-  paidOnline = null,
+  paid = null,
   settle = null,
 }: {
   workOrderId: string;
@@ -83,10 +84,11 @@ export function JobStatusActions({
   customerLabel: string;
   status: WorkOrderStatus;
   /**
-   * D154: money the customer already paid online (paidOnlineSummary), which
-   * the Collected confirmation says, so staff take only what is left.
+   * D154, D161: money the customer already paid, online or at the counter
+   * (paidSummary), which the Collected confirmation says, so staff take
+   * only what is left and never money Stripe is still confirming.
    */
-  paidOnline?: ReturnType<typeof paidOnlineSummary>;
+  paid?: PaidSummary | null;
   /**
    * U- numbers of the unique units on the job's live part lines: a reopen
    * puts them back on hold for the job (D25), which the reopen says.
@@ -112,7 +114,7 @@ export function JobStatusActions({
   const primary = primaryActions(status);
   const transitions = allowedTransitions(status);
   const items = settle?.items ?? [];
-  const notes = collectedNotes(paidOnline);
+  const notes = collectedNotes(paid);
 
   /** Open the checklist for a move to `to`, keeping its note. */
   const startSettling = (to: ClosingStatus, note?: string) => {
@@ -270,7 +272,7 @@ function CollectedConfirm({
 }: {
   jobNumber: string;
   customerLabel: string;
-  /** collectedNotes(): what was paid online, if anything. */
+  /** collectedNotes(): what was paid, online or at the counter, if anything. */
   notes: readonly string[];
   pending: boolean;
   onBack: () => void;

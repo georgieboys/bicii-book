@@ -389,7 +389,7 @@ describe("describeEvent", () => {
         type: "payment_received",
         payload: { ...base, kind: "balance", amount: "80.50", asked: "80.50" },
       }).title,
-    ).toBe("Payment of $80.50 paid online");
+    ).toBe("Balance of $80.50 paid online");
     expect(
       d({
         type: "payment_received",
@@ -448,21 +448,25 @@ describe("describeEvent", () => {
         type: "balance_link_sent",
         payload: { link_id: "x", channel: "whatsapp", valid_days: 7, amount: "180.00" },
       }),
-    ).toEqual({ title: "Payment link sent by WhatsApp for $180.00", detail: null, tone: "info" });
+    ).toEqual({ title: "Payment link for $180.00 sent by WhatsApp", detail: null, tone: "info" });
+    expect(d({ type: "balance_link_sent", payload: { channel: "email", amount: 35 } }).title).toBe(
+      "Payment link for $35.00 sent by email",
+    );
     expect(d({ type: "balance_link_sent", payload: { channel: "link" } }).title).toBe(
       "Payment link sent",
     );
     expect(d({ type: "balance_link_withdrawn", payload: { reason: "replaced" } })).toEqual({
-      title: "Payment link withdrawn",
-      detail: "A new link replaced it",
+      title: "Payment link stopped (replaced)",
+      detail: null,
       tone: "neutral",
     });
-    expect(d({ type: "balance_link_withdrawn", payload: { reason: "reopened" } }).detail).toBe(
-      "The job was reopened",
+    expect(d({ type: "balance_link_withdrawn", payload: { reason: "reopened" } }).title).toBe(
+      "Payment link stopped (job reopened)",
     );
-    expect(d({ type: "balance_link_withdrawn", payload: { reason: "collected" } }).detail).toBe(
-      "The bike was collected",
+    expect(d({ type: "balance_link_withdrawn", payload: { reason: "collected" } }).title).toBe(
+      "Payment link stopped (collected)",
     );
+    expect(d({ type: "balance_link_withdrawn", payload: {} }).title).toBe("Payment link stopped");
     const counter = { counter_payment_id: "x", quote_id: null, received_at: "2026-10-17" };
     expect(
       d({
@@ -470,7 +474,7 @@ describe("describeEvent", () => {
         payload: { ...counter, kind: "balance", amount: "45.00", method: "cash" },
       }),
     ).toEqual({
-      title: "Payment of $45.00 recorded at the counter (cash)",
+      title: "$45.00 taken at the counter (Cash)",
       detail: null,
       tone: "done",
     });
@@ -479,7 +483,13 @@ describe("describeEvent", () => {
         type: "counter_payment_recorded",
         payload: { ...counter, kind: "deposit", quote_id: "q", amount: 120, method: "paynow" },
       }).title,
-    ).toBe("Deposit of $120.00 recorded at the counter (PayNow)");
+    ).toBe("Deposit of $120.00 taken at the counter (PayNow)");
+    expect(
+      d({
+        type: "counter_payment_recorded",
+        payload: { ...counter, kind: "balance", amount: 10, method: "bank_transfer" },
+      }).title,
+    ).toBe("$10.00 taken at the counter (Bank transfer)");
     expect(
       d({
         type: "counter_payment_voided",
@@ -493,7 +503,7 @@ describe("describeEvent", () => {
         },
       }),
     ).toEqual({
-      title: "Counter payment of $45.00 given back",
+      title: "Counter payment of $45.00 voided (given back)",
       detail: "Overpaid",
       tone: "neutral",
     });
@@ -502,6 +512,12 @@ describe("describeEvent", () => {
         type: "counter_payment_voided",
         payload: { ...counter, amount: 45, void_kind: "recorded_in_error", reason: "Wrong job" },
       }).title,
-    ).toBe("Counter payment of $45.00 voided: recorded in error");
+    ).toBe("Counter payment of $45.00 voided (recorded in error)");
+    // No id, reference or note ever shows.
+    const all = [
+      d({ type: "counter_payment_recorded", payload: { ...counter, amount: 5, method: "other" } }),
+      d({ type: "balance_link_sent", payload: { link_id: "x", amount: 5, channel: "link" } }),
+    ];
+    for (const e of all) expect(JSON.stringify(e)).not.toMatch(/"x"|counter_payment_id/);
   });
 });

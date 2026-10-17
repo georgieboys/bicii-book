@@ -15,16 +15,21 @@ everything), plus what happens to approved indent items a job is
 completed without
 ([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job);
 D149 and D149a–c, PRs #26 and #27, since 2026-10-15 SGT) and voiding a
-fitted indent item's line (D160, PR #30, since 2026-10-16 SGT). On a
-developer machine: http://localhost:3000. Staff sign in with
-an emailed code.
+fitted indent item's line (D160, PR #30, since 2026-10-16 SGT). Phase 14
+step 3 (payment links D156, counter payments D161 and the Customer
+payments report D154) is built on `claude/brave-clarke-kfqhgt` and not
+merged yet: its tasks below ("Send a payment link", "Take payment at
+collection", "Record a counter payment (admins)", "Void a counter payment
+or record it as given back (admins)", "Read Customer payments in
+Reports") apply once it is. On a developer machine:
+http://localhost:3000. Staff sign in with an emailed code.
 
 Last walkthrough: not walked through by a person. These flows are exercised
 by the E2E specs in `tests/e2e/` (among them `auth`, `workshop`,
 `workshop-board`, `inventory`, `inventory-publish`, `scan`,
 `appointments`, `appointment-settings`, `today`, `customers-bikes`,
 `staff`, `roles`, `consignment`, `consignment-journey`, `sales`,
-`purchasing`, `print-view`, `labels`, `shopify`, `indent` and `payments`), on an iPhone 13 and
+`purchasing`, `print-view`, `labels`, `shopify`, `indent`, `payments` and `reports`), on an iPhone 13 and
 an iPad viewport (counts and dates in [NOW.md](../NOW.md)); the latest
 green CI run is
 [PR #7 e2e](https://github.com/abhishekcheriangeorge-ops/bicii-book/actions/runs/37276834195/job/111655595521).
@@ -103,11 +108,21 @@ managers.
 - Steps: use the large buttons for the usual next step: **Start work**,
   **Diagnose**, **Waiting on parts**, **Pause**, **Resume**, **Complete**,
   **Ready for collection**, then **Collected…** and **Mark collected**
-  (Collected is final, so it asks again). When the customer paid a
-  deposit online, the confirmation says so first ("$60.00 was paid
-  online. Take only $85.00."), and the same figures are under the job's
-  total in **Lines** ("Paid online $60.00 · Still to pay $85.00"): take
-  only what is left at the counter. Any other allowed move is under
+  (Collected is final, so it asks again). When the customer paid online
+  or an admin recorded money taken at the counter, the confirmation says
+  so first ("$60.00 was paid online. Take only $85.00.", "$45.00 was paid
+  at the counter. Take only $100.00." or "$345.00 was paid ($300.00
+  online, $45.00 at the counter). Take only $35.00."), or "Nothing is
+  left to pay; take nothing." when the bill is paid. While Stripe is
+  still confirming a payment (PayNow can take a while) it names no amount
+  to take: "Stripe is still confirming $Z paid online, so $Y still to pay
+  may already be covered. Press Check with Stripe before taking
+  anything." Press **Check with Stripe** on the Customer payments card
+  first and take nothing until the payment shows **Paid**. The same
+  figures are under
+  the job's total in **Lines** ("Paid $60.00 · Still to pay $85.00"):
+  take only what is left at the counter (see "Take payment at
+  collection"). Any other allowed move is under
   **Change status**, with an optional **Note**; picking **Collected**
   there shows the same sentences.
   - Approved indent items come first (D149b): if the job has approved or
@@ -151,8 +166,8 @@ managers.
   is collected or cancelled and can no longer change." (The one
   exception: an admin or manager can still cancel an indent item that
   was never fitted, D149.) Once collected or cancelled,
-  a job with money paid online above its bill shows it under the total:
-  "Paid online $120.00 · $120.00 more than the bill".
+  a job with money paid above its bill shows it under the total: "Paid
+  $120.00 · $120.00 more than the bill".
 
 ### Add services, parts and other lines to a job
 
@@ -279,11 +294,15 @@ while an approved or ordered item is neither fitted nor cancelled:
      not pay the deposit: it stays **Deposit due**, and the customer's page
      keeps **Pay $… deposit**, now saying "The shop has ordered your
      parts. Ask the shop if you still need to pay the deposit." and "If you
-     paid the deposit another way, ask the shop before paying here." BICII
-     does not record a deposit taken at the counter, so a customer who
-     paid in the shop could still pay online; if that happens, refund the
-     online payment in Stripe. With the deposit at 0, the default, nothing
-     is held up. Fitting is never held up by a deposit.
+     paid the deposit another way, ask the shop before paying here." When
+     the customer pays the deposit in the shop, an admin records it (see
+     "Record a counter payment (admins)"): it then reads **Deposit paid**,
+     the part is no longer held back and the customer's page stops asking
+     for it. Until it is recorded the customer could still pay online; if
+     both happen, the card says "The deposit of $… was paid online and at
+     the counter. …": refund the online payment in Stripe, or an admin
+     records the counter money as given back. With the deposit at 0, the
+     default, nothing is held up. Fitting is never held up by a deposit.
   6. When the order is received the item shows **Arrived**, and the
      product's page says "2 reserved for jobs" with the job numbers. They
      are not held: don't sell or use them elsewhere. Press **Fit**,
@@ -349,12 +368,18 @@ while an approved or ordered item is neither fitted nor cancelled:
      **No longer due**); then each online payment (**Checkout open**,
      **Paid**, **Partly refunded** "of which $… refunded", **Refunded**,
      "Refund pending in Stripe"; earlier checkouts that were never
-     finished are counted in one line); then **Paid online** and, on an
-     open job, the job total so far with **Still to pay**, or **Paid
-     ahead** when the deposit is more than the job's lines so far (indent
-     parts join the job total when they're fitted). This is money held
-     against the job, not a sale: it never changes the job's totals or
-     reports. **Check with Stripe** (on a payment Stripe hasn't confirmed,
+     finished are counted in one line); then, with step 3 (D156, D161),
+     the live payment link ("Payment link sent 17 Oct 2026 by WhatsApp
+     ($135.00 when sent), valid until 24 Oct 2026.") and the money an
+     admin recorded **At the counter**; then **Paid online**, **Paid at
+     the counter** (when there is any), the job total so far (or **Job
+     total** once the job is completed) with **Still to pay**, or **Paid
+     ahead** when more is paid than the job's lines so far (indent parts
+     join the job total when they're fitted), or **Paid above the bill**
+     on a completed job. A deposit still due on a job that is no longer
+     open reads **Part of the balance**: it is no longer asked on its
+     own. This is money held against the job, not a sale: it never
+     changes the job's totals or sales figures. **Check with Stripe** (on a payment Stripe hasn't confirmed,
      a pending refund or a problem) asks Stripe for its own record and
      shows what changed ("Stripe confirmed: Paid", "Stripe confirmed:
      Payment failed" for a PayNow payment that failed after Checkout, or
@@ -1122,6 +1147,32 @@ website's account pages go live when the owner switches them on,
   "Costs, yield and Cult Commons need the View costs permission" and
   "… need the View financial reports permission" mean ask an admin.
 
+### Read Customer payments in Reports
+
+- Before you start: View financial reports (admins and managers).
+- Steps: **Reports**, any period; **Customer payments** is in the
+  financial part, after the Breakdown. The date basis does not apply: it
+  counts money by the day it moved.
+- Success looks like: five figures with their counts: **Taken online**
+  (deposits and balances), **Refunded online**, **Recorded at the
+  counter**, **Given back at the counter** and **Net taken**. They are not
+  sales ("Not sales: money taken and given back by the day it moved."),
+  and the counter figure is only what an admin recorded, never the till's
+  takings. **Held on jobs now** (this moment, whatever period) lists, each
+  with its own total: **Paid on open jobs** (deposits and payments ahead
+  of work not finished), **Paid on jobs awaiting collection** (paid up to
+  the bill, with still to pay) and **Paid above the bill**. On the Sale
+  date basis a job counts as sales on the day it is completed, so the
+  second list is already in that figure and the others are not. A row
+  opens its job. **See each payment** lists every movement, newest first,
+  100 at a time (refunds and give-backs as negative amounts; counter rows
+  say who recorded them and when, which shows a back-dated record).
+- **Export CSV** beside each: `bicii-payments-<from>_<to>.csv` for the
+  period's movements and `bicii-payments_held-<day>.csv` for what is held
+  now.
+- If it fails: "You can't open this" without View financial reports.
+  Covered by `tests/e2e/reports.spec.ts`.
+
 ### Check what needs attention (Exceptions)
 
 - Steps: **Reports** → **Exceptions** (or **See all** under Needs
@@ -1198,7 +1249,157 @@ website's account pages go live when the owner switches them on,
   deposits off first, before removing Stripe's keys). "Choose from 0 to
   100%." for anything else; the number stays in the box to correct. If
   the page shows "Deposits are asked but Stripe is off", set the deposit
-  to 0 or fix Stripe. Only admins see Customer payments.
+  to 0 or fix Stripe. Only admins see Settings → Customer payments.
+
+### Send a payment link
+
+- Before you start: the job is **Completed** or **Ready for collection**,
+  at least $0.50 is still to pay, nothing paid online is still being
+  confirmed by Stripe, and Stripe is on (D156; any staff member).
+  Otherwise the Customer payments card shows no **Send payment link**.
+- Steps: on the job's **Customer payments** card press **Send payment
+  link**. The sheet shows **Still to pay** and how to send it:
+  **WhatsApp** (only with a mobile number it can use), **Email** (only
+  when emails are set up and the customer has an address) or **Copy
+  link**; and **Link works for (days)**, 1 to 30, 7 by default. When a
+  link is already live it says "This replaces the link sent on …. That
+  link stops working." (or, when that link has already expired, "This
+  replaces the link sent on …, which expired on ….") Press **Create
+  link**.
+- Success looks like: **Payment link ready to send** with the link (shown
+  only now: if it is lost, send a new one), "It asks $… now and works
+  until …", **Open WhatsApp** with the message, or "Emailed to …". The
+  card shows the link's line and the timeline "Payment link for $… sent".
+  The customer's page always asks what is left to pay at that moment, so
+  a payment taken meanwhile is never asked twice.
+- What the customer sees: "Hi <first name>, here is your bill", the
+  job's lines (never a unit number or serial), Job total, Paid so far and
+  **Balance due**, then **Pay $…** through Stripe (card or PayNow) and
+  the line "Payments are taken by Stripe on its own page, so Stripe's
+  privacy policy applies to them; BICII never sees or keeps your card
+  details." Back from Stripe it says "Thanks. We're confirming your
+  payment with Stripe…" until Stripe confirms, then "Nothing is left to
+  pay. Thank you." If the bill went up while they were on Stripe's page
+  (an admin voided a counter payment, say), it says "Thank you. Stripe has
+  confirmed your payment. $… is still due on this bill." with **Pay** for
+  what is left. A stopped link says "This payment link was replaced or
+  stopped. Ask the shop for a new one."; an expired one "This payment
+  link has expired. …". A customer who finishes paying on a Stripe page
+  left open after the link stopped (Collected, reopen, a new link) also
+  comes back to the stopped-link sentence: the money is recorded and
+  flagged on the job, but the page does not say it went through
+  ([R-092](RISKS.md#r-092--open-checkout-tabs-can-still-be-paid-for-up-to-60-minutes)).
+- The link stops by itself when you send a new one, when the job is
+  reopened and when it is collected
+  ([R-091](RISKS.md#r-091--a-balance-link-is-a-payment-capability)).
+  Sending a new link also closes the old link's open Stripe page where it
+  can; if a payment on it went through meanwhile, the sheet says so ("A
+  payment on the earlier link has just gone through. …").
+- If it fails: "Stripe isn't set up, so the customer can't pay online.
+  Take the payment at the counter." while Stripe is off; "The email
+  didn't go out. Copy the link and send it another way." when the email
+  failed (the link still works). Covered by `tests/e2e/payments.spec.ts`
+  (Copy link; WhatsApp and email are unit-tested only).
+
+### Take payment at collection
+
+- Before you start: the job is **Ready for collection** (or completed).
+  Read the Customer payments card and the line under **Lines**: they say
+  what was paid, online and at the counter, and what is left.
+- Steps, by how the customer pays:
+  - Through Stripe on their phone: **Send payment link** (any staff
+    member, above), the customer pays on the page, and the card shows the
+    balance **Paid** (press **Check with Stripe** if it doesn't after a
+    minute). Then **Collected…**: it says "$… was paid online. Nothing
+    is left to pay; take nothing.", and **Mark collected**.
+  - Cash, the shop's card terminal or the shop's own PayNow: take what
+    **Collected…** says ("Take only $…") and **Mark collected**. Nothing
+    needs recording: money taken as the bike leaves is not recorded in
+    BICII (D161e). Ask an admin to record a counter payment only for
+    money that came in **before** collection (a deposit, or part of the
+    bill on an earlier visit), so the page, the link and Collected ask the
+    right amount.
+- While Stripe is still confirming a payment, **Collected…** says
+  "Stripe is still confirming $Z paid online, so $Y still to pay may
+  already be covered. Press Check with Stripe before taking anything."
+  and names no amount to take. Press **Check with Stripe** on the
+  Customer payments card first, and take nothing until the payment shows
+  **Paid**; then **Collected…** says what is left, if anything. BICII
+  does not stop you marking the job collected meanwhile
+  ([R-093](RISKS.md#r-093--mark-collected-is-allowed-while-stripe-is-confirming-a-payment)).
+  Collected stops any payment link.
+
+### Record a counter payment (admins)
+
+- Before you start: you are an admin (D161a; a manager or mechanic sees
+  no **Record counter payment**). The job is not cancelled. BICII records
+  the money; it moves none. It works with Stripe off.
+- Steps: on the job's **Customer payments** card press **Record counter
+  payment**. Under **What it is for** choose a deposit that is due (or
+  was refunded in Stripe), "Record the $120.00 deposit for the quote
+  answered …" (its amount is fixed: the deposit's), or **Towards the
+  bill** (any amount, prefilled with what is left to pay, also before the
+  work is done). Choose **Paid by**: **Cash**, **Card** (the shop's own
+  terminal), **PayNow** (the shop's own QR), **Bank transfer** or
+  **Other**. **Paid on** is today unless the money came in on an earlier
+  day (at most 29 days back, never before the check-in or, for a
+  deposit, the quote's answer). Add a **Reference** (the receipt, terminal
+  or PayNow reference) and a **Note** if useful. Press **Record $… cash…**
+  (or "by card…", "by PayNow…"), check the question that repeats the
+  amount and method, then **Record $…**.
+- Warnings, which never stop you: "The customer's quote page still asks
+  the full $… deposit online. Record the deposit instead if this money is
+  for it."; "The deposit stays 'due' on this card, and is asked online
+  again if the job is reopened, unless you record it as the deposit.";
+  "This is $… more than still to pay; it will show as paid above the
+  bill."
+- Success looks like: a toast "Recorded $… at the counter on J-…", the
+  row under **At the counter** ("Deposit · PayNow", the amount, "Paid …
+  · Ref … · recorded by …"), **Paid at the counter** in the totals and the
+  timeline "Deposit of $… taken at the counter (PayNow)" or "$… taken at
+  the counter (Cash)". A recorded deposit reads **Deposit paid**: the part
+  is no longer held back from ordering and the customer's page stops
+  asking for it.
+- When the customer had a Stripe page open for this job, BICII closes it.
+  If a payment on it went through first, the sheet stays open and says
+  "An online payment for this job has just gone through; refund it in
+  Stripe or record the counter money as given back."; if it could not be
+  closed, "An online payment page may still be open for this job; use
+  Check with Stripe."
+  ([R-092](RISKS.md#r-092--open-checkout-tabs-can-still-be-paid-for-up-to-60-minutes)).
+- If it fails: the database's sentence (for example, a deposit that is
+  already paid, an amount other than the deposit's, a day in the future
+  or before the check-in); what you entered stays to correct. Covered by
+  `tests/e2e/payments.spec.ts` (a deposit by PayNow).
+
+### Void a counter payment or record it as given back (admins)
+
+- Before you start: you are an admin. BICII moves no money: a give-back
+  happens at the counter first, and is recorded on the day the money goes
+  back.
+- Steps: on the counter row press one of:
+  - **Void (recorded in error)…**: it never came in (a typo, the wrong
+    job). It no longer counts, and Reports leave it out of the day it was
+    taken, as if it never came in. Record it again, with its original
+    date, if it was only wrong.
+  - **Given back…**: the shop handed the money back. It no longer counts
+    on the job; Reports keep it on the day it was taken and show it
+    given back today. To give back only part (for example $400 taken, a
+    $380 bill), record the $400 as **Given back…**, then record the $380
+    kept as a new counter payment dated today, not back-dated, or that
+    day counts twice.
+  Answer "Why was it recorded in error?" or "Why was it given back?",
+  then **Void payment** or **Record as given back** (or **Keep payment**
+  to leave it).
+- Success looks like: a toast "$… voided: recorded in error" or "$…
+  recorded as given back"; the row struck through with "Recorded in error:
+  …" or "Given back: …", who and when; the timeline "Counter payment of $…
+  voided (given back)". A voided deposit is due again.
+- If it fails: "Give a reason."; a payment already voided the other way
+  is refused. Managers see a counter problem in Exceptions, but only an
+  admin voids
+  ([R-090](RISKS.md#r-090--a-counter-payment-rests-on-an-admins-word)).
+  Covered by `tests/e2e/payments.spec.ts` (Given back).
 
 ### Invite a colleague
 
@@ -1272,8 +1473,8 @@ shown as a badge on Settings → Your profile and on Settings → Staff:
 
 | Role | What it lets you do |
 |---|---|
-| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
-| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify or Customer payments |
+| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157), **Record counter payment** and its two voids on a job (D161) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
+| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify, Settings → Customer payments or recording counter payments |
 | Mechanic | The workshop: what everyone can do (next paragraph). Anything more only as extra access |
 
 Everyone signed in can use customers, bikes, photos, jobs and their lines,
@@ -1290,13 +1491,15 @@ Manage staff. A mechanic can have any of them; a manager only Manage staff
 each one **Extra access**. Extra access never includes **Record refund**,
 ordering an indent part before its deposit is paid (D152) or cancelling
 an indent item on a collected or cancelled job (D149), which are for
-admins and managers only. Each permission, whether it comes
+admins and managers only, or recording and voiding counter payments
+(D161), which are for admins only. Anyone signed in can send a payment
+link (D156). Each permission, whether it comes
 from your role or as extra access:
 
 | Permission | What changes for you |
 |---|---|
 | View costs | Cost, yield and Cult Commons on jobs, lines, products, units, movements and sales (the sale sheet's preview and "Below cost" warning); Unit cost on manual lines and adjustments; the Cult Commons rate card; consignment money (balances, amounts owed, charges, payments, item history, agreement photos) read-only |
-| View financial reports | The Money section on Today, and on Reports the figures, date basis, breakdown, line drill-down, stock at cost now and their CSV exports (costs inside them also need View costs) |
+| View financial reports | The Money section on Today, and on Reports the figures, date basis, breakdown, line drill-down, stock at cost now, Customer payments (with **See each payment**) and their CSV exports (costs inside them also need View costs) |
 | Adjust stock | **Adjust stock** on a product; **Restock…** a unit sold on a sale (a consigned one also needs Manage consignments) |
 | Manage inventory | New and edited products and units, **Transfer**, publication, **Publish online** and **Sync now**, services, categories and locations; with Adjust stock also **Split off as unique item** |
 | Manage staff | Settings → Staff: invite (the colleague signs in with an emailed code; no password to hand over), extra access and deactivation (it ends their sessions at once). Without the Admin role: mechanics only, only within your own permissions, never Manage staff and never your own row ([OPERATIONS.md](OPERATIONS.md#product-administration), D93) |
@@ -1319,8 +1522,9 @@ ordered, received and still to come; costs on those screens need View
 costs or Manage purchasing (D60).
 
 Everyone can open Reports and see Activity and jobs by mechanic, and
-export that list; sales, yield and Cult Commons figures need View
-financial reports, and costs inside them View costs (D30).
+export that list; sales, yield and Cult Commons figures and Customer
+payments need View financial reports, and costs inside them View costs
+(D30, D154).
 
 Everyone can open Exceptions and Stock reconciliation and export them;
 unsettled consignments are listed only with Manage consignments or View

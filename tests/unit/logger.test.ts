@@ -74,6 +74,19 @@ describe("logger redaction", () => {
     expect(lines.join("\n")).not.toContain("SECRET_TOKEN");
   });
 
+  it("redacts a payment link at the top level and one level down (step 3; C13)", () => {
+    const { log, lines, last } = capture();
+    const link = "https://admin.example.com/pay/SECRET_TOKEN";
+    log.info({ link, result: { link, amount: "380.00" }, linkId: "l-1" }, "balance link sent");
+    expect(last()).toMatchObject({
+      link: "[redacted]",
+      result: { link: "[redacted]", amount: "380.00" },
+      // Ids are not links: only the `link` key itself is redacted.
+      linkId: "l-1",
+    });
+    expect(lines.join("\n")).not.toContain("SECRET_TOKEN");
+  });
+
   it("still redacts what it redacted before Phase 14", () => {
     const { log, last } = capture();
     log.info({ token: "t", password: "p", authorization: "a", serviceRoleKey: "s" }, "x");

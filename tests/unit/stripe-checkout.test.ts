@@ -510,10 +510,190 @@ describe("startDepositCheckout (D158)", () => {
   });
 });
 
+describe("startDepositCheckout: a balance payment on the job (D156h)", () => {
+  const balanceSession = (gateway: ReturnType<typeof fakeStripe>, paymentId: string) =>
+    gateway.createCheckoutSession(
+      {
+        ...input(paymentId),
+        quoteId: null,
+        kind: "balance",
+        successUrl: `${ORIGIN}/pay/${TOKEN}?balance=returned`,
+        cancelUrl: `${ORIGIN}/pay/${TOKEN}?balance=cancelled`,
+      },
+      `bicii-checkout-${paymentId}`,
+    );
+  const created: Handler = (args) => ({
+    data: [
+      {
+        outcome: "created",
+        payment_id: args.p_payment_id,
+        stripe_checkout_session_id: (args.session as Row).id,
+      },
+    ],
+  });
+
+  it("replace: expire the balance session, record it against its own payment, then create", async () => {
+    // A reopened job whose balance session is still open at Stripe.
+    const gateway = fakeStripe();
+    const bal = await balanceSession(gateway, P3);
+    gateway.calls.length = 0;
+    const { deps, calls, names } = makeDeps({
+      prepare_deposit_checkout: [
+        prepared("replace", { payment_id: P3, stripe_checkout_session_id: bal.id }),
+        prepared("create"),
+      ],
+      record_stripe_read: [readResult("expired")],
+      record_deposit_checkout: [created],
+    });
+    deps.gateway = gateway;
+    expect(await startDepositCheckout(TOKEN, deps)).toEqual({ kind: "redirect", url: SUCCESS });
+    expect(gateway.calls).toEqual([
+      { op: "expire", id: bal.id },
+      { op: "create", key: `bicii-checkout-${P1}` },
+    ]);
+    expect(names()).toEqual([
+      "prepare_deposit_checkout",
+      "record_stripe_read",
+      "prepare_deposit_checkout",
+      "record_deposit_checkout",
+    ]);
+    expect(calls[1].args).toMatchObject({ payment_id: P3, correlation_id: "req-1" });
+    expect((calls[1].args.object as Row).status).toBe("expired");
+    expect(gateway.sessions.get(bal.id)?.status).toBe("expired");
+  });
+
+  it("replace whose session the customer finished first: re-read, record, and ask again", async () => {
+    const gateway = fakeStripe();
+    const bal = await balanceSession(gateway, P3);
+    gateway.complete(bal.id, { paid: false });
+    gateway.calls.length = 0;
+    const { deps, calls } = makeDeps({
+      prepare_deposit_checkout: [
+        prepared("replace", { payment_id: P3, stripe_checkout_session_id: bal.id }),
+        prepared("job_payment_processing", {
+          payment_id: P3,
+          stripe_checkout_session_id: null,
+          expires_at: null,
+        }),
+      ],
+      record_stripe_read: [readResult("pending")],
+    });
+    deps.gateway = gateway;
+    expect(await startDepositCheckout(TOKEN, deps)).toMatchObject({
+      kind: "refused",
+      reason: "job_payment_processing",
+    });
+    expect(gateway.calls.map((c) => c.op)).toEqual(["expire", "retrieve"]);
+    expect((calls[1].args.object as Row).status).toBe("complete");
+  });
+
+  it("replace whose session Stripe cannot find: unavailable, logged, nothing created", async () => {
+    const { deps, gateway, names, lines } = makeDeps({
+      prepare_deposit_checkout: [
+        prepared("replace", {
+          payment_id: P3,
+          stripe_checkout_session_id: `cs_test_fake_${"0".repeat(32)}`,
+        }),
+      ],
+    });
+    expect(await startDepositCheckout(TOKEN, deps)).toEqual({ kind: "unavailable" });
+    expect(gateway.calls.map((c) => c.op)).toEqual(["expire"]);
+    expect(names()).toEqual(["prepare_deposit_checkout"]);
+    expect(lines.join("\n")).toContain("pending checkout session not found at stripe");
+    expectCleanLogs(lines);
+  });
+
+  it("job_payment_processing: stop with its own sentence, without calling Stripe", async () => {
+    const { deps, gateway, names } = makeDeps({
+      prepare_deposit_checkout: [
+        prepared("job_payment_processing", {
+          payment_id: P3,
+          stripe_checkout_session_id: null,
+          expires_at: null,
+        }),
+      ],
+    });
+    expect(await startDepositCheckout(TOKEN, deps)).toEqual({
+      kind: "refused",
+      reason: "job_payment_processing",
+      message: "A payment for this job is being confirmed by Stripe. Try again in a few minutes.",
+    });
+    expect(gateway.calls).toEqual([]);
+    expect(names()).toEqual(["prepare_deposit_checkout"]);
+  });
+
+  it("record says a balance payment won (existing, another payment): expire the new session, then ask again", async () => {
+    const gateway = fakeStripe();
+    const bal = await balanceSession(gateway, P3);
+    gateway.calls.length = 0;
+    const { deps } = makeDeps({
+      prepare_deposit_checkout: [
+        prepared("create"),
+        prepared("replace", { payment_id: P3, stripe_checkout_session_id: bal.id }),
+        prepared("create", { payment_id: P2 }),
+      ],
+      record_deposit_checkout: [
+        { data: [{ outcome: "existing", payment_id: P3, stripe_checkout_session_id: bal.id }] },
+        created,
+      ],
+      record_stripe_read: [readResult("expired")],
+    });
+    deps.gateway = gateway;
+    expect(await startDepositCheckout(TOKEN, deps)).toEqual({ kind: "redirect", url: SUCCESS });
+    const mine = `cs_test_fake_${P1.replace(/-/g, "")}`;
+    expect(gateway.calls).toEqual([
+      { op: "create", key: `bicii-checkout-${P1}` },
+      { op: "expire", id: mine },
+      { op: "expire", id: bal.id },
+      { op: "create", key: `bicii-checkout-${P2}` },
+    ]);
+  });
+
+  it("paid by a counter deposit (no Stripe payment): paid, without calling Stripe", async () => {
+    const { deps, gateway } = makeDeps({
+      prepare_deposit_checkout: [
+        prepared("paid", {
+          payment_id: null,
+          amount: null,
+          amount_cents: null,
+          currency: null,
+          stripe_checkout_session_id: null,
+          expires_at: null,
+        }),
+      ],
+    });
+    expect(await startDepositCheckout(TOKEN, deps)).toEqual({ kind: "paid" });
+    expect(gateway.calls).toEqual([]);
+  });
+
+  it("an unknown outcome from prepare is unavailable and logged, never a redirect", async () => {
+    const { deps, gateway, lines } = makeDeps({
+      prepare_deposit_checkout: [prepared("something_new")],
+    });
+    expect(await startDepositCheckout(TOKEN, deps)).toEqual({ kind: "unavailable" });
+    expect(gateway.calls).toEqual([]);
+    expect(lines.join("\n")).toContain("stripe flow failed");
+  });
+
+  it("the return (confirmDepositReturn) reads replace and job_payment_processing as due, without Stripe", async () => {
+    for (const outcome of ["replace", "job_payment_processing"]) {
+      const { deps, gateway, names } = makeDeps({
+        prepare_deposit_checkout: [
+          prepared(outcome, { payment_id: P3, stripe_checkout_session_id: "cs_test_fake_x" }),
+        ],
+      });
+      expect(await confirmDepositReturn(TOKEN, deps), outcome).toEqual({ state: "due" });
+      expect(gateway.calls).toEqual([]);
+      expect(names()).toEqual(["prepare_deposit_checkout"]);
+    }
+  });
+});
+
 describe("validateRedirect", () => {
   it("live and test: https on checkout.stripe.com only; fake: this Admin's quote page", () => {
-    expect(validateRedirect("https://checkout.stripe.com/c/pay/x", "live", ORIGIN)).toBe(true);
-    expect(validateRedirect("https://checkout.stripe.com/c/pay/x", "test", ORIGIN)).toBe(true);
+    const q = "/quote/";
+    expect(validateRedirect("https://checkout.stripe.com/c/pay/x", "live", ORIGIN, q)).toBe(true);
+    expect(validateRedirect("https://checkout.stripe.com/c/pay/x", "test", ORIGIN, q)).toBe(true);
     for (const bad of [
       null,
       "",
@@ -522,13 +702,13 @@ describe("validateRedirect", () => {
       "https://user@evil.example/x",
       "javascript:alert(1)",
     ]) {
-      expect(validateRedirect(bad, "live", ORIGIN), String(bad)).toBe(false);
+      expect(validateRedirect(bad, "live", ORIGIN, q), String(bad)).toBe(false);
     }
-    expect(validateRedirect(`${ORIGIN}/quote/${TOKEN}?deposit=returned`, "fake", ORIGIN)).toBe(
+    expect(validateRedirect(`${ORIGIN}/quote/${TOKEN}?deposit=returned`, "fake", ORIGIN, q)).toBe(
       true,
     );
-    expect(validateRedirect("https://checkout.stripe.com/c/pay/x", "fake", ORIGIN)).toBe(false);
-    expect(validateRedirect(`${ORIGIN}/jobs/1`, "fake", ORIGIN)).toBe(false);
+    expect(validateRedirect("https://checkout.stripe.com/c/pay/x", "fake", ORIGIN, q)).toBe(false);
+    expect(validateRedirect(`${ORIGIN}/jobs/1`, "fake", ORIGIN, q)).toBe(false);
   });
 });
 

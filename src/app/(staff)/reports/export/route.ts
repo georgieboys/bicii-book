@@ -25,7 +25,8 @@ import { createClient } from "@/lib/supabase/server";
  * A7): GET /reports/export?kind=…&period=…&date=…|from=…&to=…&basis=…&by=…
  * (&key=… for one group's lines); the Phase 9 step 4 snapshot kinds
  * exceptions, stock and units (&all=1, &product=<uuid> for the last two)
- * ignore the period.
+ * ignore the period, as does Phase 14's payments_held (D154c); Phase 14's
+ * payments (D154b) reads the period but not the basis.
  *
  * The app's first Route Handler. It is a public endpoint as far as Next is
  * concerned and the (staff) layout does not run for it: proxy.ts sends a

@@ -2,8 +2,8 @@ import Image from "next/image";
 
 /**
  * Pages for the shop's customers inside the Admin (Phase 13 step 3: the
- * quote page, D143). No staff shell, no navigation into the Admin: the
- * brand, then the page, on paper.
+ * quote page, D143; Phase 14 step 3: the payment link, D156f). No staff
+ * shell, no navigation into the Admin: the brand, then the page, on paper.
  */
 export default function CustomerLayout({ children }: LayoutProps<"/">) {
   return (

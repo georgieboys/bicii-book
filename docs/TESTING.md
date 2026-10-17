@@ -1159,7 +1159,9 @@ never carry the token, a URL or `/quote/`); `quote-page.test.ts` (the
 refused, `answeredNext`'s sentence per status with and without the parts
 ordered, and "Ask the shop about your deposit." once the job closed
 without them (R-082; not for a refunded deposit), `depositReturn`, and the
-`quote-pay:` buckets at 10 per client and per token);
+`quote-pay:` buckets at 10 per client and per token; the payment page's
+`balance-view:` (60) and `balance-pay:` (10) buckets are in
+`balance-page.test.ts`, step 3 below);
 `deposit-components.test.tsx` (Pay deposit resets on a `pageshow` from
 the back-forward cache; the return drops `?deposit=returned` once the
 check settles it or the minute is up, and its last sentence depends on
@@ -1185,7 +1187,8 @@ percent labels; `depositBlockedIds`, the SQL gate's mirror: due,
 processing, refunded and none block, paid and unknown do not;
 `depositStates` (a request on a paid and a due quote is due, either
 order); `depositPercentRefusal` (D157a: above 0 refused while Stripe is
-off, 0 always allowed); `paidOnlineSummary` (paid online, still to pay,
+off, 0 always allowed); `paidSummary` (then `paidOnlineSummary`, renamed
+in step 3; paid online, still to pay,
 paid ahead, nothing when the net is 0; `moreThanBill` only on a closed
 job with `heldOverTotal` above 0); `collectedNotes` (one item, three
 items, still to pay, none) and `heldOverSentence` (closed and above 0
@@ -1225,6 +1228,80 @@ and `workshop-timeline.test.ts` (the four new timeline types: a payment
 link sent by channel and amount, withdrawn with its reason, a counter
 payment or deposit recorded with its method, a void given back or
 recorded in error with its reason).
+
+Phase 14 step 3's app (PR B; D154, D156, D161; built on
+`claude/brave-clarke-kfqhgt`, not merged). New files:
+`stripe-balance-checkout.test.ts` (48 tests, the in-memory Stripe and
+scripted RPCs: `startBalanceCheckout` for every `prepare_balance_checkout`
+outcome (create passes Postgres's cents and expiry through, the row's
+`amount` disagreeing with its cents on purpose; check reused only while
+open and more than 120 s from expiry; replace expires and records the
+named session; processing stops; nothing_due expires a returned session)
+and every `record_balance_checkout` outcome (created, existing for this
+and another payment, stale, nothing_due, mismatch with no retry), the
+refusals and their sentences, Stripe off, live mode, the 30 s budget and
+three attempts; `validateRedirect` refusing the other flow's page, dot
+segments and `%2e%2e` included;
+`confirmBalanceReturn` never creating or expiring; `expireOpenCheckouts`'
+filters (that quote's deposit and any balance; balance only without a
+quote), its paid, expired and failed counts, and that it never throws);
+`balance-page.test.ts` (the token shape, the two pinned key sets with
+extra keys dropped, money kept as strings, every notice and payment note,
+`?balance=`, and the `balance-view` and `balance-pay` buckets: prefixes,
+the 200-character cap, nothing in clear, the salt apart from the quote
+page's); `customer-headers.test.ts` (Next's own
+`unstable_getResponseFromNextConfig`: `/pay/<token>`, its
+`?balance=returned|cancelled` and `/quote/<token>` get no-referrer,
+noindex and `private, no-store`; staff paths keep only the catch-all);
+`pay-page.test.tsx` (the async page: shape before the count, the count
+before the read, each state's words, no Pay or privacy line on a closed
+link, due with Stripe on and off, cancelled and returned);
+`balance-components.test.tsx` (`PayBalanceButton` resets on `pageshow`;
+`BalanceReturn` and `ReturnSlot`: one check, 1 + 12 refreshes, the
+outcome kept over a later notice, the marker dropped; paid but read again
+still due at another balance shows the line and Pay together, and only
+the line before that read; a check that found nothing stops confirming
+once the bill is read again at another balance);
+`balance-actions.test.ts` (the token checked, then the limit, then
+Stripe; each outcome mapped; the token never logged);
+`link-throttle.test.ts` (both pages' keys, window, fail-open and log
+lines); `payment-actions.test.ts` (send link: any staff, ADMIN_ORIGIN +
+`/pay/`, refused while Stripe is off, the email rules, expiry only when a
+link was replaced; counter: admin only, works with Stripe off, expiry
+with the quote whenever `open_checkouts` is above 0, a replay included,
+and none with nothing open, the two notes; void: admin only,
+nothing expired); `payment-sheets.test.tsx` (`SendBalanceLinkSheet`'s
+channels and replaces line, live or already expired,
+`BalanceLinkSentSheet`'s alerts, `CounterPaymentSheet`'s choices, fixed
+deposit amount, prefill, warnings, two-step commit and dates, the cap
+before the confirm step and focus on the first invalid field after a
+refusal); `payment-step3.test.ts` (labels, warnings,
+notes, `linkLine`, `payPath`, `canSendLink`, the message and email,
+`counterReceivedAt`, `depositBadge`); `balance-email.test.ts` (the key
+`balance-<link id>`, off sends nothing, the failure log holds no token,
+address or amount); `payment-reports.test.ts` (labels, copy,
+`movementCount`, `heldGroups`' order and exact display totals, the cursor);
+`payment-report-readers.test.ts` (the mappers, the RPC arguments, the
+keyset page, the export pager's count check and retry, too_large before
+any page); `payment-sections.test.tsx` (the tiles, notes, held regions
+and the list and table cells). Extended: `stripe-checkout.test.ts` (the
+deposit flow's `replace` and `job_payment_processing`), `logger.test.ts`
+(`link` redacted, `linkId` kept), `proxy-matcher.test.ts` and
+`auth-helpers.test.ts` (`/pay/` public), `deposit-components.test.tsx`
+(the privacy line), `job-payments.test.ts` (counter payments, voids,
+names, the live link without its hash, counter issues),
+`payments.test.ts` (`paidSummary`, the renamed `paidOnlineSummary`, for
+counter-only, mixed and processing jobs, and `nothingLeft` only when
+balance_due is 0 with nothing paid ahead; `collectedNotes`, with "Nothing
+is left to pay; take nothing." and no "Take only" while Stripe is
+confirming a payment, also when nothing else is paid);
+`heldOverSentence` by source), `payments-card.test.tsx` (the render rule,
+header actions, totals, the link line, "Part of the balance", issue keys,
+both voids and Keep payment), `job-status-actions.test.tsx`,
+`workshop-timeline.test.ts`, `consignment.test.ts`
+(`canRecordCounterPayment`), `staff-roles-screens.test.ts` and
+`report-exports.test.ts` (the `payments` and `payments_held` kinds,
+permissions, headers, rows and file names).
 
 ### Database (SPEC §27.2 and §23)
 
@@ -1529,7 +1606,35 @@ Commons (the role implies View costs, D91). **mechanic2** sees Activity
 and the permission sentence, no Gross sales and no basis control; the
 breakdown export answers 403 "Forbidden", `/reports/lines` the 403 screen
 with a 403 status (no `loading.tsx` above it), and `kind=mechanics` a
-200 CSV.
+200 CSV; since Phase 14 step 3 also no "Customer payments" heading, a 403
+on `/reports/payments` and 403 on both payment exports. **Customer
+payments** (Phase 14 step 3, D154): the test makes its own data as the
+admin through `signInApi` and the real RPCs, on today's shop day
+(`shopToday()`, not the seed's anchor, since the payments are dated now):
+a customer and three bikes inserted through RLS (`insert` in
+`tests/e2e/api.ts`), three jobs of one Wheel True ($35.00) through
+`create_work_order`, $50.00 and $10.00 cash on the open one (the $10.00
+then `void_counter_payment` given back), $20.00 PayNow on one completed
+through `set_work_order_status`, $50.00 by card on one then collected.
+Other specs record payments on the same day, so it reads Recorded at the
+counter, Given back at the counter and Net taken before and after, and
+asserts the change: +$130.00 and 4 payments, +$10.00 and 1, +$120.00;
+then the two notes, no basis control in the section, the basis sentence,
+each held list's "Total $… · n jobs", the open job under Paid on open
+jobs ($50.00, "Paid at the counter · Paid ahead $15.00"), the completed
+one under awaiting collection ($20.00, "Still to pay $15.00"), the
+collected one under Paid above the bill ($15.00, "Paid $50.00 of a
+$35.00 bill"), each in its own list only, no horizontal scroll; the
+payments CSV (`bicii-payments-<day>_<day>.csv`, its header, the open
+job's three movements `counter_payment` 50.00 and 10.00 and
+`counter_given_back` -10.00, the collected job's one `card,50.00,SGD`)
+and the held CSV (`bicii-payments_held-<day>.csv`, its header, the three
+jobs' groups and statuses); **See each payment** opens
+`/reports/payments` with h1 "Customer payments", the open job's three
+rows in the list (the table is hidden below 1024 px; both projects are
+below it), the give-back as −$10.00 and "Recorded …", no horizontal
+scroll, and the back link returns to `#reports-payments`. Passes with
+`E2E_RESET=0` too.
 
 Exceptions and reconciliation spec (`exceptions.spec.ts`, Phase 9 step 4,
 D106–D108; phone and iPad). Setup in `beforeAll`, as the admin through
@@ -2223,14 +2328,14 @@ Pay again returns to the same URL and SQL still has the one pending
 payment with the same session; the job shows "Checkout open" and **Check
 with Stripe** toasts "Nothing new from Stripe."; a signed completion for
 11999 cents then shows "Stripe received $119.99, not the $120.00 asked."
-as the card's problem, a "Paid online $119.99" link under the Lines
+as the card's problem, a "Paid $119.99" link under the Lines
 total, and on Exceptions one row for the job whose sentence appears once,
 in full (not clipped by an ellipsis; on the phone it wraps to more than
 one line), with "Open the job's Customer payments" under it. Test 4, "a
 deposit for parts not fitted" (R-082, D149, D149b): the deposit paid
 through the fake and a signed completion; the Lines memo reads "Approved,
 not on the bill yet: 2 items, $275.00. Fit them to bill them." beside
-"Paid online $120.00" and "Paid ahead $120.00"; **Start work**, then
+"Paid $120.00" and "Paid ahead $120.00"; **Start work**, then
 **Complete…** opens "Before completing J-…" listing "2 × <part> ·
 $240.00" with **Deposit paid** and Wheel True, **Complete job** disabled;
 **Back** leaves the job in progress. The job is then completed and
@@ -2247,7 +2352,7 @@ your parts"); mechanic1, in their own context, sees "Not fitted" and no
 **Cancel**; the admin's **Cancel** sheet says to refund any deposit in
 Stripe, the reason cancels it (the row goes, the job stays Collected, the
 problem becomes "…every part it was for is cancelled…"), and a signed full
-refund clears the problem and the "Paid online" line, so later specs see
+refund clears the problem and the "Paid …" line under the Lines total, so later specs see
 no new exception. Test 5, "a quote left unanswered on a job closed before
 the guard" (D149): the job completed and collected the same way with
 both triggers off, so its quote stays open: "…so the customer can't
@@ -2257,7 +2362,53 @@ withdraws it.", the admin's **Cancel** sheet says cancelling it withdraws
 that quote, the toast reads "<part> cancelled. The quote was withdrawn.",
 the quote line "The last quote was withdrawn.", Wheel True is back to
 "Proposed", the job stays Collected, and the customer's link says "The
-shop replaced or withdrew this quote." `E2E_REUSE_SERVER=1`
+shop replaced or withdrew this quote." Test 6 (Phase 14 step 3, D156),
+"a payment link: sent on a completed job, the bill without serials, paid
+through Stripe (fake) and a signed webhook, and Collected takes nothing":
+a unique frame with a serial ($100.00, New product → Unique) is added to
+a job with Wheel True; the staff row shows the serial; **Start work**,
+**Complete**; **Send payment link** shows "Still to pay $135.00" and
+**Copy link** chosen (the intake customer has no mobile number: "No
+WhatsApp: …"); **Create link** gives a `/pay/<43 characters>` link and
+"It asks $135.00 now and works until …"; the card's link line and the
+timeline "Payment link for $135.00 sent". The customer, signed out: the
+document answers with no-referrer, noindex and `private, no-store`, the
+title "Your bill · BICII", "Job J-…", "Hi Intake, here is your bill", two
+lines, Job total, Paid so far $0.00 and Balance due $135.00, never the
+serial, the unit's U- number or "S/N", and the privacy line; **Pay
+$135.00** returns at once to `?balance=returned` with the same headers
+and "Thanks. We're confirming your payment with Stripe…"; SQL shows one
+pending `balance` payment of 13500 cents with no quote; a signed
+`checkout.session.completed` (`kind: "balance"`, no quote) answers
+`duplicate: false`; the page's own refreshes then read "Nothing is left
+to pay. Thank you.", Paid so far $135.00, Balance due $0.00, no Pay, and
+the address drops the marker. The job: "Balance Paid", Paid online
+$135.00, Still to pay $0.00, no **Send payment link**, the Lines link
+"Paid $135.00", the timeline "Balance of $135.00 paid online"; **Ready
+for collection**, **Collected…** says "$135.00 was paid online. Nothing
+is left to pay; take nothing." and never "Take only"; Mark collected; the timeline "Payment link stopped (collected)"
+and the customer's page "This payment link was replaced or stopped. Ask
+the shop for a new one." without the bill. Test 7 (D161), "an admin
+records a deposit taken at the counter, the part can be ordered, and the
+money is recorded as given back": on a 50% quote answered by the customer
+(Deposit due), **Record counter payment** first warns, towards the bill,
+"The customer's quote page still asks the full $120.00 deposit online.
+…"; choosing "Record the $120.00 deposit for the quote answered …" fixes
+the amount and clears the warning; PayNow and a reference; **Record
+$120.00 by PayNow…**, then the group "Record $120.00 by PayNow?" (focus
+on Back, "as the deposit on J-…?") and **Record $120.00**; the toast;
+Deposit paid, the "At the counter" row "Deposit $120.00, PayNow" with
+"Ref …" and "recorded by", Paid at the counter $120.00, the timeline
+"Deposit of $120.00 taken at the counter (PayNow)"; the part no longer
+"Deposit due" and the order sheet lists it ticked with **Add to order**
+enabled and no callout (cancelled without ordering); the customer's page
+"Deposit of $120.00 paid. Thank you." with no Pay. **Given back…** hides
+the other void, says "BICII moves no money: give it back first.", and
+with a reason and **Record as given back** toasts "$120.00 recorded as
+given back"; the row reads "Given back: …" with no buttons, the timeline
+"Counter payment of $120.00 voided (given back)", the deposit and the
+part are Deposit due again and the customer's page offers **Pay $120.00
+deposit** again. `E2E_REUSE_SERVER=1`
 reuses a server started elsewhere, so `playwright.config.mts`'s Stripe
 variables do not apply to it: start that server with the same
 `STRIPE_ADAPTER`, `STRIPE_WEBHOOK_SECRET` and `ADMIN_ORIGIN`, or
@@ -2311,7 +2462,16 @@ database, signed in as the seeded admin and mechanic:
    collected with it before the guard (built in SQL) it is shown as not
    billed, an admin cancels it and the refund clears its problem (R-082,
    D149); a quote left unanswered on such a job is withdrawn by the
-   admin's cancel of its item (D149).
+   admin's cancel of its item (D149). Phase 14 step 3 adds: on a completed
+   job staff send a payment link (Copy link) → the customer's page shows
+   the bill without the unit's serial or number, under no-referrer,
+   noindex and no-store (and its return URL) → Pay through the fake and a
+   signed webhook → the card shows the balance paid, Collected says take
+   nothing, Collected stops the link (D156); an admin records a counter
+   deposit on a due quote → the order sheet no longer holds the part back
+   → the admin records it as given back and the deposit is due again
+   (D161); Reports shows the Customer payments figures and the money held
+   on jobs now, each payment and both CSVs (`reports.spec.ts`, D154).
 
 ## Seed data
 

@@ -17,7 +17,9 @@ const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 import { ConfirmingPayment } from "@/app/(customer)/quote/[token]/confirming-payment";
+import { DepositCard } from "@/app/(customer)/quote/[token]/deposit-card";
 import { PayDepositButton } from "@/app/(customer)/quote/[token]/pay-deposit-button";
+import { STRIPE_PRIVACY_LINE } from "@/app/(customer)/stripe-privacy-line";
 
 const TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde";
 
@@ -111,5 +113,55 @@ describe("ConfirmingPayment", () => {
       "If you didn't finish, you can pay below.",
     );
     expect(screen.getByRole("button", { name: "Pay $120.00 deposit" })).toBeVisible();
+    expect(screen.getByText(STRIPE_PRIVACY_LINE)).toBeVisible();
+  });
+});
+
+describe("DepositCard: the privacy line under Pay (the privacy notice names Stripe)", () => {
+  const deposit = (status: "due" | "paid" | "processing" | "refunded") => ({
+    percent: 50,
+    amount: "120.00",
+    status,
+    parts_ordered: false,
+    job_closed: false,
+  });
+
+  it("says Stripe takes the payment on its own page, under Pay only", () => {
+    window.history.replaceState(null, "", `/quote/${TOKEN}`);
+    const { unmount } = render(
+      <DepositCard
+        token={TOKEN}
+        deposit={deposit("due")}
+        currency="SGD"
+        payOnline
+        returning={null}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Pay $120.00 deposit" })).toBeVisible();
+    expect(screen.getByText(STRIPE_PRIVACY_LINE)).toBeVisible();
+    expect(STRIPE_PRIVACY_LINE).toBe(
+      "Payments are taken by Stripe on its own page, so Stripe's privacy policy applies to them; BICII never sees or keeps your card details.",
+    );
+    unmount();
+
+    for (const [status, payOnline] of [
+      ["due", false],
+      ["paid", true],
+      ["processing", true],
+      ["refunded", true],
+    ] as const) {
+      const card = render(
+        <DepositCard
+          token={TOKEN}
+          deposit={deposit(status)}
+          currency="SGD"
+          payOnline={payOnline}
+          returning={null}
+        />,
+      );
+      expect(screen.queryByRole("button"), status).toBeNull();
+      expect(screen.queryByText(STRIPE_PRIVACY_LINE), status).toBeNull();
+      card.unmount();
+    }
   });
 });

@@ -1205,8 +1205,42 @@ payment nobody can make), then remove the keys and redeploy.
   way, which withdraws the quote. The production test job of
   2026-10-15 (J-000002) is closed out this way once the change is
   deployed.
+- **"The deposit of $… was paid online and at the counter."**
+  (`paid_online_and_counter`, Phase 14 step 3, D161): an admin recorded
+  the deposit at the counter and the customer also paid it online. Decide
+  with the customer which to keep: refund the online payment in the
+  Dashboard (*Open in Stripe*), or, if the counter money was handed back,
+  an admin presses **Given back…** on the counter row. The issue clears
+  when either lands.
+- **"$… more than this job's bill of $… has been paid."**
+  (`paid_above_bill`, D161): a completed, ready or collected job holds at
+  least S$0.50 above its bill (online and counter together). Refund the
+  extra in the Dashboard, or give the counter money back at the counter
+  and have an admin record it: **Given back…** on the counter payment,
+  then, for a partial give-back, a new counter payment for the amount
+  kept, dated today (not back-dated, or that day counts twice). If the
+  customer agrees the money counts towards other work, note that on the
+  job's timeline instead.
+- **An open Stripe page after a counter payment** ("An online payment
+  page may still be open for this job; use Check with Stripe.", or "…has
+  just gone through…";
+  [R-092](RISKS.md#r-092--open-checkout-tabs-can-still-be-paid-for-up-to-60-minutes)):
+  recording a counter payment, or sending a new link, closes the job's
+  open Checkout sessions at Stripe where it can. When it could not (Stripe
+  unreachable or off), the customer's page stays payable until its
+  session expires (60 minutes at most). Press *Check with Stripe* on the
+  card's "Checkout open" payment; if the customer paid anyway, the card
+  shows it paid and one of the issues above: refund it in Stripe or give
+  the counter money back.
+- **A payment link the customer says stopped working**: it was replaced,
+  the job was reopened or collected, or it expired (the card shows the
+  live link's line, or none). Send a new one from the card. A link is
+  shown once; a lost link cannot be read back.
 - **Refunds** are made in the Stripe Dashboard and appear on the job on
-  their own from `refund.*` events (D155).
+  their own from `refund.*` events (D155). **Counter money is given back
+  outside BICII** (cash from the till, the shop's terminal or its own
+  PayNow): BICII moves no money; an admin then records it with **Given
+  back…** on the counter row, on the day the money went back (D161d).
 - **Disputes** are handled in the Dashboard; BICII does not record them
   ([R-089](RISKS.md#r-089--what-bicii-does-not-record-or-cannot-apply-from-stripe)).
   Note the outcome on the job.
@@ -1244,6 +1278,19 @@ here (date, result):
     above), *Check with Stripe* on a paid test payment that has a refund
     reports no error (it lists the refunds), and on a Checkout left
     "Being confirmed" it reads the PaymentIntent.
+11. A balance rehearsal (Phase 14 step 3, D156): complete a test job,
+    **Send payment link** with **Copy link**, open it in a private window
+    (the page and its `?balance=returned` return answer with
+    `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex` and
+    `Cache-Control: private, no-store`), pay by card in test mode, and
+    check that the card shows the balance **Paid** and the page "Nothing
+    is left to pay. Thank you."; the session's metadata names
+    `bicii_kind: balance` and no quote.
+12. On another test job, press Pay on the link and leave Stripe's page
+    open; send a new link: the old link reads "replaced or stopped" and
+    the Dashboard shows its session expired. Press Pay again on the new
+    link, leave it open, then record a counter payment as an admin: that
+    session is expired too, and the sheet says nothing more (or says why).
 
 ## Label printers
 

@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import {
   PERMISSION_LABELS,
   ROLE_DESCRIPTIONS,
+  canRecordCounterPayment,
   canRecordRefund,
   isExceptionFor,
 } from "@/lib/auth/permissions";
@@ -44,14 +45,16 @@ function Capability({
  * The signed-in person's role and what it lets them do (PLAN D90-D94): the
  * role's one line, every effective permission (an exception on top of the
  * role marked "Extra access", D92), refunds for admins and managers (D94)
- * and, for admins, the admin-only settings (D91). The database enforces
+ * and, for admins, counter payments (D161a) and the admin-only settings
+ * (D91). The database enforces
  * each of these again; this page only explains them.
  */
 export default async function ProfilePage() {
   const staff = await requireStaff();
   const admin = staff.role === "admin";
   const refunds = canRecordRefund(staff);
-  const nothingExtra = staff.permissions.length === 0 && !refunds && !admin;
+  const counter = canRecordCounterPayment(staff);
+  const nothingExtra = staff.permissions.length === 0 && !refunds && !counter && !admin;
   return (
     <>
       <PageHeader eyebrow="Settings" title={staff.displayName} description={staff.email} />
@@ -76,6 +79,12 @@ export default async function ProfilePage() {
               <Capability
                 label="Record refunds"
                 description="Give money back on a retail sale, with a reason. Admins and managers."
+              />
+            ) : null}
+            {counter ? (
+              <Capability
+                label="Record counter payments"
+                description="Record money the shop took at the counter on a job, and void one recorded in error or given back. Admins only."
               />
             ) : null}
             {admin ? (

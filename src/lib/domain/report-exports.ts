@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getAllPaymentItemsForExport, getPaymentsHeld } from "@/lib/domain/payment-reports";
 import { ExportError } from "@/lib/domain/period-reports";
 import {
   getActivityByMechanic,
@@ -47,7 +48,10 @@ function wholeReconciliation<T>(rows: T[]): T[] {
  * The rows of each export kind (src/lib/report-exports.ts EXPORT_KINDS).
  * Typed per kind, so a kind added there fails typecheck until it has a
  * fetcher here. Every money figure and total comes from the step 1 RPCs;
- * the breakdown's TOTAL row is report_period_summary's row.
+ * the breakdown's TOTAL row is report_period_summary's row. The Customer
+ * payments kinds (D154) read report_payment_items (every movement of the
+ * period, checked against report_payment_summary's counts) and
+ * report_payments_held (now, any period).
  */
 export const EXPORT_FETCHERS: {
   readonly [K in ExportKind]: (
@@ -110,5 +114,11 @@ export const EXPORT_FETCHERS: {
         productId: q.productId ?? null,
       }),
     );
+  },
+  async payments(supabase, q) {
+    return getAllPaymentItemsForExport(supabase, { from: q.from, to: q.to });
+  },
+  async payments_held(supabase) {
+    return getPaymentsHeld(supabase);
   },
 };

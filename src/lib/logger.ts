@@ -49,6 +49,10 @@ export const loggerOptions: LoggerOptions = {
       "*.webhookSecret",
       'headers["stripe-signature"]',
       '*.headers["stripe-signature"]',
+      // Phase 14 step 3: a balance payment link is a bearer link to the
+      // customer's bill (R-091); the send action's result carries it.
+      "link",
+      "*.link",
     ],
     censor: "[redacted]",
   },

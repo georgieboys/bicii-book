@@ -111,9 +111,26 @@ describe("role change wording", () => {
     expect(s.lost).toEqual([]);
   });
 
-  it("admin to manager: Manage staff and the admin settings go, refunds stay", () => {
+  it("admin to manager: Manage staff, counter payments and the admin settings go, refunds stay", () => {
     const s = roleChangeSummary("admin", "manager", []);
-    expect(s.lost).toEqual(["Manage staff", "Admin settings"]);
-    expect(s.lines).toContain("They will no longer have Manage staff and Admin settings.");
+    expect(s.lost).toEqual(["Manage staff", "Record counter payments", "Admin settings"]);
+    expect(s.lines).toContain(
+      "They will no longer have Manage staff, Record counter payments and Admin settings.",
+    );
+  });
+
+  it("admin to mechanic: counter payments go with refunds (D161a)", () => {
+    const s = roleChangeSummary("admin", "mechanic", []);
+    expect(s.lost.slice(-3)).toEqual([
+      "Record refunds",
+      "Record counter payments",
+      "Admin settings",
+    ]);
+  });
+
+  it("to admin: what admins have names counter payments", () => {
+    expect(roleChangeSummary("manager", "admin", []).lines[0]).toBe(
+      "Admins have every permission, manage staff and roles, change the shop settings, and can record refunds and counter payments.",
+    );
   });
 });

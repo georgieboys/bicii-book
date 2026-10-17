@@ -1229,8 +1229,8 @@ link sent by channel and amount, withdrawn with its reason, a counter
 payment or deposit recorded with its method, a void given back or
 recorded in error with its reason).
 
-Phase 14 step 3's app (PR B; D154, D156, D161; built on
-`claude/brave-clarke-kfqhgt`, not merged). New files:
+Phase 14 step 3's app (PR B; D154, D156, D161; merged in PR #36, whose
+CI and full E2E run passed on edd4603). New files:
 `stripe-balance-checkout.test.ts` (48 tests, the in-memory Stripe and
 scripted RPCs: `startBalanceCheckout` for every `prepare_balance_checkout`
 outcome (create passes Postgres's cents and expiry through, the row's

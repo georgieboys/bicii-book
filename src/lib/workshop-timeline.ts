@@ -73,6 +73,15 @@ const DETAIL_FIELDS: Record<string, string> = {
   completion_notes: "Completion notes",
 };
 
+/** How a counter payment's method reads (D161b). */
+const COUNTER_METHODS: Record<string, string> = {
+  cash: "cash",
+  card: "card terminal",
+  paynow: "PayNow",
+  bank_transfer: "bank transfer",
+  other: "other",
+};
+
 function joinWords(words: string[]): string {
   if (words.length <= 1) return words[0] ?? "";
   return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
@@ -364,6 +373,55 @@ export function describeEvent(
             : "A refund failed in Stripe",
         detail: total !== null ? `${formatMoney(total, refundCurrency)} refunded in total` : null,
         tone: "danger",
+      };
+    }
+    // Phase 14 step 3 (D156): a balance link. Its amount is what was left
+    // to pay when it was sent; the payment page always reads the live one.
+    case "balance_link_sent": {
+      const asked = amount(p, "amount");
+      const channel =
+        p.channel === "whatsapp" ? " by WhatsApp" : p.channel === "email" ? " by email" : "";
+      return {
+        title: `Payment link sent${channel}${asked !== null ? ` for ${formatMoney(asked, currency)}` : ""}`,
+        detail: null,
+        tone: "info",
+      };
+    }
+    case "balance_link_withdrawn": {
+      const why =
+        p.reason === "replaced"
+          ? "A new link replaced it"
+          : p.reason === "reopened"
+            ? "The job was reopened"
+            : p.reason === "collected"
+              ? "The bike was collected"
+              : null;
+      return { title: "Payment link withdrawn", detail: why, tone: "neutral" };
+    }
+    // Phase 14 step 3 (D161): money the shop took itself, recorded by an
+    // admin; a void is the only correction (BICII moves no money).
+    case "counter_payment_recorded": {
+      const what = p.kind === "deposit" ? "Deposit" : "Payment";
+      const paid = amount(p, "amount");
+      const method = COUNTER_METHODS[String(p.method)];
+      return {
+        title: `${what}${paid !== null ? ` of ${formatMoney(paid, currency)}` : ""} recorded at the counter${method ? ` (${method})` : ""}`,
+        detail: null,
+        tone: "done",
+      };
+    }
+    case "counter_payment_voided": {
+      const paid = amount(p, "amount");
+      const what = `Counter payment${paid !== null ? ` of ${formatMoney(paid, currency)}` : ""}`;
+      return {
+        title:
+          p.void_kind === "given_back"
+            ? `${what} given back`
+            : p.void_kind === "recorded_in_error"
+              ? `${what} voided: recorded in error`
+              : `${what} voided`,
+        detail: text(p, "reason"),
+        tone: "neutral",
       };
     }
     default: {

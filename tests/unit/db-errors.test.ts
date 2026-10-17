@@ -379,6 +379,51 @@ describe("mapDbError", () => {
     ).toBe("A rejected Stripe delivery keeps no body.");
   });
 
+  it("maps the counter payment and balance link errors, keys and checks (Phase 14 step 3, D156, D161)", () => {
+    expect(mapDbError(pgrst("P0001", "counter_deposit_amount"))).toMatchObject({
+      kind: "business",
+      reason: "counter_deposit_amount",
+      message:
+        "A counter deposit must be the deposit's exact amount. Record any other amount towards the bill.",
+    });
+    expect(mapDbError(pgrst("P0001", "counter_payment_stripe_processing")).message).toBe(
+      "Stripe is still confirming an online payment on this job. Press Check with Stripe first.",
+    );
+    expect(mapDbError(pgrst("P0001", "counter_payment_too_old")).message).toBe(
+      "A counter payment can't be dated more than 30 days ago.",
+    );
+    expect(mapDbError(pgrst("P0001", "balance_link_not_ready")).message).toBe(
+      "A payment link can be sent once the job is completed.",
+    );
+    expect(mapDbError(pgrst("P0001", "balance_too_small")).message).toMatch(
+      /^Less than \S*0\.50 is left to pay, too little for a payment link\.$/,
+    );
+    expect(mapDbError(pgrst("P0001", "balance_link_expired")).message).toBe(
+      "This link has expired. Ask the shop for a new one.",
+    );
+    expect(
+      mapDbError({ code: "23505", message: "dup", constraint: "payments_one_open_balance" }),
+    ).toMatchObject({
+      kind: "duplicate",
+      message: "A payment of this job's balance is already open.",
+    });
+    expect(
+      mapDbError(
+        pgrst(
+          "23514",
+          'new row for relation "counter_payments" violates check constraint "counter_payments_amount_check"',
+        ),
+      ).message,
+    ).toMatch(/^A counter payment must be more than \S*0\.00 and at most \S*999,999\.99\.$/);
+    expect(
+      mapDbError({
+        code: "23514",
+        message: "check",
+        constraint: "counter_payment_voids_reason_check",
+      }).message,
+    ).toBe("Give a reason, under 500 characters.");
+  });
+
   it("maps numeric overflow (22003) to a plain message", () => {
     expect(mapDbError(pgrst("22003", "numeric field overflow"))).toEqual({
       message: "That amount is too large.",

@@ -312,6 +312,94 @@ export type Database = {
           },
         ];
       };
+      balance_links: {
+        Row: {
+          amount_at_send: number;
+          channel: Database["public"]["Enums"]["quote_channel"];
+          created_at: string;
+          expires_at: string;
+          id: string;
+          replaced_by: string | null;
+          sent_by: string;
+          token_hash: string;
+          valid_days: number;
+          withdrawn_at: string | null;
+          withdrawn_reason: string | null;
+          work_order_id: string;
+        };
+        Insert: {
+          amount_at_send: number;
+          channel: Database["public"]["Enums"]["quote_channel"];
+          created_at?: string;
+          expires_at: string;
+          id: string;
+          replaced_by?: string | null;
+          sent_by: string;
+          token_hash: string;
+          valid_days?: number;
+          withdrawn_at?: string | null;
+          withdrawn_reason?: string | null;
+          work_order_id: string;
+        };
+        Update: {
+          amount_at_send?: number;
+          channel?: Database["public"]["Enums"]["quote_channel"];
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          replaced_by?: string | null;
+          sent_by?: string;
+          token_hash?: string;
+          valid_days?: number;
+          withdrawn_at?: string | null;
+          withdrawn_reason?: string | null;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "balance_links_replaced_by_fkey";
+            columns: ["replaced_by"];
+            isOneToOne: false;
+            referencedRelation: "balance_links";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "balance_links_sent_by_fkey";
+            columns: ["sent_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "balance_links_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "balance_links_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "balance_links_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "balance_links_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       bike_ownership_events: {
         Row: {
           actor_staff_id: string | null;
@@ -954,6 +1042,150 @@ export type Database = {
             columns: ["customer_id"];
             isOneToOne: false;
             referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      counter_payment_voids: {
+        Row: {
+          counter_payment_id: string;
+          kind: Database["public"]["Enums"]["counter_void_kind"];
+          reason: string;
+          voided_at: string;
+          voided_by: string;
+        };
+        Insert: {
+          counter_payment_id: string;
+          kind: Database["public"]["Enums"]["counter_void_kind"];
+          reason: string;
+          voided_at?: string;
+          voided_by: string;
+        };
+        Update: {
+          counter_payment_id?: string;
+          kind?: Database["public"]["Enums"]["counter_void_kind"];
+          reason?: string;
+          voided_at?: string;
+          voided_by?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "counter_payment_voids_counter_payment_id_fkey";
+            columns: ["counter_payment_id"];
+            isOneToOne: true;
+            referencedRelation: "counter_payments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "counter_payment_voids_counter_payment_id_fkey";
+            columns: ["counter_payment_id"];
+            isOneToOne: true;
+            referencedRelation: "quote_deposits";
+            referencedColumns: ["counter_payment_id"];
+          },
+          {
+            foreignKeyName: "counter_payment_voids_voided_by_fkey";
+            columns: ["voided_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      counter_payments: {
+        Row: {
+          amount: number;
+          created_at: string;
+          currency: string;
+          id: string;
+          kind: Database["public"]["Enums"]["payment_kind"];
+          method: Database["public"]["Enums"]["counter_payment_method"];
+          note: string | null;
+          quote_id: string | null;
+          received_at: string;
+          recorded_by: string;
+          reference: string | null;
+          request_fingerprint: string;
+          work_order_id: string;
+        };
+        Insert: {
+          amount: number;
+          created_at?: string;
+          currency?: string;
+          id: string;
+          kind: Database["public"]["Enums"]["payment_kind"];
+          method: Database["public"]["Enums"]["counter_payment_method"];
+          note?: string | null;
+          quote_id?: string | null;
+          received_at: string;
+          recorded_by: string;
+          reference?: string | null;
+          request_fingerprint: string;
+          work_order_id: string;
+        };
+        Update: {
+          amount?: number;
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          kind?: Database["public"]["Enums"]["payment_kind"];
+          method?: Database["public"]["Enums"]["counter_payment_method"];
+          note?: string | null;
+          quote_id?: string | null;
+          received_at?: string;
+          recorded_by?: string;
+          reference?: string | null;
+          request_fingerprint?: string;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "counter_payments_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quote_deposits";
+            referencedColumns: ["quote_id"];
+          },
+          {
+            foreignKeyName: "counter_payments_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quotes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "counter_payments_recorded_by_fkey";
+            columns: ["recorded_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "counter_payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "counter_payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "counter_payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "counter_payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
             referencedColumns: ["id"];
           },
         ];
@@ -2092,13 +2324,6 @@ export type Database = {
             foreignKeyName: "payment_refunds_payment_id_fkey";
             columns: ["payment_id"];
             isOneToOne: false;
-            referencedRelation: "payment_issues";
-            referencedColumns: ["payment_id"];
-          },
-          {
-            foreignKeyName: "payment_refunds_payment_id_fkey";
-            columns: ["payment_id"];
-            isOneToOne: false;
             referencedRelation: "payments";
             referencedColumns: ["id"];
           },
@@ -2109,6 +2334,7 @@ export type Database = {
           amount: number;
           amount_cents: number | null;
           amount_received: number | null;
+          balance_link_id: string | null;
           checked_at: string | null;
           checkout_completed_at: string | null;
           created_at: string;
@@ -2133,6 +2359,7 @@ export type Database = {
           amount: number;
           amount_cents?: never;
           amount_received?: number | null;
+          balance_link_id?: string | null;
           checked_at?: string | null;
           checkout_completed_at?: string | null;
           created_at?: string;
@@ -2157,6 +2384,7 @@ export type Database = {
           amount?: number;
           amount_cents?: never;
           amount_received?: number | null;
+          balance_link_id?: string | null;
           checked_at?: string | null;
           checkout_completed_at?: string | null;
           created_at?: string;
@@ -2178,6 +2406,13 @@ export type Database = {
           work_order_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "payments_balance_link_id_fkey";
+            columns: ["balance_link_id"];
+            isOneToOne: false;
+            referencedRelation: "balance_links";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "payments_last_event_id_fkey";
             columns: ["last_event_id"];
@@ -3989,13 +4224,6 @@ export type Database = {
             foreignKeyName: "stripe_events_payment_fk";
             columns: ["payment_id"];
             isOneToOne: false;
-            referencedRelation: "payment_issues";
-            referencedColumns: ["payment_id"];
-          },
-          {
-            foreignKeyName: "stripe_events_payment_fk";
-            columns: ["payment_id"];
-            isOneToOne: false;
             referencedRelation: "payments";
             referencedColumns: ["id"];
           },
@@ -4663,6 +4891,7 @@ export type Database = {
       };
       payment_issues: {
         Row: {
+          counter_payment_id: string | null;
           issue: string | null;
           message: string | null;
           payment_id: string | null;
@@ -4671,50 +4900,7 @@ export type Database = {
           since: string | null;
           work_order_id: string | null;
         };
-        Relationships: [
-          {
-            foreignKeyName: "payments_quote_id_fkey";
-            columns: ["quote_id"];
-            isOneToOne: false;
-            referencedRelation: "quote_deposits";
-            referencedColumns: ["quote_id"];
-          },
-          {
-            foreignKeyName: "payments_quote_id_fkey";
-            columns: ["quote_id"];
-            isOneToOne: false;
-            referencedRelation: "quotes";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "payments_work_order_id_fkey";
-            columns: ["work_order_id"];
-            isOneToOne: false;
-            referencedRelation: "work_order_payment_totals";
-            referencedColumns: ["work_order_id"];
-          },
-          {
-            foreignKeyName: "payments_work_order_id_fkey";
-            columns: ["work_order_id"];
-            isOneToOne: false;
-            referencedRelation: "work_order_totals";
-            referencedColumns: ["work_order_id"];
-          },
-          {
-            foreignKeyName: "payments_work_order_id_fkey";
-            columns: ["work_order_id"];
-            isOneToOne: false;
-            referencedRelation: "work_order_totals_staff";
-            referencedColumns: ["work_order_id"];
-          },
-          {
-            foreignKeyName: "payments_work_order_id_fkey";
-            columns: ["work_order_id"];
-            isOneToOne: false;
-            referencedRelation: "work_orders";
-            referencedColumns: ["id"];
-          },
-        ];
+        Relationships: [];
       };
       product_costs: {
         Row: {
@@ -4812,6 +4998,7 @@ export type Database = {
       quote_deposits: {
         Row: {
           answered_at: string | null;
+          counter_payment_id: string | null;
           currency: string | null;
           deposit_amount: number | null;
           deposit_percent: number | null;
@@ -4820,28 +5007,6 @@ export type Database = {
           sent_at: string | null;
           state: string | null;
           work_order_id: string | null;
-        };
-        Insert: {
-          answered_at?: string | null;
-          currency?: string | null;
-          deposit_amount?: number | null;
-          deposit_percent?: number | null;
-          part_request_ids?: never;
-          quote_id?: string | null;
-          sent_at?: string | null;
-          state?: never;
-          work_order_id?: string | null;
-        };
-        Update: {
-          answered_at?: string | null;
-          currency?: string | null;
-          deposit_amount?: number | null;
-          deposit_percent?: number | null;
-          part_request_ids?: never;
-          quote_id?: string | null;
-          sent_at?: string | null;
-          state?: never;
-          work_order_id?: string | null;
         };
         Relationships: [
           {
@@ -5164,9 +5329,12 @@ export type Database = {
           currency: string | null;
           held_over_total: number | null;
           job_total: number | null;
+          net_paid: number | null;
           net_paid_online: number | null;
           paid_ahead: number | null;
+          paid_at_counter: number | null;
           paid_online: number | null;
+          processing_online: number | null;
           refunded_online: number | null;
           work_order_id: string | null;
         };
@@ -5396,6 +5564,7 @@ export type Database = {
           slot_start: string;
         }[];
       };
+      balance_by_token: { Args: { p_token: string }; Returns: Json };
       book_appointment: {
         Args: {
           appointment_id: string;
@@ -6366,6 +6535,21 @@ export type Database = {
           request_id: string;
         }[];
       };
+      prepare_balance_checkout: {
+        Args: { p_token: string };
+        Returns: {
+          amount: unknown;
+          amount_cents: number;
+          currency: string;
+          expires_at: number;
+          job_number: string;
+          link_id: string;
+          outcome: string;
+          payment_id: string;
+          stripe_checkout_session_id: string;
+          work_order_id: string;
+        }[];
+      };
       prepare_deposit_checkout: {
         Args: { token: string };
         Returns: {
@@ -6552,6 +6736,31 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      record_balance_checkout: {
+        Args: { p_amount_cents: number; p_link_id: string; p_payment_id: string; p_session: Json };
+        Returns: {
+          outcome: string;
+          payment_id: string;
+          stripe_checkout_session_id: string;
+        }[];
+      };
+      record_counter_payment: {
+        Args: {
+          p_amount: unknown;
+          p_id: string;
+          p_method: Database["public"]["Enums"]["counter_payment_method"];
+          p_note?: string;
+          p_quote_id: string;
+          p_received_at?: string;
+          p_reference?: string;
+          p_work_order_id: string;
+        };
+        Returns: {
+          counter_payment_id: string;
+          open_checkouts: number;
+          replayed: boolean;
+        }[];
       };
       record_deposit_checkout: {
         Args: { p_payment_id: string; p_quote_id: string; session: Json };
@@ -6876,6 +7085,67 @@ export type Database = {
           source_line_id: string;
           unit_sale_price: number;
           yield_total: number;
+        }[];
+      };
+      report_payment_items: {
+        Args: {
+          p_after_at?: string;
+          p_after_id?: string;
+          p_from: string;
+          p_max_rows?: number;
+          p_to: string;
+        };
+        Returns: {
+          amount: number;
+          at: string;
+          currency: string;
+          customer_label: string;
+          id: string;
+          job_number: string;
+          kind: string;
+          method: string;
+          movement: string;
+          other_currency: boolean;
+          recorded_at: string;
+          recorded_by_name: string;
+          signed_amount: number;
+          work_order_id: string;
+        }[];
+      };
+      report_payment_summary: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          balance_online_total: number;
+          counter_count: number;
+          counter_total: number;
+          currency: string;
+          deposit_online_total: number;
+          given_back_count: number;
+          given_back_total: number;
+          net_total: number;
+          online_count: number;
+          online_total: number;
+          other_currency_count: number;
+          refund_count: number;
+          refund_total: number;
+        }[];
+      };
+      report_payments_held: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          amount: number;
+          balance_due: number;
+          currency: string;
+          customer_label: string;
+          grp: string;
+          job_number: string;
+          job_total: number;
+          net_paid: number;
+          net_paid_online: number;
+          paid_ahead: number;
+          paid_at_counter: number;
+          status: string;
+          work_order_id: string;
         }[];
       };
       report_period_series: {
@@ -7203,6 +7473,21 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      send_balance_link: {
+        Args: {
+          p_channel: Database["public"]["Enums"]["quote_channel"];
+          p_link_id: string;
+          p_valid_days?: number;
+          p_work_order_id: string;
+        };
+        Returns: {
+          amount: unknown;
+          expires_at: string;
+          link_id: string;
+          replaced_link_id: string;
+          token: string;
+        }[];
       };
       send_quote: {
         Args: {
@@ -8007,6 +8292,17 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      void_counter_payment: {
+        Args: {
+          p_counter_payment_id: string;
+          p_kind: Database["public"]["Enums"]["counter_void_kind"];
+          p_reason: string;
+        };
+        Returns: {
+          counter_payment_id: string;
+          replayed: boolean;
+        }[];
+      };
       void_line: { Args: { line_id: string; reason: string }; Returns: string };
       withdraw_quote: { Args: { quote_id: string }; Returns: string };
       work_order_activity_on: {
@@ -8115,6 +8411,8 @@ export type Database = {
         | "status_changed"
         | "stock_returned";
       consignment_status: "active" | "sold" | "returned" | "withdrawn";
+      counter_payment_method: "cash" | "card" | "paynow" | "bank_transfer" | "other";
+      counter_void_kind: "recorded_in_error" | "given_back";
       customer_job_status:
         | "received"
         | "awaiting_customer"
@@ -8272,7 +8570,11 @@ export type Database = {
         | "part_request_unfitted"
         | "payment_received"
         | "payment_refunded"
-        | "payment_refund_failed";
+        | "payment_refund_failed"
+        | "balance_link_sent"
+        | "balance_link_withdrawn"
+        | "counter_payment_recorded"
+        | "counter_payment_voided";
       work_order_note_kind: "note" | "diagnosis";
       work_order_status:
         | "received"
@@ -8678,6 +8980,23 @@ export type Database = {
           since: string | null;
           subject_label: string | null;
           title: string | null;
+        };
+        Relationships: [];
+      };
+      payment_movements: {
+        Row: {
+          amount: number | null;
+          at: string | null;
+          currency: string | null;
+          id: string | null;
+          kind: string | null;
+          method: string | null;
+          movement: string | null;
+          other_currency: boolean | null;
+          recorded_at: string | null;
+          recorded_by: string | null;
+          signed_amount: number | null;
+          work_order_id: string | null;
         };
         Relationships: [];
       };
@@ -9130,6 +9449,8 @@ export const Constants = {
         "stock_returned",
       ],
       consignment_status: ["active", "sold", "returned", "withdrawn"],
+      counter_payment_method: ["cash", "card", "paynow", "bank_transfer", "other"],
+      counter_void_kind: ["recorded_in_error", "given_back"],
       customer_job_status: [
         "received",
         "awaiting_customer",
@@ -9312,6 +9633,10 @@ export const Constants = {
         "payment_received",
         "payment_refunded",
         "payment_refund_failed",
+        "balance_link_sent",
+        "balance_link_withdrawn",
+        "counter_payment_recorded",
+        "counter_payment_voided",
       ],
       work_order_note_kind: ["note", "diagnosis"],
       work_order_status: [

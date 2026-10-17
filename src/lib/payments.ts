@@ -228,6 +228,21 @@ export function heldOverSentence(totals: {
   return `${money(held)} was paid online above this job's bill of ${money(totals.jobTotal)}. Refund it in Stripe if it is due back, or agree with the customer how it counts.`;
 }
 
+/**
+ * Whether the Customer payments card shows its totals (Phase 14 step 3,
+ * D161): work_order_payment_totals has a row for every job since
+ * 20261014001300, so the totals show only once the job has a Stripe payment
+ * (any attempt, as before) or a live counter payment. Reads Postgres's
+ * figure; nothing is computed.
+ */
+export function showsPaymentTotals(payments: {
+  payments: readonly unknown[];
+  totals: { paidAtCounter: string } | null;
+}): boolean {
+  if (!payments.totals) return false;
+  return payments.payments.length > 0 || Number(payments.totals.paidAtCounter) !== 0;
+}
+
 /** A Stripe PaymentIntent id, as config.ts's PAYMENT_INTENT_ID (that module is server-only). */
 const PAYMENT_INTENT_ID = /^pi_[A-Za-z0-9_]{1,250}$/;
 

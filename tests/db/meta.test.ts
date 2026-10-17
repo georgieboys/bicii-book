@@ -148,17 +148,27 @@ describe("API surface (tests/fixtures/api-surface.ts)", () => {
   // reads each refund's own status_changed_at, not the admins-only
   // stripe_events), and the apply paths run inside the service-role RPCs.
   // Nor does D160 (20261014001100): the un-fit and the live-line guard are
-  // owner-only triggers on a void and on a request's link.
+  // owner-only triggers on a void and on a request's link. Nor does step 3
+  // (20261014001300-1500): the counter-payment guard and fingerprint, the
+  // balance-link guard and the status trigger that withdraws a link run
+  // inside the RPCs or as triggers, and the report RPCs use no helper.
   it("no API role can execute private.integration_exceptions, the purges, Phase 14's or D160's private functions", async () => {
     const { rows: phase14 } = await conn.query<{ fn: string }>(
       `select p.oid::regprocedure::text as fn
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'private'
-          and (p.proname ~ '^(apply_stripe_|stripe_|payment|payments_|settle_payment|lock_stripe_)'
+          and (p.proname ~ '^(apply_stripe_|stripe_|payment|payments_|settle_payment|lock_stripe_|counter_payment|balance_link)'
                or p.proname in ('quotes_deposit_snapshot', 'purge_stripe_events'))
         order by 1`,
     );
-    expect(phase14.length).toBeGreaterThanOrEqual(15);
+    expect(phase14.length).toBeGreaterThanOrEqual(18);
+    for (const fn of [
+      "private.counter_payment_request_fingerprint(uuid,uuid,money_amount,counter_payment_method,timestamp with time zone,text,text)",
+      "private.counter_payments_immutable()",
+      "private.balance_links_guard()",
+    ]) {
+      expect(phase14.map((r) => r.fn)).toContain(fn);
+    }
     for (const fn of [
       "private.integration_exceptions()",
       "private.purge_integration_events(interval)",
@@ -166,6 +176,7 @@ describe("API surface (tests/fixtures/api-surface.ts)", () => {
       "private.unfit_part_request(uuid)",
       "private.work_order_line_items_unfit_part_request()",
       "private.job_part_requests_require_live_line()",
+      "private.work_orders_withdraw_balance_link()",
       ...phase14.map((r) => r.fn),
     ]) {
       for (const role of ["anon", "authenticated", "service_role"]) {

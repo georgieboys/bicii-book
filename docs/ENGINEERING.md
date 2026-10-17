@@ -140,7 +140,7 @@ stack, codes go to its Mailpit instead
 | `npm run dev` | Next dev server (Turbopack) on :3000. | Local: `/login` 200 |
 | `npm run build` / `npm start` | Production build / serve it. | Local: both ran inside `npm run test:e2e` (its web server is `npm run build && next start -p 3100`); CI [PR #7 `build`](https://github.com/abhishekcheriangeorge-ops/bicii-book/actions/runs/37276827625/job/111655574766) |
 | `npm run check` | `next typegen` + `tsc --noEmit`, ESLint, `prettier --check`. | Local: pass (30 s); `feat/p6-consignment` Phase 6 steps 1 and 2: pass; the Phase 6 review fixes: pass; `feat/p7-purchasing` at the Phase 7 integration: pass; `feat/auth-email-otp` at its integration: pass; the merge of `main` into `feat/p8-labels`: pass; the merge of `main` into `feat/p10-shopify`: pass |
-| `npm run check:types` | Regenerate the database types from a throwaway database built from the migrations and fail if `src/lib/database.types.ts` differs. | Local: pass (5 s); `feat/p6-consignment` Phase 6 step 1 (at 365bdd7) and step 2 (at 2c402b2): pass; the Phase 6 review fixes: pass; the Phase 7 integration: pass; the email sign-in integration: pass; the merge of `main` into `feat/p8-labels`: pass; the merge of `main` into `feat/p10-shopify`: pass |
+| `npm run check:types` | Regenerate the database types from a throwaway database built from the migrations and fail if `src/lib/database.types.ts` differs. | Local: pass (5 s); `feat/p6-consignment` Phase 6 step 1 (at 365bdd7) and step 2 (at 2c402b2): pass; the Phase 6 review fixes: pass; the Phase 7 integration: pass; the email sign-in integration: pass; the merge of `main` into `feat/p8-labels`: pass; the merge of `main` into `feat/p10-shopify`: pass; Phase 14 step 3 PR A (2026-10-17, before its commit): the regenerated file byte-identical on a second run, and the gate passes with the file staged in a temporary `GIT_INDEX_FILE` (on an uncommitted tree its `git diff` step otherwise reports the regenerated file itself) |
 | `npm test` | Every Vitest project (unit + db). | Local: 82 files, 1186 tests passed (58 s); `feat/p6-consignment` Phase 6 step 1: 86 files, 1225 tests passed (78 s); step 2: 89 files, 1298 tests passed (65 s); step 4: 92 files, 1364 tests passed (81 s); the Phase 6 review fixes: 93 files, 1384 tests passed (70 s); `feat/p7-purchasing` at the Phase 7 integration: 102 files, 1517 tests passed (105 s); its review fixes: 102 files, 1518 tests passed (83 s); `feat/auth-email-otp` at its integration with main and purchasing (2026-10-06, `BICII_REQUIRE_STACK=1`): 111 files, 1585 tests passed; `feat/p8-labels` end of Phase 8 (step 4): 108 files, 1587 tests passed; `feat/p10-shopify` Phase 10 step 3: 123 files, 1849 tests passed (unit 71 / 878), with `BICII_REQUIRE_STACK=1`; step 4: 124 files, 1873 tests passed, with `BICII_REQUIRE_STACK=1`; the merge of `main` into `feat/p8-labels` (`BICII_REQUIRE_STACK=1`): 129 files, 1900 tests passed (116 s; unit 70 / 904); the merge of `main` into `feat/p10-shopify` (`BICII_REQUIRE_STACK=1`): 146 files, 2200 tests passed (106 s) |
 | `npm run test:unit` | Unit project (jsdom): pure TypeScript and synchronous components. | Local: 45 files, 512 tests passed (37 s); `feat/p6-consignment` Phase 6 step 4 (`npx vitest run --project unit`): 48 files, 579 tests passed (22 s); the Phase 7 integration: 52 files, 643 tests passed; its review fixes: 52 files, 644 tests passed (in `npm test`); the email sign-in integration: 56 files, 686 tests passed |
 | `npm run test:db` | DB project: invariants, RLS and RPCs on per-file clones of a template database. Includes a live-stack smoke test when the devstack is running. | Local: 37 files, 674 tests passed (48 s) |
@@ -227,9 +227,12 @@ from the code:
   `20261014000300` and up Stripe payments (Phase 14; the indent follow-up
   of 2026-10-15 took `20261014000700`, closing indent items, D149a–c,
   `20261014000800` and `20261014000900`, and voiding a fitted indent
-  line, D160, `20261014001000` and `20261014001100`). Main and the hosted
-  project end at `20261014001100_indent_unfit_on_void.sql` since PR #30,
-  so a
+  line, D160, `20261014001000` and `20261014001100`; Phase 14 step 3
+  continues the Stripe range with `20261014001200` to `20261014001500`).
+  Main and the hosted project end at
+  `20261014001100_indent_unfit_on_void.sql` since PR #30; the newest file
+  is `20261014001500_payment_reports.sql` on `claude/brave-clarke-kfqhgt`
+  (Phase 14 step 3 PR A, not merged or deployed), so a
   new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).

@@ -1660,16 +1660,27 @@ URLs, or customer data in this file.
 - Trigger: a completed job is reopened (D15) and completed again on a
   later day; a sale is recorded with an earlier `recognized_at` (D55); a
   purchase receipt is back-dated (D64, up to 30 days); a settlement is
-  reversed (D47).
+  reversed (D47); since Phase 14 step 3, a counter payment is back-dated
+  (D161h, up to 30 days) or voided as recorded in error (D161d, D154b).
 - Impact: a period report run twice can give different figures for the
   same past days: the reopened job leaves its old completion day, the
   back-dated sale or receipt joins its past day, a reversed settlement
-  leaves `settlements_paid_total`. There is no period close and no stored
+  leaves `settlements_paid_total`. The Customer payments figures
+  (`report_payment_summary`, `report_payment_items`, D154) restate the
+  same way: a back-dated counter payment joins its received day and a
+  counter payment voided as recorded in error leaves it, like a reversed
+  settlement; a counter payment given back stays on its day and the money
+  handed back is its own movement on the void's day, as refunds sit beside
+  gross (D102). The sales figures never change for a payment (the D154
+  test). There is no period close and no stored
   total (SPEC §19.2, §30), so nothing records what a report said before.
 - Evidence and confidence: high; the report RPCs read source records only
   (`20261006001000_report_periods.sql`); `tests/db/period-reports.test.ts`
   ("Voids restate the period (D101, D15, D32)") moves job B from Fri 7
-  March to 11 March after a reopen and a void.
+  March to 11 March after a reopen and a void; `tests/db/payment-reports.test.ts`
+  (pass on 2026-10-17, Phase 14 step 3 PR A) restates a counter payment's
+  receipt day after a recorded-in-error void and keeps it, with a
+  negative movement on the void's day, after a given-back void.
 - Workaround or containment: an exported CSV (built in Phase 9 step 2) is
   a snapshot taken at export time; job and sale histories show every
   reopen, void and date; back-dated receipts are limited to 30 days (D64).
@@ -1681,7 +1692,7 @@ URLs, or customer data in this file.
   file (a header row or the name).
 - Revisit trigger: an accountant or the owner needs closed periods, or a
   report is disputed after a restatement.
-- Last checked: 2026-10-06 (Phase 9 step 4: the screens and exports built as described).
+- Last checked: 2026-10-17 (Phase 14 step 3 PR A: the payment reports' restatement added; Phase 9 step 4 earlier).
 
 ## R-056 — Stock value uses each product's last cost, not the cost of the units on hand
 
@@ -2540,7 +2551,15 @@ URLs, or customer data in this file.
   Stripe* on a payment.
 - Workaround or containment: deposits held on open jobs and on cancelled
   parts or jobs are surfaced, now by these issues on the job and in
-  Exceptions, and in step 3 by the Reports list (D154). Since
+  Exceptions, and from step 3 by Reports' "held on jobs now"
+  (`report_payments_held`, D154c, database built in step 3 PR A; the
+  screen in PR B): money paid above the bill on any job that is not open
+  is its own list, to refund in Stripe or give back. Since step 3 the
+  issues also cover counter money (D161): `paid_online_and_counter`,
+  `paid_above_bill`, and counter `paid_job_cancelled` and
+  `paid_parts_cancelled`. Money an admin records as given back at the
+  counter (a `given_back` void, D161d) is cash handed back outside BICII,
+  not a refund from the Admin: BICII still moves no money. Since
   [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
   containment (PR #26, in production since 2026-10-15), a deposit held for parts a
   completed or collected job never fitted is `paid_parts_not_fitted`, a
@@ -2550,7 +2569,7 @@ URLs, or customer data in this file.
   cancelled raises no issue; Stripe keeps its fee on refunds.
 - Next action: a refund action in the Admin if refunds become routine.
 - Revisit trigger: more than a few refunds a month.
-- Last checked: 2026-10-14, Phase 14 step 2 (third commit).
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; the held-now list and the counter issues).
 
 ## R-088 — The quote link is a payment capability that reaches Stripe
 
@@ -2605,9 +2624,21 @@ URLs, or customer data in this file.
   Dashboard users few; if the shop wants a Checkout
   custom domain, allow its host explicitly first (an env value validated
   by `stripeConfig`).
-- Revisit trigger: step 3's balance-link page (consider token-free return
-  URLs there); a request for a Checkout custom domain.
-- Last checked: 2026-10-14, Phase 14 final review (fix commit).
+- Step 3 (D156, 2026-10-17): the balance link's payment page keeps
+  token return URLs, as the quote page does; token-free return URLs
+  (a done page by payment id) were considered and not taken. After a
+  link expires (at most 30 days), is withdrawn (resent, the job reopened
+  or collected) or its job is no longer completed or ready, the token in
+  Stripe's stored session URLs reads only `{status, job_number}`
+  (`balance_by_token`, pinned in `tests/db/balance-links.test.ts`). The
+  same token also stays in WhatsApp, the email and the host's logs, so a
+  done page would remove one copy of several, at the cost of a second
+  anonymous route, a service-role RPC and another rate-limit bucket. The
+  balance link's own risk is
+  [R-091](#r-091--a-balance-link-is-a-payment-capability).
+- Revisit trigger: a request for a Checkout custom domain; a leaked quote
+  or balance link.
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (the decision on token return URLs for the balance link).
 
 ## R-089 — What BICII does not record or cannot apply from Stripe
 
@@ -2628,9 +2659,14 @@ URLs, or customer data in this file.
   the shop before paying if they paid another way, but a second, online
   payment is still possible and is not flagged (`paid_twice` compares
   Stripe payments only); staff refund it in Stripe (D155). Recording
-  counter payments: from D161 (the owner's decision of 2026-10-17 SGT,
-  to be built in Phase 14 step 3) an admin records a payment taken at the
-  counter, and it counts; until then the above holds.
+  counter payments: from D161 (the owner's decision of 2026-10-17 SGT)
+  an admin records a payment taken at the counter, and it counts: the
+  database is built in Phase 14 step 3 PR A (`counter_payments`, a counter
+  deposit makes the deposit paid, opening D152's gate and closing the
+  quote page's Pay; a deposit paid both online and at the counter is
+  `paid_online_and_counter`), and the admin's screen comes with PR B;
+  until PR B ships, nothing records one and the above holds
+  ([R-090](#r-090--a-counter-payment-rests-on-an-admins-word)).
   Recorded and flagged to admins but not applied: an event for an unknown
   payment, a mismatched session or mode, a refund in another mode or
   currency than its payment (kept on the payment, not deducted),
@@ -2668,6 +2704,153 @@ URLs, or customer data in this file.
 - Next action: add `charge.dispute.*` through the same apply path in step
   3 if a dispute occurs.
 - Revisit trigger: the first dispute, the first `needs_attention` row, a
-  customer who paid twice (counter and online), or the accountant's
-  answer on GST.
-- Last checked: 2026-10-14, Phase 14 final review (fix commit).
+  customer who paid twice (counter and online), or BICII becoming
+  GST-registered (the owner answered "not GST" on 2026-10-17 SGT).
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (counter payments recorded from D161's database).
+
+## R-090 — A counter payment rests on an admin's word
+
+- Category: deliberate design (D161, D161a–j). R-090 to R-094 are
+  allocated as Stripe payments' later entries (R-085–R-089 is full);
+  D161 was taken from "D160 and up later".
+- Status and owner: accepted (D161 is the owner's decision of 2026-10-17
+  SGT; its details are build defaults put to the owner as
+  [PRODUCT question 35](PRODUCT.md#open-assumptions-and-owner-questions));
+  owner.
+- Trigger: an admin records a counter payment (`record_counter_payment`)
+  or voids one (`void_counter_payment`).
+- Impact: BICII holds no evidence that the money arrived: the amount, the
+  method, the time received (up to 30 days back, D161h), the reference and
+  the note are what the admin typed. The record moves the job's paid and
+  still to pay, a deposit's state (so D152's ordering gate and the quote
+  page's Pay) and the amount a balance link asks. "Recorded at the
+  counter" in Reports is only what an admin recorded, never the till's
+  takings, and nothing reconciles the till. A record is corrected only by
+  a void (recorded in error, or given back), never edited. Managers see
+  the counter issues in Exceptions, but only an admin can void.
+- Evidence and confidence: high; `tests/db/counter-payments.test.ts` (34
+  tests: 30 written first and failing before `20261014001300`, 4 added by
+  the review, all pass on 2026-10-17): an active admin only (a manager and
+  a mechanic get 42501); append-only for every role, the owner included; a
+  replayed id answers `replayed` before any other check, with the inputs
+  as given (a NULL time replays and is fingerprinted as NULL, not as the
+  stamped time; "200" and "200.00" replay; any other change or another
+  job is `counter_payment_conflict`, the same id sent for two jobs at once
+  included); the time bounds; a
+  counter deposit equals the deposit exactly; the deposit's state and the
+  D152 gate after recording and after each kind of void, a Stripe-refunded
+  deposit included; `counter_payment_stripe_processing` while Stripe is
+  confirming a payment on the job; every new `payment_issues` kind derives
+  live and clears; races on two committed connections
+  (`tests/db/lock-race.ts`).
+- Workaround or containment: `private.require_admin()` first in both RPCs
+  (not `can_record_refunds`); each record and void is on the job's
+  timeline with its actor (amount, method, kind; never the reference or
+  note); a void row keeps who, when, its kind and a required reason; a
+  counter deposit must equal the deposit, any other amount counts towards
+  the bill; Reports date a counter payment by when it was received and
+  show when and by whom it was recorded beside it, so back-dating is
+  visible ([R-055](#r-055--past-report-periods-change-after-a-reopen-a-back-dated-sale-or-a-back-dated-receipt)).
+- Residual: no screen records one until PR B; a Checkout tab the customer
+  opened before the counter payment can still be paid
+  ([R-092](#r-092--open-checkout-tabs-can-still-be-paid-for-up-to-60-minutes)).
+- Next action: PR B: the admin's Record and Void controls, the card,
+  Collected and line-under-the-total wording that counts counter money,
+  and the best-effort expiry of open Checkout sessions after a record; the
+  owner answers question 35 (forks 1, 2, 5 and 7).
+- Revisit trigger: a request to reconcile the till, or for staff other
+  than admins to record (question 35 fork 2); a disputed counter record.
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; on `claude/brave-clarke-kfqhgt`, not merged or deployed).
+
+## R-091 — A balance link is a payment capability
+
+- Category: security concern (non-exploitable summary) and privacy (D156,
+  D156a–h). Links
+  [R-081](#r-081--quote-links-appear-in-request-logs-and-browser-history),
+  [R-088](#r-088--the-quote-link-is-a-payment-capability-that-reaches-stripe).
+- Status and owner: accepted (D156 confirmed 2026-10-17 SGT; the details
+  are build defaults, question 35); build agent, owner.
+- Trigger: any active staff member sends a balance link
+  (`send_balance_link`) on a completed or ready-for-collection job.
+- Impact: whoever holds the link sees the job number, the bike (brand,
+  model and variant), the customer's first name, the bill's lines with
+  their sale prices, what was paid and the balance, and can pay the
+  balance through Stripe Checkout. A manual line's description is shown as
+  staff typed it. The bearer link outlives a send in several places:
+  Stripe's success and cancel URLs on each session (from PR B), Resend's
+  stored message, the `wa.me` query string and the WhatsApp chat, host
+  request logs and browser history.
+- Evidence and confidence: high for the database;
+  `tests/db/balance-links.test.ts` (36 tests: 33 written first and failing
+  before `20261014001400`, 3 added by the review, all pass on 2026-10-17):
+  only the SHA-256 of a
+  43-character token is stored and no API role can read it; one live link
+  per job; resending, reopening and Collected withdraw it (completed to
+  ready keeps it; completing again does not revive it); the page's two key
+  sets are pinned; it never shows a serial number, a unit's short id, a
+  voided line, an id of any kind, a Stripe id or a URL (a unit line's
+  description is cut before its short id, and shows the product's current
+  name when it does not carry one, so the rest never shows).
+- Workaround or containment: the hash only; one live link per job;
+  1 to 30 days (7 by default); withdrawn, expired and closed links read
+  only `{status, job_number}`; the amount is computed in Postgres at every
+  read and every Pay, never stored for payment; PR B builds the page with
+  no-referrer, noindex and no-store, a rate limit like the quote page's,
+  return URLs from `ADMIN_ORIGIN` only and redirects only to
+  `checkout.stripe.com` (the fake: the Admin's own `/pay/` path).
+- Residual: until it expires (at most 30 days), a live link on a completed
+  or ready job shows the current bill to whoever holds it.
+- Next action: PR B: `/pay/[token]` with the headers and limits above, and
+  the logger redacting a `link` field.
+- Revisit trigger: a leaked link; a request to pay a link after collection
+  (question 35 fork 3).
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; on `claude/brave-clarke-kfqhgt`, not merged or deployed).
+
+## R-092 — Open Checkout tabs can still be paid for up to 60 minutes
+
+- Category: design limitation (D156g, D158, D159b, D161g).
+- Status and owner: accepted, contained and detected; build agent.
+- Trigger: a customer has a Checkout tab open (a deposit or a balance)
+  when a counter payment is recorded, the balance link is sent again or
+  withdrawn, the job is reopened, completed or collected, or another
+  session is started.
+- Impact: SQL cannot expire a Stripe session and nothing expires sessions
+  on a status change, so a session stays payable at Stripe until it
+  expires (60 minutes). Whatever Stripe confirms is recorded (D159b), so a
+  customer can pay twice: the money shows as paid ahead or held above the
+  bill, and is flagged.
+- Evidence and confidence: high; `tests/db/balance-links.test.ts` and
+  `tests/db/counter-payments.test.ts` (pass on 2026-10-17): under the job
+  lock, a live or processing balance payment never sits beside any other
+  live or processing Stripe payment on the job, and a job has at most one
+  pending linked balance payment (`payments_one_open_balance`;
+  `prepare_balance_checkout` answers `replace` and
+  `record_balance_checkout` `existing`; the deposit Checkout RPCs answer
+  `job_payment_processing`, `replace` or `existing` for a live or
+  processing balance payment; two records racing on one job: one created,
+  one existing). A row past its expiry whose answer from Stripe is not
+  yet recorded holds up neither kind (pinned by a test): a session paid
+  just before it expired is this risk's accepted case, recorded by D159b
+  and flagged `paid_above_bill`. `open_checkouts` counts the sessions a
+  counter payment leaves open; `paid_online_and_counter` and
+  `paid_above_bill` derive live and clear; a tab paid after a counter
+  payment is recorded and flagged `paid_above_bill`, and so is a balance
+  Stripe alone took above the bill (an old tab and a new one), once, on
+  the job's newest paid payment.
+- Workaround or containment: the balance invariant (DATA-MODEL §19:
+  live or processing rows, one pending linked balance per job); `replace`
+  makes the app expire the other session
+  before creating one; `record_counter_payment` returns `open_checkouts`
+  so the app expires them, best effort; detection: `paid_online_and_counter`,
+  `paid_above_bill` and `paid_twice` reach admins and managers as
+  `payment_attention` on Exceptions and Today.
+- Residual: the time between a commit and the app's expiry; a failed
+  expiry; a deposit tab left open across Completed (R-089 accepts the
+  cancel case); Stripe keeps its fee on the refund
+  ([R-087](#r-087--refunds-are-made-by-hand-in-stripe)).
+- Next action: PR B: expire open sessions after a counter payment and
+  after a resend (`replaced_link_id`), with unit tests against the fake
+  gateway.
+- Revisit trigger: the first `paid_above_bill` or `paid_online_and_counter`
+  in production.
+- Last checked: 2026-10-17, Phase 14 step 3 PR A (database; on `claude/brave-clarke-kfqhgt`, not merged or deployed).

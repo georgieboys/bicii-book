@@ -441,4 +441,67 @@ describe("describeEvent", () => {
       tone: "danger",
     });
   });
+
+  it("balance links and counter payments read plainly, never with ids (Phase 14 step 3)", () => {
+    expect(
+      d({
+        type: "balance_link_sent",
+        payload: { link_id: "x", channel: "whatsapp", valid_days: 7, amount: "180.00" },
+      }),
+    ).toEqual({ title: "Payment link sent by WhatsApp for $180.00", detail: null, tone: "info" });
+    expect(d({ type: "balance_link_sent", payload: { channel: "link" } }).title).toBe(
+      "Payment link sent",
+    );
+    expect(d({ type: "balance_link_withdrawn", payload: { reason: "replaced" } })).toEqual({
+      title: "Payment link withdrawn",
+      detail: "A new link replaced it",
+      tone: "neutral",
+    });
+    expect(d({ type: "balance_link_withdrawn", payload: { reason: "reopened" } }).detail).toBe(
+      "The job was reopened",
+    );
+    expect(d({ type: "balance_link_withdrawn", payload: { reason: "collected" } }).detail).toBe(
+      "The bike was collected",
+    );
+    const counter = { counter_payment_id: "x", quote_id: null, received_at: "2026-10-17" };
+    expect(
+      d({
+        type: "counter_payment_recorded",
+        payload: { ...counter, kind: "balance", amount: "45.00", method: "cash" },
+      }),
+    ).toEqual({
+      title: "Payment of $45.00 recorded at the counter (cash)",
+      detail: null,
+      tone: "done",
+    });
+    expect(
+      d({
+        type: "counter_payment_recorded",
+        payload: { ...counter, kind: "deposit", quote_id: "q", amount: 120, method: "paynow" },
+      }).title,
+    ).toBe("Deposit of $120.00 recorded at the counter (PayNow)");
+    expect(
+      d({
+        type: "counter_payment_voided",
+        payload: {
+          ...counter,
+          kind: "balance",
+          amount: 45,
+          method: "card",
+          void_kind: "given_back",
+          reason: "Overpaid",
+        },
+      }),
+    ).toEqual({
+      title: "Counter payment of $45.00 given back",
+      detail: "Overpaid",
+      tone: "neutral",
+    });
+    expect(
+      d({
+        type: "counter_payment_voided",
+        payload: { ...counter, amount: 45, void_kind: "recorded_in_error", reason: "Wrong job" },
+      }).title,
+    ).toBe("Counter payment of $45.00 voided: recorded in error");
+  });
 });

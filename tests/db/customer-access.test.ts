@@ -227,6 +227,13 @@ describe("a signed-in customer and the base tables", () => {
           "work_order_payment_totals",
           // Indent parts on closed jobs (R-082): the unfitted memo
           "work_order_unfitted_requests",
+          // Phase 14 step 3 (D156, D161): counter payments, their voids and
+          // balance links; the three payment views above are replaced in
+          // 20261014001300 (work_order_payment_totals now has a row for
+          // every job, still none for a customer)
+          "counter_payments",
+          "counter_payment_voids",
+          "balance_links",
         ]) {
           expect(await scalar(tx, `select count(*)::int from public.${table}`)).toBe(0);
         }
@@ -541,6 +548,17 @@ describe("customer A and customer B", () => {
       `select public.record_attachment('${randomUUID()}', 'bike', '${BIKE.tanTarmac}',
          'media-internal', 'bike/x.jpg', 'image/jpeg')`,
       "select * from public.staff_directory()",
+      // Phase 14 step 3: counter payments (admin), balance links (staff)
+      // and the payment reports (view_financial_reports)
+      `select * from public.record_counter_payment('${randomUUID()}', '${randomUUID()}', null,
+         10::public.money_amount, 'cash'::public.counter_payment_method)`,
+      `select * from public.void_counter_payment('${randomUUID()}',
+         'given_back'::public.counter_void_kind, 'Mine')`,
+      `select * from public.send_balance_link('${randomUUID()}', '${randomUUID()}',
+         'link'::public.quote_channel)`,
+      "select * from public.report_payment_summary(current_date, current_date)",
+      "select * from public.report_payment_items(current_date, current_date)",
+      "select * from public.report_payments_held()",
     ]) {
       await expect(asCustomer(CUSTOMER.tan, (tx) => tx.query(sql))).rejects.toMatchObject({
         code: "42501",

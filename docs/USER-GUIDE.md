@@ -14,14 +14,14 @@ problem listed once, and why *Check with Stripe* could not read
 everything), plus what happens to approved indent items a job is
 completed without
 ([R-082](RISKS.md#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job);
-D149 and D149a–c, PRs #26 and #27, since 2026-10-15 SGT) and voiding a
-fitted indent item's line (D160, PR #30, since 2026-10-16 SGT). Phase 14
-step 3 (payment links D156, counter payments D161 and the Customer
-payments report D154) is built on `claude/brave-clarke-kfqhgt` and not
-merged yet: its tasks below ("Send a payment link", "Take payment at
-collection", "Record a counter payment (admins)", "Void a counter payment
-or record it as given back (admins)", "Read Customer payments in
-Reports") apply once it is. On a developer machine:
+D149 and D149a–c, PRs #26 and #27, since 2026-10-15 SGT), voiding a
+fitted indent item's line (D160, PR #30, since 2026-10-16 SGT) and Phase
+14 step 3 (payment links D156, counter payments D161 and the Customer
+payments report D154; PR #36, since 2026-10-18 SGT): its tasks below
+("Send a payment link", "Take payment at collection", "Record a counter
+payment (admins)", "Void a counter payment or record it as given back
+(admins)", "Read Customer payments in Reports") apply in production. On
+a developer machine:
 http://localhost:3000. Staff sign in with an emailed code.
 
 Last walkthrough: not walked through by a person. These flows are exercised
@@ -30,9 +30,11 @@ by the E2E specs in `tests/e2e/` (among them `auth`, `workshop`,
 `appointments`, `appointment-settings`, `today`, `customers-bikes`,
 `staff`, `roles`, `consignment`, `consignment-journey`, `sales`,
 `purchasing`, `print-view`, `labels`, `shopify`, `indent`, `payments` and `reports`), on an iPhone 13 and
-an iPad viewport (counts and dates in [NOW.md](../NOW.md)); the latest
-green CI run is
-[PR #7 e2e](https://github.com/abhishekcheriangeorge-ops/bicii-book/actions/runs/37276834195/job/111655595521).
+an iPad viewport (counts and dates in [NOW.md](../NOW.md)); the most
+recent green full E2E run recorded in [NOW.md](../NOW.md) is PR #36's
+label-triggered
+[`e2e (Playwright)` run](https://github.com/georgieboys/bicii-book/actions/runs/39060496580/job/117477299307)
+on edd4603 (2026-10-18 SGT).
 Where a step below is not covered by a spec, it says so.
 
 ## Your first useful result

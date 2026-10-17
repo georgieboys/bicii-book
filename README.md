@@ -6,7 +6,9 @@ release: [NOW.md](NOW.md)). Built: staff sign-in with emailed one-time
 codes, staff roles, intake, work orders, appointments, inventory,
 consignment and in-store sales, purchasing, labels, reporting, the
 Shopify boundary (no store connected), the public site's backend, indent
-parts with customer quotes, and Stripe deposits. The public site's
+parts with customer quotes, Stripe deposits, and, since 2026-10-18 SGT,
+payment links for a job's balance, an admin's counter payments and the
+Customer payments report. The public site's
 screens (Phase 11 step 2) are merged and deployed in its own repository,
 with customer accounts closed until the owner opens them.
 

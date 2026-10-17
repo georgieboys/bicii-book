@@ -956,9 +956,14 @@ Customer payments through Stripe Checkout (Phase 14, D150–D159 in
 [ADR-025](decisions/ADR-025-stripe-payments.md)). Steps 1 and 2 (the
 database, the adapter, the webhook route, the quote page's deposit,
 Settings → Customer payments and the job's Customer payments card) are
-built and tested only against the in-memory fake; balance links and
-Reports are step 3. Stripe stays **off** in production until every
-variable below is set and right for the deployment (D157); while it is
+built and tested against the in-memory fake; step 3 (payment links for a
+job's balance, an admin's counter payments and Reports' Customer
+payments) is in production, its database since 2026-10-17 SGT (PR #34)
+and its app since 2026-10-18 SGT (PR #36), and its balance flow has not
+yet been rehearsed in Stripe's test mode (steps 11 and 12 of
+[Stripe: verify before go-live](#stripe-verify-before-go-live)). Stripe
+stays **off** in production until every variable below is set and right
+for the deployment (D157); while it is
 off the webhook route answers 503 and keeps each delivery as rejected
 evidence, and nothing else changes. Once step 2's migration is applied
 the deposit percent is 0, so no quote asks for a deposit and nothing is
@@ -1282,7 +1287,8 @@ here (date, result):
     **Send payment link** with **Copy link**, open it in a private window
     (the page and its `?balance=returned` return answer with
     `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex` and
-    `Cache-Control: private, no-store`), pay by card in test mode, and
+    a `Cache-Control` containing `private` and `no-store`, as
+    `tests/e2e/payments.spec.ts` checks), pay by card in test mode, and
     check that the card shows the balance **Paid** and the page "Nothing
     is left to pay. Thank you."; the session's metadata names
     `bicii_kind: balance` and no quote.

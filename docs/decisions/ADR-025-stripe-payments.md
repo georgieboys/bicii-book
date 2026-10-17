@@ -6,7 +6,8 @@ Date: 2026-10-14 (design, before Phase 14 is built; on
 status update 2026-10-17 (step 3's database, the build defaults D154a–e,
 D156a–h and D161a–j,
 [below](#status-update-2026-10-17-step-3s-database)); status update
-2026-10-18 SGT (step 3's app, PR B, built and not merged,
+2026-10-18 SGT (step 3's app, PR B, merged in PR #36 and in production
+since 2026-10-18 SGT,
 [below](#status-update-2026-10-18-step-3s-app)).
 Status: accepted. The owner decided on 2026-10-14 to take payments through
 Stripe, starting with deposits on indent parts, and on 2026-10-17 SGT
@@ -264,7 +265,9 @@ D152's ordering gate and the quote page, Reports) are recorded with step
 Phase 14 step 3 is built in two pull requests. PR A, the database, was
 merged in PR #34 and is in production since 2026-10-17 SGT (`migrate.yml`
 run 17; read-only afterwards, the replaced views returned the same rows
-as before); PR B, the app, is next. Every choice below that the owner's
+as before); PR B, the app, followed in PR #36, in production since
+2026-10-18 SGT ([below](#status-update-2026-10-18-step-3s-app)). Every
+choice below that the owner's
 words do not settle is
 a build default, recorded as a lettered clause (as D149a–c) and put to the
 owner as
@@ -383,9 +386,12 @@ only while Stripe is on, though it can now be paid at the counter.
 
 ## Status update 2026-10-18: step 3's app
 
-Phase 14 step 3's PR B, the app, is built on `claude/brave-clarke-kfqhgt`
-(on `main` 56bc12c, PR A's database) and not merged; it adds no
-migration and changes no SQL. What it builds, on the build defaults
+Phase 14 step 3's PR B, the app, was built on `claude/brave-clarke-kfqhgt`
+(on `main` cb41d23, which holds PR A's database, 56bc12c) and merged in
+PR #36 as ed6a08a on 2026-10-18 SGT (CI `check`, `test (unit + db)` and `build` and the full
+`e2e (Playwright)` run succeeded on edd4603; Vercel's production
+deployment of ed6a08a is READY); it adds no migration and changes no
+SQL, so `migrate.yml` did not run. What it builds, on the build defaults
 D154a–e, D156a–h and D161a–j:
 
 - **The Stripe layer.** One Pay loop for the deposit and the balance
@@ -447,7 +453,19 @@ email and WhatsApp end to end (unit-tested). Risks updated:
 [R-091](../RISKS.md#r-091--a-balance-link-is-a-payment-capability),
 [R-092](../RISKS.md#r-092--open-checkout-tabs-can-still-be-paid-for-up-to-60-minutes),
 R-093 and R-055. The public site's privacy text ("workshop quotes" to "workshop
-quotes and bills") follows in a small BICII pull request.
+quotes and bills") followed in georgieboys/BICII#2, merged as ea057ac
+and in production since 2026-10-18 SGT: its `/contact` page reads
+"Online payments for workshop quotes and bills are taken by Stripe".
+
+In production on 2026-10-18 SGT, signed out: the payment page with a
+malformed token answers the "link is not valid" page with
+`Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow` and a
+`Cache-Control` with `no-store`; `/reports/payments` redirects to sign
+in. Read-only on the hosted project: no balance link or counter payment
+exists yet, so neither has been exercised in production. Still open:
+the Stripe test-mode balance rehearsal above, the owner's
+[PRODUCT question 35](../PRODUCT.md#open-assumptions-and-owner-questions)
+and R-093's decision.
 
 ## Revisit trigger
 

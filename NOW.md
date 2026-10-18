@@ -1,7 +1,22 @@
 # Current state
 
 Updated: 2026-10-18 SGT by the go-live session, on
-`claude/brave-clarke-kfqhgt` restarted at `main` 7c75285, a docs-only
+`claude/brave-clarke-kfqhgt` restarted at `main` 6d4cc11, a docs-only
+change that records the owner's answers to the usability reviews' two
+questions and their release on the public site: someone now reads the
+@bicii.sg inbox, and the workshop is at 294 River Valley Road, Level 2,
+entered via the back alley. georgieboys/BICII#5 (CI `check` and its
+journey 6 e2e green on 03e552a) merged as d99ed3f: `/contact` shows the
+address, a map link and the opening hours from `public_shop_hours()`
+(rebuilt at most hourly), `/book` and the booked notice give the
+address, and `/gaps` no longer lists the inbox. The hosted project has
+no opening hours yet (`public_shop_hours()` returns no rows, read-only),
+so `/contact` says they are coming soon. Next action: the owner sets the
+weekly hours in Settings, Schedule (they also bound online booking
+times); then the plan's next items.
+
+Earlier on 2026-10-18 SGT, the go-live session, on
+`claude/brave-clarke-kfqhgt` restarted at `main` 7c75285, made a docs-only
 change that records the release of the audit's efficiency items: PR #40
 (CI and the label-run full e2e green on 89171a9) merged as 7c75285, no
 migration; Vercel's production deployment of 7c75285 READY, built after
@@ -12,10 +27,7 @@ georgieboys/BICII#4 (CI and its journey 6 e2e green), merged as 08016e5
 and was redeployed after the variable was set: account photo grids ask
 for a 720 px rendition and item pages a 1200 px one, and its sign-in page
 loads supabase-js only when a code is requested. No photo is in
-production yet, so no rendition has been fetched there. Next action:
-the owner's decisions from the usability reviews (who reads the
-@bicii.sg inbox; publishing the shop's address and hours), then the
-plan's next items.
+production yet, so no rendition has been fetched there.
 
 Earlier on 2026-10-18 SGT, the go-live session, on
 `claude/brave-clarke-kfqhgt` from `main` 754fd09, in its own pull request
@@ -587,6 +599,7 @@ The Deployed column keeps each row's state when the row was written.
 | Audit week-one fixes released (2026-10-18 SGT) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 8f07f53 in its own pull request: NOW, DATA-MODEL (applied state), ENGINEERING (the newest migration), OPERATIONS and RUNBOOK (applying migrations last exercised, 72), RISKS (R-001's newest migration; R-081 and R-088 last checked), TESTING | PR #38: CI `check`, `test (unit + db)`, `build` and the label-run `e2e (Playwright)` (full suite) succeeded on 6a26b0b; merged as 8f07f53; `migrate.yml` run 18 succeeded; read-only on the hosted project: 72 migrations, last `20261018000100`, `update_my_profile` calls `private.raise_without_row`, EXECUTE for `authenticated` and the owner only; Vercel's production deployment of 8f07f53 READY and the production sign-in page sends `Permissions-Policy: camera=(self), …` without `X-Powered-By`. georgieboys/BICII#3: CI `check` and `e2e (journey 6)` succeeded on 72b3925; merged as 7a554bb; Vercel production READY; its live sign-in page sends `Permissions-Policy` without `X-Powered-By`, and `/sign-in?next=/%09/evil.example` answers 200 with the sign-in page (no redirect). Not run: a customer profile update against production (customer accounts are closed) | In production |
 | Audit efficiency items (2026-10-18 SGT): the job page's reads, the phone bundles, photo thumbnails | `src/lib/domain/staff-directory.ts` (`staffDirectory`, memoised; the six private `staffNames` copies and five inline `staff_directory` calls now use it); `getWorkOrder` in one phase (`listLines` takes the names and `getTotals` the currency as promises); `getIndentPanel`'s two follow-ups together; `photo-uploads.tsx` imports the browser client on the first upload; `src/lib/quote-answer.ts` (`ANSWER_NAME_MAX` without zod); `print-label-sheet.tsx` loaded with `next/dynamic` when the sheet opens; `Photo.thumbUrl` and `STORAGE_IMAGE_TRANSFORMS` (`src/lib/env.ts`, `listPhotos`); `tests/unit/photo-urls.test.ts`; DESIGN (`PhotoGrid`), RUNBOOK (the variable), `.env.example`, NOW | Yes, `claude/brave-clarke-kfqhgt` from `main` 754fd09, in its own pull request | Locally on 2026-10-18 SGT: `npm run build` pass, route JavaScript from the build's client-reference manifests (gzip): `/more` 44 KB (the audit measured about 195 KB), `/jobs/[id]` 106 KB, `/products/[id]` 97 KB, `/bikes/[id]` 62 KB, `/quote/[token]` 54 KB (142 KB), `/pay/[token]` 38 KB; `npm run check` pass; `npm run check:types` pass (the regenerated file unchanged); `npm test` 201 files / 3,147 tests with one failure, `print-label.test.tsx` opening the sheet before its lazily loaded module arrived, fixed by waiting for the dialog, after which the unit project passes again (125 files / 1,704 tests; the database project passed in the full run); docs link check 0 problems; read-only on the hosted project: the render endpoint answers like the object endpoint (transformation on; no photo uploaded yet, so no rendition fetched). Not run: Playwright locally (the label-run e2e in CI) | In production |
 | Audit efficiency items released (2026-10-18 SGT) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 7c75285 in its own pull request: NOW | PR #40: CI `check`, `test (unit + db)`, `build` and the label-run `e2e (Playwright)` (full suite) succeeded on 89171a9; merged as 7c75285 (no migration, so no `migrate.yml` run); Vercel's production deployment of 7c75285 READY, built after the owner set `STORAGE_IMAGE_TRANSFORMS=true` in Production (the owner's report: this session's Vercel access cannot list or create production variables); the production sign-in page (`/login`) answers 200. georgieboys/BICII#4: CI `check` and `e2e (journey 6)` succeeded on 358d85c; merged as 08016e5; Vercel production READY, then redeployed after the variable was set (READY); its home and sign-in pages answer 200. Not run: fetching a rendition in production (no photo uploaded yet); measuring a signed-in page's JavaScript in production | In production |
+| Workshop address and the @bicii.sg inbox on the public site (2026-10-18 SGT; the owner's answers to the usability reviews) | Public site only, georgieboys/BICII#5: `shop` in its `content.ts` (address, map link), `shopHours()` (`public_shop_hours()`, cached an hour) and `shopHoursRows()`; `/contact`, `/book`, the booked notice, `/gaps`; its README and GO-PUBLIC. Here: NOW only | BICII#5: locally `npm run lint` clean, `npm run typecheck` pass, `npm test` 27 passed (3 new), `npm run test:e2e` 20 passed against this repository's devstack (journey 6 checks the address on `/book` and in the booked notice), `/contact` built against the devstack renders the seeded hours with no sideways scroll at phone width; CI `check` and `e2e (journey 6)` succeeded on 03e552a; merged as d99ed3f; the Vercel preview's `/contact` showed the address and "Opening hours are coming soon"; Vercel production of d99ed3f READY, and the live `/contact` shows the address, "Enter via the back alley" and the coming-soon line while the live `/gaps` no longer lists the inbox. Read-only on the hosted project: `public_shop_hours()` returns no rows. Not run: a production booking (customer accounts are closed) | In production |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1, merged 2026-10-17 SGT: see the header) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).

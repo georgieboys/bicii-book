@@ -28,6 +28,7 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 import { DomainError } from "./errors";
 import type { ListPage } from "./list";
 import { staffSearch } from "./search";
+import { staffNames } from "@/lib/domain/staff-directory";
 
 /**
  * Purchase orders (SPEC §14, §21; DATA-MODEL §10, §16; PLAN D60 D-PO-COSTS,
@@ -84,11 +85,8 @@ const LINE_FIELDS: Record<string, string> = {
   reason_required: "reason",
 };
 
-/** Staff id -> display name, for everyone who ever worked here. */
-export async function staffNames(supabase: ServerSupabase): Promise<Map<string, string>> {
-  const rows = unwrap(await supabase.rpc("staff_directory")) ?? [];
-  return new Map(rows.map((s) => [s.id, s.display_name]));
-}
+/** Staff id -> display name (staff_directory, once per render). */
+export { staffNames };
 
 const actorOf = (names: ReadonlyMap<string, string>, id: string | null) =>
   id ? (names.get(id) ?? "A former colleague") : null;

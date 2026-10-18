@@ -10,6 +10,7 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 import { listPhotos, type Photo } from "./attachments";
 import { DomainError } from "./errors";
 import { listLocations } from "./inventory";
+import { staffNames } from "@/lib/domain/staff-directory";
 
 /**
  * Consignment (SPEC §13, §19.1, §21, §23; DATA-MODEL §9, §15, §16; PLAN D4,
@@ -58,11 +59,6 @@ function rethrowFields(err: unknown, fields: Record<string, string>): never {
     }
   }
   throw err;
-}
-
-async function staffNames(supabase: ServerSupabase): Promise<Map<string, string>> {
-  const rows = unwrap(await supabase.rpc("staff_directory")) ?? [];
-  return new Map(rows.map((s) => [s.id, s.display_name]));
 }
 
 const nameOf = (names: ReadonlyMap<string, string>, id: string | null) =>

@@ -30,6 +30,7 @@ import {
 import { DomainError } from "./errors";
 import { getTotals, listLines, rethrowOnField, type Line, type Totals } from "./lines";
 import type { ListPage } from "./list";
+import { staffDirectory, staffNames } from "@/lib/domain/staff-directory";
 
 /**
  * Workshop jobs (SPEC §7, §21; DATA-MODEL §4; PLAN D15–D22). Jobs are
@@ -111,12 +112,6 @@ const labelOf = (c: NameColumns) =>
     phone: c.phone,
   });
 
-/** Staff id -> display name, for everyone who ever worked here (staff_directory). */
-async function staffNames(supabase: ServerSupabase): Promise<Map<string, string>> {
-  const rows = unwrap(await supabase.rpc("staff_directory")) ?? [];
-  return new Map(rows.map((s) => [s.id, s.display_name]));
-}
-
 const CLOSED = "(collected,cancelled)";
 
 /** Timeline events the job page shows at first, and with "Show earlier events". */
@@ -133,7 +128,10 @@ export async function getWorkOrder(
   id: string,
   { viewCosts, timelineRows = TIMELINE_ROWS }: { viewCosts: boolean; timelineRows?: number },
 ): Promise<WorkOrderDetail | null> {
-  const [jobResult, assignmentsResult, timelineResult, names] = await Promise.all([
+  // One phase for the job, its people, timeline, lines and totals: the
+  // lines need only the staff names and the totals only the job's
+  // currency, as a fallback, so neither waits for the job row.
+  const jobQuery = Promise.resolve(
     supabase
       .from("work_orders")
       .select(
@@ -141,6 +139,10 @@ export async function getWorkOrder(
       )
       .eq("id", id)
       .maybeSingle(),
+  );
+  const namesQuery = staffNames(supabase);
+  const [jobResult, assignmentsResult, timelineResult, names, lines, totals] = await Promise.all([
+    jobQuery,
     supabase
       .from("work_order_assignments")
       .select("staff_id, role, assigned_at")
@@ -149,14 +151,15 @@ export async function getWorkOrder(
       .order("assigned_at", { ascending: true }),
     // One more than shown, to know whether older events were left out.
     supabase.rpc("work_order_timeline", { work_order_id: id, max_rows: timelineRows + 1 }),
-    staffNames(supabase),
+    namesQuery,
+    listLines(supabase, id, { viewCosts, names: namesQuery }),
+    getTotals(supabase, id, {
+      viewCosts,
+      currency: jobQuery.then((r) => r.data?.currency ?? "SGD"),
+    }),
   ]);
   const row = unwrap(jobResult);
   if (!row || !row.customer || !row.bike) return null;
-  const [lines, totals] = await Promise.all([
-    listLines(supabase, id, { viewCosts, names }),
-    getTotals(supabase, id, { viewCosts, currency: row.currency }),
-  ]);
   const assignments = (unwrap(assignmentsResult) ?? [])
     .map((a) => ({
       staffId: a.staff_id,
@@ -557,7 +560,7 @@ export async function intakePreset(
 export async function listActiveStaff(
   supabase: ServerSupabase,
 ): Promise<{ id: string; name: string }[]> {
-  const rows = unwrap(await supabase.rpc("staff_directory")) ?? [];
+  const rows = unwrap(await staffDirectory(supabase)) ?? [];
   return rows.filter((r) => r.active).map((r) => ({ id: r.id, name: r.display_name }));
 }
 

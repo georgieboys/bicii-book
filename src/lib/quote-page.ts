@@ -101,8 +101,7 @@ export function parseQuoteView(value: unknown): QuoteView | null {
   return parsed.success ? parsed.data : null;
 }
 
-/** The longest name the database accepts (quotes_answered_name_check). */
-export const ANSWER_NAME_MAX = 100;
+export { ANSWER_NAME_MAX } from "@/lib/quote-answer";
 
 /** How many items were approved, of how many, for the answered page. */
 export function approvedSummary(items: readonly QuoteItem[]): { approved: number; of: number } {

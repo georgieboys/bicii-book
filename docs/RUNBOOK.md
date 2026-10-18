@@ -446,6 +446,7 @@ One Vercel project for the Admin, connected to this repository.
    | `RESEND_API_KEY`, `EMAIL_FROM` | see [Quote emails](#quote-emails) | unset (no quote emails from previews) | the key Sensitive |
    | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | see [Stripe payments](#stripe-environment-variables-and-fake-mode); live values only | **unset** (D157: no staging project; the code keeps Stripe off in Preview anyway) | Sensitive; never `STRIPE_ADAPTER=fake` in Production |
    | `ADMIN_ORIGIN` | `https://<admin host>` | unset | not secret; where Stripe returns customers, and the host of quote links and the Shopify webhook address |
+   | `STORAGE_IMAGE_TRANSFORMS` | `true` | unset | not secret; photo grids load a 480 px rendition from Supabase Storage's image transformation (Pro plan; billed per distinct original image a month beyond the plan's allowance) instead of the 2048 px original; unset, grids show the original |
 
    Preview never gets the live store's `SHOPIFY_ADMIN_TOKEN` or
    `SHOPIFY_WEBHOOK_SECRET`. Preview runs on the staging database, whose

@@ -62,9 +62,9 @@ export function PhotoGrid({
                 aria-label={`Open photo ${i + 1}${photo.caption ? `: ${photo.caption}` : ""}`}
                 className="block size-full cursor-pointer overflow-hidden rounded-xl bg-sunken focus-visible:outline-offset-2"
               >
-                {photo.url ? (
+                {photo.thumbUrl ? (
                   <Image
-                    src={photo.url}
+                    src={photo.thumbUrl}
                     alt={photo.caption ?? ""}
                     width={photo.width ?? 400}
                     height={photo.height ?? 400}

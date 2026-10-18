@@ -21,6 +21,7 @@ import { listPhotos, type Photo } from "./attachments";
 import { DomainError } from "./errors";
 import type { ListPage } from "./list";
 import { staffSearch } from "./search";
+import { staffNames } from "@/lib/domain/staff-directory";
 
 /**
  * Inventory (SPEC §11, §12, §21, §22, §23; DATA-MODEL §6, §7, §15, §16;
@@ -116,12 +117,6 @@ const PART_FIELDS: Record<string, string> = {
   location_required: "locationId",
   unit_location_mismatch: "locationId",
 };
-
-/** Staff id -> display name, for everyone who ever worked here. */
-async function staffNames(supabase: ServerSupabase): Promise<Map<string, string>> {
-  const rows = unwrap(await supabase.rpc("staff_directory")) ?? [];
-  return new Map(rows.map((s) => [s.id, s.display_name]));
-}
 
 const actorOf = (names: ReadonlyMap<string, string>, id: string | null) =>
   id ? (names.get(id) ?? "A former colleague") : null;

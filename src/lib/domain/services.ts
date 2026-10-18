@@ -19,6 +19,7 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 
 import { DomainError } from "./errors";
 import { rethrowOnField } from "./lines";
+import { staffDirectory } from "@/lib/domain/staff-directory";
 
 export type ServiceOption = {
   id: string;
@@ -416,7 +417,7 @@ export async function listCultCommonsRates(
       .select("id, rate, effective_from, created_at, created_by, cancelled_at, cancelled_by")
       .order("effective_from", { ascending: false })
       .limit(200),
-    supabase.rpc("staff_directory"),
+    staffDirectory(supabase),
   ]);
   const names = new Map((unwrap(staffResult) ?? []).map((s) => [s.id, s.display_name]));
   const name = (id: string | null) => (id ? (names.get(id) ?? "A former colleague") : null);

@@ -16,7 +16,6 @@ import { prepareUploads, recordPhoto } from "@/app/(staff)/attachments/actions";
 import { AlertIcon } from "@/components/ui/icons";
 import { useToast } from "@/components/ui/toast";
 import type { PhotoTarget } from "@/lib/attachments";
-import { getBrowserClient } from "@/lib/supabase/browser";
 import { onUploadProgress } from "@/lib/supabase/upload-progress";
 import { newId } from "@/lib/uuid";
 
@@ -35,6 +34,10 @@ function createStore() {
     upload: async (target, blob, onProgress) => {
       const stop = onUploadProgress(target.token, onProgress);
       try {
+        // Loaded on the first upload, not with the layout: supabase-js and
+        // the env check (zod) are about 160 KB gzip every staff page would
+        // otherwise download before it is interactive.
+        const { getBrowserClient } = await import("@/lib/supabase/browser");
         return await getBrowserClient()
           .storage.from(target.bucket)
           .uploadToSignedUrl(target.path, target.token, blob, { contentType: target.mediaType });

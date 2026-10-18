@@ -16,6 +16,7 @@ import {
   type Visibility,
 } from "@/lib/attachments";
 import { BUSINESS_ERRORS, DbError, unwrap } from "@/lib/db-errors";
+import { getServerEnv } from "@/lib/env";
 import type { PhotoMediaType } from "@/lib/images";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
@@ -68,6 +69,11 @@ export type Photo = {
   entityId: string;
   /** Short-lived signed URL (internal/customer) or public URL; null if Storage could not sign it. */
   url: string | null;
+  /**
+   * What a grid shows: a 480 px rendition when Storage resizes images
+   * (STORAGE_IMAGE_TRANSFORMS), else `url`. The viewer keeps the original.
+   */
+  thumbUrl: string | null;
   visibility: Visibility;
   caption: string | null;
   mediaType: string;
@@ -118,12 +124,13 @@ type Row = {
 const asBucket = (b: string): PhotoBucket =>
   b === PUBLIC_BUCKET ? PUBLIC_BUCKET : INTERNAL_BUCKET;
 
-function toPhoto(row: Row, url: string | null): Photo {
+function toPhoto(row: Row, urls: PhotoUrls | undefined): Photo {
   return {
     id: row.id,
     entityType: row.entity_type as PhotoEntity,
     entityId: row.entity_id,
-    url,
+    url: urls?.url ?? null,
+    thumbUrl: urls?.thumbUrl ?? urls?.url ?? null,
     visibility: row.visibility,
     caption: row.caption,
     mediaType: row.media_type,
@@ -134,26 +141,68 @@ function toPhoto(row: Row, url: string | null): Photo {
   };
 }
 
-/** URLs for rows: one batch of signed URLs for the private bucket, public URLs for the rest. */
-async function urlsFor(supabase: ServerSupabase, rows: Row[]): Promise<Map<string, string>> {
-  const urls = new Map<string, string>();
+type PhotoUrls = { url: string | null; thumbUrl: string | null };
+
+/**
+ * The grid's rendition: 480 px square, cropped like the cell (object-cover),
+ * enough for a 160 px cell at 3x. Photos are stored at up to 2048 px.
+ */
+const THUMBNAIL = { width: 480, height: 480, resize: "cover", quality: 70 } as const;
+
+/** Whether Storage resizes images here (STORAGE_IMAGE_TRANSFORMS); off if the environment does not parse. */
+function storageResizes(): boolean {
+  try {
+    return getServerEnv().STORAGE_IMAGE_TRANSFORMS === "true";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * URLs for rows: one batch of signed URLs for the private bucket, public
+ * URLs for the rest. When Storage resizes images, also each photo's
+ * thumbnail: a public rendition URL costs no request, a private one is a
+ * signed request per photo (Storage signs renditions one at a time), sent
+ * alongside the batch; a thumbnail that cannot be signed falls back to the
+ * original.
+ */
+async function urlsFor(supabase: ServerSupabase, rows: Row[]): Promise<Map<string, PhotoUrls>> {
+  const urls = new Map<string, PhotoUrls>();
+  const resize = storageResizes();
   const privatePaths = rows
     .filter((r) => r.storage_bucket !== PUBLIC_BUCKET)
     .map((r) => r.storage_path);
-  if (privatePaths.length > 0) {
-    const { data } = await supabase.storage
-      .from(INTERNAL_BUCKET)
-      .createSignedUrls(privatePaths, SIGNED_URL_TTL_SECONDS);
-    for (const item of data ?? []) {
-      if (item.path && item.signedUrl && !item.error) urls.set(item.path, item.signedUrl);
+  const internal = supabase.storage.from(INTERNAL_BUCKET);
+  const [signed, thumbs] = await Promise.all([
+    privatePaths.length > 0
+      ? internal.createSignedUrls(privatePaths, SIGNED_URL_TTL_SECONDS)
+      : Promise.resolve({ data: [] }),
+    resize
+      ? Promise.all(
+          privatePaths.map((path) =>
+            internal.createSignedUrl(path, SIGNED_URL_TTL_SECONDS, { transform: THUMBNAIL }),
+          ),
+        )
+      : Promise.resolve([]),
+  ]);
+  const thumbOf = new Map<string, string>();
+  thumbs.forEach((t, i) => {
+    if (t.data?.signedUrl && !t.error) thumbOf.set(privatePaths[i], t.data.signedUrl);
+  });
+  for (const item of signed.data ?? []) {
+    if (item.path && item.signedUrl && !item.error) {
+      urls.set(item.path, { url: item.signedUrl, thumbUrl: thumbOf.get(item.path) ?? null });
     }
   }
+  const publicBucket = supabase.storage.from(PUBLIC_BUCKET);
   for (const r of rows) {
     if (r.storage_bucket === PUBLIC_BUCKET) {
-      urls.set(
-        r.storage_path,
-        supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(r.storage_path).data.publicUrl,
-      );
+      urls.set(r.storage_path, {
+        url: publicBucket.getPublicUrl(r.storage_path).data.publicUrl,
+        thumbUrl: resize
+          ? publicBucket.getPublicUrl(r.storage_path, { transform: THUMBNAIL }).data.publicUrl
+          : null,
+      });
     }
   }
   return urls;
@@ -201,7 +250,7 @@ export async function listPhotos(supabase: ServerSupabase, target: PhotoTarget):
   ]);
   const rows = unwrap(result) as Row[];
   const urls = await urlsFor(supabase, rows);
-  return rows.map((r) => toPhoto(r, urls.get(r.storage_path) ?? null));
+  return rows.map((r) => toPhoto(r, urls.get(r.storage_path)));
 }
 
 /** The table holding each kind of record a photo can belong to. */
@@ -289,7 +338,7 @@ export async function recordPhoto(supabase: ServerSupabase, input: RecordInput):
     }),
   ) as Row;
   const urls = await urlsFor(supabase, [row]);
-  return toPhoto(row, urls.get(row.storage_path) ?? null);
+  return toPhoto(row, urls.get(row.storage_path));
 }
 
 async function readRow(supabase: ServerSupabase, id: string): Promise<Row | null> {

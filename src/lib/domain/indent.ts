@@ -138,36 +138,35 @@ export async function getIndentPanel(
     }
   }
 
-  let purchase = new Map<
-    string,
-    { expected_unit_cost: number | null; supplier_id: string | null; supplier_name: string | null }
-  >();
-  if (purchaseData && rows.length > 0) {
-    const staffRows =
-      unwrap(
-        await supabase
+  // The purchase data and the cost check depend only on the requests, not
+  // on each other: one more phase, not two.
+  const productIds = [
+    ...new Set(rows.flatMap((r) => (r.kind === "part" && r.product_id ? [r.product_id] : []))),
+  ];
+  const [staffResult, costResult] = await Promise.all([
+    purchaseData && rows.length > 0
+      ? supabase
           .from("job_part_requests_staff")
           .select("id, expected_unit_cost, supplier_id, supplier_name")
           .in(
             "id",
             rows.map((r) => r.id),
-          ),
-      ) ?? [];
-    purchase = new Map(staffRows.map((r) => [r.id!, r]));
-  }
-
-  const productIds = [
-    ...new Set(rows.flatMap((r) => (r.kind === "part" && r.product_id ? [r.product_id] : []))),
-  ];
-  let withoutCost: Set<string> | null = null;
-  if (viewCosts && productIds.length > 0) {
-    const costRows =
-      unwrap(
-        await supabase
+          )
+      : null,
+    viewCosts && productIds.length > 0
+      ? supabase
           .from("product_costs")
           .select("product_id, default_direct_cost")
-          .in("product_id", productIds),
-      ) ?? [];
+          .in("product_id", productIds)
+      : null,
+  ]);
+  const purchase = new Map<
+    string,
+    { expected_unit_cost: number | null; supplier_id: string | null; supplier_name: string | null }
+  >(staffResult ? (unwrap(staffResult) ?? []).map((r) => [r.id!, r]) : []);
+  let withoutCost: Set<string> | null = null;
+  if (costResult) {
+    const costRows = unwrap(costResult) ?? [];
     const known = new Set(
       costRows.filter((c) => c.default_direct_cost !== null).map((c) => c.product_id),
     );

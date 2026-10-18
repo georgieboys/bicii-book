@@ -49,3 +49,20 @@ describe("customer page headers", () => {
     },
   );
 });
+
+describe("every page's hardening headers (audit 2026-10-18)", () => {
+  it.each(["/", "/jobs/x", `/pay/${TOKEN}`, `/quote/${TOKEN}`, "/login"])(
+    "%s allows the camera to the Admin only and refuses other powerful features",
+    async (path) => {
+      const policy = (await headersFor(path)).get("permissions-policy") ?? "";
+      expect(policy).toContain("camera=(self)");
+      for (const feature of ["microphone", "geolocation", "payment", "usb", "display-capture"]) {
+        expect(policy, feature).toContain(`${feature}=()`);
+      }
+    },
+  );
+
+  it("does not announce the framework", () => {
+    expect(nextConfig.poweredByHeader).toBe(false);
+  });
+});

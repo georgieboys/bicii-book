@@ -1,10 +1,10 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 
 import { ActionError, staffAction } from "@/lib/actions";
+import { linkOrigin } from "@/lib/admin-origin";
 import { FORBIDDEN_ERROR } from "@/lib/db-errors";
 import { hasPermission } from "@/lib/auth/permissions";
 import {
@@ -204,15 +204,6 @@ export const cancelPartRequestAction = staffAction(
   },
 );
 
-/** This request's own origin, so a link works on whichever Admin address staff use. */
-async function origin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto =
-    h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https");
-  return `${proto}://${host}`;
-}
-
 /**
  * Send proposed items as a quote (D141, D144). Returns the link, shown to
  * staff this once (only its hash is stored): the sheet then opens WhatsApp
@@ -250,7 +241,7 @@ export const sendQuoteAction = staffAction(
       }
     }
     const token = await sendQuote(supabase, input);
-    const link = `${await origin()}${quotePath(token)}`;
+    const link = `${await linkOrigin()}${quotePath(token)}`;
     let emailedTo: string | null = null;
     let emailFailed = false;
     if (recipient?.email) {

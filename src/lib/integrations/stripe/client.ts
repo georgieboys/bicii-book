@@ -1,5 +1,6 @@
 import "server-only";
 
+import { adminOrigin } from "@/lib/admin-origin";
 import { getServerEnv, type ServerEnv } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import type { StripeOffReason } from "@/lib/payments";
@@ -60,30 +61,6 @@ type ConfigEnv = Pick<
 const LIVE_KEY = /^(sk|rk)_live_[A-Za-z0-9]+$/;
 const TEST_KEY = /^(sk|rk)_test_[A-Za-z0-9]+$/;
 const WEBHOOK_SECRET = /^whsec_[A-Za-z0-9+/=_-]{8,}$/;
-
-function isLoopback(hostname: string): boolean {
-  return (
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname === "[::1]" ||
-    /^127(\.\d{1,3}){3}$/.test(hostname)
-  );
-}
-
-function adminOrigin(value: string | undefined, production: boolean): string | null {
-  if (!value) return null;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return null;
-  }
-  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) return null;
-  if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) return null;
-  if (production && (url.protocol !== "https:" || isLoopback(url.hostname))) return null;
-  return url.origin;
-}
 
 /** Pure: the rules above over the parsed server environment. */
 export function stripeConfig(env: ConfigEnv): StripeConfig {

@@ -4,6 +4,13 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // The camera is the only powerful feature the Admin uses (the scanner);
+  // everything else is refused for the page and anything it embeds.
+  {
+    key: "Permissions-Policy",
+    value:
+      "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), display-capture=()",
+  },
 ];
 
 /** A page whose path carries a link token: no referrer, not indexed, never cached. */
@@ -14,6 +21,8 @@ const customerPageHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // No X-Powered-By: nothing gains from knowing the framework.
+  poweredByHeader: false,
   experimental: {
     // forbidden() / unauthorized() and forbidden.tsx / unauthorized.tsx
     // (ADR-001 A3).

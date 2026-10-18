@@ -7,7 +7,7 @@
 import pino from "pino";
 import { describe, expect, it } from "vitest";
 
-import { loggerOptions } from "@/lib/logger";
+import { loggablePath, loggerOptions } from "@/lib/logger";
 
 /** The production options, at info, written to a captured stream. */
 function capture() {
@@ -96,5 +96,61 @@ describe("logger redaction", () => {
       authorization: "[redacted]",
       serviceRoleKey: "[redacted]",
     });
+  });
+});
+
+describe("logger error serializer (audit 2026-10-18)", () => {
+  /** What PostgREST returns for a CHECK violation: DETAIL is the whole row. */
+  function rowError() {
+    const e = new Error('new row for relation "customers" violates check constraint "c"');
+    Object.assign(e, {
+      name: "DbError",
+      code: "23514",
+      details: "Failing row contains (c1, Chloe, chloe@example.com, STAFF-ONLY NOTE)",
+      hint: "HINT_VALUE",
+    });
+    return e;
+  }
+
+  it("keeps type, message, code and stack, never details or hint", () => {
+    const { log, lines, last } = capture();
+    log.warn({ err: rowError(), kind: "validation" }, "action failed");
+    const err = last().err as Record<string, unknown>;
+    expect(err.type).toBe("DbError");
+    expect(err.code).toBe("23514");
+    expect(err.message).toContain("customers");
+    expect(typeof err.stack).toBe("string");
+    expect(Object.keys(err).sort()).toEqual(["code", "message", "stack", "type"]);
+    const text = lines.join("\n");
+    for (const banned of ["Failing row", "chloe@example.com", "STAFF-ONLY", "HINT_VALUE"]) {
+      expect(text).not.toContain(banned);
+    }
+  });
+
+  it("serializes a plain error object (a PostgREST { error }) the same way", () => {
+    const { log, lines, last } = capture();
+    log.error({ err: { message: "duplicate key", code: "23505", details: "Key (email)=(a@b.c)" } });
+    expect(last().err).toEqual({ type: "Object", message: "duplicate key", code: "23505" });
+    expect(lines.join("\n")).not.toContain("a@b.c");
+  });
+
+  it("passes a string through", () => {
+    const { log, last } = capture();
+    log.warn({ err: "shopify call failed" });
+    expect(last().err).toBe("shopify call failed");
+  });
+});
+
+describe("loggablePath (R-081)", () => {
+  it("masks a customer link's token and drops the query", () => {
+    expect(loggablePath("/quote/SECRET_TOKEN?deposit=returned")).toBe("/quote/[token]");
+    expect(loggablePath("/pay/SECRET_TOKEN")).toBe("/pay/[token]");
+    expect(loggablePath("/pay/SECRET_TOKEN/x?balance=1")).toBe("/pay/[token]/x");
+  });
+
+  it("keeps staff paths but not their query", () => {
+    expect(loggablePath("/jobs/abc")).toBe("/jobs/abc");
+    expect(loggablePath("/search?q=Chloe")).toBe("/search");
+    expect(loggablePath("/reports/quotes")).toBe("/reports/quotes");
   });
 });

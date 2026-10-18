@@ -394,6 +394,35 @@ describe("my_customer_profile / update_my_profile", () => {
   });
 });
 
+describe("update_my_profile's errors never print the row (audit 2026-10-18)", () => {
+  // A check violation inside a security definer function carries DETAIL
+  // "Failing row contains (...)", built with the owner's privileges: every
+  // column of the customer, internal_notes too (DATA-MODEL §16).
+  const attempts: Array<[string, string]> = [
+    ["select public.update_my_profile(phone => repeat('1', 41))", "customers_phone_check"],
+    [
+      "select public.update_my_profile(first_name => repeat('a', 101))",
+      "customers_first_name_check",
+    ],
+    ["select public.update_my_profile(last_name => repeat('a', 101))", "customers_last_name_check"],
+    [
+      "select public.update_my_profile(display_name => repeat('a', 201))",
+      "customers_display_name_check",
+    ],
+  ];
+
+  it.each(attempts)("%s fails with its constraint and no DETAIL", async (sql, constraint) => {
+    const err = await asCustomer(CUSTOMER.tan, (tx) => tx.query(sql)).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    const e = err as { code?: string; constraint?: string; detail?: string } | null;
+    expect(e).toMatchObject({ code: "23514", constraint });
+    expect(e?.detail).toBeUndefined();
+    expect(JSON.stringify(e)).not.toMatch(/Failing row|WhatsApp/);
+  });
+});
+
 describe("my_bikes / my_bike_attachments", () => {
   it("list only the caller's own bikes, without internal notes", async () => {
     const rows = await asCustomer(CUSTOMER.tan, (tx) =>

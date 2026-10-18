@@ -2143,7 +2143,10 @@ URLs, or customer data in this file.
 - Evidence and confidence: high for the mechanism (a path is logged and
   kept in history by design). The app itself never logs the token: the
   limit counters hold its salted digest and the email failure log names
-  only the quote id and Resend's status.
+  only the quote id and Resend's status. Until the 2026-10-18 audit one
+  exception existed: a server error on a customer page logged the request
+  path with the token in it; the error log now masks the token segment
+  and drops the query (`loggablePath`, `tests/unit/logger.test.ts`).
 - Workaround or containment: `Referrer-Policy: no-referrer` (the token
   never leaves in a Referer), `Cache-Control: private, no-store`, a
   7-day expiry, one answer per quote, and Withdraw or Send again to kill a
@@ -2151,7 +2154,8 @@ URLs, or customer data in this file.
 - Next action: none unless the logs gain wider access; a token in the
   fragment would need the page to post it from the browser.
 - Revisit trigger: log access granted beyond the owner; a disputed answer.
-- Last checked: 2026-10-14, Phase 13 step 3.
+- Last checked: 2026-10-18 SGT, the audit's week-one fixes (the error
+  log's path; not merged).
 
 ## R-082 — Approved indent parts can be left unfitted on a completed or collected job
 
@@ -2611,7 +2615,11 @@ URLs, or customer data in this file.
   only; the logger redacts URL fields and Stripe modules never log URLs.
 - Workaround or containment (step 2, built): return URLs are built only
   from `stripeConfig`'s validated origin, never from the request's Host,
-  and a customer is redirected only to the `checkout.stripe.com` host (the
+  and since the 2026-10-18 audit so is the quote link itself whenever
+  `ADMIN_ORIGIN` is set (`linkOrigin`, `src/lib/admin-origin.ts`,
+  `tests/unit/admin-origin.test.ts`; before, it took the request's
+  forwarded host, so a link sent from a non-canonical Admin address
+  carried that address); a customer is redirected only to the `checkout.stripe.com` host (the
   fake: this Admin's quote page) (`tests/unit/stripe-checkout.test.ts`);
   the quote page keeps sending no-referrer, noindex and no-store, the
   return included (`tests/e2e/payments.spec.ts` checks

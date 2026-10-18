@@ -231,9 +231,9 @@ from the code:
   continues the Stripe range with `20261014001200` to `20261014001500`).
   Main and the hosted project end at
   `20261014001500_payment_reports.sql` since PR #34 (Phase 14 step 3
-  PR A, applied by `migrate.yml` run 17 on 2026-10-17 SGT);
-  `20261018000100_profile_errors_without_row` (the audit's week-one
-  fixes) follows on its branch, not yet merged. A
+  PR A, applied by `migrate.yml` run 17 on 2026-10-17 SGT), and since
+  PR #38 at `20261018000100_profile_errors_without_row` (the audit's
+  week-one fixes, applied by run 18 on 2026-10-18 SGT). A
   new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).

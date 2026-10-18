@@ -1303,7 +1303,7 @@ both voids and Keep payment), `job-status-actions.test.tsx`,
 `report-exports.test.ts` (the `payments` and `payments_held` kinds,
 permissions, headers, rows and file names).
 
-The audit's week-one fixes (2026-10-18 SGT, on its branch) add
+The audit's week-one fixes (2026-10-18 SGT, PR #38) add
 `admin-origin.test.ts` (a quote link or the Shopify webhook address is
 built on a valid `ADMIN_ORIGIN` and ignores `x-forwarded-host`; the
 request's origin only when `ADMIN_ORIGIN` is unset or invalid, and never

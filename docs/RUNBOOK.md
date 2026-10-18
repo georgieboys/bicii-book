@@ -445,7 +445,7 @@ One Vercel project for the Admin, connected to this repository.
    | `CRON_SECRET` | own value | own value | Sensitive; the cron route's bearer |
    | `RESEND_API_KEY`, `EMAIL_FROM` | see [Quote emails](#quote-emails) | unset (no quote emails from previews) | the key Sensitive |
    | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | see [Stripe payments](#stripe-environment-variables-and-fake-mode); live values only | **unset** (D157: no staging project; the code keeps Stripe off in Preview anyway) | Sensitive; never `STRIPE_ADAPTER=fake` in Production |
-   | `ADMIN_ORIGIN` | `https://<admin host>` | unset | not secret; where Stripe returns customers |
+   | `ADMIN_ORIGIN` | `https://<admin host>` | unset | not secret; where Stripe returns customers, and the host of quote links and the Shopify webhook address |
 
    Preview never gets the live store's `SHOPIFY_ADMIN_TOKEN` or
    `SHOPIFY_WEBHOOK_SECRET`. Preview runs on the staging database, whose

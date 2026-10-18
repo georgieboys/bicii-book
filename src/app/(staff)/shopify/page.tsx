@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Link from "next/link";
 
 import { CopyText } from "@/components/domain/copy-text";
@@ -9,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { AlertIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
+import { linkOrigin } from "@/lib/admin-origin";
 import { requireAdmin } from "@/lib/auth/session";
 import { getShopifyOverview } from "@/lib/domain/shopify";
 import { runbookHref } from "@/lib/docs-links";
@@ -19,13 +19,9 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Shopify" };
 
-/** The address Shopify posts webhooks to, from this request's host. */
+/** The address Shopify posts webhooks to: ADMIN_ORIGIN, else this request's host. */
 async function webhookUrl(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto =
-    h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https");
-  return `${proto}://${host}/api/shopify/webhooks`;
+  return `${await linkOrigin()}/api/shopify/webhooks`;
 }
 
 /**

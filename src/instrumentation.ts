@@ -13,7 +13,7 @@ export async function register() {
 
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const { logger } = await import("@/lib/logger");
+  const { logger, loggablePath } = await import("@/lib/logger");
   const error = err instanceof Error ? err : new Error(String(err));
   const digest =
     typeof err === "object" && err !== null && "digest" in err ? String(err.digest) : undefined;
@@ -24,7 +24,7 @@ export const onRequestError: Instrumentation.onRequestError = async (err, reques
       digest,
       correlationId: Array.isArray(requestId) ? requestId[0] : requestId,
       method: request.method,
-      path: request.path,
+      path: loggablePath(request.path),
       routePath: context.routePath,
       routeType: context.routeType,
       renderSource: context.renderSource,

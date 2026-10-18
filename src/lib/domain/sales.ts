@@ -10,6 +10,7 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 
 import { DomainError } from "./errors";
 import { currentCultCommonsRate } from "./services";
+import { staffNames } from "@/lib/domain/staff-directory";
 
 /**
  * In-store sales (SPEC §10, §13, §21, §23; DATA-MODEL §8, §15, §16; PLAN
@@ -42,11 +43,6 @@ type OwnershipType = Database["public"]["Enums"]["ownership_type"];
 
 const money = (v: number | string | null | undefined): Money | null =>
   v === null || v === undefined ? null : toMoneyString(v);
-
-async function staffNames(supabase: ServerSupabase): Promise<Map<string, string>> {
-  const rows = unwrap(await supabase.rpc("staff_directory")) ?? [];
-  return new Map(rows.map((s) => [s.id, s.display_name]));
-}
 
 const nameOf = (names: ReadonlyMap<string, string>, id: string | null) =>
   id ? (names.get(id) ?? "A former colleague") : null;

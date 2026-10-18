@@ -17,6 +17,7 @@ import {
 } from "@/lib/payments";
 import type { Database } from "@/lib/database.types";
 import type { ServerSupabase } from "@/lib/supabase/server";
+import { staffDirectory } from "@/lib/domain/staff-directory";
 
 /**
  * Customer payments for staff screens (Phase 14 step 2; D151, D157,
@@ -310,7 +311,7 @@ export async function getJobPayments(
         .eq("work_order_id", workOrderId)
         .is("withdrawn_at", null)
         .maybeSingle(),
-      supabase.rpc("staff_directory"),
+      staffDirectory(supabase),
     ],
   );
   const failed = [deposits, payments, refunds, issues, totals, counter, link, directory].find(

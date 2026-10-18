@@ -8,6 +8,7 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 
 import { DomainError } from "./errors";
 import type { ListPage } from "./list";
+import { staffDirectory } from "@/lib/domain/staff-directory";
 
 /**
  * Bikes (SPEC §5; DATA-MODEL §2). A bike is permanent: its B- short ID is
@@ -179,7 +180,7 @@ export async function getBike(supabase: ServerSupabase, id: string): Promise<Bik
       )
       .eq("bike_id", id)
       .order("created_at", { ascending: false }),
-    supabase.rpc("staff_directory"),
+    staffDirectory(supabase),
   ]);
   const row = unwrap(bikeResult);
   if (!row) return null;

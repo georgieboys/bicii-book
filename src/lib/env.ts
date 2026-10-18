@@ -119,6 +119,13 @@ export const serverEnvSchema = z
      * from the request's Host.
      */
     ADMIN_ORIGIN: nonEmpty.optional(),
+    /**
+     * 'true' where Supabase Storage resizes images (the hosted project, on
+     * the Pro plan): photo grids then load a 480 px rendition instead of
+     * the 2048 px original. Unset locally and in E2E: the devstack's
+     * Storage has image transformation off, so grids keep the original.
+     */
+    STORAGE_IMAGE_TRANSFORMS: z.enum(["true"]).optional(),
     /** Set by Vercel (production | preview | development); read to refuse the fakes in production and by stripeConfig. */
     VERCEL_ENV: z.string().optional(),
   })

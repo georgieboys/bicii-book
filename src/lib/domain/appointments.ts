@@ -36,6 +36,7 @@ import { isOpenStatus, WORK_ORDER_STATUSES, type WorkOrderStatus } from "@/lib/w
 
 import { DomainError } from "./errors";
 import { rethrowOnField } from "./lines";
+import { staffDirectory } from "@/lib/domain/staff-directory";
 
 /**
  * Appointments for staff (SPEC §6, §21; DATA-MODEL §3, §16; PLAN D2,
@@ -652,7 +653,7 @@ export async function getAppointment(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(200),
-    supabase.rpc("staff_directory"),
+    staffDirectory(supabase),
   ]);
   const r = unwrap(rowResult);
   if (!r || !r.customer || !r.type) return null;

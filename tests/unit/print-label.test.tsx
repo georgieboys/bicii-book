@@ -131,6 +131,8 @@ describe("PrintLabelButton", () => {
       <PrintLabelButton kind="product" entityId={ENTITY} shortId="P-000011" setup={setup()} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Print label" }));
+    // The sheet's module loads when it first opens (next/dynamic).
+    await screen.findByRole("dialog");
     expect(
       within(dialog()).getByRole("heading", { name: "Print labels · P-000011" }),
     ).toBeVisible();

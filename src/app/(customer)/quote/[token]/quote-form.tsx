@@ -9,7 +9,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { formatMoney, sumMoney } from "@/lib/money";
-import { ANSWER_NAME_MAX } from "@/lib/quote-page";
+import { ANSWER_NAME_MAX } from "@/lib/quote-answer";
 
 import { answerQuoteAction } from "./actions";
 

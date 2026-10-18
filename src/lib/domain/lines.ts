@@ -134,12 +134,19 @@ const money = (v: number | string | null | undefined) => toMoneyString(v ?? 0);
 
 /**
  * A job's lines, voided ones included, oldest first. `names` maps staff ids
- * to display names (staff_directory).
+ * to display names (staff_directory); it may still be loading, so the job
+ * page reads the lines alongside it rather than after it.
  */
 export async function listLines(
   supabase: ServerSupabase,
   workOrderId: string,
-  { viewCosts, names }: { viewCosts: boolean; names: ReadonlyMap<string, string> },
+  {
+    viewCosts,
+    names: namesInput,
+  }: {
+    viewCosts: boolean;
+    names: ReadonlyMap<string, string> | PromiseLike<ReadonlyMap<string, string>>;
+  },
 ): Promise<Line[]> {
   const rows: (SaleRow | CostRow)[] = viewCosts
     ? (unwrap(
@@ -158,8 +165,8 @@ export async function listLines(
           .order("created_at", { ascending: true })
           .order("id", { ascending: true }),
       ) ?? []);
+  const [names, parts] = await Promise.all([namesInput, loadParts(supabase, rows)]);
   const nameOf = (id: string | null) => (id ? (names.get(id) ?? "A former colleague") : null);
-  const parts = await loadParts(supabase, rows);
 
   return rows.map((r) => {
     const line: Line = {
@@ -281,11 +288,18 @@ async function loadParts(
   return result;
 }
 
-/** A job's running totals over its live lines (the database's views). */
+/**
+ * A job's running totals over its live lines (the database's views).
+ * `currency` (the job's) is the fallback for a job with no lines; it may
+ * still be loading, so the job page reads the totals alongside the job.
+ */
 export async function getTotals(
   supabase: ServerSupabase,
   workOrderId: string,
-  { viewCosts, currency }: { viewCosts: boolean; currency: string },
+  {
+    viewCosts,
+    currency: currencyInput,
+  }: { viewCosts: boolean; currency: string | PromiseLike<string> },
 ): Promise<Totals> {
   if (viewCosts) {
     const row = unwrap(
@@ -298,7 +312,7 @@ export async function getTotals(
         .maybeSingle(),
     );
     return {
-      currency: row?.currency ?? currency,
+      currency: row?.currency ?? (await currencyInput),
       lineCount: row?.line_count ?? 0,
       saleTotal: money(row?.sale_total),
       costs: {
@@ -318,7 +332,7 @@ export async function getTotals(
       .maybeSingle(),
   );
   return {
-    currency: row?.currency ?? currency,
+    currency: row?.currency ?? (await currencyInput),
     lineCount: row?.line_count ?? 0,
     saleTotal: money(row?.sale_total),
   };

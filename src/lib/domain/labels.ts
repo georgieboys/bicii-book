@@ -34,6 +34,7 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 
 import { DomainError } from "./errors";
 import type { ListPage } from "./list";
+import { staffNames } from "@/lib/domain/staff-directory";
 
 /**
  * Labels and print jobs (SPEC §15, §16, §31; DATA-MODEL §12; PLAN D9,
@@ -66,12 +67,6 @@ const ENTITY_COLUMN: Record<LabelKind, "product_id" | "inventory_unit_id" | "bik
   unit: "inventory_unit_id",
   bike: "bike_id",
 };
-
-/** staff_directory(): every staff member's name (mechanics cannot read other staff rows). */
-async function staffNames(supabase: ServerSupabase): Promise<Map<string, string>> {
-  const rows = unwrap(await supabase.rpc("staff_directory")) ?? [];
-  return new Map(rows.map((s) => [s.id, s.display_name]));
-}
 
 const nameOf = (names: Map<string, string>, id: string) => names.get(id) ?? "A former colleague";
 

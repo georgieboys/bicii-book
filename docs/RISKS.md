@@ -48,9 +48,11 @@ URLs, or customer data in this file.
   `supabase/seed.sql` off the hosted project (it never runs there:
   `migrate.yml` has no seed step). A migration added from now on must sort
   after the newest file on `main` (`HANDOVER.md` "Migrations after
-  go-live"); since Phase 14 step 3 PR A (PR #34, applied by `migrate.yml`
-  run 17 on 2026-10-17 SGT) that is `20261014001500_payment_reports.sql`
-  (before it `20261014001100` after D160 in PR #30, `20261014000600` after
+  go-live"); since the audit's week-one fixes (PR #38, applied by
+  `migrate.yml` run 18 on 2026-10-18 SGT) that is
+  `20261018000100_profile_errors_without_row.sql` (before it
+  `20261014001500_payment_reports.sql` after Phase 14 step 3 PR A, PR #34,
+  run 17; `20261014001100` after D160 in PR #30, `20261014000600` after
   PR #25, `20261014000700` after
   [R-082](#r-082--approved-indent-parts-can-be-left-unfitted-on-a-completed-or-collected-job)'s
   containment in PR #26, and `20261014000900` after D149a–c in PR #27).
@@ -2155,7 +2157,7 @@ URLs, or customer data in this file.
   fragment would need the page to post it from the browser.
 - Revisit trigger: log access granted beyond the owner; a disputed answer.
 - Last checked: 2026-10-18 SGT, the audit's week-one fixes (the error
-  log's path; not merged).
+  log's path; merged in PR #38 as 8f07f53 and in production the same day).
 
 ## R-082 — Approved indent parts can be left unfitted on a completed or collected job
 
@@ -2677,7 +2679,7 @@ URLs, or customer data in this file.
   fix; `tests/unit/stripe-balance-checkout.test.ts`).
 - Revisit trigger: a request for a Checkout custom domain; a leaked quote
   or balance link.
-- Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the privacy line on both customer pages and the per-flow redirect check; merged in PR #36 as ed6a08a and in production since 2026-10-18 SGT; the public site's widened privacy text in georgieboys/BICII#2, merged as ea057ac and live the same day).
+- Last checked: 2026-10-18 SGT, the audit's week-one fixes (the quote link built on `ADMIN_ORIGIN`; merged in PR #38 as 8f07f53 and in production the same day); before that Phase 14 step 3 PR B (the privacy line on both customer pages and the per-flow redirect check; merged in PR #36 as ed6a08a; the public site's widened privacy text in georgieboys/BICII#2, merged as ea057ac).
 
 ## R-089 — What BICII does not record or cannot apply from Stripe
 

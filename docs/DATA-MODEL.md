@@ -221,9 +221,11 @@ document is corrected.
   the history still held 71 versions, the last `20261014001500`,
   `counter_payments` and `balance_links` held no rows and
   `work_order_payment_totals` 4 rows for 4 jobs.
-  `20261018000100_profile_errors_without_row` (the audit's week-one
-  fixes, 2026-10-18 SGT) is on its branch, not merged or applied; it
-  replaces `update_my_profile` with the same signature and grants.
+  PR #38 (the audit's week-one fixes, merged as 8f07f53 on 2026-10-18
+  SGT) added `20261018000100_profile_errors_without_row`, applied by run
+  18; read-only afterwards the history held all 72 versions, the last
+  `20261018000100`, and `update_my_profile` re-raises through
+  `private.raise_without_row` with its EXECUTE grants unchanged.
   There is no staging project
   ([R-001](RISKS.md#r-001--nothing-is-deployed)).
 

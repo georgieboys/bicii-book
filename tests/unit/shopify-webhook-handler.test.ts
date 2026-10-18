@@ -221,16 +221,18 @@ describe("handleShopifyWebhook", () => {
       webhook_id: "wh-1",
       shopify_event_id: "evt-wh-1",
       triggered_at: "2026-10-06T01:02:03.000Z",
-      correlation_id: "req-abcdef12",
     });
+    // A fresh id, never the incoming x-request-id (audit 2026-10-18).
+    const correlationId = records[0].correlation_id;
+    expect(correlationId).toMatch(/^[0-9a-f-]{36}$/);
     expect((records[0].payload as { name: string }).name).toBe("#9001");
     expect(runEvent).not.toHaveBeenCalled();
     expect(tasks).toHaveLength(1);
     await tasks[0]();
-    expect(runEvent).toHaveBeenCalledExactlyOnceWith("j-1", "req-abcdef12");
+    expect(runEvent).toHaveBeenCalledExactlyOnceWith("j-1", correlationId);
     expect(runDue).toHaveBeenCalledExactlyOnceWith(
       { limit: 5, claimUntil: T0 + 10_000 },
-      "req-abcdef12",
+      correlationId,
     );
     expect(runEvent.mock.invocationCallOrder[0]).toBeLessThan(runDue.mock.invocationCallOrder[0]);
   });

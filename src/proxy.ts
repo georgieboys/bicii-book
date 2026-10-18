@@ -5,7 +5,8 @@ import { loginUrlFor } from "@/lib/auth/redirect";
 import { isPublicPath } from "@/lib/auth/routes";
 import type { Database } from "@/lib/database.types";
 import { getPublicEnv } from "@/lib/env";
-import { REQUEST_ID_HEADER, requestIdFrom } from "@/lib/request-id";
+import { newRequestId, REQUEST_ID_HEADER } from "@/lib/request-id";
+import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
 
 /**
  * Runs before every matched request (ADR-001 A3, A8):
@@ -21,7 +22,7 @@ import { REQUEST_ID_HEADER, requestIdFrom } from "@/lib/request-id";
  * calls requireStaff(), and the database checks again (RLS, RPC guards).
  */
 export async function proxy(request: NextRequest) {
-  const requestId = requestIdFrom(request.headers.get(REQUEST_ID_HEADER));
+  const requestId = newRequestId();
 
   const upstreamHeaders = () => {
     const h = new Headers(request.headers);
@@ -36,6 +37,7 @@ export async function proxy(request: NextRequest) {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      cookieOptions: sessionCookieOptions(),
       cookies: {
         getAll() {
           return request.cookies.getAll();

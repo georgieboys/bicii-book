@@ -49,7 +49,9 @@ export const serverEnvSchema = z
       .default("info"),
     /**
      * Raises every sign-in limit of the Admin's own (PLAN D72) by this
-     * factor. Tests only (Playwright sets 1000); 1 everywhere else.
+     * factor. Tests only (Playwright sets 1000); 1 everywhere else, and
+     * always 1 in production (parseServerEnv ignores it there, so a stray
+     * value cannot switch the limits off; audit 2026-10-18).
      */
     SIGN_IN_LIMIT_MULTIPLIER: z.coerce
       .number({ error: "must be a whole number from 1 to 100000" })
@@ -204,6 +206,10 @@ export function parsePublicEnv(source: Source): PublicEnv {
 export function parseServerEnv(source: Source): ServerEnv {
   const result = serverEnvSchema.safeParse(blankToUndefined(source));
   if (!result.success) throw new EnvError("server", result.error.issues);
+  // Ignored rather than refused in production: refusing would stop every
+  // sign-in (D72), and the limits only need it to be 1.
+  if (result.data.VERCEL_ENV === "production")
+    return { ...result.data, SIGN_IN_LIMIT_MULTIPLIER: 1 };
   return result.data;
 }
 

@@ -449,7 +449,7 @@ outage would be noticed by a user. There is no incident record location
 - **Application logs:** pino JSON lines to stdout (`src/lib/logger.ts`),
   level from `LOG_LEVEL` (default `info`); `src/instrumentation.ts`
   forwards request errors. No retention is configured anywhere.
-- **Correlation:** `proxy.ts` sets `x-request-id` on each request, the
+- **Correlation:** `proxy.ts` sets a fresh `x-request-id` on each request, the
   server Supabase client passes it to PostgREST as `x-correlation-id`, and
   event rows store it
   ([ADR-001 A8](ADR-001-architecture.md#a8-observability)). To trace one

@@ -6,7 +6,7 @@ import type { Logger } from "pino";
 
 import { getServerEnv } from "@/lib/env";
 import { child } from "@/lib/logger";
-import { REQUEST_ID_HEADER, requestIdFrom } from "@/lib/request-id";
+import { newRequestId } from "@/lib/request-id";
 
 import { defaultDeps } from "./deps";
 import { lastClaimAt } from "./config";
@@ -52,7 +52,7 @@ export async function handleCronRequest(
   request: Request,
   overrides: Partial<CronDeps> = {},
 ): Promise<Response> {
-  const correlationId = requestIdFrom(request.headers.get(REQUEST_ID_HEADER));
+  const correlationId = newRequestId();
   const now = overrides.now ?? Date.now;
   const startedAt = now();
   const deps: CronDeps = {

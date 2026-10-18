@@ -508,7 +508,9 @@ All records: [decisions/README.md](decisions/README.md).
 - Time: every shop-day computation goes through `private.shop_day()` /
   `private.shop_today()` (Asia/Singapore, D35); the TypeScript mirror is
   [src/lib/dates.ts](../src/lib/dates.ts).
-- Correlation: `src/proxy.ts` sets `x-request-id`; the server client sends
+- Correlation: `src/proxy.ts` sets `x-request-id` to a fresh UUID (an
+  incoming one is never kept: Vercel sets none, so it could only come from
+  the client); the server client sends
   it as `x-correlation-id`; RPCs store it on event rows
   (`private.current_correlation_id()`); logs carry it
   ([ADR-001 A8](ADR-001-architecture.md#a8-observability)).

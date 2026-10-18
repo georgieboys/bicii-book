@@ -1,7 +1,25 @@
 # Current state
 
 Updated: 2026-10-18 SGT by the go-live session, on
-`claude/brave-clarke-kfqhgt` restarted at `main` 6d4cc11, a docs-only
+`claude/brave-clarke-kfqhgt` from `main` 62b3d3b, in its own pull request,
+not merged: the code audit's remaining database and security items that
+need no owner decision. Two migrations: `20261018000200_storage_path_policies`
+(staff uploads to either photo bucket only at an attachment's own path)
+and `20261018000300_search_indexes` (trigram indexes for the job-number,
+bike-ID and sale-number searches, the three unindexed foreign keys, and
+the ledger's duplicate `(id desc)` index dropped). In the app: the link
+pages count a visitor's per-token limit only while the visitor is under
+their own (made-up tokens past it add no row); production ignores
+`SIGN_IN_LIMIT_MULTIPLIER`; the quote answer returns only a mapped
+business reason as its code; every request gets a fresh correlation id
+(an incoming `x-request-id` is no longer kept); session cookies are
+Secure on Vercel. R-085's residual is corrected (a differing Stripe amount
+is already flagged as `amount_mismatch`, D159b). Verified locally: see the
+"Audit database and security items" row. Next action: merge it (CI and
+the label-run e2e first; `migrate.yml` applies the two migrations).
+
+Earlier on 2026-10-18 SGT, the go-live session, on
+`claude/brave-clarke-kfqhgt` restarted at `main` 6d4cc11, made a docs-only
 change that records the owner's answers to the usability reviews' two
 questions and their release on the public site: someone now reads the
 @bicii.sg inbox, and the workshop is at 294 River Valley Road, Level 2,
@@ -11,9 +29,8 @@ address, a map link and the opening hours from `public_shop_hours()`
 (rebuilt at most hourly), `/book` and the booked notice give the
 address, and `/gaps` no longer lists the inbox. The hosted project has
 no opening hours yet (`public_shop_hours()` returns no rows, read-only),
-so `/contact` says they are coming soon. Next action: the owner sets the
-weekly hours in Settings, Schedule (they also bound online booking
-times); then the plan's next items.
+so `/contact` says they are coming soon; the owner sets the weekly hours
+in Settings, Schedule (they also bound online booking times).
 
 Earlier on 2026-10-18 SGT, the go-live session, on
 `claude/brave-clarke-kfqhgt` restarted at `main` 7c75285, made a docs-only
@@ -600,6 +617,7 @@ The Deployed column keeps each row's state when the row was written.
 | Audit efficiency items (2026-10-18 SGT): the job page's reads, the phone bundles, photo thumbnails | `src/lib/domain/staff-directory.ts` (`staffDirectory`, memoised; the six private `staffNames` copies and five inline `staff_directory` calls now use it); `getWorkOrder` in one phase (`listLines` takes the names and `getTotals` the currency as promises); `getIndentPanel`'s two follow-ups together; `photo-uploads.tsx` imports the browser client on the first upload; `src/lib/quote-answer.ts` (`ANSWER_NAME_MAX` without zod); `print-label-sheet.tsx` loaded with `next/dynamic` when the sheet opens; `Photo.thumbUrl` and `STORAGE_IMAGE_TRANSFORMS` (`src/lib/env.ts`, `listPhotos`); `tests/unit/photo-urls.test.ts`; DESIGN (`PhotoGrid`), RUNBOOK (the variable), `.env.example`, NOW | Yes, `claude/brave-clarke-kfqhgt` from `main` 754fd09, in its own pull request | Locally on 2026-10-18 SGT: `npm run build` pass, route JavaScript from the build's client-reference manifests (gzip): `/more` 44 KB (the audit measured about 195 KB), `/jobs/[id]` 106 KB, `/products/[id]` 97 KB, `/bikes/[id]` 62 KB, `/quote/[token]` 54 KB (142 KB), `/pay/[token]` 38 KB; `npm run check` pass; `npm run check:types` pass (the regenerated file unchanged); `npm test` 201 files / 3,147 tests with one failure, `print-label.test.tsx` opening the sheet before its lazily loaded module arrived, fixed by waiting for the dialog, after which the unit project passes again (125 files / 1,704 tests; the database project passed in the full run); docs link check 0 problems; read-only on the hosted project: the render endpoint answers like the object endpoint (transformation on; no photo uploaded yet, so no rendition fetched). Not run: Playwright locally (the label-run e2e in CI) | In production |
 | Audit efficiency items released (2026-10-18 SGT) | Docs only, `claude/brave-clarke-kfqhgt` from `main` 7c75285 in its own pull request: NOW | PR #40: CI `check`, `test (unit + db)`, `build` and the label-run `e2e (Playwright)` (full suite) succeeded on 89171a9; merged as 7c75285 (no migration, so no `migrate.yml` run); Vercel's production deployment of 7c75285 READY, built after the owner set `STORAGE_IMAGE_TRANSFORMS=true` in Production (the owner's report: this session's Vercel access cannot list or create production variables); the production sign-in page (`/login`) answers 200. georgieboys/BICII#4: CI `check` and `e2e (journey 6)` succeeded on 358d85c; merged as 08016e5; Vercel production READY, then redeployed after the variable was set (READY); its home and sign-in pages answer 200. Not run: fetching a rendition in production (no photo uploaded yet); measuring a signed-in page's JavaScript in production | In production |
 | Workshop address and the @bicii.sg inbox on the public site (2026-10-18 SGT; the owner's answers to the usability reviews) | Public site only, georgieboys/BICII#5: `shop` in its `content.ts` (address, map link), `shopHours()` (`public_shop_hours()`, cached an hour) and `shopHoursRows()`; `/contact`, `/book`, the booked notice, `/gaps`; its README and GO-PUBLIC. Here: NOW only | BICII#5: locally `npm run lint` clean, `npm run typecheck` pass, `npm test` 27 passed (3 new), `npm run test:e2e` 20 passed against this repository's devstack (journey 6 checks the address on `/book` and in the booked notice), `/contact` built against the devstack renders the seeded hours with no sideways scroll at phone width; CI `check` and `e2e (journey 6)` succeeded on 03e552a; merged as d99ed3f; the Vercel preview's `/contact` showed the address and "Opening hours are coming soon"; Vercel production of d99ed3f READY, and the live `/contact` shows the address, "Enter via the back alley" and the coming-soon line while the live `/gaps` no longer lists the inbox. Read-only on the hosted project: `public_shop_hours()` returns no rows. Not run: a production booking (customer accounts are closed) | In production |
+| Audit database and security items (2026-10-18 SGT; the remaining items that need no owner decision) | `20261018000200_storage_path_policies` (both photo buckets' staff insert policies take only an attachment's path), `20261018000300_search_indexes` (trigram indexes on the job-number, bike-ID and sale-number search expressions; indexes for `inventory_movements.location_id` and `cult_commons_rates.created_by`/`cancelled_by`; `inventory_movements_id_desc_idx` dropped); `link-throttle.ts` (client bucket first, the token's only under the client's limit); `env.ts` (`SIGN_IN_LIMIT_MULTIPLIER` ignored in production); the quote answer action (`code` only for a mapped business reason); `request-id.ts` `newRequestId` in the proxy, both webhook routes and the cron route; `cookie-options.ts` (Secure session cookies on Vercel) in the proxy, server and browser clients; DATA-MODEL (storage policies, ledger indexes), RISKS (R-085 residual, the quote limits' evidence), ARCHITECTURE, OPERATIONS, TESTING, `.env.example`, NOW. Not changed, with reasons: `private.stock_on_hand` stays VOLATILE (a STABLE read inside the stock RPCs would use the caller's snapshot after waiting on a lock and could miss a concurrent movement); the Shopify settings trigger already fires only when the online location changes; Shopify replays cannot apply twice (sales unique on `shopify_order_id`, refunds on `shopify_refund_id`); rejected webhook deliveries keep being stored as evidence (a tested design); bounding `payment_issues` and pre-aggregating the daily reports stay R-059's planned work | Yes, `claude/brave-clarke-kfqhgt` from `main` 62b3d3b, in its own pull request | Locally on 2026-10-18 SGT (database `bicii_dev`, devstack): the new stack test failed before the policy migration (a staff upload to `notes/<id>.jpg` succeeded) and passes after it, with `photo-moves.stack.test.ts` (15 passed); `explain` uses `work_orders_job_key_trgm_idx` for the job-number search; the new quote action test fails on the old action and passes on the new; `npm run check` pass; `npm run check:types` pass (types unchanged); `BICII_REQUIRE_STACK=1 npm test` 203 files / 3,152 tests passed; `npm run build` pass; docs link check 0 problems. Not run: Playwright locally (the label-run e2e in CI) | Not deployed (on its branch, not merged) |
 | Shopify refund jobs for managers (D94), public-site screens, hardware adapter | The refund follow-up on `wip/feat/p10-shopify` 8dbe6c4 (unreviewed; the build session's last state; conflicts with D108 on `main`, needs a design pass and the owner's decision); public-site screens are Phase 11 step 2 (georgieboys/BICII#1, merged 2026-10-17 SGT: see the header) | Not verified here | Not deployed |
 
 Command-level evidence: [ENGINEERING.md](docs/ENGINEERING.md#commands).

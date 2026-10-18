@@ -2,7 +2,8 @@
 /**
  * The customer link pages' limits, as counted (src/lib/admin/link-throttle.ts):
  * the quote page's and the payment link page's buckets go to
- * public.note_sign_in_attempt with their own keys and window; past a
+ * public.note_sign_in_attempt with their own keys and window, the client's
+ * first and the token's only while the client is under its limit; past a
  * bucket's limit the attempt is refused; without the service key, on an
  * RPC error or a thrown request it fails open and logs the cause, never
  * the token or the address.
@@ -47,13 +48,23 @@ function neverLogsTheTokenOrAddress() {
 }
 
 describe("noteBalanceAttempt", () => {
-  it("counts the page's balance- buckets for this client and token over 5 minutes", async () => {
+  it("counts the page's balance- buckets for this client, then this token, over 5 minutes", async () => {
     rpc.mockImplementation(answer(1));
     await expect(noteBalanceAttempt("pay", TOKEN)).resolves.toBe("ok");
-    expect(rpc).toHaveBeenCalledWith("note_sign_in_attempt", {
-      buckets: balanceBuckets("pay", "203.0.113.9", TOKEN).map((b) => b.key),
-      window_seconds: 300,
-    });
+    const [client, token] = balanceBuckets("pay", "203.0.113.9", TOKEN).map((b) => b.key);
+    expect(rpc.mock.calls).toEqual([
+      ["note_sign_in_attempt", { buckets: [client], window_seconds: 300 }],
+      ["note_sign_in_attempt", { buckets: [token], window_seconds: 300 }],
+    ]);
+  });
+
+  it("adds no per-token row for a client already past its limit", async () => {
+    rpc.mockImplementation(answer(BALANCE_LIMITS.view.client + 1));
+    await expect(noteBalanceAttempt("view", TOKEN)).resolves.toBe("limited");
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0][1].buckets).toEqual([
+      balanceBuckets("view", "203.0.113.9", TOKEN)[0].key,
+    ]);
   });
 
   it("refuses past a bucket's limit, scaled by the multiplier", async () => {
@@ -92,7 +103,7 @@ describe("noteQuoteAttempt (unchanged on the shared counter)", () => {
     rpc.mockImplementation(answer(QUOTE_LIMITS.answer.token + 1));
     await expect(noteQuoteAttempt("answer", TOKEN)).resolves.toBe("limited");
     expect(rpc).toHaveBeenCalledWith("note_sign_in_attempt", {
-      buckets: quoteBuckets("answer", "203.0.113.9", TOKEN).map((b) => b.key),
+      buckets: [quoteBuckets("answer", "203.0.113.9", TOKEN)[0].key],
       window_seconds: 300,
     });
     rpc.mockResolvedValueOnce({ data: null, error: { code: "XX000" } });

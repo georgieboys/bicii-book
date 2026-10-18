@@ -636,6 +636,13 @@ Storage policies on `storage.objects`:
 - `media-public`: select and insert for active staff only. No select for
   anon or customers: public URLs need none, and a select policy would let
   anyone list the bucket.
+- Both inserts take only an attachment's own path,
+  `{entity type}/{entity id}/{attachment id}.{jpg|jpeg|png|webp|heic|heif}`
+  with lower-case UUIDs, the shape `attachments_path_shape` enforces
+  (`20261018000200_storage_path_policies`, audit 2026-10-18; before it any
+  active staff member could put an object at any path, so the public bucket
+  could serve a file no row points at). Signed upload URLs and the
+  internal-to-public copy already use exactly that path.
 - Both: no update policy (nothing is overwritten: uploads never upsert, a
   move copies to a new bucket). Delete for active staff only of objects no
   attachment row points at (`private.attachment_object_referenced`; those
@@ -1869,7 +1876,14 @@ and `inventory_units.sold_sale_line_id` their foreign keys to `sale_lines`
 (`on delete restrict`); `inventory_movements_sale_line_once` is unchanged.
 
 Plus btree indexes on (product_id, location_id, id), (inventory_unit_id,
-id), work_order_id, work_order_line_item_id, created_by and (id desc).
+id), work_order_id, work_order_line_item_id, created_by and, since
+`20261018000300_search_indexes`, location_id (its foreign key); the (id
+desc) index it replaced duplicated the primary key, which reads backwards
+as well. The same migration adds trigram GIN indexes on
+`replace(job_number, '-', '')`, `replace(bikes.short_id, '-', '')` and
+`replace(sale_number, '-', '')`, the expressions `staff_search` and
+`list_sales` match with `like '%key%'`, and indexes on
+`cult_commons_rates.created_by` and `cancelled_by`.
 
 Phase 7 added only the foreign key
 `inventory_movements_purchase_receipt_line_id_fkey` (→

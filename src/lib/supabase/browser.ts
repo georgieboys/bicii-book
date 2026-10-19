@@ -21,7 +21,14 @@ export function getBrowserClient() {
   client ??= createBrowserClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { global: { fetch: progressFetch } },
+    {
+      global: { fetch: progressFetch },
+      // Secure wherever the page itself is HTTPS (src/lib/supabase/cookie-options.ts).
+      cookieOptions:
+        typeof location !== "undefined" && location.protocol === "https:"
+          ? { secure: true }
+          : undefined,
+    },
   );
   return client;
 }

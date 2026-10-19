@@ -7,6 +7,7 @@ import { cache } from "react";
 import type { Database } from "@/lib/database.types";
 import { getPublicEnv } from "@/lib/env";
 import { CORRELATION_HEADER, REQUEST_ID_HEADER } from "@/lib/request-id";
+import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
 
 export type ServerSupabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -34,6 +35,7 @@ export const createClient = cache(async () => {
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       global: correlationId ? { headers: { [CORRELATION_HEADER]: correlationId } } : undefined,
+      cookieOptions: sessionCookieOptions(),
       cookies: {
         getAll() {
           return cookieStore.getAll();

@@ -7,7 +7,7 @@ import type { Logger } from "pino";
 import type { Json } from "@/lib/database.types";
 import { getServerEnv } from "@/lib/env";
 import { child } from "@/lib/logger";
-import { REQUEST_ID_HEADER, requestIdFrom } from "@/lib/request-id";
+import { newRequestId } from "@/lib/request-id";
 import { createServiceClient } from "@/lib/supabase/service";
 
 import { SlidingWindowLimiter } from "../limiter";
@@ -89,7 +89,7 @@ export async function handleStripeWebhook(
   overrides: Partial<StripeWebhookDeps> = {},
 ): Promise<Response> {
   // 1. Correlation id (the proxy does not run on this route).
-  const correlationId = requestIdFrom(request.headers.get(REQUEST_ID_HEADER));
+  const correlationId = newRequestId();
   const deps: StripeWebhookDeps = {
     config: overrides.config ?? stripeConfig(getServerEnv()),
     record:

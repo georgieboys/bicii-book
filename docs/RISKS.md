@@ -2074,7 +2074,10 @@ URLs, or customer data in this file.
   contact field.
 - Evidence (2026-10-14, step 3): the page and its action count each view
   (60) and answer (10) per client address and per token in five minutes
-  before calling the database (`tests/unit/quote-page.test.ts` for the
+  before calling the database (since the audit of 2026-10-18 the token's
+  counter only while the client is under its own limit, so made-up tokens
+  past the limit add no row to the shared counter table;
+  `tests/unit/link-throttle.test.ts`; `tests/unit/quote-page.test.ts` for the
   buckets: digests only, never the address or the token); they read and
   answer as anon even for a signed-in staff member (`createAnonClient`);
   `tests/e2e/indent.spec.ts` answers on the page signed out, checks the
@@ -2468,8 +2471,11 @@ URLs, or customer data in this file.
   throwing when the server environment does not parse
   (`tests/unit/stripe-config.test.ts`).
 - Residual: a leaked webhook secret would let a forger mark a pending
-  payment paid with matching cents, which (from step 2) opens the D152
-  gate with no real deposit; detection is *Check with Stripe* (step 2),
+  payment paid (the forger needs its session and payment ids, not matching
+  cents: an amount or currency that differs is recorded and flagged as
+  `amount_mismatch` on the job and in Exceptions, D159b, not refused;
+  corrected after the audit of 2026-10-18), which (from step 2) opens the
+  D152 gate with no real deposit; detection is *Check with Stripe* (step 2),
   which shows Stripe's truth, and the response is rolling the secret. A
   leaked live key could create or expire Checkout Sessions.
 - Next action: on the next refund, confirm in Settings → Customer

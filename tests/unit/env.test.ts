@@ -53,6 +53,12 @@ describe("env", () => {
       );
     }
   });
+
+  it("ignores the multiplier in production, so a stray value cannot switch the limits off", () => {
+    const env = { SIGN_IN_LIMIT_MULTIPLIER: "100000" };
+    expect(parseServerEnv({ ...env, VERCEL_ENV: "production" }).SIGN_IN_LIMIT_MULTIPLIER).toBe(1);
+    expect(parseServerEnv({ ...env, VERCEL_ENV: "preview" }).SIGN_IN_LIMIT_MULTIPLIER).toBe(100000);
+  });
 });
 
 describe("Shopify and cron variables (Phase 10)", () => {

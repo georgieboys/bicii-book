@@ -77,7 +77,9 @@ export async function answerQuoteAction(input: AnswerQuoteInput): Promise<Action
     return {
       ok: false,
       error: mapped.message,
-      code: mapped.reason,
+      // Only a mapped business reason: an unmapped P0001's text is the raw
+      // database message, never sent to whoever holds the link.
+      code: mapped.kind === "business" ? mapped.reason : undefined,
       ...(mapped.reason === "quote_name_required"
         ? { fieldErrors: { name: [mapped.message] } }
         : {}),

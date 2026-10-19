@@ -16,6 +16,11 @@ import { createServiceClient } from "@/lib/supabase/service";
  * a quote happens once and Pay reuses its open Checkout session, so a
  * missing key or an outage must not stop a customer; the cause is logged
  * (the page and attempt, never the token or the address).
+ *
+ * The client's own bucket (always first) is counted alone, and the
+ * per-token one only while the client is under its limit (audit
+ * 2026-10-18): a visitor past the limit adds no row, so requesting made-up
+ * tokens cannot grow the shared counter table one row per token.
  */
 export async function noteLinkAttempt(
   page: "quote" | "balance",
@@ -30,17 +35,25 @@ export async function noteLinkAttempt(
       logger.warn({ attempt, reason: "no_service_role_key" }, notCounted);
       return "ok";
     }
-    const buckets = bucketsFor(clientAddress(await headers()), SIGN_IN_LIMIT_MULTIPLIER);
-    const { data, error } = await createServiceClient().rpc("note_sign_in_attempt", {
-      buckets: buckets.map((b) => b.key),
-      window_seconds: windowSeconds,
-    });
-    if (error || !data) {
-      logger.warn({ attempt, reason: "rpc_error", code: error?.code }, notCounted);
-      return "ok";
+    const [client, ...perToken] = bucketsFor(
+      clientAddress(await headers()),
+      SIGN_IN_LIMIT_MULTIPLIER,
+    );
+    const supabase = createServiceClient();
+    for (const buckets of [[client], perToken]) {
+      if (buckets.length === 0) continue;
+      const { data, error } = await supabase.rpc("note_sign_in_attempt", {
+        buckets: buckets.map((b) => b.key),
+        window_seconds: windowSeconds,
+      });
+      if (error || !data) {
+        logger.warn({ attempt, reason: "rpc_error", code: error?.code }, notCounted);
+        return "ok";
+      }
+      const hits = new Map(data.map((row) => [row.bucket_key, row.hit_count]));
+      if (overSignInLimit(buckets, hits)) return "limited";
     }
-    const hits = new Map(data.map((row) => [row.bucket_key, row.hit_count]));
-    return overSignInLimit(buckets, hits) ? "limited" : "ok";
+    return "ok";
   } catch (error) {
     // Only the error's class: a message could carry configuration.
     logger.warn(

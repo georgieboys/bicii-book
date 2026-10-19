@@ -8,7 +8,7 @@ import type { Logger } from "pino";
 import type { Database, Json } from "@/lib/database.types";
 import { getServerEnv } from "@/lib/env";
 import { child } from "@/lib/logger";
-import { REQUEST_ID_HEADER, requestIdFrom } from "@/lib/request-id";
+import { newRequestId } from "@/lib/request-id";
 
 import { SlidingWindowLimiter } from "../limiter";
 import {
@@ -139,7 +139,7 @@ export async function handleShopifyWebhook(
   overrides: Partial<WebhookDeps> = {},
 ): Promise<Response> {
   // 1. Correlation id (the proxy does not run on this route).
-  const correlationId = requestIdFrom(request.headers.get(REQUEST_ID_HEADER));
+  const correlationId = newRequestId();
   const now = overrides.now ?? Date.now;
   // The function's clock starts with the request; after() shares its maxDuration.
   const startedAt = now();

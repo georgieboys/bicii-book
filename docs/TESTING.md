@@ -1318,7 +1318,18 @@ add `photo-urls.test.ts` (`listPhotos`: without `STORAGE_IMAGE_TRANSFORMS`
 the grid gets the original and nothing more is signed; with it a private
 photo's thumbnail is a 480 px signed rendition, one request per photo, a
 public one a render URL with none, the viewer keeps the original, and a
-rendition Storage cannot sign falls back to the original).
+rendition Storage cannot sign falls back to the original). The audit's
+database and security items add `quote-answer-action.test.ts` (a mapped
+business reason comes back as `code`, an unmapped P0001's database text
+never does) and `cookie-options.test.ts` (session cookies Secure on Vercel
+only), and extend `link-throttle.test.ts` (the client's bucket is counted
+first and alone; a client past its limit adds no per-token row),
+`env.test.ts` (production ignores `SIGN_IN_LIMIT_MULTIPLIER`),
+`auth-helpers.test.ts` (`newRequestId` mints a fresh id each time),
+`shopify-webhook-handler.test.ts` (the stored correlation id is fresh, not
+the incoming `x-request-id`) and the stack test `stack.smoke.test.ts`
+(staff cannot upload to either photo bucket outside an attachment's own
+path).
 
 ### Database (SPEC §27.2 and §23)
 

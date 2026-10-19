@@ -306,6 +306,30 @@ describe.skipIf(!reachable)("devstack through the gateway", () => {
     await staff.auth.signOut();
   });
 
+  it("staff can upload to the photo buckets only at an attachment's own path (audit 2026-10-18)", async () => {
+    const staff = await staffClient("mechanic2");
+    const id = randomUUID();
+    const refusedPaths = [
+      `notes/${id}.jpg`,
+      `bike/${BIKE.shopCervelo}/${id}.html`,
+      `bike/${BIKE.shopCervelo}/${id}/x.jpg`,
+      `bike/${BIKE.shopCervelo}/${id.toUpperCase()}.jpg`,
+      `invoice/${BIKE.shopCervelo}/${id}.jpg`,
+    ];
+    for (const bucketName of ["media-internal", "media-public"]) {
+      const bucket = staff.storage.from(bucketName);
+      for (const path of refusedPaths) {
+        const { data, error } = await bucket.upload(
+          path,
+          new Blob([TINY_JPEG], { type: "image/jpeg" }),
+        );
+        expect(data, `${bucketName}/${path}`).toBeNull();
+        expect(error, `${bucketName}/${path}`).not.toBeNull();
+      }
+    }
+    await staff.auth.signOut();
+  });
+
   it("uploads and downloads an object through Storage with the service key", async () => {
     const service = createClient<Database>(url, SERVICE_ROLE_KEY, options);
     const bucket = "devstack-smoke";

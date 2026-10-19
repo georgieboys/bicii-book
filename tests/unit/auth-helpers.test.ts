@@ -31,7 +31,7 @@ import {
 import { isPublicPath } from "@/lib/auth/routes";
 import { greetingFor } from "@/lib/dates";
 import { echoValues, formDataToObject } from "@/lib/form-data";
-import { requestIdFrom } from "@/lib/request-id";
+import { newRequestId } from "@/lib/request-id";
 
 describe("permission resolution (mirrors private.has_permission)", () => {
   it("admin implies every permission", () => {
@@ -102,23 +102,11 @@ describe("isPublicPath", () => {
   });
 });
 
-describe("requestIdFrom", () => {
-  it("keeps a well-formed incoming id", () => {
-    expect(requestIdFrom("abc12345-req")).toBe("abc12345-req");
-  });
-
-  it("replaces missing, short, long or odd ids with a UUID", () => {
-    for (const bad of [
-      null,
-      undefined,
-      "",
-      "short",
-      "a".repeat(200),
-      "evil\nheader-injection",
-      "<script>x</script>",
-    ]) {
-      expect(requestIdFrom(bad)).toMatch(/^[0-9a-f-]{36}$/);
-    }
+describe("newRequestId", () => {
+  it("mints a fresh UUID each time (an incoming x-request-id is never kept)", () => {
+    const a = newRequestId();
+    expect(a).toMatch(/^[0-9a-f-]{36}$/);
+    expect(newRequestId()).not.toBe(a);
   });
 });
 

@@ -6,8 +6,8 @@ exercised, per section (as of 2026-10-12):
 - Hosted sections, on the production project (there is no staging
   project, [R-001](RISKS.md#r-001--nothing-is-deployed)):
   - Applying migrations: first 2026-10-12, `migrate.yml` run 10 from
-    GitHub Actions, 56 files; last 2026-10-19 SGT, run 19
-    (`20261018000300`; 74 in all); the CLI from a
+    GitHub Actions, 56 files; last 2026-10-19 SGT, run 20
+    (`20261019000100`; 75 in all); the CLI from a
     workstation never.
   - Creating the first admin: 2026-10-12. The login was created through
     Auth's admin API without a password (the dashboard's step 1

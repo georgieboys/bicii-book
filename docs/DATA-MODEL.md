@@ -232,7 +232,12 @@ document is corrected.
   afterwards the history held all 74 versions, the last
   `20261018000300`, both photo-bucket insert policies carry the path
   check, the six new indexes exist and `inventory_movements_id_desc_idx`
-  is gone.
+  is gone. PR #45 (the refunded amounts, U2-11, merged as d30473d on
+  2026-10-19 SGT) added `20261019000100_customer_refunded_amounts`,
+  applied by run 20; read-only afterwards the history held all 75
+  versions, the last `20261019000100`, both `private.quote_view` and
+  `balance_by_token` return `refunded`, and anon still executes
+  `balance_by_token` but not `private.quote_view`.
   There is no staging project
   ([R-001](RISKS.md#r-001--nothing-is-deployed)).
 

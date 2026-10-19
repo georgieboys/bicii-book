@@ -49,8 +49,8 @@ URLs, or customer data in this file.
   `migrate.yml` has no seed step). A migration added from now on must sort
   after the newest file on `main` (`HANDOVER.md` "Migrations after
   go-live"); since the refunded amounts on the customer's quote and bill
-  (U2-11) that is `20261019000100_customer_refunded_amounts.sql`, applied
-  by `migrate.yml` when its pull request merges (before it
+  (U2-11) that is `20261019000100_customer_refunded_amounts.sql` (PR #45,
+  applied by `migrate.yml` run 20 on 2026-10-19 SGT; before it
   `20261018000300_search_indexes.sql` after the audit's database and
   security items, PR #43, run 19 on 2026-10-19 SGT;
   `20261018000100_profile_errors_without_row.sql` after the week-one

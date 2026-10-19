@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import type { ReorderSuggestion } from "@/lib/domain/purchasing";
 import { formatMoney } from "@/lib/money";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ShortId } from "../short-id";
 import { SupplierPicker } from "./supplier-picker";
@@ -68,11 +69,13 @@ export function ReorderList({
     setPending(true);
     setError(null);
     try {
-      const result = await createPurchaseOrderFromLowStock({
-        id,
-        supplierId: supplier.id,
-        productIds: selected.map((i) => i.productId),
-      });
+      const result = await callAction(() =>
+        createPurchaseOrderFromLowStock({
+          id,
+          supplierId: supplier.id,
+          productIds: selected.map((i) => i.productId),
+        }),
+      );
       if (result.ok) {
         toast({
           title: "Draft order created. Check quantities and costs, then submit it.",

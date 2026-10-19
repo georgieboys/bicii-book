@@ -20,6 +20,7 @@ import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { LOCATION_KIND_LABELS, type LocationKindValue } from "@/lib/inventory";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 export type EditableLocation = {
   id: string;
@@ -82,8 +83,8 @@ function LocationSheet({
   const [sortOrder, setSortOrder] = useState(String(location?.sortOrder ?? 100));
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = location
-      ? await updateLocation(prev, formData)
-      : await createLocation(prev, formData);
+      ? await callAction(() => updateLocation(prev, formData), formData)
+      : await callAction(() => createLocation(prev, formData), formData);
     if (result.ok) {
       toast({
         title: location ? `${name.trim()} saved` : `${name.trim()} added`,
@@ -181,7 +182,7 @@ export function LocationActiveSwitch({
   const change = (next: boolean) =>
     start(async () => {
       setOptimistic(next);
-      const result = await setLocationActive({ id: location.id, active: next });
+      const result = await callAction(() => setLocationActive({ id: location.id, active: next }));
       if (!result.ok) {
         toast({
           title: next ? `${location.name} not activated` : `${location.name} not deactivated`,

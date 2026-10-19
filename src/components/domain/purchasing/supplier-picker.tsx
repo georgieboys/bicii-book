@@ -2,6 +2,7 @@
 
 import { searchSuppliers } from "@/app/(staff)/purchasing/actions";
 import { SearchPicker, type PickerOption } from "@/components/ui/search-picker";
+import { callAction } from "@/lib/call-action";
 
 /**
  * Find an active supplier by name, contact, email, account reference or
@@ -24,7 +25,7 @@ export function SupplierPicker({
   placeholder?: string;
 }) {
   const search = async (q: string): Promise<PickerOption[]> => {
-    const result = await searchSuppliers({ q });
+    const result = await callAction(() => searchSuppliers({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data;
   };

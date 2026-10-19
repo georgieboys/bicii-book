@@ -24,6 +24,7 @@ import type { ActionResult } from "@/lib/actions";
 import { formatShopDay, shopToday } from "@/lib/dates";
 import { formatIntervals, type HoursInterval } from "@/lib/schedule";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ReasonConfirm } from "./reason-confirm";
 
@@ -127,8 +128,8 @@ function BookingSettingsSheet({
 
   const submit = () =>
     start(async () => {
-      const result = await updateShopSettings(
-        values as Record<keyof BookingSettingsValues, string>,
+      const result = await callAction(() =>
+        updateShopSettings(values as Record<keyof BookingSettingsValues, string>),
       );
       setState(result);
       if (!result.ok) return;
@@ -329,11 +330,13 @@ function HoursSheet({ day, onClose }: { day: WeekdayHoursValue; onClose: () => v
 
   const submit = () =>
     start(async () => {
-      const result = await setShopHours({
-        weekday: day.weekday,
-        active,
-        intervals: intervals.map((i) => ({ opens: i.opens, closes: asClosing(i.closes) })),
-      });
+      const result = await callAction(() =>
+        setShopHours({
+          weekday: day.weekday,
+          active,
+          intervals: intervals.map((i) => ({ opens: i.opens, closes: asClosing(i.closes) })),
+        }),
+      );
       setState(result);
       if (!result.ok) return;
       notify(`${day.name} saved`, result.data);
@@ -504,17 +507,19 @@ function ClosureSheet({ closure, onClose }: { closure: ClosureValue | null; onCl
 
   const submit = () =>
     start(async () => {
-      const result = await saveClosure({
-        id,
-        isNew: closure === null,
-        kind,
-        firstDay,
-        lastDay: oneDay || !lastDay ? firstDay : lastDay,
-        partDay: kind === "closed" && partDay,
-        fromTime: timed ? fromTime : null,
-        toTime: timed ? asClosing(toTime) : null,
-        reason,
-      });
+      const result = await callAction(() =>
+        saveClosure({
+          id,
+          isNew: closure === null,
+          kind,
+          firstDay,
+          lastDay: oneDay || !lastDay ? firstDay : lastDay,
+          partDay: kind === "closed" && partDay,
+          fromTime: timed ? fromTime : null,
+          toTime: timed ? asClosing(toTime) : null,
+          reason,
+        }),
+      );
       setState(result);
       if (!result.ok) return;
       notify(

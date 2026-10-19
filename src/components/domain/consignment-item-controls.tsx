@@ -20,6 +20,7 @@ import type { ActionResult } from "@/lib/actions";
 import { parseMoney } from "@/lib/money";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 type State = ActionResult<null> | null;
 
@@ -72,7 +73,7 @@ function TermsSheet({
   const [agreed, setAgreed] = useState(agreedAmountOwed);
   const [asking, setAsking] = useState(askingPrice ?? "");
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await updateConsignmentTermsAction(prev, formData);
+    const result = await callAction(() => updateConsignmentTermsAction(prev, formData), formData);
     if (result.ok) {
       toast({ title: "Terms saved", tone: "success" });
       onClose();
@@ -222,13 +223,15 @@ export function ReturnToConsignorControl({
       return;
     }
     start(async () => {
-      const result = await returnConsignmentItemAction({
-        returnId,
-        itemId,
-        reason: trimmed,
-        quantity: unique ? null : quantity,
-        locationId: unique ? null : locationId,
-      });
+      const result = await callAction(() =>
+        returnConsignmentItemAction({
+          returnId,
+          itemId,
+          reason: trimmed,
+          quantity: unique ? null : quantity,
+          locationId: unique ? null : locationId,
+        }),
+      );
       if (!result.ok) {
         setFieldErrors(result.fieldErrors);
         setError(result.fieldErrors ? undefined : result.error);
@@ -375,7 +378,7 @@ export function PayoutDetailsReveal({ consignorId }: { consignorId: string }) {
           pendingLabel="Loading…"
           onClick={() =>
             start(async () => {
-              const result = await revealPayoutDetailsAction({ consignorId });
+              const result = await callAction(() => revealPayoutDetailsAction({ consignorId }));
               if (!result.ok) {
                 setError(result.error);
                 return;

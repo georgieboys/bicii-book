@@ -33,6 +33,7 @@ import {
   type CounterVoidKind,
 } from "@/lib/payments";
 import type { WorkOrderStatus } from "@/lib/workshop";
+import { callAction } from "@/lib/call-action";
 
 import {
   BalanceLinkSentSheet,
@@ -464,7 +465,7 @@ function PaymentRow({
 
   const check = () =>
     start(async () => {
-      const r = await checkWithStripeAction({ paymentId: p.id });
+      const r = await callAction(() => checkWithStripeAction({ paymentId: p.id }));
       const incomplete =
         r.ok && r.data.incomplete ? incompleteCheckNote(r.data.incomplete) : undefined;
       if (!r.ok) {

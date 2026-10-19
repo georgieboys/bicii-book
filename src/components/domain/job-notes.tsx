@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 /**
  * "Customer approved extra work" (SPEC §7.1: approval happens offline; this
@@ -52,7 +53,9 @@ export function ApprovalSwitch({
   const save = (next: boolean, nextNote: string | null) =>
     startTransition(async () => {
       setOptimistic(next);
-      const result = await setApprovalFlag({ workOrderId, flagged: next, note: nextNote });
+      const result = await callAction(() =>
+        setApprovalFlag({ workOrderId, flagged: next, note: nextNote }),
+      );
       if (!result.ok) {
         const fieldError = result.fieldErrors?.note?.[0];
         if (fieldError) setNoteError(fieldError);
@@ -161,7 +164,7 @@ function NoteSheet({
   const copy = NOTE_COPY[kind];
   const [state, formAction, pending] = useActionState<NoteState, FormData>(
     async (prev, formData) => {
-      const result = await addWorkOrderNote(prev, formData);
+      const result = await callAction(() => addWorkOrderNote(prev, formData), formData);
       if (result.ok) {
         toast({ title: copy.done, tone: "success" });
         onClose();
@@ -271,7 +274,7 @@ function DetailsSheet({
         const typed = String(formData.get(field) ?? "").trim();
         if (typed === (details[field] ?? "").trim()) formData.delete(field);
       }
-      const result = await updateWorkOrderDetails(prev, formData);
+      const result = await callAction(() => updateWorkOrderDetails(prev, formData), formData);
       if (result.ok) {
         toast({ title: "Job details saved", tone: "success" });
         onClose();

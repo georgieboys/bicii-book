@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { SupplierPicker } from "./supplier-picker";
 
@@ -81,8 +82,14 @@ function PurchaseOrderSheetBody({
   );
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = order
-      ? await updatePurchaseOrder(prev as ActionResult<null> | null, formData)
-      : await createPurchaseOrder(prev as ActionResult<{ id: string }> | null, formData);
+      ? await callAction(
+          () => updatePurchaseOrder(prev as ActionResult<null> | null, formData),
+          formData,
+        )
+      : await callAction(
+          () => createPurchaseOrder(prev as ActionResult<{ id: string }> | null, formData),
+          formData,
+        );
     if (result.ok) {
       if (order) {
         toast({ title: "Order details saved", tone: "success" });

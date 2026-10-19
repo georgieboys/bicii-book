@@ -85,6 +85,15 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
   const manage = hasPermission(staff, "manage_inventory");
   const canAdjust = hasPermission(staff, "adjust_stock");
   const supabase = await createClient();
+  // Reads that need only the id start with the product (audit E1-7) and
+  // are awaited once it exists; the no-op catches keep an unknown id's
+  // refusals from going unhandled before the 404.
+  const labelsQuery = getLabelContext(supabase, { kind: "product", entityId: id });
+  const presetQuery = searchParams.then((sp) =>
+    resolvePrintPreset(supabase, "product", id, parsePrintParams(sp)),
+  );
+  const onlineQuery = getProductOnline(supabase, id);
+  for (const query of [labelsQuery, presetQuery, onlineQuery]) query.catch(() => {});
   const [product, locations, categories, purchasing] = await Promise.all([
     getProduct(supabase, id, { viewCosts }),
     listLocations(supabase),
@@ -100,11 +109,9 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
   const [qr, consignments, labels, preset, online, reserved] = await Promise.all([
     qrUrl(product.shortId),
     consigned ? consignmentsForProduct(supabase, product.id) : Promise.resolve([]),
-    getLabelContext(supabase, { kind: "product", entityId: product.id }),
-    searchParams.then((sp) =>
-      resolvePrintPreset(supabase, "product", product.id, parsePrintParams(sp)),
-    ),
-    getProductOnline(supabase, product.id),
+    labelsQuery,
+    presetQuery,
+    onlineQuery,
     // Phase 13 (D146): arrived indent parts waiting to be fitted on a job.
     counted && !consigned ? getIndentReservations(supabase, product.id) : Promise.resolve([]),
   ]);

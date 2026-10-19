@@ -621,7 +621,8 @@ while an approved or ordered item is neither fitted nor cancelled:
   "Consigned · <consignor>"). The **Price** is the selling price; change
   it if you agreed another. For several, set **Quantity** (up to what is
   there). **Add item** adds more. Choose the **Customer** if they are on
-  file (empty is a walk-in). **Sold earlier?** lets you enter when it was
+  file (empty is a walk-in); someone new can be added from the list
+  (**New customer "…"**) without leaving the sale. **Sold earlier?** lets you enter when it was
   sold (not in the future, and not before the item came into the shop:
   a consigned item's intake, or the restock of a returned unit; D55).
   Press **Record sale · $x**.
@@ -943,7 +944,8 @@ while an approved or ordered item is neither fitted nor cancelled:
   by an admin.
 - Steps (book): **Appointments** → **Book appointment** (phone: **Book**),
   or a customer's page → Appointments → **Book appointment**. Choose the
-  **Customer**, the **Type**, a **Date** (or **Or pick a date**), a free
+  **Customer** (someone new: **New customer "…"** in the list adds them
+  without leaving the booking), the **Type**, a **Date** (or **Or pick a date**), a free
   **Time**, optionally the **Bike** and an **Internal note**, then
   **Book**.
 - Steps (on the day): open the appointment from Appointments or Today.

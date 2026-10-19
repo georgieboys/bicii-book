@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 export type EditableAppointmentType = {
   id: string;
@@ -109,17 +110,19 @@ function AppointmentTypeSheet({
 
   const submit = () =>
     start(async () => {
-      const result = await saveAppointmentType({
-        id,
-        isNew: type === null,
-        name,
-        description,
-        durationMinutes: duration,
-        capacityUnits: units,
-        public: isPublic,
-        active,
-        sortOrder,
-      });
+      const result = await callAction(() =>
+        saveAppointmentType({
+          id,
+          isNew: type === null,
+          name,
+          description,
+          durationMinutes: duration,
+          capacityUnits: units,
+          public: isPublic,
+          active,
+          sortOrder,
+        }),
+      );
       setState(result);
       if (!result.ok) return;
       toast({

@@ -26,6 +26,7 @@ import { formatShopDayShort, parseShopDay, shopDayToDate, shopToday } from "@/li
 import type { ScheduleData } from "@/lib/domain/appointments";
 import type { IntakeBike } from "@/lib/domain/workshop";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { CustomerPicker } from "./customer-picker";
 import { ShortId } from "./short-id";
@@ -212,15 +213,17 @@ function BookAppointmentBody({
       return;
     }
     startTransition(async () => {
-      const result = await bookAppointment({
-        id,
-        customerId: customer!.id,
-        appointmentTypeId: type!.id,
-        startsAt: chosenSlot!.start.toISOString(),
-        bikeId: bikeId || null,
-        customerNote,
-        internalNote,
-      });
+      const result = await callAction(() =>
+        bookAppointment({
+          id,
+          customerId: customer!.id,
+          appointmentTypeId: type!.id,
+          startsAt: chosenSlot!.start.toISOString(),
+          bikeId: bikeId || null,
+          customerNote,
+          internalNote,
+        }),
+      );
       if (!result.ok) {
         const slotRefused = Boolean(result.code && SLOT_CODES.has(result.code));
         // A refused time is the Time field's error: it shows beside the
@@ -301,6 +304,7 @@ function BookAppointmentBody({
                   setBikeId("");
                 }}
                 required
+                allowCreate
               />
             </Field>
             <p className="text-sm text-dust-500">

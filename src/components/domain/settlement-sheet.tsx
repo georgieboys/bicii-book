@@ -23,6 +23,7 @@ import { shopToday } from "@/lib/dates";
 import { formatMoney, parseMoney, toDecimal } from "@/lib/money";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ReasonConfirm } from "./reason-confirm";
 import { ShortId } from "./short-id";
@@ -156,7 +157,7 @@ function SettlementSheet({
       notes: notes || null,
     };
     start(async () => {
-      const result = await recordSettlementAction(input);
+      const result = await callAction(() => recordSettlementAction(input));
       setState(result);
       if (result.ok) {
         toast({

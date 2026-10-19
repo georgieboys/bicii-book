@@ -5,3 +5,14 @@
  * for one number.
  */
 export const ANSWER_NAME_MAX = 100;
+
+/**
+ * The unanswered items, named for the quote form's refusal (U2-1):
+ * "Brake pads and Chain", "Brake pads, Chain and Tyres", "Brake pads, Chain
+ * and 3 more".
+ */
+export function missingItemsText(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length <= 3) return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} more`;
+}

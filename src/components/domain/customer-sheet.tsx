@@ -15,6 +15,7 @@ import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { customerLabel } from "@/lib/people";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 /** The fields a customer form edits (CustomerDetail has them all). */
 export type CustomerFields = {
@@ -85,8 +86,14 @@ function CustomerSheetBody({
   const [id] = useState(() => customer?.id ?? newId());
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = customer
-      ? await updateCustomer(prev as ActionResult<null> | null, formData)
-      : await createCustomer(prev as ActionResult<{ id: string }> | null, formData);
+      ? await callAction(
+          () => updateCustomer(prev as ActionResult<null> | null, formData),
+          formData,
+        )
+      : await callAction(
+          () => createCustomer(prev as ActionResult<{ id: string }> | null, formData),
+          formData,
+        );
     if (result.ok) {
       if (customer) {
         toast({ title: "Customer saved", tone: "success" });

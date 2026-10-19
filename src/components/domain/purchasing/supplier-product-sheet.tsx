@@ -26,6 +26,7 @@ import { useToast } from "@/components/ui/toast";
 import { useArmed } from "@/components/ui/use-armed";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
+import { callAction } from "@/lib/call-action";
 
 import { ShortId } from "../short-id";
 import { PurchaseProductPicker, type PurchaseProductOption } from "./purchase-product-picker";
@@ -78,7 +79,7 @@ export function SupplierProductSheet({
   const supplierName = supplier?.name ?? pickedSupplier?.label ?? "the supplier";
 
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await setSupplierProduct(prev, formData);
+    const result = await callAction(() => setSupplierProduct(prev, formData), formData);
     if (result.ok) {
       toast({
         title: link ? "Supplier link saved" : `${productName} linked to ${supplierName}`,
@@ -227,10 +228,12 @@ function RemoveLink({
 
   const remove = () =>
     start(async () => {
-      const result = await removeSupplierProduct({
-        supplierId: supplier.id,
-        productId: product.id,
-      });
+      const result = await callAction(() =>
+        removeSupplierProduct({
+          supplierId: supplier.id,
+          productId: product.id,
+        }),
+      );
       if (!result.ok) {
         toast({ title: "Link not removed", description: result.error, tone: "error" });
         return;

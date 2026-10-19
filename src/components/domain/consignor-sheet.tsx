@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { CustomerPicker } from "./customer-picker";
 
@@ -73,8 +74,14 @@ function ConsignorSheetBody({
   const [, startPrefill] = useTransition();
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = consignor
-      ? await updateConsignorAction(prev as ActionResult<null> | null, formData)
-      : await createConsignorAction(prev as ActionResult<{ id: string }> | null, formData);
+      ? await callAction(
+          () => updateConsignorAction(prev as ActionResult<null> | null, formData),
+          formData,
+        )
+      : await callAction(
+          () => createConsignorAction(prev as ActionResult<{ id: string }> | null, formData),
+          formData,
+        );
     if (result.ok) {
       if (consignor) {
         toast({ title: "Consignor saved", tone: "success" });
@@ -94,7 +101,7 @@ function ConsignorSheetBody({
     setCustomer(option);
     if (!option) return;
     startPrefill(async () => {
-      const result = await customerContactAction({ customerId: option.id });
+      const result = await callAction(() => customerContactAction({ customerId: option.id }));
       if (!result.ok || !result.data) return;
       const c = result.data;
       // Prefill what is still empty; never overwrite what staff typed.

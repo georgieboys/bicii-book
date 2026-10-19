@@ -140,17 +140,18 @@ describe("BalanceReturn (back from Stripe)", () => {
   it("checks once while the bill is due, hiding Pay; Stripe's paid stays on screen and the marker goes", async () => {
     checkBalanceAction.mockResolvedValue({ ok: true, data: { state: "paid" } });
     const { rerender } = render(<Page page="due" />);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Thanks. We're confirming your payment with Stripe…",
-    );
+    const line = screen.getByRole("status");
+    expect(line).toHaveTextContent("Thanks. We're confirming your payment with Stripe…");
     expect(screen.queryByRole("button")).toBeNull();
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     expect(checkBalanceAction).toHaveBeenCalledTimes(1);
     expect(checkBalanceAction).toHaveBeenCalledWith({ token: TOKEN });
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Thank you. Stripe has confirmed your payment.",
-    );
-    expect(window.location.search).toBe("");
+    // The same element, now with Stripe's answer, so it is announced (U2-5).
+    expect(screen.getByRole("status")).toBe(line);
+    expect(line).toHaveTextContent("Thank you. Stripe has confirmed your payment.");
+    // The marker goes in an effect after that render: wait for it rather
+    // than racing it (it lost under a loaded full run).
+    await waitFor(() => expect(window.location.search).toBe(""));
     expect(window.location.pathname).toBe(`/pay/${TOKEN}`);
 
     // The refresh shows the bill paid: the page speaks for itself.

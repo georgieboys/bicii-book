@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { useArmedAfter } from "@/components/ui/use-armed";
 
 import { ReasonConfirm } from "../reason-confirm";
+import { callAction } from "@/lib/call-action";
 
 /**
  * "Submit order" on a draft: one explicit button with a pending state and
@@ -34,7 +35,7 @@ export function SubmitOrderButton({
       disabled={disabled || !armed}
       onClick={() =>
         start(async () => {
-          const result = await submitPurchaseOrder({ purchaseOrderId });
+          const result = await callAction(() => submitPurchaseOrder({ purchaseOrderId }));
           toast(
             result.ok
               ? { title: `${poNumber} submitted`, tone: "success" }

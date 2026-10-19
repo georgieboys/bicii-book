@@ -22,6 +22,7 @@ import type { SaleableRow, SaleLineInput } from "@/lib/domain/sales";
 import { formatMoney, lineTotal, parseMoney, sumMoney } from "@/lib/money";
 import { priceWarnings, previewSale } from "@/lib/sales";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { CustomerPicker } from "./customer-picker";
 import { ShortId } from "./short-id";
@@ -121,7 +122,7 @@ export function SaleablePicker({
   taken: ReadonlySet<string>;
 }) {
   const search = async (q: string): Promise<SalePick[]> => {
-    const result = await searchSaleableAction({ q });
+    const result = await callAction(() => searchSaleableAction({ q }));
     if (!result.ok) throw new Error(result.error);
     onRate?.(result.data.rate);
     return result.data.rows.map((row) => ({
@@ -342,7 +343,7 @@ function RecordSaleSheet({
       notes: notes.trim() || null,
     };
     start(async () => {
-      const result = await recordSaleAction(input);
+      const result = await callAction(() => recordSaleAction(input));
       setState(result);
       if (result.ok) {
         toast({ title: `${result.data.saleNumber} recorded`, tone: "success" });
@@ -579,7 +580,7 @@ function RecordSaleSheet({
           hint="Optional. Leave empty for a walk-in."
           error={errors?.customerId?.[0]}
         >
-          <CustomerPicker value={customer} onSelect={setCustomer} />
+          <CustomerPicker value={customer} onSelect={setCustomer} allowCreate />
         </Field>
 
         {earlier ? (

@@ -39,6 +39,7 @@ import {
   type PrinterProfile,
 } from "@/lib/printing/types";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 /**
  * Labels and printers settings (admins only; SPEC §15, §16; PLAN D9,
@@ -91,7 +92,7 @@ export function QrAddressForm({
 
   const save = (next: string) =>
     start(async () => {
-      const result = await setPublicSiteUrlAction({ publicSiteUrl: next });
+      const result = await callAction(() => setPublicSiteUrlAction({ publicSiteUrl: next }));
       if (!result.ok) {
         setConfirming(null);
         setError(result.fieldErrors?.publicSiteUrl?.[0] ?? result.error);
@@ -325,11 +326,13 @@ export function ProfileSheet({
     }
     setFieldErrors({});
     start(async () => {
-      const r = await saveProfileAction({
-        id,
-        mode: profile ? "update" : "create",
-        profile: parsed.data,
-      });
+      const r = await callAction(() =>
+        saveProfileAction({
+          id,
+          mode: profile ? "update" : "create",
+          profile: parsed.data,
+        }),
+      );
       setResult(r);
       if (r.ok) {
         toast({ title: `${parsed.data.name} saved`, tone: "success" });
@@ -341,7 +344,7 @@ export function ProfileSheet({
   const makeDefault = () =>
     start(async () => {
       if (!profile) return;
-      const r = await setDefaultProfileAction({ id: profile.id });
+      const r = await callAction(() => setDefaultProfileAction({ id: profile.id }));
       setResult(r);
       if (r.ok) {
         toast({ title: `${profile.name} is the default printer`, tone: "success" });
@@ -725,11 +728,13 @@ export function TemplateSheet({
       return;
     }
     start(async () => {
-      const r = await saveTemplateAction({
-        id,
-        mode: template ? "update" : "create",
-        template: parsed.data,
-      });
+      const r = await callAction(() =>
+        saveTemplateAction({
+          id,
+          mode: template ? "update" : "create",
+          template: parsed.data,
+        }),
+      );
       setResult(r);
       if (r.ok) {
         toast({ title: `${parsed.data.name} saved`, tone: "success" });
@@ -741,7 +746,7 @@ export function TemplateSheet({
   const makeDefault = () =>
     start(async () => {
       if (!template) return;
-      const r = await setDefaultTemplateAction({ id: template.id });
+      const r = await callAction(() => setDefaultTemplateAction({ id: template.id }));
       setResult(r);
       if (r.ok) {
         toast({

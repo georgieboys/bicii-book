@@ -97,6 +97,48 @@ export default async function TodayPage({ searchParams }: PageProps<"/">) {
   const parsed = parseShopDay(Array.isArray(raw) ? raw[0] : raw);
   // Before EARLIEST_SHOP_DAY is treated like garbage: today.
   const asked = parsed !== null && parsed >= EARLIEST_SHOP_DAY ? parsed : null;
+  const firstName = staff.displayName.split(/\s+/)[0];
+  // U1-2: the greeting and placeholders at once, after the session check
+  // (so its redirect and 403 keep their status), while the dashboard loads.
+  return (
+    <Suspense fallback={<TodayLoading asked={asked} firstName={firstName} />}>
+      <TodayContent staff={staff} asked={asked} entries={entries} />
+    </Suspense>
+  );
+}
+
+/** Today's header and section placeholders while the dashboard RPC runs. */
+function TodayLoading({ asked, firstName }: { asked: string | null; firstName: string }) {
+  const today = asked === null || asked >= shopToday();
+  return (
+    <>
+      <header className="flex flex-col gap-3 pt-6">
+        <p className="eyebrow text-dust-500">{today ? formatShopDay(shopToday()) : "Past day"}</p>
+        <h1 className="text-4xl sm:text-5xl">
+          {today ? `${greetingFor(new Date())}, ${firstName}` : formatShopDayLong(asked)}
+        </h1>
+      </header>
+      <div role="status" className="sr-only">
+        Loading the day…
+      </div>
+      <div className="mt-6 flex flex-col gap-6">
+        <SectionSkeleton rows={2} />
+        <SectionSkeleton rows={4} />
+        <SectionSkeleton rows={3} />
+      </div>
+    </>
+  );
+}
+
+async function TodayContent({
+  staff,
+  asked,
+  entries,
+}: {
+  staff: Awaited<ReturnType<typeof requireStaff>>;
+  asked: string | null;
+  entries: string | string[] | undefined;
+}) {
   const supabase = await createClient();
   const dash = await loadDashboard(supabase, asked);
   const { day, isToday } = dash;

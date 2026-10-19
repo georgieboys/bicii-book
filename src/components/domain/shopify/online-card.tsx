@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import type { ProductOnline } from "@/lib/domain/shopify";
 import { syncStatusLabel, syncStatusTone } from "@/lib/shopify";
+import { callAction } from "@/lib/call-action";
 
 import { CopyText } from "../copy-text";
 
@@ -67,7 +68,7 @@ export function OnlineCard({
     start(async () => {
       setError(null);
       setOptimistic(next);
-      const result = await setPublishOnlineAction({ productId, publish: next });
+      const result = await callAction(() => setPublishOnlineAction({ productId, publish: next }));
       if (!result.ok) {
         setError(result.error);
         toast({ title: "Not changed", description: result.error, tone: "error" });
@@ -83,7 +84,7 @@ export function OnlineCard({
   const syncNow = () =>
     startSync(async () => {
       setError(null);
-      const result = await syncNowAction({ productId });
+      const result = await callAction(() => syncNowAction({ productId }));
       if (!result.ok) {
         setError(result.error);
         toast({ title: "Sync not started", description: result.error, tone: "error" });

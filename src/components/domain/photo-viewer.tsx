@@ -27,6 +27,7 @@ import { isUndecodedOriginal, visibilityOptions, type Visibility } from "@/lib/a
 import { formatDateTime } from "@/lib/dates";
 import type { Photo } from "@/lib/domain/attachments";
 import { formatBytes } from "@/lib/images";
+import { callAction } from "@/lib/call-action";
 
 /** Clicks this soon after the delete confirmation opens are ignored (a double tap). */
 const CONFIRM_GUARD_MS = 400;
@@ -116,7 +117,9 @@ function VisibilityControl({ photo }: { photo: Photo }) {
     if (next === optimistic && next !== unfinished) return;
     start(async () => {
       setOptimistic(next);
-      const result = await setPhotoVisibility({ attachmentId: photo.id, visibility: next });
+      const result = await callAction(() =>
+        setPhotoVisibility({ attachmentId: photo.id, visibility: next }),
+      );
       if (!result.ok) {
         toast({
           title: "Visibility not changed",
@@ -195,7 +198,7 @@ function CaptionForm({ photo }: { photo: Photo }) {
   const { toast } = useToast();
   const [state, formAction, pending] = useActionState<CaptionState, FormData>(
     async (prev, formData) => {
-      const result = await setPhotoCaption(prev, formData);
+      const result = await callAction(() => setPhotoCaption(prev, formData), formData);
       if (result.ok) toast({ title: "Caption saved", tone: "success" });
       return result;
     },
@@ -247,7 +250,7 @@ function DeleteControl({ photo, onDeleted }: { photo: Photo; onDeleted: () => vo
 
   const remove = (why: string) => {
     start(async () => {
-      const result = await deletePhoto({ attachmentId: photo.id, reason: why });
+      const result = await callAction(() => deletePhoto({ attachmentId: photo.id, reason: why }));
       if (result.ok) {
         toast(
           result.data.cleanupPending

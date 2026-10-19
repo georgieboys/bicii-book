@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { UnitFields, type SheetLocationOption } from "./product-sheet";
 import { ReasonConfirm } from "./reason-confirm";
@@ -81,7 +82,7 @@ function AddUnitSheet({
   const [unitId] = useState(newId);
   const [state, formAction, pending] = useActionState<AddState, FormData>(
     async (prev, formData) => {
-      const result = await addUnit(prev, formData);
+      const result = await callAction(() => addUnit(prev, formData), formData);
       if (result.ok) {
         toast({ title: `Added ${result.data.shortId || "the unit"}`, tone: "success" });
         onClose();
@@ -191,7 +192,7 @@ function EditUnitSheet({
   const formId = useId();
   const [state, formAction, pending] = useActionState<EditState, FormData>(
     async (prev, formData) => {
-      const result = await updateUnit(prev, formData);
+      const result = await callAction(() => updateUnit(prev, formData), formData);
       if (result.ok) {
         toast({ title: "Unit saved", tone: "success" });
         onClose();

@@ -21,6 +21,7 @@ import type { LinkableJob } from "@/lib/domain/appointments";
 import type { IntakeBike } from "@/lib/domain/workshop";
 import { newId } from "@/lib/uuid";
 import { STATUS_LABELS } from "@/lib/workshop";
+import { callAction } from "@/lib/call-action";
 
 type Bike = Pick<IntakeBike, "id" | "shortId" | "title" | "colour"> & { isNew?: boolean };
 
@@ -89,15 +90,17 @@ export function CheckInForm({
       return;
     }
     startTransition(async () => {
-      const result = await checkInAppointment({
-        appointmentId,
-        bikeId: bikeId!,
-        workOrderId: linkJob ? linkJob.id : newJobId,
-        linkExisting: Boolean(linkJob),
-        requestedWork: linkJob ? null : requestedWork,
-        intakeNotes: linkJob ? null : intakeNotes,
-        leadMechanicId: linkJob ? null : leadId,
-      });
+      const result = await callAction(() =>
+        checkInAppointment({
+          appointmentId,
+          bikeId: bikeId!,
+          workOrderId: linkJob ? linkJob.id : newJobId,
+          linkExisting: Boolean(linkJob),
+          requestedWork: linkJob ? null : requestedWork,
+          intakeNotes: linkJob ? null : intakeNotes,
+          leadMechanicId: linkJob ? null : leadId,
+        }),
+      );
       setState(result);
       if (!result.ok) {
         // A refusal no field explains (a job conflict, the appointment

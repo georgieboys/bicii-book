@@ -18,6 +18,7 @@ import { createAnonClient } from "@/lib/supabase/anon";
 
 import { DepositCard } from "./deposit-card";
 import { QuoteForm } from "./quote-form";
+import { ThankYou } from "./thank-you";
 
 /**
  * The customer's quote (Phase 13 step 3; PLAN D142, D143, ADR-024): the
@@ -130,7 +131,8 @@ function Open({
     <>
       <p className="text-dust-700">
         Approve or decline each item, type your name and send your answer. The shop orders only what
-        you approve. You can answer once; this link works until {formatDateTime(quote.expires_at)}.
+        you approve. You can answer once; this link works until {formatDateTime(quote.expires_at)}{" "}
+        (Singapore time).
       </p>
       {quote.deposit?.status === "on_answer" ? (
         <p className="text-dust-700">
@@ -175,11 +177,11 @@ function Answered({
   );
   return (
     <>
-      <p role="status" className="rounded-xl bg-done-soft p-4 text-done-deep">
+      <ThankYou token={token}>
         Thank you{quote.answered_name ? `, ${quote.answered_name}` : ""}. You approved {approved} of{" "}
         {of} {of === 1 ? "item" : "items"}
         {quote.answered_at ? ` on ${formatDate(quote.answered_at)}` : ""}. {next}
-      </p>
+      </ThankYou>
       {deposit ? (
         <DepositCard
           token={token}

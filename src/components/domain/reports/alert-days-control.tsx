@@ -9,6 +9,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { alertDaysLabel } from "@/lib/reconciliation";
+import { callAction } from "@/lib/call-action";
 
 /**
  * Admin: "Alert unsettled consignments after N days" with Change (D107;
@@ -38,7 +39,7 @@ function AlertDaysSheet({ days, onClose }: { days: number; onClose: () => void }
 
   const save = () =>
     startTransition(async () => {
-      const result = await setSettlementAlertDays({ days: value.trim() });
+      const result = await callAction(() => setSettlementAlertDays({ days: value.trim() }));
       if (!result.ok) {
         setError(result.fieldErrors?.days?.[0] ?? (result.code ? result.error : undefined));
         setFormError(result.fieldErrors?.days || result.code ? null : result.error);

@@ -2,6 +2,7 @@
 
 import { searchConsignorsAction } from "@/app/(staff)/consignment/actions";
 import { SearchPicker, type PickerOption } from "@/components/ui/search-picker";
+import { callAction } from "@/lib/call-action";
 
 /**
  * Find an active consignor by name, phone or email (staff_search kind
@@ -22,7 +23,7 @@ export function ConsignorPicker({
   required?: boolean;
 }) {
   const search = async (q: string): Promise<PickerOption[]> => {
-    const result = await searchConsignorsAction({ q });
+    const result = await callAction(() => searchConsignorsAction({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data;
   };

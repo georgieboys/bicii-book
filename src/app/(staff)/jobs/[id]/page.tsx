@@ -409,27 +409,31 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             ) : null}
           </Card>
 
-          <IndentCard
-            id="indent-parts"
-            workOrderId={job.id}
-            jobNumber={job.jobNumber}
-            open={open}
-            jobStatus={job.status}
-            panel={indent}
-            customer={{
-              firstName: job.customer.firstName,
-              phone: job.customer.phone,
-              email: job.customer.email,
-            }}
-            canOrder={canOrder}
-            purchaseData={purchaseData}
-            canCreateProduct={hasPermission(staff, "manage_inventory")}
-            emailEnabled={quoteEmailEnabled()}
-            deposits={payments?.deposits ?? []}
-            canOverrideDeposit={canOverrideDeposit(staff)}
-            canCancelClosed={canRecordRefund(staff)}
-            defaultLocationName={defaultLocationName}
-          />
+          {/* U1-4: on a closed job with nothing ever proposed there is
+              nothing to show or do, so no card (as the payments card). */}
+          {open || indent.requests.length > 0 ? (
+            <IndentCard
+              id="indent-parts"
+              workOrderId={job.id}
+              jobNumber={job.jobNumber}
+              open={open}
+              jobStatus={job.status}
+              panel={indent}
+              customer={{
+                firstName: job.customer.firstName,
+                phone: job.customer.phone,
+                email: job.customer.email,
+              }}
+              canOrder={canOrder}
+              purchaseData={purchaseData}
+              canCreateProduct={hasPermission(staff, "manage_inventory")}
+              emailEnabled={quoteEmailEnabled()}
+              deposits={payments?.deposits ?? []}
+              canOverrideDeposit={canOverrideDeposit(staff)}
+              canCancelClosed={canRecordRefund(staff)}
+              defaultLocationName={defaultLocationName}
+            />
+          ) : null}
 
           {payments && showPayments ? (
             <PaymentsCard

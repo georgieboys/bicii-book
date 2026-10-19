@@ -57,12 +57,13 @@ export function LinkSegments({ label, options }: { label: string; options: LinkO
 /**
  * The board's groups as a horizontally scrolling row of chips, each with
  * its count (SPEC §7.2: Received, Waiting, Ready, In progress, Completed,
- * Ready for collection, plus Closed). Scrolls rather than wrapping on a phone.
+ * Ready for collection, plus Closed). Wraps on a phone too, so every group,
+ * Closed included, is in view without a hidden sideways scroll (U1-8).
  */
 export function GroupChips({ label, options }: { label: string; options: LinkOption[] }) {
   return (
-    <nav aria-label={label} className="-mx-4 sm:mx-0">
-      <ul className="flex [scrollbar-width:none] gap-2 overflow-x-auto px-4 py-1 sm:flex-wrap sm:px-0">
+    <nav aria-label={label}>
+      <ul className="flex flex-wrap gap-2 py-1">
         {options.map((o) => (
           <li key={o.key} className="shrink-0">
             <Link

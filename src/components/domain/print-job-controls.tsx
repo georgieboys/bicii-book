@@ -19,6 +19,7 @@ import { PrinterIcon } from "@/components/ui/icons";
 import { useToast } from "@/components/ui/toast";
 import { useArmed } from "@/components/ui/use-armed";
 import type { PrintStatus } from "@/lib/printing/types";
+import { callAction } from "@/lib/call-action";
 
 import { ReasonConfirm } from "./reason-confirm";
 
@@ -239,7 +240,9 @@ export function PrintJobConfirm({
   const printed = () =>
     start(async () => {
       setError(null);
-      const result = await setPrintJobStatusAction({ id: jobId, status: "printed" });
+      const result = await callAction(() =>
+        setPrintJobStatusAction({ id: jobId, status: "printed" }),
+      );
       if (!result.ok) {
         setError(result.error);
         toast({ title: "Not marked as printed", description: result.error, tone: "error" });
@@ -295,11 +298,13 @@ export function PrintJobConfirm({
             successTitle="Marked as failed"
             dismissLabel="Back"
             onConfirm={async (reason) => {
-              const result = await setPrintJobStatusAction({
-                id: jobId,
-                status: "failed",
-                error: reason,
-              });
+              const result = await callAction(() =>
+                setPrintJobStatusAction({
+                  id: jobId,
+                  status: "failed",
+                  error: reason,
+                }),
+              );
               return result.ok || !result.fieldErrors?.error
                 ? result
                 : { ...result, fieldErrors: { reason: result.fieldErrors.error } };

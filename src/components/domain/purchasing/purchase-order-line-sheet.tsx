@@ -26,6 +26,7 @@ import {
   type PurchaseOrderStatus,
 } from "@/lib/purchasing";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ReasonConfirm } from "../reason-confirm";
 import { ShortId } from "../short-id";
@@ -98,7 +99,7 @@ export function PurchaseOrderLineSheet({
   const minQty = minimumQuantity(line?.received ?? 0);
 
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await setPurchaseOrderLine(prev, formData);
+    const result = await callAction(() => setPurchaseOrderLine(prev, formData), formData);
     if (result.ok) {
       toast({
         title: line
@@ -120,10 +121,12 @@ export function PurchaseOrderLineSheet({
     if (!option) return;
     const seq = ++defaultsSeq.current;
     startDefaults(async () => {
-      const result = await purchaseCostDefaults({
-        supplierId: order.supplierId,
-        productIds: [option.id],
-      });
+      const result = await callAction(() =>
+        purchaseCostDefaults({
+          supplierId: order.supplierId,
+          productIds: [option.id],
+        }),
+      );
       if (seq !== defaultsSeq.current) return;
       const found = result.ok ? result.data.find((d) => d.productId === option.id) : undefined;
       if (found) {
@@ -365,7 +368,7 @@ function RemoveLine({
 
   const remove = () => {
     start(async () => {
-      const result = await removePurchaseOrderLine({ lineId: line.id });
+      const result = await callAction(() => removePurchaseOrderLine({ lineId: line.id }));
       if (!result.ok) {
         toast({ title: "Line not removed", description: result.error, tone: "error" });
         return;

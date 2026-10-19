@@ -20,6 +20,7 @@ import {
 } from "@/lib/auth/permissions";
 import { roleChangeSummary, roleWithArticle } from "@/lib/auth/role-change";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
+import { callAction } from "@/lib/call-action";
 
 import { setStaffActive, setStaffPermission, setStaffRole } from "../actions";
 
@@ -58,7 +59,9 @@ export function PermissionSwitches({
   const toggle = (permission: PermissionKey, on: boolean) => {
     startTransition(async () => {
       apply({ permission, on });
-      const result = await setStaffPermission({ staffId, permission, granted: on });
+      const result = await callAction(() =>
+        setStaffPermission({ staffId, permission, granted: on }),
+      );
       if (!result.ok) {
         toast({ title: "Extra access not changed", description: result.error, tone: "error" });
       } else {
@@ -187,12 +190,14 @@ function ChangeRoleSheet({
   const confirm = () => {
     if (!armed) return;
     startTransition(async () => {
-      const result = await setStaffRole({
-        staffId,
-        role: to,
-        expected: from,
-        reason: reason || undefined,
-      });
+      const result = await callAction(() =>
+        setStaffRole({
+          staffId,
+          role: to,
+          expected: from,
+          reason: reason || undefined,
+        }),
+      );
       if (!result.ok) {
         const fieldError = result.fieldErrors?.reason?.[0];
         setReasonError(fieldError);
@@ -301,11 +306,13 @@ export function AccessControl({
       }
     }
     startTransition(async () => {
-      const result = await setStaffActive({
-        staffId,
-        active: next,
-        reason: next ? undefined : reason,
-      });
+      const result = await callAction(() =>
+        setStaffActive({
+          staffId,
+          active: next,
+          reason: next ? undefined : reason,
+        }),
+      );
       if (!result.ok) {
         const fieldError = result.fieldErrors?.reason?.[0];
         if (fieldError) {

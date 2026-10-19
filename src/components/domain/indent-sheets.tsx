@@ -31,6 +31,7 @@ import {
 import { formatMoney, formatQuantity, parseMoney } from "@/lib/money";
 import { DEPOSIT_STATE_LABELS, DEPOSIT_STATE_TONES, type DepositState } from "@/lib/payments";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 /**
  * The indent sheets the Indent parts card and the settle checklist share
@@ -122,13 +123,15 @@ export function FitSheet({
   const submit = () =>
     start(async () => {
       if (outside) {
-        const r = await fitPartBoughtOutsideAction({
-          requestId: request.id,
-          lineId,
-          unitCost: cost,
-          locationId: "",
-          reference,
-        });
+        const r = await callAction(() =>
+          fitPartBoughtOutsideAction({
+            requestId: request.id,
+            lineId,
+            unitCost: cost,
+            locationId: "",
+            reference,
+          }),
+        );
         setResult(r);
         if (r.ok) {
           toast({
@@ -141,11 +144,13 @@ export function FitSheet({
         }
         return;
       }
-      const r = await fitPartRequestAction({
-        requestId: request.id,
-        lineId,
-        locationId: request.order?.arrived ? (request.order.locationId ?? "") : "",
-      });
+      const r = await callAction(() =>
+        fitPartRequestAction({
+          requestId: request.id,
+          lineId,
+          locationId: request.order?.arrived ? (request.order.locationId ?? "") : "",
+        }),
+      );
       if (!r.ok && r.code === "part_cost_missing") {
         if (canBuy) {
           // Offer the purchase instead: what the shop paid becomes the cost.
@@ -321,7 +326,7 @@ export function CancelSheet({
 
   const submit = () =>
     start(async () => {
-      const r = await cancelPartRequestAction({ requestId: request.id, reason });
+      const r = await callAction(() => cancelPartRequestAction({ requestId: request.id, reason }));
       setResult(r);
       if (r.ok) {
         toast({

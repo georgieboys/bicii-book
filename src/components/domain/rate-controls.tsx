@@ -16,6 +16,7 @@ import { useArmed } from "@/components/ui/use-armed";
 import { formatRate, percentToRate } from "@/lib/cult-commons";
 import { formatDateTime, fromShopLocal, toShopLocal } from "@/lib/dates";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 /**
  * Admin: "Schedule a new rate" (D21). A percentage with up to two decimals
@@ -76,12 +77,14 @@ function ScheduleRateSheet({
 
   const confirm = () =>
     startTransition(async () => {
-      const result = await scheduleCultCommonsRate({
-        rateId,
-        percent,
-        when,
-        effectiveFrom: when === "later" ? at : undefined,
-      });
+      const result = await callAction(() =>
+        scheduleCultCommonsRate({
+          rateId,
+          percent,
+          when,
+          effectiveFrom: when === "later" ? at : undefined,
+        }),
+      );
       if (!result.ok) {
         setConfirming(false);
         setErrors({
@@ -244,7 +247,7 @@ export function CancelRateButton({
 
   const cancel = () =>
     startTransition(async () => {
-      const result = await cancelCultCommonsRate({ rateId });
+      const result = await callAction(() => cancelCultCommonsRate({ rateId }));
       if (!result.ok) {
         toast({ title: "Rate not cancelled", description: result.error, tone: "error" });
         return;

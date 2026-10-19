@@ -9,6 +9,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { depositPercentLabel } from "@/lib/payments";
+import { callAction } from "@/lib/call-action";
 
 /**
  * Admin: the deposit on indent quotes with Change (Phase 14 step 2; D151,
@@ -65,7 +66,7 @@ function DepositPercentSheet({
 
   const save = () =>
     startTransition(async () => {
-      const result = await setDepositPercentAction({ percent: value.trim() });
+      const result = await callAction(() => setDepositPercentAction({ percent: value.trim() }));
       if (!result.ok) {
         setError(result.fieldErrors?.percent?.[0] ?? (result.code ? result.error : undefined));
         setFormError(result.fieldErrors?.percent || result.code ? null : result.error);

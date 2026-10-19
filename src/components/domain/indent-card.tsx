@@ -48,6 +48,7 @@ import { depositBlockedIds, depositStates, type DepositState } from "@/lib/payme
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
 import type { WorkOrderStatus } from "@/lib/workshop";
+import { callAction } from "@/lib/call-action";
 
 import { CopyText } from "./copy-text";
 import { CancelSheet, DepositBadge, FitSheet } from "./indent-sheets";
@@ -136,7 +137,7 @@ export function IndentCard({
   const withdraw = () =>
     startWithdraw(async () => {
       if (!quote) return;
-      const result = await withdrawQuoteAction({ quoteId: quote.id });
+      const result = await callAction(() => withdrawQuoteAction({ quoteId: quote.id }));
       toast(
         result.ok
           ? { title: "Quote withdrawn. Its link no longer works.", tone: "success" }
@@ -432,7 +433,7 @@ function ProposePartSheet({
   const errors = errorsOf(result);
 
   const search = async (q: string): Promise<ProductPick[]> => {
-    const r = await searchIndentProductOptions({ q });
+    const r = await callAction(() => searchIndentProductOptions({ q }));
     if (!r.ok) throw new Error(r.error);
     return r.data.map((p) => ({
       id: p.id,
@@ -445,18 +446,20 @@ function ProposePartSheet({
 
   const submit = () =>
     start(async () => {
-      const r = await proposePartAction({
-        requestId,
-        workOrderId,
-        productId: mode === "existing" ? (picked?.product.id ?? "") : "",
-        newProductId: mode === "new" ? newProductId : "",
-        newName: mode === "new" ? newName : "",
-        newPrice: mode === "new" ? newPrice : "",
-        quantity,
-        unitSalePrice: price,
-        expectedUnitCost: cost,
-        supplierId,
-      });
+      const r = await callAction(() =>
+        proposePartAction({
+          requestId,
+          workOrderId,
+          productId: mode === "existing" ? (picked?.product.id ?? "") : "",
+          newProductId: mode === "new" ? newProductId : "",
+          newName: mode === "new" ? newName : "",
+          newPrice: mode === "new" ? newPrice : "",
+          quantity,
+          unitSalePrice: price,
+          expectedUnitCost: cost,
+          supplierId,
+        }),
+      );
       setResult(r);
       if (r.ok) {
         toast({ title: "Part proposed. Send a quote when you're ready.", tone: "success" });
@@ -587,7 +590,7 @@ function ProposeServiceSheet({
   const errors = errorsOf(result);
 
   const search = async (q: string): Promise<ServicePick[]> => {
-    const r = await searchServiceOptions({ q });
+    const r = await callAction(() => searchServiceOptions({ q }));
     if (!r.ok) throw new Error(r.error);
     return r.data.map((s) => ({
       id: s.id,
@@ -600,13 +603,15 @@ function ProposeServiceSheet({
 
   const submit = () =>
     start(async () => {
-      const r = await proposeServiceAction({
-        requestId,
-        workOrderId,
-        serviceId: picked?.serviceId ?? "",
-        quantity,
-        unitSalePrice: price,
-      });
+      const r = await callAction(() =>
+        proposeServiceAction({
+          requestId,
+          workOrderId,
+          serviceId: picked?.serviceId ?? "",
+          quantity,
+          unitSalePrice: price,
+        }),
+      );
       setResult(r);
       if (r.ok) {
         toast({ title: "Service proposed.", tone: "success" });
@@ -698,13 +703,15 @@ function SendQuoteSheet({
 
   const submit = () =>
     start(async () => {
-      const r = await sendQuoteAction({
-        quoteId,
-        workOrderId,
-        requestIds: items.filter((i) => chosen.has(i.id)).map((i) => i.id),
-        channel,
-        validDays: days,
-      });
+      const r = await callAction(() =>
+        sendQuoteAction({
+          quoteId,
+          workOrderId,
+          requestIds: items.filter((i) => chosen.has(i.id)).map((i) => i.id),
+          channel,
+          validDays: days,
+        }),
+      );
       setResult(r);
       if (r.ok) onSent(r.data);
     });
@@ -921,14 +928,16 @@ function OrderSheet({
         return;
       }
       setReasonMissing(false);
-      const r = await orderPartRequestsAction({
-        requestIds: items.filter((i) => chosen.has(i.id)).map((i) => i.id),
-        supplierId,
-        purchaseOrderId,
-        moveToWaiting,
-        // Only when a part whose deposit isn't paid is chosen (D152).
-        ...(unpaidChosen > 0 ? { overrideReason: reason } : {}),
-      });
+      const r = await callAction(() =>
+        orderPartRequestsAction({
+          requestIds: items.filter((i) => chosen.has(i.id)).map((i) => i.id),
+          supplierId,
+          purchaseOrderId,
+          moveToWaiting,
+          // Only when a part whose deposit isn't paid is chosen (D152).
+          ...(unpaidChosen > 0 ? { overrideReason: reason } : {}),
+        }),
+      );
       setResult(r);
       if (r.ok) {
         toast({

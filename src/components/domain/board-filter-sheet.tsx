@@ -22,6 +22,7 @@ import {
   type CheckedInPreset,
   type WorkOrderStatus,
 } from "@/lib/workshop";
+import { callAction } from "@/lib/call-action";
 
 type Picked = { id: string; label: string } | null;
 
@@ -90,7 +91,7 @@ function BoardFilterSheet({
     setStatuses((prev) => (on ? [...prev, s] : prev.filter((x) => x !== s)));
 
   const search = (kind: "customer" | "bike") => async (q: string) => {
-    const result = await searchIntakeOptions({ q });
+    const result = await callAction(() => searchIntakeOptions({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data
       .filter((o) => o.kind === kind)

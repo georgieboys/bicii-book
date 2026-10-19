@@ -11,6 +11,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import type { AssignmentRole } from "@/lib/domain/workshop";
+import { callAction } from "@/lib/call-action";
 
 type Person = { staffId: string; name: string; role: AssignmentRole };
 
@@ -43,7 +44,9 @@ export function AssignmentsCard({
   const remove = (person: Person) => {
     setRemoving(person.staffId);
     startTransition(async () => {
-      const result = await unassignStaff({ workOrderId, staffId: person.staffId });
+      const result = await callAction(() =>
+        unassignStaff({ workOrderId, staffId: person.staffId }),
+      );
       setRemoving(null);
       if (!result.ok) {
         toast({ title: `${person.name} not removed`, description: result.error, tone: "error" });
@@ -151,7 +154,7 @@ function AssignSheet({
       return;
     }
     startTransition(async () => {
-      const result = await assignStaff({ workOrderId, staffId: chosen.id, role });
+      const result = await callAction(() => assignStaff({ workOrderId, staffId: chosen.id, role }));
       if (!result.ok) {
         setError(result.fieldErrors?.staffId?.[0] ?? result.error);
         return;

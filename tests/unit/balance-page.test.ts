@@ -10,6 +10,7 @@ import {
   balanceReturn,
   isBalanceToken,
   parseBalanceView,
+  paidLabel,
   paymentNote,
   type OpenBalance,
 } from "@/lib/balance-page";
@@ -39,6 +40,7 @@ const openPayload = {
   ],
   job_total: 105.5,
   paid: 30,
+  refunded: 0,
   paid_ahead: 0,
   balance_due: 75.5,
   payment: "due",
@@ -80,6 +82,7 @@ describe("parseBalanceView (D156f): the two key sets", () => {
       "paid",
       "paid_ahead",
       "payment",
+      "refunded",
       "shop_name",
       "status",
     ]);
@@ -104,6 +107,7 @@ describe("parseBalanceView (D156f): the two key sets", () => {
       ],
       job_total: "105.5",
       paid: "30",
+      refunded: "0",
       paid_ahead: "0",
       balance_due: "75.5",
       payment: "due",
@@ -268,5 +272,21 @@ describe("balanceBuckets (the pay page's own limits)", () => {
     expect(balanceBuckets("view", "1.2.3.4", TOKEN, 1000).map((b) => b.limit)).toEqual([
       60_000, 60_000,
     ]);
+  });
+});
+
+describe("paidLabel (U2-11)", () => {
+  it("says how much was refunded once anything was, since paid is net of it", () => {
+    expect(paidLabel(open())).toBe("Paid so far");
+    expect(paidLabel(open({ refunded: "0.00" }))).toBe("Paid so far");
+    expect(paidLabel(open({ refunded: "20.00" }))).toBe("Paid so far (after $20.00 refunded)");
+    // A payload from before the key: nothing refunded.
+    const before = Object.fromEntries(
+      Object.entries(openPayload).filter(([key]) => key !== "refunded"),
+    );
+    const view = parseBalanceView(before);
+    if (view?.status !== "open") throw new Error("expected an open bill");
+    expect(view.refunded).toBe("0");
+    expect(paidLabel(view)).toBe("Paid so far");
   });
 });

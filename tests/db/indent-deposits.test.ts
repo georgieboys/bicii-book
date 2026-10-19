@@ -142,15 +142,20 @@ async function pageDeposit(tx: pg.Client, token: string) {
       status: string;
       parts_ordered?: boolean;
       job_closed?: boolean;
+      refunded?: number;
     } | null;
     amount: string | null;
+    refunded: string | null;
   }>(
-    `select q -> 'deposit' as deposit, q -> 'deposit' ->> 'amount' as amount
+    `select q -> 'deposit' as deposit, q -> 'deposit' ->> 'amount' as amount,
+            q -> 'deposit' ->> 'refunded' as refunded
        from public.quote_by_token($1) q`,
     [token],
   );
-  const { deposit, amount } = rows[0];
-  return deposit === null ? null : { ...deposit, amount };
+  // Money as text, as Postgres wrote it.
+  const { deposit, amount, refunded } = rows[0];
+  if (deposit === null) return null;
+  return "refunded" in deposit ? { ...deposit, amount, refunded } : { ...deposit, amount };
 }
 
 type Prepared = {
@@ -612,6 +617,7 @@ describe("The quote view's deposit key (D143, D158)", () => {
         status: "due",
         parts_ordered: false,
         job_closed: false,
+        refunded: "0.00",
       });
 
       // Completed but unpaid (an asynchronous method): processing.
@@ -630,11 +636,17 @@ describe("The quote view's deposit key (D143, D158)", () => {
         status: "paid",
         parts_ordered: false,
         job_closed: false,
+        refunded: "0.00",
       });
+      // U2-11: a partly refunded deposit is still paid, and says how much
+      // of it came back; once all of it has, the state says so instead.
       await refundDeposit(tx, p, 5000);
-      expect((await pageDeposit(tx, q.token))!.status).toBe("paid");
+      expect(await pageDeposit(tx, q.token)).toMatchObject({ status: "paid", refunded: "50.00" });
       await refundDeposit(tx, p, 7000);
-      expect((await pageDeposit(tx, q.token))!.status).toBe("refunded");
+      expect(await pageDeposit(tx, q.token)).toMatchObject({
+        status: "refunded",
+        refunded: "0.00",
+      });
 
       await actAs(tx, ANON);
       const page = await quoteByToken(tx, q.token);
@@ -655,6 +667,7 @@ describe("The quote view's deposit key (D143, D158)", () => {
         status: "due",
         parts_ordered: true,
         job_closed: false,
+        refunded: "0.00",
       });
       // Fitted counts as ordered.
       await actAs(tx, ADMIN);
@@ -1191,6 +1204,9 @@ describe("quote_deposits, payment_issues and work_order_payment_totals", () => {
       expect(await issuesOf(tx, first.paymentId)).toEqual(["paid_twice"]);
       await refundDeposit(tx, first, 12000);
       expect(await issuesOf(tx, first.paymentId)).toEqual([]);
+      // U2-11: the duplicate came back in full; the deposit itself was not
+      // refunded, so the page names no refund.
+      expect(await pageDeposit(tx, c.token)).toMatchObject({ status: "paid", refunded: "0.00" });
 
       // amount_mismatch.
       const e = await answered(tx);
@@ -1725,6 +1741,7 @@ describe("Deposits held for parts never fitted (R-082, D149)", () => {
         status: "paid",
         parts_ordered: false,
         job_closed: true,
+        refunded: "0.00",
       });
       await actAs(tx, ADMIN);
       await beforeTheGuard(tx, () => setStatus(tx, d.job.id, "collected"));
@@ -1736,6 +1753,7 @@ describe("Deposits held for parts never fitted (R-082, D149)", () => {
         "job_closed",
         "parts_ordered",
         "percent",
+        "refunded",
         "status",
       ]);
       expect(JSON.stringify(page)).not.toMatch(/70\.00|cost|supplier|email|phone|note/i);

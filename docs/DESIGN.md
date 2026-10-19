@@ -931,7 +931,7 @@ in large type, "N% of the parts you approved", then by state:
 | due, back from Stripe (`?deposit=returned`) | `ConfirmingPayment`: `role="status"` "Thanks. We're confirming your payment with Stripe…"; one check at Stripe, then a refresh every 5 s, at most 12; then "Stripe hasn't confirmed your payment yet. If you paid, you don't need to pay again; it shows here soon." with "If you didn't finish, you can pay below." and the Pay button again (the same session) with the privacy line under it while Stripe is on, or "The shop will tell you how to pay the deposit." while it is off. `?deposit=returned` leaves the address (`history.replaceState`, no navigation) once the check settles it or the minute is up, so a restored tab shows the deposit as it is |
 | due, Checkout left (`?deposit=cancelled`) | `role="status"` "Payment not finished. Nothing was charged. You can pay the deposit below whenever you're ready.", then the button |
 | processing | "Your payment of $… is being confirmed by Stripe. Reload this page later to see it confirmed. You don't need to pay again." (the page does not poll in this state) |
-| paid | a done-tone **Paid** badge and "Deposit of $… paid. Thank you." |
+| paid | a done-tone **Paid** badge and "Deposit of $… paid. Thank you."; refunded in part in Stripe (the payload's `refunded` above 0, U2-11), "Deposit of $… paid. $… of your deposit was refunded." instead |
 | refunded | "Your deposit of $… was refunded. Ask the shop if you have questions." |
 
 The page now links out once: Pay sends the browser to Stripe's hosted
@@ -964,7 +964,7 @@ X-Robots-Tag `noindex, nofollow` and Cache-Control `private, no-store` on
 | withdrawn (a resend, a reopen or Collected) | "Your bill for job J-…" and "This payment link was replaced or stopped. Ask the shop for a new one." |
 | expired | "Your bill for job J-…" and "This payment link has expired. Ask the shop for a new one." |
 | closed (a fallback: the job is no longer completed or ready) | "Your bill for job J-…" and "This job has changed. Ask the shop how to pay." |
-| open | eyebrow "Job J-… · <bike>" (brand, model, variant; never a serial), "Hi <first name>, here is your bill", a **Your bill** card listing each live line (description with any unit number and serial cut by the database, "Quantity N", the line total; "No lines on this bill." when empty), then Job total, Paid so far (online and at the counter) and **Balance due**; then the **Payment** section below |
+| open | eyebrow "Job J-… · <bike>" (brand, model, variant; never a serial), "Hi <first name>, here is your bill", a **Your bill** card listing each live line (description with any unit number and serial cut by the database, "Quantity N", the line total; "No lines on this bill." when empty), then Job total, Paid so far (online and at the counter, net of Stripe refunds; once anything was refunded the label reads "Paid so far (after $20.00 refunded)", `paidLabel`, U2-11) and **Balance due**; then the **Payment** section below |
 
 The Payment section of an open bill, by `payment`:
 

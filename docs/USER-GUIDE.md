@@ -269,7 +269,8 @@ while an approved or ordered item is neither fitted nor cancelled:
      the page they see "We're confirming your payment with Stripe…" and
      then "Deposit of $… paid. Thank you." (a PayNow payment Stripe is
      still confirming says "Reload this page later to see it
-     confirmed."); if they left Stripe without
+     confirmed."; a deposit refunded in part in Stripe says "Deposit of
+     $… paid. $… of your deposit was refunded."); if they left Stripe without
      paying, "Payment not finished. Nothing was charged." and the button
      again. Pressing Pay again reuses the same Stripe payment, so they are
      never charged twice. Only Stripe's own confirmation marks a deposit
@@ -984,7 +985,10 @@ website's account pages go live when the owner switches them on,
   cancel until the cutoff), their bikes with the photos marked **Customer**
   or **Public**, and their jobs with status, lines, prices, totals and
   customer photos. Never internal notes, internal photos, costs or other
-  customers.
+  customers, and never payments: the job page's total reads "Job total
+  (before payments)" with "What you've paid and what's left to pay are on
+  the bill we send you." (send a payment link for that), and a job with no
+  lines yet shows no amount in their lists.
 - If it fails: "We can't link your account" means two customers here share
   that email: archive the duplicate or correct one email, then ask them to
   sign in again. "Your account is closed" means their customer is archived:
@@ -1277,8 +1281,9 @@ website's account pages go live when the owner switches them on,
   The customer's page always asks what is left to pay at that moment, so
   a payment taken meanwhile is never asked twice.
 - What the customer sees: "Hi <first name>, here is your bill", the
-  job's lines (never a unit number or serial), Job total, Paid so far and
-  **Balance due**, then **Pay $…** through Stripe (card or PayNow) and
+  job's lines (never a unit number or serial), Job total, Paid so far
+  (after anything refunded in Stripe, and then it says so: "Paid so far
+  (after $20.00 refunded)") and **Balance due**, then **Pay $…** through Stripe (card or PayNow) and
   the line "Payments are taken by Stripe on its own page, so Stripe's
   privacy policy applies to them; BICII never sees or keeps your card
   details." Back from Stripe it says "Thanks. We're confirming your

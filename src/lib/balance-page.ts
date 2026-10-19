@@ -54,6 +54,9 @@ const openLink = z.object({
   lines: z.array(line),
   job_total: money,
   paid: money,
+  // U2-11: what Stripe gave back on the job, which paid is already net of.
+  // Optional, so a payload from before it still parses (nothing refunded).
+  refunded: money.optional().transform((v) => v ?? "0"),
   paid_ahead: money,
   balance_due: money,
   payment: z.enum(BALANCE_PAYMENT_STATES),
@@ -114,6 +117,17 @@ const CLOSED_BODIES: Readonly<Record<ClosedBalance["status"], string>> = {
 /** A withdrawn, expired or closed link: the job, and what to do. */
 export function balanceNotice(view: ClosedBalance): Notice {
   return { title: `Your bill for job ${view.job_number}`, body: CLOSED_BODIES[view.status] };
+}
+
+/**
+ * The bill's "Paid so far" label: it is net of Stripe refunds, so once
+ * anything was refunded it says how much (U2-11). Postgres's figure,
+ * compared with zero and formatted, never computed.
+ */
+export function paidLabel(view: OpenBalance): string {
+  return toDecimal(view.refunded).greaterThan(0)
+    ? `Paid so far (after ${formatMoney(view.refunded, view.currency)} refunded)`
+    : "Paid so far";
 }
 
 /**

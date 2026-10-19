@@ -235,7 +235,9 @@ from the code:
   PR #38 at `20261018000100_profile_errors_without_row` (the audit's
   week-one fixes, applied by run 18 on 2026-10-18 SGT), and since PR #43
   at `20261018000300_search_indexes` (with `20261018000200`, applied by
-  run 19 on 2026-10-19 SGT). A
+  run 19 on 2026-10-19 SGT), and with the refunded amounts (U2-11) at
+  `20261019000100_customer_refunded_amounts` (applied by `migrate.yml`
+  when that pull request merges). A
   new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).

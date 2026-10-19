@@ -294,6 +294,7 @@ test("deposit: asked, paid through Stripe (fake) and a signed webhook, then orde
   await expect(customer.getByRole("main")).toContainText(
     "Your deposit is paid, so the shop will order your parts.",
   );
+  const quoteUrl = customer.url().split("?")[0];
   await context.close();
 
   // 9. Staff after payment: paid ahead, on the timeline, and ordered without a reason.
@@ -344,6 +345,15 @@ test("deposit: asked, paid through Stripe (fake) and a signed webhook, then orde
   await expect(online).toContainText("Partly refunded");
   await expect(online).toContainText("of which $50.00 refunded");
   await expect(timeline).toContainText("$50.00 refunded in Stripe");
+
+  // 11. The customer's page: still paid, and it says how much came back (U2-11).
+  const later = await browser.newContext();
+  const revisit = await later.newPage();
+  await revisit.goto(quoteUrl);
+  await expect(
+    revisit.getByText("Deposit of $120.00 paid. $50.00 of your deposit was refunded."),
+  ).toBeVisible();
+  await later.close();
 });
 
 test("an admin orders before the deposit is paid, with a reason", async ({

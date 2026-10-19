@@ -159,6 +159,7 @@ describe("DepositCard: the privacy line under Pay (the privacy notice names Stri
     status,
     parts_ordered: false,
     job_closed: false,
+    refunded: "0",
   });
 
   it("says Stripe takes the payment on its own page, under Pay only", () => {
@@ -198,5 +199,44 @@ describe("DepositCard: the privacy line under Pay (the privacy notice names Stri
       expect(screen.queryByText(STRIPE_PRIVACY_LINE), status).toBeNull();
       card.unmount();
     }
+  });
+});
+
+describe("DepositCard: a deposit refunded in part (U2-11)", () => {
+  it("is still paid, and says how much of it came back; nothing refunded keeps the thank-you", () => {
+    window.history.replaceState(null, "", `/quote/${TOKEN}`);
+    const deposit = (refunded: string) => ({
+      percent: 50,
+      amount: "120.00",
+      status: "paid" as const,
+      parts_ordered: false,
+      job_closed: false,
+      refunded,
+    });
+    const partly = render(
+      <DepositCard
+        token={TOKEN}
+        deposit={deposit("20.00")}
+        currency="SGD"
+        payOnline
+        returning={null}
+      />,
+    );
+    expect(screen.getByText("Paid")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Deposit of $120.00 paid. $20.00 of your deposit was refunded.",
+    );
+    partly.unmount();
+
+    render(
+      <DepositCard
+        token={TOKEN}
+        deposit={deposit("0.00")}
+        currency="SGD"
+        payOnline
+        returning={null}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Deposit of $120.00 paid. Thank you.");
   });
 });

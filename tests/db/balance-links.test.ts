@@ -34,6 +34,7 @@ import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { STAFF } from "../fixtures/ids";
+import { refundObject } from "../fixtures/stripe";
 import { customerClaims, linkCustomerLogin } from "./customer-fixtures";
 import {
   actAs,
@@ -83,6 +84,7 @@ import {
   sendLink,
   startBalanceCheckout,
   startDepositCheckout,
+  tag,
   voidCounter,
   type BalancePrepared,
   type Pay,
@@ -105,7 +107,7 @@ const p0002 = (message: string) => ({ code: "P0002", message });
 const check = (constraint: string) => ({ code: "23514", constraint });
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-/** The open page's twelve keys (D156f), sorted. */
+/** The open page's thirteen keys (D156f; refunded, U2-11), sorted. */
 const OPEN_KEYS = [
   "balance_due",
   "bike",
@@ -117,6 +119,7 @@ const OPEN_KEYS = [
   "paid",
   "paid_ahead",
   "payment",
+  "refunded",
   "shop_name",
   "status",
 ];
@@ -709,7 +712,58 @@ describe("A link is withdrawn when its job leaves completed or ready (D156d)", (
 // ---------------------------------------------------------------------------
 
 describe("The pay page, balance_by_token (D156f)", () => {
-  it("an open link: twelve keys, the bill's live lines and the live balance; withdrawn, expired and closed links: status and job number only; an unknown token: null", async () => {
+  it("refunded (U2-11): what Stripe gave back on the job, beside paid, which is already net of it", async () => {
+    await inTransaction(conn, async (tx) => {
+      const job = await newJob(tx);
+      await actAs(tx, ADMIN);
+      await addManualLine(tx, { workOrderId: job.id, description: "Labour", price: "105.00" });
+      await completeJob(tx, job.id);
+      await recordCounter(tx, { workOrderId: job.id, amount: "30.00" });
+      const sent = await sendLink(tx, job.id);
+      const p = await startBalanceCheckout(tx, sent.token);
+      await pay(tx, p);
+      expect(await balancePage(tx, sent.token)).toMatchObject({
+        paid: 105,
+        refunded: 0,
+        balance_due: 0,
+        payment: "nothing_due",
+      });
+
+      // Part of the Stripe payment comes back: paid drops by it, refunded
+      // names it, and the bill is due again by the same amount.
+      await deliver(
+        tx,
+        "refund.updated",
+        refundObject({
+          id: `re_${tag()}`,
+          paymentIntent: p.pi,
+          amountCents: 2000,
+          status: "succeeded",
+        }),
+      );
+      expect(await balancePage(tx, sent.token)).toMatchObject({
+        job_total: 105,
+        paid: 85,
+        refunded: 20,
+        balance_due: 20,
+        payment: "due",
+      });
+      // A refund Stripe has not finished counts nowhere.
+      await deliver(
+        tx,
+        "refund.updated",
+        refundObject({
+          id: `re_${tag()}`,
+          paymentIntent: p.pi,
+          amountCents: 1000,
+          status: "pending",
+        }),
+      );
+      expect(await balancePage(tx, sent.token)).toMatchObject({ paid: 85, refunded: 20 });
+    });
+  });
+
+  it("an open link: thirteen keys, the bill's live lines and the live balance; withdrawn, expired and closed links: status and job number only; an unknown token: null", async () => {
     await inTransaction(conn, async (tx) => {
       const job = await newJob(tx);
       await ownerMode(tx);
@@ -744,6 +798,7 @@ describe("The pay page, balance_by_token (D156f)", () => {
         ],
         job_total: 105,
         paid: 30,
+        refunded: 0,
         paid_ahead: 0,
         balance_due: 75,
         payment: "due",

@@ -34,9 +34,10 @@ shared with the Admin, whose staff sign in with emailed codes
 | D123 | BOOKABLE-RANGE: `bookable_slots(from_day, to_day, type)` returns the bookable starts of up to 31 shop days in one call, each tagged with its shop day, by calling `private.available_slots_at` for each day with the caller's staff flag, so it equals `available_slots` day by day and D37's rules stay where they are. Everyone may call it | Accepted | `20261006103000_public_site.sql`; `tests/db/public-site.test.ts` |
 | D124 | CUSTOMER-PHOTOS: a signed-in customer may read the `media-internal` objects behind exactly the photos `my_bike_attachments` and `my_work_order_attachments` return to them (storage policy `media_internal_select_customer` over `private.customer_can_read_media`), so the site shows them through short-lived signed URLs minted with the customer's own session. Public photos keep their public URLs. Nothing else in the bucket, never consignment, product or customer-record photos, never a write | Accepted | `20261006103000_public_site.sql`; `tests/db/public-site.test.ts` |
 | D125 | ITEM-PAGE: the public site's `/q/[shortId]` shows exactly `reporting.public_items`. An unknown, unpublished or non-public ID (bikes, jobs, consignment items, sales, purchase orders) shows one "not listed" page, except that a signed-in customer opening their own bike's label is taken to that bike. Item pages are not indexed by search engines. The purchase action is a message to the shop on Instagram until Phase 10's Shopify sync gives an item a storefront address; a Staff link opens the Admin's own `/q` page, which requires a staff sign-in | Accepted | Public site (step 2) |
+| D126 | ACCOUNT-PAYMENTS: the account shows no payments (D17 stands); each job's total reads "Job total (before payments)" and points to the bill the shop sends, and a job with no lines shows no amount in the lists (code audit U3-8, U2-12). Showing paid and still to pay waits for the owner | Open | Public site `src/app/account/jobs/[id]/page.tsx`, `src/lib/account/format.ts` (`listedJobTotal`); no schema change |
 
 Full text: [PLAN §6](../PLAN.md#6-open-decisions-for-the-owner), rows
-D120–D125.
+D120–D126.
 
 ## Alternatives actually considered
 

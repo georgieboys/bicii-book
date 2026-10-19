@@ -30,9 +30,11 @@ const quoteItem = z.object({
  * then due, processing, paid or refunded once answered, with
  * parts_ordered once every approved part still live is ordered or fitted
  * (D152: the shop ordered without waiting for the deposit) and job_closed
- * once the job is completed, ready, collected or cancelled (R-082).
- * Optional, so a payload from before the deposit migration still parses
- * (null); the two flags default to false for a payload from before them.
+ * once the job is completed, ready, collected or cancelled (R-082), and
+ * refunded, what Stripe gave back of a deposit still counted as paid
+ * (U2-11). Optional, so a payload from before the deposit migration still
+ * parses (null); the two flags default to false and refunded to nothing
+ * for a payload from before them.
  */
 const deposit = z
   .object({
@@ -47,6 +49,7 @@ const deposit = z
       .boolean()
       .optional()
       .transform((v) => v ?? false),
+    refunded: money.optional().transform((v) => v ?? "0"),
   })
   .nullable()
   .optional()

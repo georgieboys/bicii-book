@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, toDecimal } from "@/lib/money";
 import type { DepositReturn, QuoteDeposit } from "@/lib/quote-page";
 
 import { StripePrivacyLine } from "../../stripe-privacy-line";
@@ -41,6 +41,7 @@ export function DepositCard({
           token={token}
           deposit={deposit}
           amount={amount ?? ""}
+          currency={currency}
           payOnline={payOnline}
           returning={returning}
         />
@@ -53,16 +54,25 @@ function DepositState({
   token,
   deposit,
   amount,
+  currency,
   payOnline,
   returning,
 }: {
   token: string;
   deposit: QuoteDeposit;
   amount: string;
+  currency: string;
   payOnline: boolean;
   returning: DepositReturn;
 }) {
-  const paidText = `Deposit of ${amount} paid. Thank you.`;
+  // U2-11: a deposit refunded in part is still paid, and says how much of
+  // it came back (Postgres's figure, formatted only).
+  const refunded = toDecimal(deposit.refunded).greaterThan(0)
+    ? formatMoney(deposit.refunded, currency)
+    : null;
+  const paidText = refunded
+    ? `Deposit of ${amount} paid. ${refunded} of your deposit was refunded.`
+    : `Deposit of ${amount} paid. Thank you.`;
   const processingText = `Your payment of ${amount} is being confirmed by Stripe. Reload this page later to see it confirmed. You don't need to pay again.`;
   // Back from Stripe: the confirming line stays mounted and takes Stripe's
   // answer, so it is announced (U2-5).

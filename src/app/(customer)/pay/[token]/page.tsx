@@ -8,6 +8,7 @@ import {
   balanceNotice,
   balanceReturn,
   isBalanceToken,
+  paidLabel,
   parseBalanceView,
   paymentNote,
   type BalanceReturn as ReturnMarker,
@@ -156,7 +157,7 @@ function OpenBill({
             <dd>{money(view.job_total)}</dd>
           </div>
           <div className="flex justify-between gap-3">
-            <dt>Paid so far</dt>
+            <dt>{paidLabel(view)}</dt>
             <dd>{money(view.paid)}</dd>
           </div>
           <div className="flex justify-between gap-3 text-lg font-semibold">

@@ -48,9 +48,11 @@ URLs, or customer data in this file.
   `supabase/seed.sql` off the hosted project (it never runs there:
   `migrate.yml` has no seed step). A migration added from now on must sort
   after the newest file on `main` (`HANDOVER.md` "Migrations after
-  go-live"); since the audit's database and security items (PR #43,
-  applied by `migrate.yml` run 19 on 2026-10-19 SGT) that is
-  `20261018000300_search_indexes.sql` (before it
+  go-live"); since the refunded amounts on the customer's quote and bill
+  (U2-11) that is `20261019000100_customer_refunded_amounts.sql`, applied
+  by `migrate.yml` when its pull request merges (before it
+  `20261018000300_search_indexes.sql` after the audit's database and
+  security items, PR #43, run 19 on 2026-10-19 SGT;
   `20261018000100_profile_errors_without_row.sql` after the week-one
   fixes, PR #38, run 18;
   `20261014001500_payment_reports.sql` after Phase 14 step 3 PR A, PR #34,

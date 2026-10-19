@@ -124,6 +124,7 @@ describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
       status: "on_answer",
       parts_ordered: false,
       job_closed: false,
+      refunded: "0",
     });
     for (const status of ["due", "processing", "paid", "refunded"] as const) {
       const view = parseQuoteView({
@@ -137,6 +138,7 @@ describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
         status,
         parts_ordered: status === "due",
         job_closed: false,
+        refunded: "0",
       });
     }
     const closed = parseQuoteView({
@@ -151,6 +153,13 @@ describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
     });
     if (closed?.status !== "answered") throw new Error("expected an answered quote");
     expect(closed.deposit?.job_closed).toBe(true);
+    // U2-11: what Stripe gave back of a deposit still paid, as a string.
+    const partly = parseQuoteView({
+      ...answered,
+      deposit: { percent: 50, amount: "120.00", status: "paid", refunded: 20 },
+    });
+    if (partly?.status !== "answered") throw new Error("expected an answered quote");
+    expect(partly.deposit?.refunded).toBe("20");
     const numeric = parseQuoteView({
       ...answered,
       deposit: { percent: 50, amount: 120, status: "due" },
@@ -167,6 +176,7 @@ describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
       { percent: 12.5, amount: "120.00", status: "due" },
       { percent: 50, amount: "120.00", status: "due", parts_ordered: "yes" },
       { percent: 50, amount: "120.00", status: "paid", job_closed: "yes" },
+      { percent: 50, amount: "120.00", status: "paid", refunded: true },
     ]) {
       expect(parseQuoteView({ ...answered, deposit }), JSON.stringify(deposit)).toBeNull();
     }
@@ -179,6 +189,7 @@ describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
       status,
       parts_ordered: ordered,
       job_closed: false,
+      refunded: "0",
     });
     expect(answeredNext(d("due", false))).toBe(
       "The shop orders your parts once the deposit is paid.",
@@ -205,7 +216,14 @@ describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
       status: "processing" | "paid" | "refunded",
       ordered: boolean,
       jobClosed: boolean,
-    ) => ({ percent: 100, amount: "2.00", status, parts_ordered: ordered, job_closed: jobClosed });
+    ) => ({
+      percent: 100,
+      amount: "2.00",
+      status,
+      parts_ordered: ordered,
+      job_closed: jobClosed,
+      refunded: "0",
+    });
     expect(answeredNext(d("paid", false, true))).toBe("Ask the shop about your deposit.");
     expect(answeredNext(d("processing", false, true))).toBe("Ask the shop about your deposit.");
     // Ordered (or fitted) parts: the usual words, closed or not.

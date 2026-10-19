@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { previewTotal } from "./add-service-sheet";
 
@@ -81,7 +82,7 @@ function ManualLineSheet({
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await addManualLine(prev, formData);
+    const result = await callAction(() => addManualLine(prev, formData), formData);
     if (result.ok) {
       toast({ title: `${description.trim() || "Line"} added`, tone: "success" });
       onClose();

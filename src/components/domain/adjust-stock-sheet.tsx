@@ -18,6 +18,7 @@ import type { ActionResult } from "@/lib/actions";
 import { adjustmentPreview, signedQuantity } from "@/lib/inventory";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { NoActiveLocation } from "./no-active-location";
 
@@ -94,7 +95,7 @@ function AdjustStockSheet({
   const [cost, setCost] = useState("");
   const location = active.find((l) => l.locationId === locationId) ?? null;
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await adjustStock(prev, formData);
+    const result = await callAction(() => adjustStock(prev, formData), formData);
     if (result.ok) {
       toast({
         title: `Stock saved. ${location?.name ?? "Location"}: ${plain(result.data.onHand)}`,

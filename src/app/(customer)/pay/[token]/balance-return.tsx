@@ -173,47 +173,35 @@ export function ReturnSlot({
   children: ReactNode;
 }) {
   const phase = useContext(PhaseContext);
-  switch (phase) {
-    case "idle":
-      return children;
-    case "confirming":
-      return (
-        <p role="status" className="rounded-xl bg-waiting-soft p-4 text-waiting-deep">
-          Thanks. We&apos;re confirming your payment with Stripe…
-        </p>
-      );
-    case "paid":
-      return (
-        <p role="status" className="rounded-xl bg-done-soft p-4 text-done-deep">
-          Thank you. Stripe has confirmed your payment.
-        </p>
-      );
-    case "paid_still_due":
-      return (
-        <>
-          <p role="status" className="rounded-xl bg-done-soft p-4 text-done-deep">
-            Thank you. Stripe has confirmed your payment.
-            {amount ? ` ${amount} is still due on this bill.` : ""}
-          </p>
-          {children}
-        </>
-      );
-    case "processing":
-      return (
-        <p role="status" className="rounded-xl bg-waiting-soft p-4 text-waiting-deep">
-          Thank you. Your payment is being confirmed by Stripe. You don&apos;t need to pay again.
-        </p>
-      );
-    case "gave_up":
-      return (
-        <>
-          <p role="status" className="rounded-xl bg-waiting-soft p-4 text-waiting-deep">
-            Stripe hasn&apos;t confirmed your payment yet. If you paid, you don&apos;t need to pay
-            again; it shows here soon.
-            {payOnline ? " If you didn't finish, you can pay below." : ""}
-          </p>
-          {children}
-        </>
-      );
-  }
+  if (phase === "idle") return children;
+  // One status line, first in every phase, so each change is written into
+  // the same element and announced (U2-5); Pay comes after it.
+  const done = phase === "paid" || phase === "paid_still_due";
+  const text =
+    phase === "confirming"
+      ? "Thanks. We're confirming your payment with Stripe…"
+      : phase === "paid"
+        ? "Thank you. Stripe has confirmed your payment."
+        : phase === "paid_still_due"
+          ? `Thank you. Stripe has confirmed your payment.${amount ? ` ${amount} is still due on this bill.` : ""}`
+          : phase === "processing"
+            ? "Thank you. Your payment is being confirmed by Stripe. You don't need to pay again."
+            : `Stripe hasn't confirmed your payment yet. If you paid, you don't need to pay again; it shows here soon.${
+                payOnline ? " If you didn't finish, you can pay below." : ""
+              }`;
+  return (
+    <>
+      <p
+        role="status"
+        className={
+          done
+            ? "rounded-xl bg-done-soft p-4 text-done-deep"
+            : "rounded-xl bg-waiting-soft p-4 text-waiting-deep"
+        }
+      >
+        {text}
+      </p>
+      {phase === "paid_still_due" || phase === "gave_up" ? children : null}
+    </>
+  );
 }

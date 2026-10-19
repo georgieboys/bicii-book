@@ -3,6 +3,7 @@
 import { searchPurchasableProducts } from "@/app/(staff)/purchasing/actions";
 import { SearchPicker, type PickerOption } from "@/components/ui/search-picker";
 import type { PurchasableProduct } from "@/lib/domain/purchasing";
+import { callAction } from "@/lib/call-action";
 
 import { ShortId } from "../short-id";
 
@@ -34,7 +35,7 @@ export function PurchaseProductPicker({
   disabledIds?: readonly string[];
 }) {
   const search = async (q: string): Promise<PurchaseProductOption[]> => {
-    const result = await searchPurchasableProducts({ q });
+    const result = await callAction(() => searchPurchasableProducts({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data.map((p) => ({
       id: p.id,

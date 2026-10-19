@@ -26,6 +26,7 @@ import { lineEconomics } from "@/lib/cult-commons";
 import { shopToday } from "@/lib/dates";
 import { formatMoney, parseMoney } from "@/lib/money";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ConsignorPicker } from "./consignor-picker";
 import { CustomerPicker } from "./customer-picker";
@@ -165,7 +166,7 @@ function ConsignmentIntakeSheet({
     setNewCustomer(option);
     if (!option) return;
     startPrefill(async () => {
-      const result = await customerContactAction({ customerId: option.id });
+      const result = await callAction(() => customerContactAction({ customerId: option.id }));
       if (!result.ok || !result.data) return;
       const c = result.data;
       setNewName((v) => v || c.name);
@@ -175,7 +176,7 @@ function ConsignmentIntakeSheet({
   };
 
   const searchBikes = async (q: string): Promise<BikePick[]> => {
-    const result = await searchShopBikesAction({ q });
+    const result = await callAction(() => searchShopBikesAction({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data.map((b) => ({
       id: b.id,
@@ -220,7 +221,7 @@ function ConsignmentIntakeSheet({
       bikeId: unique ? (bike?.id ?? null) : null,
     };
     start(async () => {
-      const result = await receiveConsignmentItemAction(input);
+      const result = await callAction(() => receiveConsignmentItemAction(input));
       setState(result);
       if (result.ok) {
         toast({ title: `${result.data.shortId} received`, tone: "success" });

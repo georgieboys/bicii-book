@@ -17,6 +17,7 @@ import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import type { Category, SettingsService } from "@/lib/domain/services";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ArchiveControl } from "./archive-control";
 
@@ -112,8 +113,8 @@ function ServiceSheet({
   const [isPublic, setIsPublic] = useState(service?.public ?? false);
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = service
-      ? await updateService(prev, formData)
-      : await createService(prev, formData);
+      ? await callAction(() => updateService(prev, formData), formData)
+      : await callAction(() => createService(prev, formData), formData);
     if (result.ok) {
       toast({
         title: service ? `${name.trim()} saved` : `${name.trim()} created`,

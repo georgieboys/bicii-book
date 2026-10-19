@@ -127,9 +127,15 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   await expect(customer.getByRole("main")).not.toContainText(supplierName);
   await customer.getByRole("button", { name: "Send my answer" }).click();
   const customerMain = customer.getByRole("main");
-  await expect(customerMain.getByRole("alert")).toHaveText(
-    "Approve or decline every item (2 still need an answer).",
+  // The refusal names both items, marks them and focuses the first (U2-1).
+  const refusal = customerMain.getByRole("alert");
+  await expect(refusal).toHaveText(
+    /^Approve or decline every item: .+ and .+ still need an answer\.$/,
   );
+  await expect(refusal).toContainText(partName);
+  await expect(refusal).toContainText("Wheel True");
+  await expect(quoteItems.locator('[role="radiogroup"][aria-invalid="true"]')).toHaveCount(2);
+  await expect(quoteItems.getByRole("radio", { name: "Approve" }).first()).toBeFocused();
   for (const name of [partName, "Wheel True"]) {
     await quoteItems
       .getByRole("listitem", { name })
@@ -143,6 +149,8 @@ test("indent part: proposed, quoted, answered, ordered, received and fitted", as
   await expect(customerMain.getByRole("status")).toContainText(
     `Thank you, Intake ${tag}. You approved 2 of 2 items`,
   );
+  // The thank-you takes the focus the form held (U2-4).
+  await expect(customerMain.getByRole("status")).toBeFocused();
   await customer.reload();
   await expect(customer.getByRole("list", { name: "Your answer" })).toContainText("Approved");
   await expect(customer.getByRole("button", { name: "Send my answer" })).toHaveCount(0);

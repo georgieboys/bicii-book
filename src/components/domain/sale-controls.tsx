@@ -11,6 +11,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { formatMoney, parseMoney, toDecimal } from "@/lib/money";
 import { CONSIGNED_RESTOCK_NOTE, REFUND_NOT_RESTOCK } from "@/lib/sales";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ReasonConfirm } from "./reason-confirm";
 
@@ -113,12 +114,14 @@ function RefundSheet({
           failureTitle="Refund not recorded"
           successTitle={label ? `Refund of ${label} recorded` : "Refund recorded"}
           onConfirm={async (reason) => {
-            const result = await recordRefundAction({
-              refundId,
-              saleId,
-              amount: parsed ? parsed.toFixed(2) : amount,
-              reason,
-            });
+            const result = await callAction(() =>
+              recordRefundAction({
+                refundId,
+                saleId,
+                amount: parsed ? parsed.toFixed(2) : amount,
+                reason,
+              }),
+            );
             return result;
           }}
           onDone={onClose}

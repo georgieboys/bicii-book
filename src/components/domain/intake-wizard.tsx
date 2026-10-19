@@ -42,6 +42,7 @@ import {
 import { formatMoney, lineTotal, sumMoney } from "@/lib/money";
 import { newId } from "@/lib/uuid";
 import { archivedOwnerMessage } from "@/lib/workshop";
+import { callAction } from "@/lib/call-action";
 
 import { BikeSheet } from "./bike-sheet";
 import { CustomerSheet } from "./customer-sheet";
@@ -296,22 +297,24 @@ function Wizard({ me, staff, services, viewCosts, ccRate, preset, currency }: In
     const active = new Set(staff.map((s) => s.id));
     startCreate(async () => {
       // Only what the screens show: services still offered, active staff.
-      const r = await createWorkOrder({
-        id: draft.workOrderId,
-        customerId: draft.customer!.id,
-        bikeId: draft.bike!.id,
-        requestedWork: draft.requestedWork,
-        intakeNotes: draft.intakeNotes,
-        leadId: draft.leadId,
-        additionalIds: draft.additionalIds.filter((id) => id !== draft.leadId && active.has(id)),
-        services: draft.services
-          .filter((s) => services.some((x) => x.id === s.serviceId))
-          .map((s) => ({
-            lineId: s.lineId,
-            serviceId: s.serviceId,
-            quantity: s.quantity,
-          })),
-      });
+      const r = await callAction(() =>
+        createWorkOrder({
+          id: draft.workOrderId,
+          customerId: draft.customer!.id,
+          bikeId: draft.bike!.id,
+          requestedWork: draft.requestedWork,
+          intakeNotes: draft.intakeNotes,
+          leadId: draft.leadId,
+          additionalIds: draft.additionalIds.filter((id) => id !== draft.leadId && active.has(id)),
+          services: draft.services
+            .filter((s) => services.some((x) => x.id === s.serviceId))
+            .map((s) => ({
+              lineId: s.lineId,
+              serviceId: s.serviceId,
+              quantity: s.quantity,
+            })),
+        }),
+      );
       setResult(r);
       if (!r.ok) {
         const field = Object.keys(r.fieldErrors ?? {}).find((f) => f in FIELD_STEP);
@@ -428,7 +431,7 @@ function Wizard({ me, staff, services, viewCosts, ccRate, preset, currency }: In
             <Field label="Find the customer or bike" hint="Name, phone, email, B- number or serial">
               <SearchPicker<PickerOption & { option: IntakeOption }>
                 search={async (q) => {
-                  const r = await searchIntakeOptions({ q });
+                  const r = await callAction(() => searchIntakeOptions({ q }));
                   if (!r.ok) throw new Error(r.error);
                   return r.data.map((o) => ({
                     id: o.id,

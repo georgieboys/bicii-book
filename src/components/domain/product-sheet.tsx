@@ -26,6 +26,7 @@ import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import type { TrackingType } from "@/lib/inventory";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { NoActiveLocation } from "./no-active-location";
 
@@ -79,7 +80,7 @@ export function UnitFields({
   );
   const [bike, setBike] = useState<PickerOption | null>(null);
   const searchBikes = async (q: string): Promise<PickerOption[]> => {
-    const result = await searchShopBikes({ q });
+    const result = await callAction(() => searchShopBikes({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data.map((b) => ({
       id: b.id,
@@ -226,7 +227,10 @@ function ProductSheetBody({
   const [active, setActive] = useState(product?.active ?? true);
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     if (product) {
-      const result = await updateProduct(prev as ActionResult<null> | null, formData);
+      const result = await callAction(
+        () => updateProduct(prev as ActionResult<null> | null, formData),
+        formData,
+      );
       if (result.ok) {
         toast({ title: "Product saved", tone: "success" });
         onOpenChange(false);
@@ -234,7 +238,7 @@ function ProductSheetBody({
       return result;
     }
     if (tracking === "unique") {
-      const result = await createUniqueItem(null, formData);
+      const result = await callAction(() => createUniqueItem(null, formData));
       if (result.ok) {
         if (result.data.unitError) {
           toast({
@@ -249,7 +253,7 @@ function ProductSheetBody({
       }
       return result;
     }
-    const result = await createProduct(null, formData);
+    const result = await callAction(() => createProduct(null, formData));
     if (result.ok) {
       toast({ title: "Product added", tone: "success" });
       router.push(`/products/${id}`);

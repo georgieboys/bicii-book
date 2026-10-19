@@ -226,6 +226,13 @@ document is corrected.
   18; read-only afterwards the history held all 72 versions, the last
   `20261018000100`, and `update_my_profile` re-raises through
   `private.raise_without_row` with its EXECUTE grants unchanged.
+  PR #43 (the audit's database and security items, merged as 4b39eaa on
+  2026-10-19 SGT) added `20261018000200_storage_path_policies` and
+  `20261018000300_search_indexes`, applied by run 19; read-only
+  afterwards the history held all 74 versions, the last
+  `20261018000300`, both photo-bucket insert policies carry the path
+  check, the six new indexes exist and `inventory_movements_id_desc_idx`
+  is gone.
   There is no staging project
   ([R-001](RISKS.md#r-001--nothing-is-deployed)).
 

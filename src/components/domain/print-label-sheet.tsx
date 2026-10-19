@@ -31,6 +31,7 @@ import {
 } from "@/lib/printing/print-sheet";
 import type { LabelKind } from "@/lib/printing/types";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import type { PrintLabelPreset, PrintLabelSetup } from "./print-label";
 
@@ -98,15 +99,17 @@ export function PrintLabelSheet({
   const submit = () =>
     start(async () => {
       setConflict(false);
-      const r = await createPrintJobAction({
-        id,
-        kind,
-        entityId,
-        quantity,
-        profileId: profileId ?? undefined,
-        templateId: template?.id,
-        reprintOfId: reprint ?? undefined,
-      });
+      const r = await callAction(() =>
+        createPrintJobAction({
+          id,
+          kind,
+          entityId,
+          quantity,
+          profileId: profileId ?? undefined,
+          templateId: template?.id,
+          reprintOfId: reprint ?? undefined,
+        }),
+      );
       setResult(r);
       if (r.ok) {
         if (profileId) rememberPrinter(profileId);

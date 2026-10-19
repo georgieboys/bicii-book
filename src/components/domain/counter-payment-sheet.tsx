@@ -32,6 +32,7 @@ import {
 } from "@/lib/payments";
 import { newId } from "@/lib/uuid";
 import type { WorkOrderStatus } from "@/lib/workshop";
+import { callAction } from "@/lib/call-action";
 
 const BILL = "bill";
 
@@ -153,16 +154,18 @@ export function CounterPaymentSheet({
   const record = () => {
     if (!armed || !valid) return;
     start(async () => {
-      const r = await recordCounterPaymentAction({
-        id,
-        workOrderId,
-        quoteId: deposit?.quoteId ?? null,
-        amount: sent,
-        method,
-        receivedAt: counterReceivedAt(paidDay, today, notBefore),
-        reference: reference || null,
-        note: note || null,
-      });
+      const r = await callAction(() =>
+        recordCounterPaymentAction({
+          id,
+          workOrderId,
+          quoteId: deposit?.quoteId ?? null,
+          amount: sent,
+          method,
+          receivedAt: counterReceivedAt(paidDay, today, notBefore),
+          reference: reference || null,
+          note: note || null,
+        }),
+      );
       setResult(r);
       if (!r.ok) {
         setConfirming(false);

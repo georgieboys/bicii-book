@@ -28,6 +28,7 @@ import {
   primaryActions,
   type WorkOrderStatus,
 } from "@/lib/workshop";
+import { callAction } from "@/lib/call-action";
 
 import { ReasonConfirm } from "./reason-confirm";
 import { SettleItemsSheet, type SettleContext } from "./settle-items-sheet";
@@ -146,7 +147,7 @@ export function JobStatusActions({
     }
     setMoving(to);
     startTransition(async () => {
-      const result = await setWorkOrderStatus({ workOrderId, status: to, note });
+      const result = await callAction(() => setWorkOrderStatus({ workOrderId, status: to, note }));
       setMoving(null);
       if (!result.ok) {
         if (result.code === UNSETTLED && !isOpenStatus(to)) {
@@ -240,11 +241,13 @@ export function JobStatusActions({
             }
           }}
           onCancelJob={async (reason) => {
-            const result = await setWorkOrderStatus({
-              workOrderId,
-              status: "cancelled",
-              note: reason,
-            });
+            const result = await callAction(() =>
+              setWorkOrderStatus({
+                workOrderId,
+                status: "cancelled",
+                note: reason,
+              }),
+            );
             if (!result.ok && result.code === UNSETTLED) router.refresh();
             return cancelRefusal(result);
           }}
@@ -371,7 +374,7 @@ function ChangeStatusSheet({
       return;
     }
     startTransition(async () => {
-      const result = await setWorkOrderStatus({ workOrderId, status: to, note });
+      const result = await callAction(() => setWorkOrderStatus({ workOrderId, status: to, note }));
       if (!result.ok) {
         const fieldError = result.fieldErrors?.note?.[0];
         if (fieldError) setError(fieldError);
@@ -386,7 +389,9 @@ function ChangeStatusSheet({
   };
 
   const withReason = (target: WorkOrderStatus) => async (reason: string) => {
-    const result = await setWorkOrderStatus({ workOrderId, status: target, note: reason });
+    const result = await callAction(() =>
+      setWorkOrderStatus({ workOrderId, status: target, note: reason }),
+    );
     // A stale page: ReasonConfirm says why (cancel only, as the checklist
     // that opens on the refresh offers); the reason was the cancel's own.
     if (!result.ok && result.code === UNSETTLED && target === "cancelled") {

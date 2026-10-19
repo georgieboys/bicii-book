@@ -15,6 +15,7 @@ import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { cn } from "@/lib/cn";
 import type { IntakeBike } from "@/lib/domain/workshop";
+import { callAction } from "@/lib/call-action";
 
 /**
  * "Edit" on an appointment's notes: the customer's note (while the
@@ -82,11 +83,13 @@ function NotesSheet({
         onClose();
         return;
       }
-      const result = await updateAppointment({
-        appointmentId,
-        ...(changedCustomer ? { customerNote: customer } : {}),
-        ...(changedInternal ? { internalNote: internal } : {}),
-      });
+      const result = await callAction(() =>
+        updateAppointment({
+          appointmentId,
+          ...(changedCustomer ? { customerNote: customer } : {}),
+          ...(changedInternal ? { internalNote: internal } : {}),
+        }),
+      );
       setState(result);
       if (result.ok) {
         toast({ title: "Notes saved", tone: "success" });
@@ -228,8 +231,10 @@ function BikeSheet({
         onClose();
         return;
       }
-      const result = await updateAppointment(
-        chosen ? { appointmentId, bikeId: chosen } : { appointmentId, clearBike: true },
+      const result = await callAction(() =>
+        updateAppointment(
+          chosen ? { appointmentId, bikeId: chosen } : { appointmentId, clearBike: true },
+        ),
       );
       if (!result.ok) {
         setError(result.fieldErrors?.bikeId?.[0] ?? result.error);

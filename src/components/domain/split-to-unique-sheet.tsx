@@ -18,6 +18,7 @@ import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { signedQuantity } from "@/lib/inventory";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 type Result = { productId: string; productShortId: string; unitId: string; unitShortId: string };
 type State = ActionResult<Result> | null;
@@ -83,7 +84,7 @@ function SplitToUniqueSheet({
   const [price, setPrice] = useState(defaultSalePrice ?? "");
   const [reason, setReason] = useState("");
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await splitToUnique(prev, formData);
+    const result = await callAction(() => splitToUnique(prev, formData), formData);
     if (result.ok) {
       toast({ title: `Split off as ${result.data.unitShortId}`, tone: "success" });
       router.push(`/units/${result.data.unitId}`);

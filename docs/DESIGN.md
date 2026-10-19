@@ -68,7 +68,7 @@ Server components unless they need state or browser APIs.
 | `Field` (client) | Label, hint, error, required marker. Provides context so the control inside gets `id`, `aria-describedby` (error, hint), `aria-invalid`, `required`. |
 | `Input`, `Textarea`, `NumberInput` (client) | `NumberInput` is `type="text"` + `inputMode` (decimal for money, numeric for a whole-number quantity); values stay strings — parse with `lib/money`. Optional −/+ steppers. A quantity with `decimals` (job lines and intake services take 2, for 1.5 hours of labour) gets the decimal keypad, and its steppers add or take 1 in decimal arithmetic, keeping the fraction. Kind `decimal` with `stepper` moves by `step` (default 1; printer offsets use 0.5 mm), rounded to the step's decimals, clamped to `minValue`/`maxValue`, never "-0": the steppers are how an iPhone enters a negative value (its decimal keypad has no minus key). |
 | `Checkbox`, `Switch` (client) | Checkbox is native and styled; Switch is `role="switch"` for settings that apply immediately. |
-| `Sheet` (client) | Modal dialog: bottom sheet on phones, right panel at `md`+. Inerts the rest of the page, traps Tab, Escape closes, focus returns to the opener. `dismissible={false}` while a commit is pending. Without a footer the body pads for the iPhone home indicator. While open it moves toasts above its footer (`--toast-inset-bottom`). |
+| `Sheet` (client) | Modal dialog: bottom sheet on phones, right panel at `md`+. Inerts the rest of the page, traps Tab, Escape closes, focus returns to the opener. `dismissible={false}` while a commit is pending. Without a footer the body pads for the iPhone home indicator. While open it moves toasts above its footer (`--toast-inset-bottom`). On a phone it sits above an on-screen keyboard: `visualViewport` sets `--keyboard-inset` and `--visual-height`, which lift the panel and cap its height (audit U1-5; not yet checked on an iPhone). |
 | `ToastProvider`, `useToast` (client) | Polite live region for confirmations, `role="alert"` for errors (errors persist until dismissed). Mounted in the root layout. On phones it sits above the tab bar (never over Scan); an open Sheet lifts it above its Save/Cancel row. Optional `action` (`{ label, onAction }`, e.g. "Retry" on a failed upload) adds one button that runs it and dismisses the toast; toasts with an action stay until dismissed and are never pushed out (at most four show; a new toast pushes out the oldest plain one). Optional `key`: a toast with the same key replaces the one on screen in place (one "3 photos not saved" per record, not one per photo); `dismiss` takes the id or the key. The provider outlives navigation, so a Retry still works after the screen that failed was left. |
 | `Badge`, `StatusPill` | Tone = the status tokens; pills always carry text. |
 | `Card`, `EmptyState`, `Skeleton`, `Spinner`, `PageHeader` | Layout and feedback. `Card` never clips (no `overflow-hidden`), so pickers, menus and focus rings inside it can extend past its edge; flush content rounds its own corners. Its header wraps: an action too wide to sit beside the title (a half-width card on iPad) moves under it rather than squeezing it, and several actions wrap among themselves (a job's Add service, Add part, Add manual line on a phone). |
@@ -160,6 +160,10 @@ The pattern every Server Action form follows (`staffAction` +
   `loading.tsx` anywhere: `/reports/lines` answers a real 403 without View
   financial reports, and `/reports` streams each section in its own
   `<Suspense>` after `requireStaff()` instead ([Reports](#reports)).
+  Today does the same (audit U1-2): after `requireStaff()` it renders its
+  greeting and three section skeletons at once (`TodayLoading`, with a
+  "Loading the day…" status), and the dashboard streams in behind one
+  `<Suspense>`.
 - Every nav link (tab bar, rail) marks its icon while its navigation is
   pending (`LinkPending`, `useLinkStatus`), which also covers the sections
   without a `loading.tsx`.
@@ -245,7 +249,7 @@ upload itself, below).
 | `CustomerSheet`, `NewCustomerButton`, `EditCustomerButton` | New/edit customer. Creating opens the new customer's page. |
 | `BikeSheet`, `NewBikeButton`, `EditBikeButton` | New/edit bike. A new bike's owner is preset (from a customer's page), picked (`CustomerPicker`), or none (shop and consigned bikes). The edit form has no owner: ownership changes only by transfer. Creating opens the bike, ready for photos. |
 | `TransferOwnershipButton` | Sheet: new owner (a customer via `CustomerPicker`, or the shop) and a required reason, kept in the bike's ownership history. The current owner is listed but not choosable. |
-| `CustomerPicker` | `SearchPicker` over active customers (`staff_search`), via a Server Action. |
+| `CustomerPicker` | `SearchPicker` over active customers (`staff_search`), via a Server Action. `allowCreate` (New sale, Book appointment; audit U1-3) adds the "New customer “…”" action, which opens `CustomerSheet` over the sheet and chooses the new customer, as intake does. |
 | `ArchiveControl` | Archive (confirmed) / unarchive a customer, bike, service, product (refused while public or holding stock) or consignor (refused with items for sale or a balance other than 0, D47; the toast carries the mapped refusal with D46's remedies), with what archiving does in a sentence. |
 | `CaptureButton` | The camera control for every photo (intake reuses it): "Take photo" (`<input type=file accept="image/*" capture="environment">`, opens the rear camera on phones) and "Choose photos" (library, several at once). Each file is decoded with its EXIF orientation (`createImageBitmap(…, { imageOrientation: "from-image" })`, `<img>` fallback), scaled to at most 2048 px on the long edge and re-encoded as JPEG 0.85 (`prepare-photo.ts`, sizing in `src/lib/images.ts`); re-encoding also drops EXIF, GPS included. A file the browser cannot decode (HEIC outside Safari) is uploaded as is when it is an accepted photo type. Then: a signed upload URL from the server, upload with the browser Supabase client straight to Storage with byte progress, record. Optimistic thumbnails with status and progress; up to two photos in flight. The queue lives above the pages (`PhotoUploadsProvider` in the staff layout, `upload-store.ts`), so uploads finish after leaving the record and their tiles are there again on coming back. A failure keeps the photo and its preview on its tile (Retry, Discard); one error toast per record ("3 photos not saved", Retry all) updates in place and is never pushed out; the header shows "N photos not saved" on every screen, linking to the record; closing or reloading the tab while any photo is unsaved asks first. Retry resumes at the failed step: once the object is in Storage only recording is retried (unless the server says it is missing). Photos are labelled "New photo 3", not by file name (iPhone captures are all image.jpg). A file Storage refuses (type, size) is not retried and says to save it as JPEG. The page refreshes once when a record's queue drains, not once per photo (each refresh re-signs every photo). A photo picked before hydration is picked up when React attaches. An undecodable original keeps its metadata, so it is recorded without dimensions and can never be made public. |
 | `PhotoGrid` | A record's photos: thumbnails (visibility badge when not internal) that open `PhotoViewer`, with `CaptureButton` under them (hidden for archived records). A thumbnail is the photo's 480 px square rendition (`Photo.thumbUrl`) where Storage resizes images (`STORAGE_IMAGE_TRANSFORMS`), else the original; the viewer always shows the original. |
@@ -636,9 +640,11 @@ consignor liability" (view_financial_reports and view_costs, D30) to
 - **Job page order** (phone): header (J- number, status, overdue badge,
   bike, customer with tap-to-call, check-in date and age), status actions,
   intake photos (intake only), requested work and condition, lines with
-  totals, the indent parts and quote card, the Customer payments card
-  (only once a deposit or an online payment exists, and hidden if its
-  read fails), photos; then people (`AssignmentsCard`), dates (each stamp its
+  totals, the indent parts and quote card (not on a closed job where nothing
+  was ever proposed), the Customer payments card (when `showsPaymentsCard`
+  holds: a deposit, a Stripe or counter payment, Send payment link applies,
+  or an admin on a job that is not cancelled; hidden if its read fails),
+  photos; then people (`AssignmentsCard`), dates (each stamp its
   own row: completed and collected never merge), notes (always shown:
   `ApprovalSwitch`, internal and completion notes, Add note / Add
   diagnosis) and the timeline, a second column on wide screens. "Edit" on
@@ -879,11 +885,21 @@ link works, then the **Items** card: each item a list row (description,
 Approve / Decline `SegmentedControl` that starts with nothing chosen,
 then "Quote total" and "You approve" (an `<output>` that follows the
 choices). **Your name** (autocomplete `name`) and one large **Send my
-answer**. Sending with an item unanswered says how many still need an
-answer; database refusals come back as one alert in the customer's words
+answer**. Sending with an item unanswered names the items ("Approve or
+decline every item: Brake pads and Chain still need an answer.", three
+names then "and N more"), marks their groups `aria-invalid` with a danger
+outline (every group is `aria-required`) and focuses the first; a missing
+name focuses the name field; a dropped connection says "We couldn't reach
+the shop. Check your connection and try again." (audit U2-1, U2-3, U2-2);
+database refusals come back as one alert in the customer's words
 (expired, already answered, the job closed). Once answered, the page is
 the thank-you status ("Thank you, <name>. You approved 2 of 3 items on
-…") over a read-only **Your answer** list and the approved total. A
+…"), which takes focus in the tab that just sent the answer (U2-4), over
+a read-only **Your answer** list and the approved total. The expiry reads
+"(Singapore time)". Under every customer page: "Questions? Message the
+shop on Instagram" (U2-14), and `(customer)/error.tsx` is the customers'
+own error page ("This page couldn't be shown", Try again, the shop
+link, the digest as "Reference for the shop"; nothing about the Admin). A
 withdrawn, expired or malformed link is a heading and one sentence saying
 what to do (ask the shop for a new link). No costs, no supplier,
 no contact details, no staff names (D143).

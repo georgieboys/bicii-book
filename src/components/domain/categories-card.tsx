@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import type { Category, CategoryKind } from "@/lib/domain/services";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 const EMPTY: Record<CategoryKind, string> = {
   service: "No categories yet. Services without one are listed under Other.",
@@ -69,7 +70,7 @@ function CategoryRow({ category, kind }: { category: Category; kind: CategoryKin
   const rename = (e: FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const result = await updateCategory({ id: category.id, name, kind });
+      const result = await callAction(() => updateCategory({ id: category.id, name, kind }));
       if (!result.ok) {
         setError(result.fieldErrors?.name?.[0] ?? result.error);
         return;
@@ -82,7 +83,9 @@ function CategoryRow({ category, kind }: { category: Category; kind: CategoryKin
 
   const archive = (next: boolean) =>
     startTransition(async () => {
-      const result = await setCategoryArchived({ id: category.id, archived: next, kind });
+      const result = await callAction(() =>
+        setCategoryArchived({ id: category.id, archived: next, kind }),
+      );
       if (!result.ok) {
         toast({ title: `${category.name} not changed`, description: result.error, tone: "error" });
         return;
@@ -162,7 +165,7 @@ function AddCategory({ kind }: { kind: CategoryKind }) {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const result = await createCategory({ id, name, kind });
+      const result = await callAction(() => createCategory({ id, name, kind }));
       if (!result.ok) {
         setError(result.fieldErrors?.name?.[0] ?? result.error);
         return;

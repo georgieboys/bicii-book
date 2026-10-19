@@ -1329,7 +1329,17 @@ first and alone; a client past its limit adds no per-token row),
 `shopify-webhook-handler.test.ts` (the stored correlation id is fresh, not
 the incoming `x-request-id`) and the stack test `stack.smoke.test.ts`
 (staff cannot upload to either photo bucket outside an attachment's own
-path).
+path). The audit's customer-page and staff items add
+`quote-answer.test.ts` (the unanswered items named: one, two, three, then
+"and N more"), `call-action.test.ts` (a failed request becomes a refusal
+with the form's non-secret values; Next's redirect still propagates) and
+`service-worker.test.ts` (the cache keeps `MAX_ENTRIES`, oldest first,
+never an icon), and extend `deposit-components.test.tsx` and
+`balance-components.test.tsx` (Stripe's answer is written into the same
+status element, and a page already settled asks Stripe nothing). The
+e2e `indent.spec.ts` checks the quote refusal names both items, marks
+both groups invalid and focuses the first, and that the thank-you takes
+focus.
 
 ### Database (SPEC §27.2 and §23)
 

@@ -16,6 +16,7 @@ import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { bikeTitle } from "@/lib/bikes";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { CustomerPicker } from "./customer-picker";
 
@@ -82,8 +83,11 @@ function BikeSheetBody({
   const [picked, setPicked] = useState<PickerOption | null>(null);
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = bike
-      ? await updateBike(prev as ActionResult<null> | null, formData)
-      : await createBike(prev as ActionResult<{ id: string }> | null, formData);
+      ? await callAction(() => updateBike(prev as ActionResult<null> | null, formData), formData)
+      : await callAction(
+          () => createBike(prev as ActionResult<{ id: string }> | null, formData),
+          formData,
+        );
     if (result.ok) {
       if (bike) {
         toast({ title: "Bike saved", tone: "success" });

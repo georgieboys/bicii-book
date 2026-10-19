@@ -15,6 +15,7 @@ import type { ActionResult } from "@/lib/actions";
 import type { ServiceOption } from "@/lib/domain/services";
 import { formatMoney, lineTotal, parseMoney } from "@/lib/money";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 type State = ActionResult<{ id: string }> | null;
 type ServicePick = PickerOption & { service: ServiceOption };
@@ -89,7 +90,7 @@ function AddServiceSheet({
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await addServiceLine(prev, formData);
+    const result = await callAction(() => addServiceLine(prev, formData), formData);
     if (result.ok) {
       toast({ title: `${picked?.service.name ?? "Service"} added`, tone: "success" });
       onClose();
@@ -101,7 +102,7 @@ function AddServiceSheet({
   const preview = previewTotal(quantity, price, currency);
 
   const search = async (q: string): Promise<ServicePick[]> => {
-    const result = await searchServiceOptions({ q });
+    const result = await callAction(() => searchServiceOptions({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data.map((s) => ({
       id: s.id,

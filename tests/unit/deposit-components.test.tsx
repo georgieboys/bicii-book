@@ -72,6 +72,41 @@ describe("PayDepositButton", () => {
 });
 
 describe("ConfirmingPayment", () => {
+  it("writes Stripe's answer into the same status line, so it is announced (U2-5)", async () => {
+    checkDepositAction.mockResolvedValue({ ok: true, data: { state: "paid" } });
+    const { rerender } = render(
+      <ConfirmingPayment token={TOKEN} amountLabel="$120.00" payOnline />,
+    );
+    const line = screen.getByRole("status");
+    expect(line).toHaveTextContent("We're confirming your payment");
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    rerender(
+      <ConfirmingPayment
+        token={TOKEN}
+        amountLabel="$120.00"
+        payOnline
+        settled={{ text: "Deposit of $120.00 paid. Thank you.", tone: "done" }}
+      />,
+    );
+    expect(screen.getByRole("status")).toBe(line);
+    expect(line).toHaveTextContent("Deposit of $120.00 paid. Thank you.");
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(checkDepositAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks Stripe nothing when the page already says it is settled", () => {
+    render(
+      <ConfirmingPayment
+        token={TOKEN}
+        amountLabel="$120.00"
+        payOnline
+        settled={{ text: "Deposit of $120.00 paid. Thank you.", tone: "done" }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Deposit of $120.00 paid. Thank you.");
+    expect(checkDepositAction).not.toHaveBeenCalled();
+  });
+
   it("drops ?deposit=returned once the check says it is settled", async () => {
     checkDepositAction.mockResolvedValue({ ok: true, data: { state: "paid" } });
     render(<ConfirmingPayment token={TOKEN} amountLabel="$120.00" payOnline />);

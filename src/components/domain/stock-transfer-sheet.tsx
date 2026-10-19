@@ -15,6 +15,7 @@ import type { ActionResult } from "@/lib/actions";
 import { signedQuantity } from "@/lib/inventory";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import type { SheetLocation } from "./adjust-stock-sheet";
 
@@ -87,7 +88,7 @@ function StockTransferSheet({
   const fromLocation = locations.find((l) => l.locationId === from);
   const toLocation = locations.find((l) => l.locationId === to);
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await transferStock(prev, formData);
+    const result = await callAction(() => transferStock(prev, formData), formData);
     if (result.ok) {
       toast({
         title:

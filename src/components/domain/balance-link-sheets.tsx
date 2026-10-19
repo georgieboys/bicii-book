@@ -15,6 +15,7 @@ import { whatsappHref } from "@/lib/indent";
 import { formatMoney } from "@/lib/money";
 import { LINK_DAYS } from "@/lib/payments";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { CopyText } from "./copy-text";
 
@@ -80,7 +81,9 @@ export function SendBalanceLinkSheet({
 
   const submit = () =>
     start(async () => {
-      const r = await sendBalanceLinkAction({ linkId, workOrderId, channel, validDays: days });
+      const r = await callAction(() =>
+        sendBalanceLinkAction({ linkId, workOrderId, channel, validDays: days }),
+      );
       setResult(r);
       if (r.ok) onSent(r.data);
     });

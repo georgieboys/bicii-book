@@ -19,6 +19,7 @@ import {
   type ChargeBearer,
 } from "@/lib/consignment";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ReasonConfirm } from "./reason-confirm";
 
@@ -78,7 +79,7 @@ function ChargeSheet({
   const [bearer, setBearer] = useState<ChargeBearer | null>(null);
   const [amount, setAmount] = useState("");
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await addChargeAction(prev, formData);
+    const result = await callAction(() => addChargeAction(prev, formData), formData);
     if (result.ok) {
       toast({ title: "Charge added", tone: "success" });
       onClose();

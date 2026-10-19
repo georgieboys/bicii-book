@@ -49,6 +49,7 @@ import {
   type RecordedReference,
 } from "@/lib/receive-form";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { ShortIdLink } from "../short-id";
 import { NewPurchaseOrderButton } from "./purchase-order-sheet";
@@ -159,7 +160,7 @@ export function ReceiveForm({
   const check = useCallback(
     async (key: string) => {
       try {
-        const result = await lookupReceipt({ idempotencyKey: key });
+        const result = await callAction(() => lookupReceipt({ idempotencyKey: key }));
         if (!result.ok) {
           dispatch({ type: "lookupFailed" });
           return;

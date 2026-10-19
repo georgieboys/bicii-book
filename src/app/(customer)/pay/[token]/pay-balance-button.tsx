@@ -35,17 +35,22 @@ export function PayBalanceButton({ token, amountLabel }: { token: string; amount
   const pay = () => {
     setError(null);
     start(async () => {
-      const result = await startBalanceCheckoutAction({ token });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      try {
+        const result = await startBalanceCheckoutAction({ token });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        if (result.data.url) {
+          setLeaving(true);
+          window.location.assign(result.data.url);
+          return;
+        }
+        router.refresh();
+      } catch {
+        // A dropped connection: say so here instead of an error page (U2-2).
+        setError("We couldn't reach the shop. Check your connection and try again.");
       }
-      if (result.data.url) {
-        setLeaving(true);
-        window.location.assign(result.data.url);
-        return;
-      }
-      router.refresh();
     });
   };
 

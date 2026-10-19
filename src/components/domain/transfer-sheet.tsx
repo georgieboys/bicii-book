@@ -11,6 +11,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
+import { callAction } from "@/lib/call-action";
 
 import { CustomerPicker } from "./customer-picker";
 
@@ -67,11 +68,13 @@ function TransferSheet({
     setErrors(next);
     if (next.to || next.reason) return;
     start(async () => {
-      const result = await transferBike({
-        bikeId,
-        toCustomerId: destination === "shop" ? null : (to?.id ?? null),
-        reason,
-      });
+      const result = await callAction(() =>
+        transferBike({
+          bikeId,
+          toCustomerId: destination === "shop" ? null : (to?.id ?? null),
+          reason,
+        }),
+      );
       if (result.ok) {
         toast({
           title:

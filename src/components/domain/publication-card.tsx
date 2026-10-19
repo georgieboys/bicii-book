@@ -19,6 +19,7 @@ import {
   type PublicationStatus,
   type TrackingType,
 } from "@/lib/inventory";
+import { callAction } from "@/lib/call-action";
 
 import { PublicPreviewPanel } from "./public-preview";
 import { QrLabelUrl } from "./qr-label-url";
@@ -86,7 +87,7 @@ export function PublicationControls({
   const change = (to: PublicationStatus) =>
     start(async () => {
       setError(null);
-      const result = await setPublication({ productId, status: to });
+      const result = await callAction(() => setPublication({ productId, status: to }));
       if (result.ok) {
         toast({ title: DONE[result.data.status], tone: "success" });
         return;

@@ -85,6 +85,8 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
         title="Inventory"
         actions={
           <>
+            {/* The primary action first (U1-7); the two read-only reports after it. */}
+            {newButton}
             <ButtonLink href="/inventory/movements" variant="outline">
               Movements
             </ButtonLink>
@@ -92,7 +94,6 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
             <ButtonLink href="/reports/reconciliation" variant="outline">
               Reconcile stock
             </ButtonLink>
-            {newButton}
           </>
         }
       />

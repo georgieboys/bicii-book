@@ -16,6 +16,7 @@ import type { ActionResult } from "@/lib/actions";
 import type { ShopifySettingsDTO } from "@/lib/domain/shopify";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { TEST_ORDERS_WARNING } from "@/lib/shopify";
+import { callAction } from "@/lib/call-action";
 
 type State = ActionResult<ShopifySettingsDTO> | null;
 
@@ -38,7 +39,7 @@ export function ShopifySettingsForm({
   const [locationId, setLocationId] = useState(settings.onlineLocationId ?? "");
   const [acceptTest, setAcceptTest] = useState(settings.acceptTestOrders);
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await saveShopifySettingsAction(prev, formData);
+    const result = await callAction(() => saveShopifySettingsAction(prev, formData), formData);
     if (result.ok) toast({ title: "Shopify settings saved", tone: "success" });
     return result;
   }, null);

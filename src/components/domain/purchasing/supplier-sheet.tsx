@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 /** The fields a supplier form edits (SupplierDetail has them all). */
 export type SupplierFields = {
@@ -61,8 +62,14 @@ function SupplierSheetBody({
   const [id] = useState(() => supplier?.id ?? newId());
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = supplier
-      ? await updateSupplier(prev as ActionResult<null> | null, formData)
-      : await createSupplier(prev as ActionResult<{ id: string }> | null, formData);
+      ? await callAction(
+          () => updateSupplier(prev as ActionResult<null> | null, formData),
+          formData,
+        )
+      : await callAction(
+          () => createSupplier(prev as ActionResult<{ id: string }> | null, formData),
+          formData,
+        );
     if (result.ok) {
       if (supplier) {
         toast({ title: "Supplier saved", tone: "success" });

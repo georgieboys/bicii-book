@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 import type { ShopifyCustomerOnEvent } from "@/lib/domain/shopify";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { earlierSalesText } from "@/lib/shopify";
+import { callAction } from "@/lib/call-action";
 
 import { CustomerPicker } from "../customer-picker";
 
@@ -74,12 +75,14 @@ function LinkCustomerSheet({
         setErrors(local);
         return;
       }
-      const result = await linkCustomerAction({
-        eventId,
-        customerId: chosen!.id,
-        shopifyCustomerGid: customer.gid,
-        reason: reason.trim(),
-      });
+      const result = await callAction(() =>
+        linkCustomerAction({
+          eventId,
+          customerId: chosen!.id,
+          shopifyCustomerGid: customer.gid,
+          reason: reason.trim(),
+        }),
+      );
       if (!result.ok) {
         setErrors(result.fieldErrors ?? {});
         setError(result.error);

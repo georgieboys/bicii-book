@@ -54,6 +54,16 @@ export default async function BikePage({ params, searchParams }: PageProps<"/bik
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
+  // The label reads start with the rest (audit E1-7) but are awaited only
+  // for a bike that exists (as on the product and unit pages): an unknown
+  // id is a 404, never the label code's "not found" error. The no-op catch
+  // keeps their refusal for an unknown id from going unhandled.
+  const labelsQuery = getLabelContext(supabase, { kind: "bike", entityId: id });
+  const presetQuery = searchParams.then((sp) =>
+    resolvePrintPreset(supabase, "bike", id, parsePrintParams(sp)),
+  );
+  labelsQuery.catch(() => {});
+  presetQuery.catch(() => {});
   const [bike, photos, jobs, stockUnit] = await Promise.all([
     getBike(supabase, id),
     listPhotos(supabase, { entityType: "bike", entityId: id }),
@@ -61,12 +71,7 @@ export default async function BikePage({ params, searchParams }: PageProps<"/bik
     getBikeStockUnit(supabase, id),
   ]);
   if (!bike) notFound();
-  // Labels only for a bike that exists (as on the product and unit pages):
-  // an unknown id is a 404, never the label code's "not found" error.
-  const [labels, preset] = await Promise.all([
-    getLabelContext(supabase, { kind: "bike", entityId: id }),
-    searchParams.then((sp) => resolvePrintPreset(supabase, "bike", id, parsePrintParams(sp))),
-  ]);
+  const [labels, preset] = await Promise.all([labelsQuery, presetQuery]);
   const archived = bike.archivedAt !== null;
   const details = [
     { label: "Serial number", value: bike.serialNumber, mono: true },

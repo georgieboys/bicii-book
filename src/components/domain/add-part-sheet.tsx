@@ -20,6 +20,7 @@ import type { PartOption } from "@/lib/domain/inventory";
 import { overdrawWarning, signedQuantity } from "@/lib/inventory";
 import { formatMoney, lineTotal, parseMoney, toDecimal } from "@/lib/money";
 import { newId } from "@/lib/uuid";
+import { callAction } from "@/lib/call-action";
 
 import { NoActiveLocation } from "./no-active-location";
 import { ShortId } from "./short-id";
@@ -130,7 +131,7 @@ function AddPartSheet({
   const [price, setPrice] = useState("");
   const part = picked?.part ?? null;
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
-    const result = await addPartToJob(prev, formData);
+    const result = await callAction(() => addPartToJob(prev, formData), formData);
     if (result.ok && part) {
       const { onHandAfter, locationName } = result.data;
       const what =
@@ -152,7 +153,7 @@ function AddPartSheet({
   const errors = state && !state.ok ? state.fieldErrors : undefined;
 
   const search = async (q: string): Promise<PartPick[]> => {
-    const result = await searchParts({ q });
+    const result = await callAction(() => searchParts({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data.map((p) => ({
       id: `${p.kind}:${p.unitId ?? p.productId}`,

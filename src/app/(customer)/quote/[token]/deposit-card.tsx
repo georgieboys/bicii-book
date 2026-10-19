@@ -62,14 +62,40 @@ function DepositState({
   payOnline: boolean;
   returning: DepositReturn;
 }) {
+  const paidText = `Deposit of ${amount} paid. Thank you.`;
+  const processingText = `Your payment of ${amount} is being confirmed by Stripe. Reload this page later to see it confirmed. You don't need to pay again.`;
+  // Back from Stripe: the confirming line stays mounted and takes Stripe's
+  // answer, so it is announced (U2-5).
+  if (
+    returning === "returned" &&
+    (deposit.status === "due" || deposit.status === "paid" || deposit.status === "processing")
+  ) {
+    return (
+      <ConfirmingPayment
+        token={token}
+        amountLabel={amount}
+        payOnline={payOnline}
+        settled={
+          deposit.status === "paid"
+            ? { text: paidText, tone: "done" }
+            : deposit.status === "processing"
+              ? { text: processingText, tone: "waiting" }
+              : null
+        }
+      />
+    );
+  }
   switch (deposit.status) {
     case "paid":
-      return <p className="text-done-deep">Deposit of {amount} paid. Thank you.</p>;
+      return (
+        <p role="status" className="text-done-deep">
+          {paidText}
+        </p>
+      );
     case "processing":
       return (
         <p role="status" className="text-dust-700">
-          Your payment of {amount} is being confirmed by Stripe. Reload this page later to see it
-          confirmed. You don&apos;t need to pay again.
+          {processingText}
         </p>
       );
     case "refunded":
@@ -81,9 +107,6 @@ function DepositState({
     case "on_answer":
       return null;
     case "due":
-      if (returning === "returned") {
-        return <ConfirmingPayment token={token} amountLabel={amount} payOnline={payOnline} />;
-      }
       return (
         <div className="flex flex-col gap-3">
           {deposit.parts_ordered ? (

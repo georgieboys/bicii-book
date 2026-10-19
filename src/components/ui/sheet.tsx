@@ -167,6 +167,29 @@ export function Sheet({
     };
   }, [open, hasFooter]);
 
+  // U1-5: an on-screen keyboard (iOS) covers the bottom of the layout
+  // viewport, where a bottom sheet's footer (Save, Record) sits. Lift the
+  // panel by what the visual viewport lost and cap its height to what is
+  // left, so the footer stays above the keyboard. No-op without
+  // visualViewport and on the md+ side panel (its classes win there).
+  useEffect(() => {
+    const vv = typeof window === "undefined" ? undefined : window.visualViewport;
+    const panel = panelRef.current;
+    if (!open || !vv || !panel) return;
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      panel.style.setProperty("--keyboard-inset", `${Math.round(inset)}px`);
+      panel.style.setProperty("--visual-height", `${Math.round(vv.height)}px`);
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [open]);
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -186,7 +209,8 @@ export function Sheet({
         className={cn(
           "absolute flex flex-col bg-paper shadow-[0_-8px_40px_rgb(5_7_7/0.18)] outline-none",
           // Phone: bottom sheet, rounded top, never taller than the viewport
-          "inset-x-0 bottom-0 max-h-[92dvh] animate-[sheet-up_var(--duration-soft)_var(--ease-soft)] rounded-t-3xl",
+          // and above an on-screen keyboard (--keyboard-inset, --visual-height).
+          "inset-x-0 bottom-[var(--keyboard-inset,0px)] max-h-[min(92dvh,calc(var(--visual-height,100dvh)*0.92))] animate-[sheet-up_var(--duration-soft)_var(--ease-soft)] rounded-t-3xl",
           // md+: side panel
           "md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:w-[30rem] md:animate-[sheet-in-right_var(--duration-soft)_var(--ease-soft)] md:rounded-none md:rounded-l-3xl",
           className,

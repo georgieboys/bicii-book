@@ -51,7 +51,9 @@ export function buttonClasses({
       ? "min-w-0 py-2 text-center whitespace-normal [&>svg]:shrink-0"
       : "shrink-0 whitespace-nowrap",
     "transition-[transform,background-color,color,filter] duration-200 ease-[var(--ease-spring)] active:scale-[0.94] motion-reduce:active:scale-100",
-    "disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
+    // Dimmed when disabled, but not while busy: a busy label stays at full
+    // contrast (U2-17).
+    "disabled:cursor-not-allowed disabled:not-aria-busy:opacity-50 disabled:active:scale-100 aria-disabled:cursor-not-allowed aria-disabled:not-aria-busy:opacity-50",
     variants[variant],
     sizes[size],
     fullWidth && "w-full",

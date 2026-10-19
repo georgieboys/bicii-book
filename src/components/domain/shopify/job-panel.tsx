@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/toast";
 import type { QueueRow } from "@/lib/domain/shopify";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { unmappedLineTitle, type UnmappedLine } from "@/lib/shopify";
+import { callAction } from "@/lib/call-action";
 
 import { ReasonConfirm } from "../reason-confirm";
 
@@ -101,7 +102,7 @@ export function JobPanel({
 
   const retry = () =>
     startRetry(async () => {
-      const result = await retryJobAction({ jobId: job.id });
+      const result = await callAction(() => retryJobAction({ jobId: job.id }));
       if (!result.ok) {
         toast({ title: "Not retried", description: result.error, tone: "error" });
         return;
@@ -241,7 +242,7 @@ export function ProductLinkPicker({
   onSelect: (option: PickerOption | null) => void;
 }) {
   const search = async (q: string): Promise<PickerOption[]> => {
-    const result = await searchProductsForLinkAction({ q });
+    const result = await callAction(() => searchProductsForLinkAction({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data;
   };
@@ -311,13 +312,15 @@ export function LinkVariantForm({
         setErrors(local);
         return;
       }
-      const result = await linkVariantAction({
-        jobId,
-        productId: product!.id,
-        shopifyProductGid: line.productGid ?? "",
-        shopifyVariantGid: line.variantGid ?? "",
-        reason: reason.trim(),
-      });
+      const result = await callAction(() =>
+        linkVariantAction({
+          jobId,
+          productId: product!.id,
+          shopifyProductGid: line.productGid ?? "",
+          shopifyVariantGid: line.variantGid ?? "",
+          reason: reason.trim(),
+        }),
+      );
       if (!result.ok) {
         setErrors(result.fieldErrors ?? {});
         setError(result.error);

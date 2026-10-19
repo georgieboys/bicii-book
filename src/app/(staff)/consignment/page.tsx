@@ -48,8 +48,6 @@ export default async function ConsignmentPage({ searchParams }: PageProps<"/cons
   const q = readQuery(params.q);
   const manage = hasPermission(staff, "manage_consignments");
   const money = canViewConsignmentMoney(staff);
-  const supabase = await createClient();
-  const intake = manage ? await loadIntakeContext(supabase, staff) : null;
 
   const tabs = (
     <LinkSegments
@@ -73,23 +71,28 @@ export default async function ConsignmentPage({ searchParams }: PageProps<"/cons
 
   return (
     <>
-      <PageHeader
-        title="Consignment"
-        actions={
-          manage && intake ? (
-            <>
-              <ReceiveItemButton context={intake} />
-              <NewConsignorButton />
-            </>
-          ) : null
-        }
-      />
+      <PageHeader title="Consignment" actions={manage ? <IntakeActions staff={staff} /> : null} />
       {tabs}
       {view === "consignors" ? (
         <ConsignorsView q={q} archived={readFlag(params.archived)} money={money} manage={manage} />
       ) : (
         <ItemsView q={q} status={readItemStatusFilter(params.status)} money={money} />
       )}
+    </>
+  );
+}
+
+/**
+ * Receive item and New consignor. Their own async component, so the intake
+ * sheet's context loads alongside the list below instead of before it
+ * (audit E1-8): React renders sibling server components concurrently.
+ */
+async function IntakeActions({ staff }: { staff: Awaited<ReturnType<typeof requireStaff>> }) {
+  const intake = await loadIntakeContext(await createClient(), staff);
+  return (
+    <>
+      <ReceiveItemButton context={intake} />
+      <NewConsignorButton />
     </>
   );
 }

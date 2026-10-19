@@ -25,6 +25,7 @@ import {
   primaryAction,
   type AppointmentStatus,
 } from "@/lib/appointments/status";
+import { callAction } from "@/lib/call-action";
 
 type Marked = "confirmed" | "arrived" | "no_show";
 
@@ -105,7 +106,7 @@ export function AppointmentActionBar({
   const mark = (next: Marked, success: string, failure: string) =>
     startTransition(async () => {
       setShown(next);
-      const result = await markAppointmentStatus({ appointmentId, status: next });
+      const result = await callAction(() => markAppointmentStatus({ appointmentId, status: next }));
       if (!result.ok) {
         toast({ title: failure, description: result.error, tone: "error" });
         return;

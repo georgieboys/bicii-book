@@ -26,6 +26,14 @@ export type SegmentedControlProps<V extends string = string> = {
   onValueChange?: (value: V) => void;
   /** Submits the chosen value under this name inside a form. */
   name?: string;
+  /** The group's id, e.g. to focus its tab stop from a form's error. */
+  id?: string;
+  /** An answer is required (aria-required on the group). */
+  required?: boolean;
+  /** Marks the group as needing an answer: aria-invalid and a danger outline. */
+  invalid?: boolean;
+  /** Id of the message that says why, for aria-describedby. */
+  describedBy?: string;
   className?: string;
 };
 
@@ -42,6 +50,10 @@ export function SegmentedControl<V extends string = string>({
   defaultValue,
   onValueChange,
   name,
+  id,
+  required,
+  invalid,
+  describedBy,
   className,
 }: SegmentedControlProps<V>) {
   const controlled = value !== undefined;
@@ -92,10 +104,15 @@ export function SegmentedControl<V extends string = string>({
 
   return (
     <div
+      id={id}
       role="radiogroup"
       aria-label={label}
+      aria-required={required || undefined}
+      aria-invalid={invalid || undefined}
+      aria-describedby={invalid ? describedBy : undefined}
       className={cn(
         "inline-flex max-w-full [scrollbar-width:none] gap-1 overflow-x-auto rounded-full border-2 border-ink bg-card p-1",
+        "aria-invalid:border-danger aria-invalid:shadow-[0_0_0_1px_var(--color-danger)]",
         className,
       )}
     >

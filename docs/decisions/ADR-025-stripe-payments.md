@@ -445,7 +445,8 @@ D154a–e, D156a–h and D161a–j:
 Verified locally on 2026-10-18 SGT: the unit project, `npm run check`,
 the payments and reports E2E specs on the phone and iPad projects against
 the real RPCs and the fake Stripe with signed webhooks, and the gates in
-NOW.md's row for this build. Not yet verified: a balance paid in Stripe's
+NOW.md's row for this build (kept in
+[NOW.md at f120c6d](https://github.com/georgieboys/bicii-book/blob/f120c6d/NOW.md)). Not yet verified: a balance paid in Stripe's
 test mode (RUNBOOK "Stripe: verify before go-live" steps 11 and 12);
 email and WhatsApp end to end (unit-tested). Risks updated:
 [R-088](../RISKS.md#r-088--the-quote-link-is-a-payment-capability-that-reaches-stripe),

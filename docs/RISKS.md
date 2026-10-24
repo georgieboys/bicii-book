@@ -448,7 +448,15 @@ URLs, or customer data in this file.
   need a list of retired bases (not planned).
 - Revisit trigger: the public site's address changes; Phase 11 builds the
   public `/q` route.
-- Last checked: 2026-10-05.
+- Status 2026-10-24 (read-only on the hosted project): the QR address is set,
+  so labels print, but to the Admin's own address rather than the public
+  site's. The Admin's `/q` route is staff-only (`requireStaff`), so a
+  customer scanning a label printed now gets the staff sign-in instead of
+  the public item page D125 describes (the public site's `/q` cannot show
+  items yet either: its Supabase variables are unset). Owner: confirm the
+  intended address before more labels are printed; changing it later leaves
+  the labels already printed on the old one (the impact above).
+- Last checked: 2026-10-24.
 
 ## R-014 — Camera scanning needs HTTPS or localhost
 

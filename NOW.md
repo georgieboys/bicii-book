@@ -1,6 +1,8 @@
 # Current state
 
-Updated: 2026-10-24 SGT. Evidence checked: `main` f120c6d; PR #45 (CI and
+Updated: 2026-10-28 SGT (the public site's state; the hosted project
+read-only: no print jobs, no public items, no public active appointment
+type). Earlier evidence, 2026-10-24: `main` f120c6d; PR #45 (CI and
 label-run e2e green on a666bef) merged as d30473d, `migrate.yml` run 20, the
 hosted project read-only (75 migrations, the last `20261019000100`) and
 Vercel's production build of f120c6d READY, all 2026-10-19; the hosted
@@ -35,9 +37,9 @@ request; the full e2e suite runs on the `e2e` label and nightly.
 |---|---|---|---|
 | Staff sign-in, roles, staff | Yes | CI, e2e; codes arrive via Resend (owner, 2026-10-15) | Production |
 | Customers, bikes, jobs, Today, inventory, consignment, sales, purchasing, reporting | Yes (Phases 1–9) | CI, e2e | Production |
-| Labels | Yes (Phase 8) | CI, e2e | Production; the QR address points at the Admin, not the public site (R-013) |
+| Labels | Yes (Phase 8) | CI, e2e | Production; nothing printed yet (2026-10-28); the QR address still points at the Admin: set it to https://bicii.sg before the first print (R-013) |
 | Shopify | Yes (Phase 10), fake store only | CI, e2e ([R-047](docs/RISKS.md#r-047--the-live-shopify-adapter-is-unverified-against-a-real-store)) | Off: no store, no `CRON_SECRET` |
-| Public site's backend | Yes (Phase 11) | DB tests; the site's journey 6 | Live, unused: the site's Supabase variables are unset |
+| Public site's backend | Yes (Phase 11) | DB tests; the site's journey 6 | Live and in use since 2026-10-28: the public site (https://bicii.sg) has its variables set, sign-in is open, hours show; no public, active appointment type yet, so no online booking |
 | Indent quotes and deposits | Yes (Phases 13–14) | CI, e2e; a live deposit paid and refunded | Production; deposits at 100% |
 | Payment links, counter payments | Yes (Phase 14 step 3) | CI, e2e with the fake Stripe | Production; none used yet (2026-10-24), no test-mode rehearsal |
 | Audit fixes | Yes (PRs #38, #43–#45) | CI and label-run e2e | Production |
@@ -65,8 +67,10 @@ Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),
   [R-093](docs/RISKS.md#r-093--mark-collected-is-allowed-while-stripe-is-confirming-a-payment).
 - Before relying on payment links: RUNBOOK "Stripe: verify before go-live"
   steps 11 and 12 in test mode.
-- Before online booking: shop hours and appointment types (none set,
-  2026-10-24; [RUNBOOK](docs/RUNBOOK.md#appointments-schedule-before-go-live)).
-- Opening customer accounts: the owner's decision, privacy notice first
-  ([RUNBOOK](docs/RUNBOOK.md#the-public-site-customer-accounts)).
+- Before online booking: shop hours are set (shown on the public site's
+  `/contact`, 2026-10-28); no public, active appointment type yet
+  ([RUNBOOK](docs/RUNBOOK.md#appointments-schedule-before-go-live)).
+- Customer accounts: open on the public site since 2026-10-28 (its
+  variables set, redeployed); the privacy notice and PDPA contact are still
+  owed (R-016; [RUNBOOK](docs/RUNBOOK.md#the-public-site-customer-accounts)).
 - Costs, backups, recovery: [OPERATIONS](docs/OPERATIONS.md).

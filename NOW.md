@@ -37,7 +37,7 @@ request; the full e2e suite runs on the `e2e` label and nightly.
 |---|---|---|---|
 | Staff sign-in, roles, staff | Yes | CI, e2e; codes arrive via Resend (owner, 2026-10-15) | Production |
 | Customers, bikes, jobs, Today, inventory, consignment, sales, purchasing, reporting | Yes (Phases 1–9) | CI, e2e | Production |
-| Labels | Yes (Phase 8) | CI, e2e | Production; nothing printed yet (2026-10-28); the QR address still points at the Admin: set it to https://bicii.sg before the first print (R-013) |
+| Labels | Yes (Phase 8) | CI, e2e; the old alias's `/q` redirect by a unit test through Next's route matcher | Production; QR address https://bicii.sg since the evening of 2026-10-28. The 29 product labels printed earlier that day carry the Admin's old alias: that alias now redirects `/q/*` to the public site (this change); for the Admin scanner, reprint them or set `NEXT_PUBLIC_PUBLIC_SITE_URL` to the old alias (R-013) |
 | Shopify | Yes (Phase 10), fake store only | CI, e2e ([R-047](docs/RISKS.md#r-047--the-live-shopify-adapter-is-unverified-against-a-real-store)) | Off: no store, no `CRON_SECRET` |
 | Public site's backend | Yes (Phase 11) | DB tests; the site's journey 6 | Live and in use since 2026-10-28: the public site (https://bicii.sg) has its variables set, sign-in is open, hours show; no public, active appointment type yet, so no online booking |
 | Indent quotes and deposits | Yes (Phases 13–14) | CI, e2e; a live deposit paid and refunded | Production; deposits at 100% |

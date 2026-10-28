@@ -464,7 +464,22 @@ URLs, or customer data in this file.
   owner: set the QR address to https://bicii.sg (Settings → Labels and
   printers) before the first print, and `NEXT_PUBLIC_PUBLIC_SITE_URL` on the
   Admin's hosting to the same value.
-- Last checked: 2026-10-28.
+- Status 2026-10-28, evening (read-only on the hosted project): the status
+  above was wrong on one point. The owner set the QR address to
+  https://bicii.sg that evening, but 29 product label jobs (21 printed, 8
+  rendered, one label each) had been created between 16:30 and 20:18 SGT
+  the same day, all encoding the Admin's old alias as their base (the read
+  that reported no print jobs returned no rows; a later read returned 29).
+  What the risk describes therefore happened on the first day of printing.
+  Containment built (this change): the old alias answers `/q/{short_id}`
+  with a permanent redirect to the public site's item page
+  (`next.config.ts`, host-conditioned; the Admin's own address keeps its
+  staff-only `/q`), so those labels open the item page when scanned. The
+  Admin's scanner accepts them only through `NEXT_PUBLIC_PUBLIC_SITE_URL`
+  set to the old alias (not verifiable from here) or after a reprint (Print
+  again on each product, which keeps the history). Owner: reprint the 21
+  printed labels, or set that variable.
+- Last checked: 2026-10-28, evening.
 
 ## R-014 — Camera scanning needs HTTPS or localhost
 

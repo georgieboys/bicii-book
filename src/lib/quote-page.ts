@@ -15,7 +15,7 @@ export const isQuoteToken = (token: string) => QUOTE_TOKEN.test(token);
 const money = z.union([z.string(), z.number()]).transform(String);
 
 const quoteItem = z.object({
-  id: z.uuid(),
+  id: z.guid(),
   kind: z.enum(["part", "service"]),
   description: z.string(),
   quantity: money,

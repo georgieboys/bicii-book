@@ -22,12 +22,12 @@ import { REASON_MAX_LENGTH } from "@/lib/reasons";
  *                            failed with what went wrong (D59)
  */
 
-const uuid = z.uuid({ error: "Choose a record." });
-const optionalUuid = z.preprocess((v) => (v === "" ? undefined : v), z.uuid().optional());
+const uuid = z.guid({ error: "Choose a record." });
+const optionalUuid = z.preprocess((v) => (v === "" ? undefined : v), z.guid().optional());
 
 const createSchema = z
   .object({
-    id: z.uuid(),
+    id: z.guid(),
     kind: z.enum(LABEL_KINDS),
     entityId: uuid,
     quantity: z.coerce
@@ -67,7 +67,7 @@ export const createPrintJobAction = staffAction(
 
 const statusSchema = z
   .object({
-    id: z.uuid(),
+    id: z.guid(),
     status: z.enum(["rendered", "printed", "failed"]),
     error: z
       .string()

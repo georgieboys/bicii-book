@@ -140,7 +140,7 @@ export const updateProduct = staffAction(
 
 /** Archive (refused while published or holding stock) or unarchive a product. */
 export const archiveProduct = staffAction(
-  z.object({ productId: z.uuid({ error: "Unknown product." }), archived: z.boolean() }),
+  z.object({ productId: z.guid({ error: "Unknown product." }), archived: z.boolean() }),
   { name: "inventory.set_product_archived", permission: "manage_inventory" },
   async ({ productId, archived }, { supabase }) => {
     await setArchived(supabase, productId, archived);

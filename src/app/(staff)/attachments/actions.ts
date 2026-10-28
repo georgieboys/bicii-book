@@ -35,9 +35,9 @@ export type { Photo, PhotoChange, UploadTarget };
 
 const target = {
   entityType: z.enum(PHOTO_ENTITIES),
-  entityId: z.uuid({ error: "Unknown record." }),
+  entityId: z.guid({ error: "Unknown record." }),
 };
-const attachmentId = z.uuid({ error: "Unknown photo." });
+const attachmentId = z.guid({ error: "Unknown photo." });
 const dimension = z.number().int().min(1).max(100_000).nullable();
 
 /** Logs storage cleanup that failed after the database change (never shown to staff). */

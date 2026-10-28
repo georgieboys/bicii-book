@@ -3099,7 +3099,14 @@ URLs, or customer data in this file.
   owner's admin login (RUNBOOK "Reclassifying shop stock as consigned"):
   24 consignment items received, one product with no stock changed owner
   only; a read-only check found every on-hand unchanged and no stock
-  reconciliation issue.
+  reconciliation issue. That evening the owner could not save **Edit
+  terms** on one of them ("Check the highlighted fields." with nothing
+  highlighted): the run had made the item ids with `md5(...)::uuid`, which
+  Postgres takes but the app's `z.uuid()` checks refused (23 of 24 items;
+  a read-only check against zod's rule). The app's id checks now use
+  `z.guid()`, ESLint forbids `z.uuid()` in `src/`, and
+  `tests/unit/consignment-forms.test.ts` "record ids made outside the app"
+  failed before the change and passes after it.
 - Workaround or containment: **Change owner** on the product page, admins
   only ([USER-GUIDE](USER-GUIDE.md#change-who-owns-a-product-admins));
   `reclassify_as_consignment` from SQL for many at once
@@ -3118,4 +3125,4 @@ URLs, or customer data in this file.
   shop (the shop buying it), which D162 does not cover.
 - Last checked: 2026-10-28 SGT (the production run and read-only checks
   above; `tests/db/reclassify-consignment.test.ts` in CI; the screen's
-  `tests/e2e/change-owner.spec.ts`).
+  `tests/e2e/change-owner.spec.ts`; the item-id fix and its unit test).

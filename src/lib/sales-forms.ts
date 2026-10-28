@@ -22,35 +22,35 @@ import { positiveMoney } from "@/lib/consignment-forms";
 const unitLine = z.object({
   kind: z.literal("unit"),
   key: z.string().min(1).max(200),
-  unitId: z.uuid({ error: "Unknown item." }),
+  unitId: z.guid({ error: "Unknown item." }),
   unitSalePrice: optionalMoney("price"),
 });
 
 const productLine = z.object({
   kind: z.literal("product"),
   key: z.string().min(1).max(200),
-  productId: z.uuid({ error: "Unknown item." }),
-  locationId: z.uuid({ error: "Choose where it is sold from." }),
+  productId: z.guid({ error: "Unknown item." }),
+  locationId: z.guid({ error: "Choose where it is sold from." }),
   quantity: z
     .number({ error: "Enter a whole number, like 1." })
     .int({ error: "Enter a whole number, like 1." })
     .min(1, { error: "Sell between 1 and 999." })
     .max(999, { error: "Sell between 1 and 999." }),
   consignmentItemId: z
-    .uuid({ error: "Unknown consignment." })
+    .guid({ error: "Unknown consignment." })
     .nullish()
     .transform((v) => v ?? null),
   unitSalePrice: optionalMoney("price"),
 });
 
 export const saleSchema = z.object({
-  saleId: z.uuid({ error: "Start the sale again." }),
+  saleId: z.guid({ error: "Start the sale again." }),
   lines: z
     .array(z.discriminatedUnion("kind", [unitLine, productLine]))
     .min(1, { error: "Add at least one item to the sale." })
     .max(50, { error: "A sale holds at most 50 lines. Record the rest as another sale." }),
   customerId: z
-    .uuid({ error: "Choose a customer from the list." })
+    .guid({ error: "Choose a customer from the list." })
     .nullish()
     .transform((v) => v ?? null),
   recognizedAt: z.iso
@@ -69,18 +69,18 @@ export const saleSchema = z.object({
 });
 
 export const restockSchema = z.object({
-  unitId: z.uuid({ error: "Unknown item." }),
-  saleLineId: z.uuid({ error: "Unknown sale line." }),
+  unitId: z.guid({ error: "Unknown item." }),
+  saleLineId: z.guid({ error: "Unknown sale line." }),
   locationId: z
-    .uuid({ error: "Choose where it goes back." })
+    .guid({ error: "Choose where it goes back." })
     .nullish()
     .transform((v) => v ?? null),
   reason: reason("Say why the item is going back into stock."),
 });
 
 export const refundSchema = z.object({
-  refundId: z.uuid({ error: "Start the refund again." }),
-  saleId: z.uuid({ error: "Unknown sale." }),
+  refundId: z.guid({ error: "Start the refund again." }),
+  saleId: z.guid({ error: "Unknown sale." }),
   amount: positiveMoney("refund"),
   reason: reason("Say why the sale is being refunded."),
 });

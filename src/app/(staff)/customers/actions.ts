@@ -26,7 +26,7 @@ const EMAIL = /^[^@\s]+@[^@\s]+$/;
 const customerSchema = z
   .object({
     /** New customer: the form's idempotency key. Edit: the customer. */
-    id: z.uuid({ error: "Unknown customer." }),
+    id: z.guid({ error: "Unknown customer." }),
     firstName: text(100, "first name"),
     lastName: text(100, "last name"),
     displayName: text(200, "name"),
@@ -59,7 +59,7 @@ export const updateCustomer = staffAction(
 );
 
 export const setCustomerArchived = staffAction(
-  z.object({ customerId: z.uuid({ error: "Unknown customer." }), archived: z.boolean() }),
+  z.object({ customerId: z.guid({ error: "Unknown customer." }), archived: z.boolean() }),
   { name: "customers.set_archived" },
   async ({ customerId, archived }, { supabase }) => {
     await setArchived(supabase, customerId, archived);

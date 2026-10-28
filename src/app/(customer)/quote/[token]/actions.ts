@@ -29,7 +29,7 @@ import { createAnonClient } from "@/lib/supabase/anon";
 const answerSchema = z.object({
   token: z.string().regex(QUOTE_TOKEN, { error: "This link is not valid." }),
   decisions: z
-    .array(z.object({ itemId: z.uuid(), approve: z.boolean() }), {
+    .array(z.object({ itemId: z.guid(), approve: z.boolean() }), {
       error: "Approve or decline each item.",
     })
     .min(1, { error: "Approve or decline each item." })

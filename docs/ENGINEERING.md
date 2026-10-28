@@ -237,7 +237,9 @@ from the code:
   at `20261018000300_search_indexes` (with `20261018000200`, applied by
   run 19 on 2026-10-19 SGT), and with the refunded amounts (U2-11) at
   `20261019000100_customer_refunded_amounts` (PR #45, applied by run 20
-  on 2026-10-19 SGT). A
+  on 2026-10-19 SGT), and since PR #50 at
+  `20261028000100_reclassify_as_consignment` (D162, applied by run 21 on
+  2026-10-28 SGT). A
   new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).
@@ -280,6 +282,12 @@ from the code:
   failed form returns its typed values in `ActionResult.values` so the form
   renders them again. Money is `numeric` in Postgres and `decimal.js` in
   TypeScript; the database does the authoritative arithmetic.
+- **Record ids in forms.** Action schemas check ids with `z.guid()`: any
+  8-4-4-4-12 hex id, as Postgres and `UUID_RE` take them. `z.uuid()` also
+  demands an RFC 4122 version and variant and refused 23 consignment items
+  made in SQL on 2026-10-28 (R-095), so ESLint's
+  `no-restricted-properties` forbids it in `src/`. New ids still come from
+  `newId()` (version 4).
 - **QR URLs and labels** (Phase 8, ADR-017). Never build a QR URL from
   `NEXT_PUBLIC_PUBLIC_SITE_URL` or anywhere but
   [`src/lib/qr.ts`](../src/lib/qr.ts) (`qrUrl`, display only); printed

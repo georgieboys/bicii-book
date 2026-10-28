@@ -208,7 +208,7 @@ const optionalTime = z
  */
 export const closureSchema = z
   .object({
-    id: z.uuid({ error: "Open the closure again." }),
+    id: z.guid({ error: "Open the closure again." }),
     isNew: z.boolean(),
     kind: z.enum(["closed", "custom_hours"], { error: "Choose Closed or Short day." }),
     firstDay: day("Choose the first day."),
@@ -285,7 +285,7 @@ export type ClosureInput = z.output<typeof closureSchema>;
 
 /** Removing a closure re-opens the shop: a reason is required (kept in the schedule history). */
 export const deleteClosureSchema = z.object({
-  id: z.uuid({ error: "Unknown closure." }),
+  id: z.guid({ error: "Unknown closure." }),
   reason: z
     .string({ error: "Say why the closure is removed." })
     .trim()
@@ -299,7 +299,7 @@ export const deleteClosureSchema = z.object({
  * the RPC for an active type). Types are never deleted: deactivate them.
  */
 export const appointmentTypeSchema = z.object({
-  id: z.uuid({ error: "Open the type again." }),
+  id: z.guid({ error: "Open the type again." }),
   isNew: z.boolean(),
   name: z
     .string({ error: "Enter a name." })

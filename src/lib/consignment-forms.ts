@@ -29,7 +29,7 @@ const text = (max: number, what: string) =>
 /** A picker's hidden input: an id, or empty for none. */
 const optionalId = (error: string) =>
   z
-    .union([z.uuid({ error }), z.literal(""), z.null()])
+    .union([z.guid({ error }), z.literal(""), z.null()])
     .optional()
     .transform((v) => v || null);
 
@@ -48,7 +48,7 @@ export const positiveMoney = (what: string) =>
 
 export const consignorSchema = z.object({
   /** New consignor: the form's idempotency key. Edit: the consignor. */
-  id: z.uuid({ error: "Unknown consignor." }),
+  id: z.guid({ error: "Unknown consignor." }),
   displayName: z
     .string({ error: "Enter the consignor's name." })
     .trim()
@@ -63,7 +63,7 @@ export const consignorSchema = z.object({
 });
 
 export const newConsignorSchema = z.object({
-  id: z.uuid({ error: "Unknown consignor." }),
+  id: z.guid({ error: "Unknown consignor." }),
   displayName: z
     .string({ error: "Enter the consignor's name." })
     .trim()
@@ -84,10 +84,10 @@ const wholeNumber = (min: number, max: number, invalid: string, range: string) =
 
 export const intakeSchema = z
   .object({
-    itemId: z.uuid({ error: "Start the intake again." }),
+    itemId: z.guid({ error: "Start the intake again." }),
     consignorId: optionalId("Choose a consignor."),
     newConsignor: newConsignorSchema.nullish().transform((v) => v ?? null),
-    locationId: z.uuid({ error: "Choose where it is kept." }),
+    locationId: z.guid({ error: "Choose where it is kept." }),
     agreedAmountOwed: money("amount owed to the consignor"),
     askingPrice: optionalMoney("asking price"),
     productName: z
@@ -113,7 +113,7 @@ export const intakeSchema = z
       .transform((v) => v ?? null),
     agreementNotes: text(2_000, "agreement notes"),
     internalNotes: text(10_000, "notes"),
-    newProductId: z.uuid({ error: "Start the intake again." }),
+    newProductId: z.guid({ error: "Start the intake again." }),
     newUnitId: optionalId("Start the intake again."),
     bikeId: optionalId("Choose a bike from the list."),
   })
@@ -131,7 +131,7 @@ export const intakeSchema = z
   });
 
 export const termsSchema = z.object({
-  itemId: z.uuid({ error: "Unknown item." }),
+  itemId: z.guid({ error: "Unknown item." }),
   agreedAmountOwed: money("amount owed to the consignor"),
   askingPrice: optionalMoney("asking price"),
   reason: z
@@ -151,9 +151,9 @@ export const termsSchema = z.object({
 export const RECLASSIFY_REASON_MAX = 460;
 
 export const reclassifySchema = z.object({
-  itemId: z.uuid({ error: "Open Change owner again." }),
-  productId: z.uuid({ error: "Unknown product." }),
-  consignorId: z.uuid({ error: "Choose the consignor." }),
+  itemId: z.guid({ error: "Open Change owner again." }),
+  productId: z.guid({ error: "Unknown product." }),
+  consignorId: z.guid({ error: "Choose the consignor." }),
   agreedAmountOwed: money("amount owed to the consignor"),
   askingPrice: optionalMoney("asking price"),
   receivedAt: z.iso
@@ -170,8 +170,8 @@ export const reclassifySchema = z.object({
 });
 
 export const chargeSchema = z.object({
-  chargeId: z.uuid({ error: "Start the charge again." }),
-  itemId: z.uuid({ error: "Unknown item." }),
+  chargeId: z.guid({ error: "Start the charge again." }),
+  itemId: z.guid({ error: "Unknown item." }),
   description: z
     .string({ error: "Describe the charge." })
     .trim()
@@ -183,13 +183,13 @@ export const chargeSchema = z.object({
 });
 
 export const voidChargeSchema = z.object({
-  chargeId: z.uuid({ error: "Unknown charge." }),
+  chargeId: z.guid({ error: "Unknown charge." }),
   reason: reason("Say why the charge is voided."),
 });
 
 export const returnSchema = z.object({
-  returnId: z.uuid({ error: "Start the return again." }),
-  itemId: z.uuid({ error: "Unknown item." }),
+  returnId: z.guid({ error: "Start the return again." }),
+  itemId: z.guid({ error: "Unknown item." }),
   reason: reason("Say why it goes back to the consignor."),
   quantity: wholeNumber(1, 9_999, "Enter a whole number, like 1.", "Return between 1 and 9,999.")
     .nullish()
@@ -198,13 +198,13 @@ export const returnSchema = z.object({
 });
 
 export const settlementSchema = z.object({
-  settlementId: z.uuid({ error: "Start the payment again." }),
-  consignorId: z.uuid({ error: "Unknown consignor." }),
+  settlementId: z.guid({ error: "Start the payment again." }),
+  consignorId: z.guid({ error: "Unknown consignor." }),
   amount: positiveMoney("amount paid"),
   allocations: z
     .array(
       z.object({
-        itemId: z.uuid({ error: "Unknown item." }),
+        itemId: z.guid({ error: "Unknown item." }),
         amount: positiveMoney("amount"),
         overrideReason: z
           .string()
@@ -226,7 +226,7 @@ export const settlementSchema = z.object({
 });
 
 export const reverseSettlementSchema = z.object({
-  reversalId: z.uuid({ error: "Start the reversal again." }),
-  settlementId: z.uuid({ error: "Unknown payment." }),
+  reversalId: z.guid({ error: "Start the reversal again." }),
+  settlementId: z.guid({ error: "Unknown payment." }),
   reason: reason("Say why the payment is reversed."),
 });

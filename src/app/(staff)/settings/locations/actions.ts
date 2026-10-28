@@ -42,7 +42,7 @@ export const updateLocation = staffAction(
 
 /** Activate or deactivate a location (applied at once from its switch). */
 export const setLocationActive = staffAction(
-  z.object({ id: z.uuid({ error: "Unknown location." }), active: z.boolean() }),
+  z.object({ id: z.guid({ error: "Unknown location." }), active: z.boolean() }),
   { name: "locations.set_active", permission: "manage_inventory" },
   async ({ id, active }, { supabase }) => {
     await setActive(supabase, id, active);

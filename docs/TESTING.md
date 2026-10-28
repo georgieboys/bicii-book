@@ -729,7 +729,9 @@ review, on `feat/staff-roles` in the second worktree, database
   allocations and keep an override reason; Change owner (D162) parses the
   amounts as fixed point and a blank asking price as none, accepts an
   amount owed of 0, needs a consignor and a reason, and keeps the reason
-  within 460 characters. `change-owner.test.ts`: the stock Change owner
+  within 460 characters; an item id made in SQL with no RFC 4122 version
+  (R-095) passes Edit terms, a charge and a return, and "C-000002" does
+  not. `change-owner.test.ts`: the stock Change owner
   moves is every location whose count is not zero, a location below zero
   included. `attachments.test.ts`:
   `consignment_item` holds photos and offers Internal with Customer and

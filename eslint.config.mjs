@@ -25,6 +25,24 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Record ids are any UUID Postgres accepts (src/lib/uuid.ts UUID_RE).
+  // z.uuid() also demands an RFC 4122 version and variant, so it refuses
+  // ids made in SQL (D162's production run made 23 such consignment items,
+  // whose forms then failed with no field to fix).
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "z",
+          property: "uuid",
+          message:
+            "Use z.guid(): record ids are any UUID Postgres accepts; z.uuid() refuses ids made in SQL.",
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

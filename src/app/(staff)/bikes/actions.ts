@@ -30,13 +30,13 @@ const required = (max: number, what: string) =>
 
 /** A customer picker's hidden input: a customer id, or empty for none. */
 const optionalCustomer = z
-  .union([z.uuid({ error: "Choose a customer from the list." }), z.literal(""), z.null()])
+  .union([z.guid({ error: "Choose a customer from the list." }), z.literal(""), z.null()])
   .optional()
   .transform((v) => v || null);
 
 const bikeFields = {
   /** New bike: the form's idempotency key. Edit: the bike. */
-  id: z.uuid({ error: "Unknown bike." }),
+  id: z.guid({ error: "Unknown bike." }),
   brand: required(100, "brand"),
   model: required(100, "model"),
   variant: text(100, "variant"),
@@ -69,7 +69,7 @@ export const updateBike = staffAction(
 );
 
 export const setBikeArchived = staffAction(
-  z.object({ bikeId: z.uuid({ error: "Unknown bike." }), archived: z.boolean() }),
+  z.object({ bikeId: z.guid({ error: "Unknown bike." }), archived: z.boolean() }),
   { name: "bikes.set_archived" },
   async ({ bikeId, archived }, { supabase }) => {
     await setArchived(supabase, bikeId, archived);
@@ -81,8 +81,8 @@ export const setBikeArchived = staffAction(
 /** Hand a bike to another customer or to the shop, with the reason kept in its history. */
 export const transferBike = staffAction(
   z.object({
-    bikeId: z.uuid({ error: "Unknown bike." }),
-    toCustomerId: z.uuid({ error: "Choose the new owner from the list." }).nullable(),
+    bikeId: z.guid({ error: "Unknown bike." }),
+    toCustomerId: z.guid({ error: "Choose the new owner from the list." }).nullable(),
     reason: z
       .string()
       .trim()

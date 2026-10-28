@@ -16,7 +16,7 @@ import { REASON_MAX_LENGTH } from "@/lib/reasons";
 
 export type { InviteResult };
 
-const staffId = z.uuid({ error: "Unknown staff member." });
+const staffId = z.guid({ error: "Unknown staff member." });
 
 const inviteSchema = z.object({
   displayName: z

@@ -8,6 +8,7 @@ import {
   chargeSchema,
   consignorSchema,
   intakeSchema,
+  reclassifySchema,
   returnSchema,
   reverseSettlementSchema,
   settlementSchema,
@@ -20,6 +21,7 @@ import {
   customerContact,
   getConsignorPayoutDetails,
   receiveConsignmentItem,
+  reclassifyAsConsignment,
   recordSettlement,
   returnConsignmentItem,
   reverseSettlement,
@@ -85,6 +87,21 @@ export const receiveConsignmentItemAction = staffAction(
       ...input,
       consignorId: consignorId ?? input.newConsignor?.id ?? "",
     });
+    refresh();
+    return result;
+  },
+);
+
+/**
+ * Change owner (D162): a shop product's stock becomes a consignor's on the
+ * same product. Admins only, the highest role (the owner's rule); the RPC
+ * checks again (private.require_admin).
+ */
+export const reclassifyAsConsignmentAction = staffAction(
+  reclassifySchema,
+  { name: "consignment.reclassify", admin: true },
+  async (input, { supabase }) => {
+    const result = await reclassifyAsConsignment(supabase, input);
     refresh();
     return result;
   },

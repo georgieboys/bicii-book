@@ -163,8 +163,9 @@ Rationale stated in the rows:
   `product_ownership_immutable`, except shop-owned to consignment inside
   `reclassify_as_consignment` once its stock is counted out. The product's
   `default_direct_cost` stays as entered, but a consigned line's cost is
-  the agreed amount (D44). There is no screen: an admin runs it as the
-  RUNBOOK describes.
+  the agreed amount (D44). The product page's **Change owner** (admin
+  only, the owner's rule of 2026-10-28: the highest role only) calls it;
+  the RUNBOOK keeps the SQL route as a fallback.
 
 ## Open question for the owner
 

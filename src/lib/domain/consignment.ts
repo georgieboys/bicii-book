@@ -1178,6 +1178,54 @@ export async function updateConsignmentTerms(
   }
 }
 
+/**
+ * Change owner (D162, reclassify_as_consignment; admins only): a shop
+ * product whose stock was only ever counted becomes consigned stock on the
+ * same product. Its stock is counted out of the shop's and taken in as one
+ * item of the consignor's; with no stock only the owner changes (no item).
+ * The item id is the idempotency key.
+ */
+export async function reclassifyAsConsignment(
+  supabase: ServerSupabase,
+  input: {
+    itemId: string;
+    productId: string;
+    consignorId: string;
+    agreedAmountOwed: Money;
+    askingPrice: Money | null;
+    receivedAt: string | null;
+    reason: string;
+  },
+): Promise<{ itemId: string | null; itemShortId: string | null; quantity: number }> {
+  try {
+    const result = unwrap(
+      await supabase.rpc("reclassify_as_consignment", {
+        item_id: input.itemId,
+        product_id: input.productId,
+        consignor_id: input.consignorId,
+        agreed_amount_owed: input.agreedAmountOwed,
+        reason: input.reason,
+        asking_price: input.askingPrice ?? undefined,
+        received_at: input.receivedAt ?? undefined,
+      }),
+    );
+    return {
+      itemId: result?.consignment_item_id ?? null,
+      itemShortId: result?.consignment_item_short_id ?? null,
+      quantity: result?.quantity ?? 0,
+    };
+  } catch (err) {
+    rethrowFields(err, {
+      reason_required: "reason",
+      reason_too_long: "reason",
+      consignor_archived: "consignorId",
+      consignment_items_agreed_amount_owed_check: "agreedAmountOwed",
+      consignment_items_asking_price_check: "askingPrice",
+      consignment_received_in_future: "receivedAt",
+    });
+  }
+}
+
 /** A charge with its explicit bearer (D4); the charge id is the idempotency key. */
 export async function addConsignmentCharge(
   supabase: ServerSupabase,

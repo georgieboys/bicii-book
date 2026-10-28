@@ -706,10 +706,36 @@ while an approved or ordered item is neither fitted nor cancelled:
 - Consigned items (owned by someone else) are not added here: use
   [Receive a consigned item](#receive-a-consigned-item). If they were
   added here by mistake, do not archive the product or count its stock
-  out: an admin can make it the consignor's stock on the same product,
-  keeping its P- number and labels, as long as it has not been sold, used
-  on a job or ordered (D162; for now through the
-  [RUNBOOK](RUNBOOK.md#reclassifying-shop-stock-as-consigned)).
+  out: an admin can
+  [change its owner](#change-who-owns-a-product-admins), keeping its P-
+  number and labels.
+
+### Change who owns a product (admins)
+
+- Before you start: you are an admin (the highest role; no other role or
+  extra access offers this, D162). The product is the shop's, counted by
+  quantity, active, and has never been sold, used on a job, ordered from a
+  supplier or listed on Shopify. Its stock is at one location (move it with
+  **Transfer** first if not). The consignor exists (Consignment → **New
+  consignor**).
+- Steps: open the product → **Change owner**. Choose the **Consignor**,
+  check the **Amount owed to the consignor when it sells** (per item; the
+  product's cost to start with, 0 allowed) and the **Asking price** (its
+  sale price to start with), the **Received** date, and give a
+  **Reason** ("Entered as shop stock by mistake"). Press **Make it
+  consigned stock**.
+- Success looks like: toast "C-000123 received from …" and the new
+  consignment item's page. The product keeps its P- number, labels,
+  photos and count; its page says "Consigned stock" and its stock now
+  moves only the consignment way (sell, use on a job, return to the
+  consignor, transfer). With no stock, only the owner changes ("Now
+  consigned stock").
+- If it fails: "This product has been sold, used on a job, ordered or
+  linked, so it can't change owner." (count its stock out, archive it and
+  [receive the items](#receive-a-consigned-item) as a consignment
+  instead); "This stock is at more than one location." (transfer it to
+  one first). It cannot be changed back: a wrong amount owed is fixed with
+  **Edit terms** on the item before it sells.
 - If it fails: the sheet names the field to fix beside it. If the unit is
   refused, the product still exists and its page offers **Add unit**.
 
@@ -1506,7 +1532,8 @@ each one **Extra access**. Extra access never includes **Record refund**,
 ordering an indent part before its deposit is paid (D152) or cancelling
 an indent item on a collected or cancelled job (D149), which are for
 admins and managers only, or recording and voiding counter payments
-(D161), which are for admins only. Anyone signed in can send a payment
+(D161) and changing a product's owner (D162), which are for admins
+only. Anyone signed in can send a payment
 link (D156). Each permission, whether it comes
 from your role or as extra access:
 

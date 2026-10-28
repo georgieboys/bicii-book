@@ -142,6 +142,33 @@ export const termsSchema = z.object({
     .transform((v) => v || null),
 });
 
+/**
+ * Change owner (D162, admins only): a shop product's stock becomes one
+ * consignor's, on the same product. The ledger reason is "Reclassified as
+ * consigned stock: " plus this, within its 500 characters
+ * (reclassify_as_consignment allows 460).
+ */
+export const RECLASSIFY_REASON_MAX = 460;
+
+export const reclassifySchema = z.object({
+  itemId: z.uuid({ error: "Open Change owner again." }),
+  productId: z.uuid({ error: "Unknown product." }),
+  consignorId: z.uuid({ error: "Choose the consignor." }),
+  agreedAmountOwed: money("amount owed to the consignor"),
+  askingPrice: optionalMoney("asking price"),
+  receivedAt: z.iso
+    .datetime({ offset: true, error: "Choose the date it came in." })
+    .nullish()
+    .transform((v) => v ?? null),
+  reason: z
+    .string({ error: "Say why the owner is changing." })
+    .trim()
+    .min(1, { error: "Say why the owner is changing." })
+    .max(RECLASSIFY_REASON_MAX, {
+      error: `Keep the reason under ${RECLASSIFY_REASON_MAX} characters.`,
+    }),
+});
+
 export const chargeSchema = z.object({
   chargeId: z.uuid({ error: "Start the charge again." }),
   itemId: z.uuid({ error: "Unknown item." }),

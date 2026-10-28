@@ -1362,7 +1362,9 @@ project. Before the shop orders through the Admin:
 
 For a product entered as shop stock that is really a consignor's (D162,
 [R-095](RISKS.md#r-095--consigned-stock-entered-as-shop-stock-needs-an-admins-correction)).
-Until the product page offers it, an admin runs
+An admin does this with **Change owner** on the product page
+([USER-GUIDE](USER-GUIDE.md#change-who-owns-a-product-admins)). For many
+products at once, or if the page is unavailable, an admin runs
 `reclassify_as_consignment` from the Supabase SQL editor as themselves:
 the function checks the caller's staff role, so it must run as the
 admin's login, not as `postgres`. Find the consignor's id first
@@ -1392,6 +1394,16 @@ C- number when the product had no stock). An error names what stops it
 stock is unchanged and a **Consignments** card lists the new item. A
 wrong agreed amount is fixed on the item with **Edit terms** before it
 sells.
+
+Production, 2026-10-28 SGT (after `migrate.yml` run 21 applied
+`20261028000100`): the owner's 25 products entered that day were
+reclassified in one transaction this way, as the owner's admin login, at
+the owner's request. 24 items were received (one product had no stock, so
+only its owner changed), each dated when its product was entered, with
+the amount owed = the cost entered (0.00 where none was entered) and the
+asking price = the product's price. Checked read-only afterwards: every
+product's on-hand unchanged, consignment-owned, its item active with
+those amounts, and no stock reconciliation issue.
 
 ## When reconciliation or exceptions show a problem
 

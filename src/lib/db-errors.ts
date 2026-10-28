@@ -171,12 +171,13 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   consignment_product_required: "Choose a consignment product or name a new one.",
   product_not_consignment: "Consigned stock goes on a consignment product, never on shop stock.",
   // D162: reclassify_as_consignment.
-  product_not_shop_owned: "Only shop stock can be reclassified as consigned stock.",
+  product_not_shop_owned: "Only the shop's own stock can change owner.",
   product_has_trading_history:
-    "This product has been sold, used, bought or linked; only stock that was only ever counted can be reclassified.",
+    "This product has been sold, used on a job, ordered or linked, so it can't change owner. Count its stock out and receive the items as a consignment instead.",
   reclassify_not_quantity:
-    "Only stock counted by quantity can be reclassified; a unique item is taken in again.",
-  reclassify_several_locations: "Move this stock to one location first.",
+    "Only stock counted by quantity can change owner. Receive a unique item as a consignment instead.",
+  reclassify_several_locations:
+    "This stock is at more than one location. Move it to one location first.",
   consignment_tracking_mismatch: "That product is tracked differently (unique or by quantity).",
   consignment_unique_quantity_one: "A unique item is taken in one at a time.",
   consignment_quantity_invalid: "Take in between 1 and 9,999.",

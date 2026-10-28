@@ -394,3 +394,15 @@ export function paidAtFromDate(date: string, today: string): string | null {
   if (Number.isNaN(at.getTime())) throw new RangeError(`Invalid date: ${date}`);
   return at.toISOString();
 }
+
+/** A location's count as Change owner sees it (D162). */
+export type ChangeOwnerStock = { locationId: string; name: string; onHand: number };
+
+/**
+ * The stock Change owner moves (D162): every location whose count is not
+ * zero. reclassify_as_consignment takes it from one location only, so the
+ * sheet asks for a transfer first when this is more than one.
+ */
+export function stockToMove(stock: ChangeOwnerStock[]): ChangeOwnerStock[] {
+  return stock.filter((s) => s.onHand !== 0);
+}

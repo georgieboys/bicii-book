@@ -2357,7 +2357,8 @@ the item is settled, restocked or returned.
 
 Stock that is really a consignor's but was entered as an ordinary product
 (Inventory → New product, then stock counts) is corrected by
-`reclassify_as_consignment` (admin only; §16;
+`reclassify_as_consignment` (admin only, from the product page's **Change
+owner** or SQL; §16;
 [R-095](RISKS.md#r-095--consigned-stock-entered-as-shop-stock-needs-an-admins-correction)).
 It applies only to a shop-owned, quantity-tracked, active, unarchived
 product whose movements are all `stock_adjustment`, `damaged` or

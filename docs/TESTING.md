@@ -726,7 +726,12 @@ review, on `feat/staff-roles` in the second worktree, database
   consignor or a new one is required; a single item is one at a time and
   only it may link a bike (D51); a charge needs an explicit bearer and an
   amount above 0 (D4); returns need a reason; settlements need positive
-  allocations and keep an override reason. `attachments.test.ts`:
+  allocations and keep an override reason; Change owner (D162) parses the
+  amounts as fixed point and a blank asking price as none, accepts an
+  amount owed of 0, needs a consignor and a reason, and keeps the reason
+  within 460 characters. `change-owner.test.ts`: the stock Change owner
+  moves is every location whose count is not zero, a location below zero
+  included. `attachments.test.ts`:
   `consignment_item` holds photos and offers Internal with Customer and
   Public blocked by D52's sentence. `ids.test.ts` / `search.test.ts`: `C-`
   opens `/consignment/items/{id}`; the `consignor` and `consignment_item`
@@ -2040,6 +2045,17 @@ identical" (phone and iPad); before anything sells the consignor's Balance
 reads "Nothing owed yet", not "Settled"; mechanic2's consignor list row
 reads "1 sold" and never "awaiting payment", the admin's "1 awaiting
 payment".
+
+D162 (`change-owner.spec.ts`, phone and tablet, every record tagged): an
+admin creates "Consignor <tag>" and a product "Bar tape <tag>" (price
+20.00, cost 8.00) with an opening count of 5; the manager, in a second
+context, sees Adjust stock on it but no Change owner; the admin's Change
+owner sheet says "Its 5 at Shop floor leave the shop's stock", starts at
+8.00 owed and 20.00 asking, refuses a submit with no consignor ("Choose
+the consignor."), then with the consignor and a reason toasts "C-…
+received from …" and opens the item; the product keeps its P- number,
+reads "Counted by quantity · Consigned stock" and "5 in stock", and
+offers neither Change owner nor Adjust stock.
 
 Phase 6 step 4 (phone and tablet, every created record tagged, stock
 asserted relative to a reading taken first):

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   chargeSchema,
   intakeSchema,
+  RECLASSIFY_REASON_MAX,
+  reclassifySchema,
   returnSchema,
   settlementSchema,
   termsSchema,
@@ -104,5 +106,45 @@ describe("terms, charges, returns and settlements", () => {
       overrideReason: "Agreed bonus",
     });
     expect(parsed.paidAt).toBe("2026-10-04T04:00:00.000Z");
+  });
+});
+
+describe("change owner input (D162)", () => {
+  const reclassify = {
+    itemId: ID(1),
+    productId: ID(2),
+    consignorId: ID(3),
+    agreedAmountOwed: "8",
+    askingPrice: "",
+    receivedAt: null,
+    reason: "  Entered as shop stock; the consignor's items  ",
+  };
+
+  it("parses money as fixed point, a blank asking price as none, and trims the reason", () => {
+    const parsed = reclassifySchema.parse(reclassify);
+    expect(parsed.agreedAmountOwed).toBe("8.00");
+    expect(parsed.askingPrice).toBeNull();
+    expect(parsed.receivedAt).toBeNull();
+    expect(parsed.reason).toBe("Entered as shop stock; the consignor's items");
+  });
+
+  it("accepts an agreed amount of 0 as a known amount (D24)", () => {
+    expect(reclassifySchema.parse({ ...reclassify, agreedAmountOwed: "0" }).agreedAmountOwed).toBe(
+      "0.00",
+    );
+  });
+
+  it("needs a consignor, an agreed amount and a reason", () => {
+    const fails = (patch: Record<string, unknown>) =>
+      reclassifySchema.safeParse({ ...reclassify, ...patch }).error?.issues[0]?.message;
+    expect(fails({ consignorId: "" })).toBe("Choose the consignor.");
+    expect(reclassifySchema.safeParse({ ...reclassify, agreedAmountOwed: "" }).success).toBe(false);
+    expect(fails({ reason: "   " })).toBe("Say why the owner is changing.");
+  });
+
+  it("keeps the reason within what the ledger's reason holds", () => {
+    const at = "x".repeat(RECLASSIFY_REASON_MAX);
+    expect(reclassifySchema.safeParse({ ...reclassify, reason: at }).success).toBe(true);
+    expect(reclassifySchema.safeParse({ ...reclassify, reason: `${at}x` }).success).toBe(false);
   });
 });

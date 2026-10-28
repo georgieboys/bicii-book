@@ -7,6 +7,7 @@ import { ArchiveControl } from "@/components/domain/archive-control";
 import { HistoryList, MovementList } from "@/components/domain/movement-list";
 import { NoActiveLocation } from "@/components/domain/no-active-location";
 import { PhotoGrid } from "@/components/domain/photo-grid";
+import { ChangeOwnerButton } from "@/components/domain/change-owner-sheet";
 import { ConsignmentItemRow } from "@/components/domain/consignment-item-row";
 import { HeaderPrintLabel, LabelsCard } from "@/components/domain/labels-card";
 import { EditProductButton } from "@/components/domain/product-sheet";
@@ -76,6 +77,8 @@ const plain = (n: number) => signedQuantity(n).replace(/^\+/, "");
  * Phase 10: the "Online (Shopify)" card (every staff member sees the sync
  * status; manage_inventory switches Publish online and runs Sync now;
  * D84, D86).
+ * D162: Change owner (admins only, the highest role) on an active shop
+ * product counted by quantity makes its stock a consignor's.
  */
 export default async function ProductPage({ params, searchParams }: PageProps<"/products/[id]">) {
   const staff = await requireStaff();
@@ -130,6 +133,13 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
     onHand: s.onHand,
   }));
   const negative = product.stock.filter((s) => s.onHand < 0);
+  // D162: only the highest role changes whose stock it is.
+  const changeOwner =
+    staff.role === "admin" &&
+    counted &&
+    !archived &&
+    product.active &&
+    product.ownershipType === "shop_owned";
   const others = [product.brand, product.category?.name].filter((v): v is string => !!v);
   const meta = product.sku ? [product.sku, ...others] : others;
   const money = (v: string | null | undefined) =>
@@ -157,9 +167,10 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
           ) : null}
           <p className="text-sm text-dust-500">
             {counted ? "Counted by quantity" : "Unique: each item has its own U- number"}
+            {consigned ? " · Consigned stock" : ""}
           </p>
         </div>
-        {manage || sellable || counted ? (
+        {manage || sellable || counted || changeOwner ? (
           <div className="flex flex-wrap items-center gap-2">
             {counted ? (
               <HeaderPrintLabel
@@ -203,6 +214,15 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                     : categories
                 }
                 viewCosts={viewCosts}
+              />
+            ) : null}
+            {changeOwner ? (
+              <ChangeOwnerButton
+                productId={product.id}
+                productName={product.name}
+                stock={product.stock}
+                cost={viewCosts ? (product.cost ?? null) : null}
+                salePrice={product.defaultSalePrice}
               />
             ) : null}
           </div>

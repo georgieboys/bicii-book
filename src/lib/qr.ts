@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { getPublicEnv } from "@/lib/env";
 import { isValidQrBase, qrPayload } from "@/lib/ids";
-import { mergeScanBases } from "@/lib/scan";
+import { mergeScanBases, RETIRED_QR_BASES } from "@/lib/scan";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -45,12 +45,12 @@ export async function qrUrl(shortId: string): Promise<string | null> {
 
 /**
  * The public bases the scanner accepts as BICII labels (interpretScan,
- * src/lib/scan.ts): the database QR base and the environment's
- * NEXT_PUBLIC_PUBLIC_SITE_URL, so labels printed before a change of address
- * still scan.
+ * src/lib/scan.ts): the database QR base, the environment's
+ * NEXT_PUBLIC_PUBLIC_SITE_URL and RETIRED_QR_BASES, so labels printed
+ * before a change of address still scan.
  */
 export async function scanBases(): Promise<string[]> {
-  return mergeScanBases(await getQrBase(), environmentScanBase());
+  return mergeScanBases(await getQrBase(), environmentScanBase(), RETIRED_QR_BASES);
 }
 
 /**

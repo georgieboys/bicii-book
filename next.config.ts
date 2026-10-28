@@ -31,6 +31,21 @@ const nextConfig: NextConfig = {
   // `next dev` blocks dev resources for origins other than localhost; the
   // devstack and Playwright sometimes use 127.0.0.1.
   allowedDevOrigins: ["127.0.0.1"],
+  async redirects() {
+    return [
+      {
+        // Labels printed on 2026-10-28 before the QR address was set to the
+        // public site encode the Admin's old alias, whose /q route is
+        // staff-only (R-013). Scanned there, they go to the public site's
+        // item page instead of the staff sign-in; the Admin's own address
+        // keeps answering /q for staff (D9).
+        source: "/q/:shortId",
+        has: [{ type: "host", value: "bicii-book.vercel.app" }],
+        destination: "https://bicii.sg/q/:shortId",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },

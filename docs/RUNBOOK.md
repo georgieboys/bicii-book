@@ -626,7 +626,13 @@ settings."). The QR address is that setting only: the environment's
 `NEXT_PUBLIC_PUBLIC_SITE_URL` never changes what is printed or shown; it
 only adds an address the Admin scanner accepts. After a move, put the OLD
 address there so its labels still open in the Admin, and keep the old
-public site redirecting `/q/*`.
+public site redirecting `/q/*`; for more than one earlier address, add it
+to `RETIRED_QR_BASES` in `src/lib/scan.ts`. One such address exists: the
+Admin's old alias `bicii-book.vercel.app`, the QR base of the labels
+printed on 2026-10-28 before the address was set (R-013). It is in
+`RETIRED_QR_BASES`, and it answers `/q/{short_id}` with a permanent
+redirect to the public site (`next.config.ts`); the Admin's own address
+keeps its staff-only `/q`.
 
 Hosted projects: the public side of a label (an anonymous scan) reads
 `reporting.public_items`, so `reporting` stays in the Data API's exposed

@@ -139,6 +139,9 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.return_consignment_item(uuid, uuid, text, integer, uuid)",
   "public.update_consignment_terms(uuid, money_amount, money_amount, text)",
   "public.void_consignment_charge(uuid, text)",
+  // D162: an admin reclassifies shop stock entered by mistake as consigned
+  // stock on the same product (admin only, checked inside)
+  "public.reclassify_as_consignment(uuid, uuid, uuid, money_amount, text, money_amount, timestamp with time zone)",
   // Sales and settlements (Phase 6): any active staff member records an
   // in-store sale (D48); restocks need adjust_stock (a consigned unit also
   // manage_consignments, D46); refunds are admin only (D49); settlements

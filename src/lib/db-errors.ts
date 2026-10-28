@@ -170,6 +170,13 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "This consignor still has items with the shop. Sell or return them before archiving.",
   consignment_product_required: "Choose a consignment product or name a new one.",
   product_not_consignment: "Consigned stock goes on a consignment product, never on shop stock.",
+  // D162: reclassify_as_consignment.
+  product_not_shop_owned: "Only shop stock can be reclassified as consigned stock.",
+  product_has_trading_history:
+    "This product has been sold, used, bought or linked; only stock that was only ever counted can be reclassified.",
+  reclassify_not_quantity:
+    "Only stock counted by quantity can be reclassified; a unique item is taken in again.",
+  reclassify_several_locations: "Move this stock to one location first.",
   consignment_tracking_mismatch: "That product is tracked differently (unique or by quantity).",
   consignment_unique_quantity_one: "A unique item is taken in one at a time.",
   consignment_quantity_invalid: "Take in between 1 and 9,999.",

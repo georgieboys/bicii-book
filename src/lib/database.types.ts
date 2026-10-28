@@ -6700,6 +6700,24 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      reclassify_as_consignment: {
+        Args: {
+          agreed_amount_owed: unknown;
+          asking_price?: unknown;
+          consignor_id: string;
+          item_id: string;
+          product_id: string;
+          reason: string;
+          received_at?: string;
+        };
+        Returns: Database["public"]["CompositeTypes"]["reclassify_result"];
+        SetofOptions: {
+          from: "*";
+          to: "reclassify_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       record_attachment: {
         Args: {
           attachment_id: string;
@@ -8640,6 +8658,13 @@ export type Database = {
         product_id: string | null;
         publication_status: Database["public"]["Enums"]["publication_status"] | null;
         public_slug: string | null;
+      };
+      reclassify_result: {
+        product_id: string | null;
+        consignment_item_id: string | null;
+        consignment_item_short_id: string | null;
+        quantity: number | null;
+        location_id: string | null;
       };
       sale_result: {
         sale_id: string | null;

@@ -3066,3 +3066,46 @@ URLs, or customer data in this file.
 - Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the Collected
   wording from its review, merged in PR #36 and in production since
   2026-10-18 SGT; no database guard; the owner's decision still open).
+
+## R-095 — Consigned stock entered as shop stock needs an admin's correction
+
+- Category: data-entry error and its correction (D162). The first of the
+  later entries, R-095 onward.
+- Status and owner: contained by D162 (built in
+  `20261028000100_reclassify_as_consignment`); the owner's products
+  reclassified in production once it is applied (below); owner (confirm
+  D162), build agent (the admin-only screen that follows).
+- Trigger: stock the shop holds for someone else is entered through
+  Inventory → New product and counted in with stock adjustments, instead
+  of through Consignment → Receive item.
+- Impact: until it is corrected the stock counts as the shop's: a sale
+  owes the consignor nothing, its yield and Cult Commons count the whole
+  price less the entered cost as the shop's, and the consignor ledger and
+  statements leave it out. D45 keeps a product's owner fixed once it has
+  stock history, so before D162 the only correction was to count the stock
+  out, archive the product and take it in again on a new product, with a
+  new P- number and new labels.
+- Evidence and confidence: high. On 2026-10-28 SGT the owner reported that
+  25 products entered that day as shop stock were the owner's own items
+  consigned to the shop. A read-only check of the hosted project the same
+  day found all 25 shop-owned, quantity-tracked and active, with stock
+  adjustments as their only movements, stock at one location each (one
+  had none), and no sale, job line, purchase, supplier link, indent
+  request or Shopify link; labels had been printed for some. Eleven had a
+  cost of 0.00 or none, so their agreed amount owed starts at 0.00.
+- Workaround or containment: `reclassify_as_consignment` (admin only; no
+  screen yet: [RUNBOOK](RUNBOOK.md#reclassifying-shop-stock-as-consigned)).
+  It keeps the product, its P- number and its labels. A product with any
+  trading history is corrected the D45 way. An agreed amount entered
+  wrongly is changed with **Edit terms** on the item, with a reason,
+  before the stock sells: a line already sold or on a job keeps its
+  snapshot.
+- Next action: an admin-only action on the product page to change the
+  owner (the owner's request of 2026-10-28: only the highest role may);
+  the owner to confirm D162 and set the agreed amounts still at 0.00
+  ([PRODUCT question 37](PRODUCT.md#open-assumptions-and-owner-questions)).
+- Revisit trigger: a product entered this way that sells or goes on a job
+  before it is noticed; a request to move consigned stock back to the
+  shop (the shop buying it), which D162 does not cover.
+- Last checked: 2026-10-28 SGT (the read-only check above; built and
+  tested locally, `tests/db/reclassify-consignment.test.ts`).

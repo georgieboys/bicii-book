@@ -35,8 +35,8 @@ type VideoWithFrames = HTMLVideoElement & {
  * ZXing, imported only then so it never weighs on the first load.
  *
  * A code is read with interpretScan against the accepted public QR bases
- * (src/lib/qr.ts scanBases: the database QR base and the environment's
- * public site URL) and the Admin's own origin. A BICII label vibrates, stops the camera and opens
+ * (src/lib/qr.ts scanBases: the database QR base, the environment's
+ * public site URL and the retired bases) and the Admin's own origin. A BICII label vibrates, stops the camera and opens
  * /q/{shortId}, which redirects to the record. Anything else shows "Not a
  * BICII label" with the text cut short; it is never opened, followed or
  * linked, and the same text is ignored for 2 s while scanning continues.

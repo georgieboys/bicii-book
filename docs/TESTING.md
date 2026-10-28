@@ -813,7 +813,9 @@ labels and tones, D56's caps, `labelUnavailable`'s four codes, the links.
 ellipsis and cutting an over-long word. `qr-base.test.ts`: `isValidQrBase`
 agrees with every case of `tests/fixtures/qr-bases.ts` (and the payload
 base), counts characters like Postgres; `mergeScanBases` order and
-de-duplication. `qr-base-sources.test.ts`: `NEXT_PUBLIC_PUBLIC_SITE_URL`
+de-duplication, and the retired bases (R-013) scan.
+`old-alias-redirect.test.ts`: the Admin's old alias redirects `/q/*` to
+the public site and nothing else. `qr-base-sources.test.ts`: `NEXT_PUBLIC_PUBLIC_SITE_URL`
 appears in code (comments stripped) only in `src/lib/env.ts` and
 `src/lib/qr.ts`. `print-job-controls.test.tsx` (jsdom): Print calls
 `window.print` before the "rendered" action resolves, a rendered job is not

@@ -2596,8 +2596,9 @@ jerseys.
     the product and unit pages. `NEXT_PUBLIC_PUBLIC_SITE_URL` is read only
     in `src/lib/env.ts` and `src/lib/qr.ts` (`tests/unit/qr-base-sources.test.ts`)
     and is only an extra accepted scan base: `scanBases()` =
-    `mergeScanBases(database base, environment base)` (`src/lib/scan.ts`),
-    so labels printed against it keep scanning.
+    `mergeScanBases(database base, environment base, RETIRED_QR_BASES)`
+    (`src/lib/scan.ts`), so labels printed against it, or against a retired
+    base (R-013), keep scanning.
   - Labels of published products and units resolve publicly: a unit's
     label is its U- ID, and `reporting.public_items` has a row per
     published unit (D57). A bike tag (B-) resolves to "not found"
@@ -2663,7 +2664,7 @@ jerseys.
 - The Admin scanner (`interpretScan`, `src/lib/scan.ts`) recognises the QR
   URL on every accepted public base (`scanBases()` in `src/lib/qr.ts`:
   the database QR base when usable, then the environment's
-  `NEXT_PUBLIC_PUBLIC_SITE_URL`), a `/q/{shortId}` URL on the Admin's own origin,
+  `NEXT_PUBLIC_PUBLIC_SITE_URL`, then `RETIRED_QR_BASES`), a `/q/{shortId}` URL on the Admin's own origin,
   or a bare short ID in any case, and opens `/q/{shortId}`. Anything else
   is shown as "Not a BICII label" and never followed.
 - Publication state machine on `products.publication_status` (D26,

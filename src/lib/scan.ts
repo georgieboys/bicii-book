@@ -49,13 +49,27 @@ export function truncateScan(text: string, max = 60): string {
 }
 
 /**
- * The accepted public scan bases (scanBases, src/lib/qr.ts): the database
- * QR base when usable, then the environment's public site URL, trailing
- * slashes dropped, without duplicates.
+ * QR bases that labels were printed with before the address changed
+ * (R-013). Only ever scanned, never printed or displayed: the scanner keeps
+ * accepting labels that are still on shelves. The Admin's old alias carried
+ * the 29 product labels printed on 2026-10-28 before the address became the
+ * public site's; that alias also redirects /q to the public site
+ * (next.config.ts), for customers.
  */
-export function mergeScanBases(dbBase: string | null, envBase: string | null): string[] {
+export const RETIRED_QR_BASES: readonly string[] = ["https://bicii-book.vercel.app"];
+
+/**
+ * The accepted public scan bases (scanBases, src/lib/qr.ts): the database
+ * QR base when usable, then the environment's public site URL, then any
+ * retired bases, trailing slashes dropped, without duplicates.
+ */
+export function mergeScanBases(
+  dbBase: string | null,
+  envBase: string | null,
+  retired: readonly string[] = [],
+): string[] {
   const bases: string[] = [];
-  for (const b of [dbBase, envBase]) {
+  for (const b of [dbBase, envBase, ...retired]) {
     const clean = b?.trim().replace(/\/+$/, "") ?? "";
     if (clean && !bases.includes(clean)) bases.push(clean);
   }

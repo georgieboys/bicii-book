@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { isValidQrBase, qrPayload } from "@/lib/ids";
-import { mergeScanBases } from "@/lib/scan";
+import { interpretScan, mergeScanBases, RETIRED_QR_BASES } from "@/lib/scan";
 
 import { QR_BASE_CASES } from "../fixtures/qr-bases";
 
@@ -48,5 +48,27 @@ describe("mergeScanBases", () => {
   it("keeps the environment's base alone when the database base is unusable", () => {
     expect(mergeScanBases(null, "https://bicii.sg")).toEqual(["https://bicii.sg"]);
     expect(mergeScanBases(null, null)).toEqual([]);
+  });
+
+  it("adds the retired bases last, without duplicates", () => {
+    expect(
+      mergeScanBases("https://bicii.sg", null, ["https://old.example/", "https://bicii.sg"]),
+    ).toEqual(["https://bicii.sg", "https://old.example"]);
+  });
+});
+
+describe("RETIRED_QR_BASES (R-013)", () => {
+  it("lets the scanner read a label printed with the Admin's old alias", () => {
+    const publicBases = mergeScanBases("https://bicii.sg", null, RETIRED_QR_BASES);
+    expect(
+      interpretScan("https://bicii-book.vercel.app/q/P-000123", {
+        publicBases,
+        adminOrigin: "https://admin.example.com",
+      }),
+    ).toEqual({ kind: "record", shortId: "P-000123" });
+  });
+
+  it("are valid QR bases, so they parse like the current one", () => {
+    for (const base of RETIRED_QR_BASES) expect(isValidQrBase(base), base).toBe(true);
   });
 });

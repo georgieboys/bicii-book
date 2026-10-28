@@ -443,9 +443,10 @@ URLs, or customer data in this file.
   `NEXT_PUBLIC_PUBLIC_SITE_URL` so the Admin scanner still accepts its
   labels; reprint labels after a move (Print again keeps the history).
 - Next action: none in the app for the residual; the RUNBOOK says to set
-  the address before the first print and not to change it casually. Only
-  one earlier address can be accepted through the environment; more would
-  need a list of retired bases (not planned).
+  the address before the first print and not to change it casually. Earlier
+  addresses are accepted by the scanner through the environment (one) and
+  `RETIRED_QR_BASES` (a list in code, since 2026-10-28); a retired address
+  also needs its host to redirect `/q/*` for customers.
 - Revisit trigger: the public site's address changes; Phase 11 builds the
   public `/q` route.
 - Status 2026-10-24 (read-only on the hosted project): the QR address is set,
@@ -471,14 +472,14 @@ URLs, or customer data in this file.
   the same day, all encoding the Admin's old alias as their base (the read
   that reported no print jobs returned no rows; a later read returned 29).
   What the risk describes therefore happened on the first day of printing.
-  Containment built (this change): the old alias answers `/q/{short_id}`
-  with a permanent redirect to the public site's item page
-  (`next.config.ts`, host-conditioned; the Admin's own address keeps its
-  staff-only `/q`), so those labels open the item page when scanned. The
-  Admin's scanner accepts them only through `NEXT_PUBLIC_PUBLIC_SITE_URL`
-  set to the old alias (not verifiable from here) or after a reprint (Print
-  again on each product, which keeps the history). Owner: reprint the 21
-  printed labels, or set that variable.
+  Containment built (this change), so the labels work as printed: the old
+  alias answers `/q/{short_id}` with a permanent redirect to the public
+  site's item page (`next.config.ts`, host-conditioned; the Admin's own
+  address keeps its staff-only `/q`), for any phone camera; and the Admin
+  scanner accepts the old alias as a retired base (`RETIRED_QR_BASES` in
+  `src/lib/scan.ts`, merged into `scanBases()`), because the scanner reads
+  the QR text in the browser and never follows a redirect. Nothing is left
+  to the owner; reprinting is optional (Print again keeps the history).
 - Last checked: 2026-10-28, evening.
 
 ## R-014 — Camera scanning needs HTTPS or localhost

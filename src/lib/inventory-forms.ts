@@ -97,7 +97,7 @@ export const optionalReason = z
 /** A picker's hidden input: an id, or empty for none. */
 const optionalId = (error: string) =>
   z
-    .union([z.uuid({ error }), z.literal(""), z.null()])
+    .union([z.guid({ error }), z.literal(""), z.null()])
     .optional()
     .transform((v) => v || null);
 
@@ -137,7 +137,7 @@ export const productFields = {
 
 /** The first unit's (or Add unit's) fields. */
 export const unitFields = {
-  locationId: z.uuid({ error: "Choose where the item is." }),
+  locationId: z.guid({ error: "Choose where the item is." }),
   serialNumber: text(100, "serial number"),
   condition: text(500, "condition"),
   unitSalePrice: optionalMoney("unit sale price"),
@@ -148,31 +148,31 @@ export const unitFields = {
 
 export const createProductSchema = z.object({
   /** The form's idempotency key. */
-  id: z.uuid({ error: "Open New product again." }),
+  id: z.guid({ error: "Open New product again." }),
   trackingType: z.enum(["quantity", "unique"], { error: "Choose Quantity or Unique." }),
   ...productFields,
 });
 
 export const createUniqueItemSchema = z.object({
-  id: z.uuid({ error: "Open New product again." }),
-  unitId: z.uuid({ error: "Open New product again." }),
+  id: z.guid({ error: "Open New product again." }),
+  unitId: z.guid({ error: "Open New product again." }),
   ...productFields,
   ...unitFields,
 });
 
 export const updateProductSchema = z.object({
-  id: z.uuid({ error: "Unknown product." }),
+  id: z.guid({ error: "Unknown product." }),
   ...productFields,
 });
 
 export const addUnitSchema = z.object({
-  unitId: z.uuid({ error: "Open Add unit again." }),
-  productId: z.uuid({ error: "Unknown product." }),
+  unitId: z.guid({ error: "Open Add unit again." }),
+  productId: z.guid({ error: "Unknown product." }),
   ...unitFields,
 });
 
 export const updateUnitSchema = z.object({
-  id: z.uuid({ error: "Unknown unit." }),
+  id: z.guid({ error: "Unknown unit." }),
   serialNumber: text(100, "serial number"),
   condition: text(500, "condition"),
   unitSalePrice: optionalMoney("sale price"),
@@ -182,9 +182,9 @@ export const updateUnitSchema = z.object({
 
 export const adjustStockSchema = z
   .object({
-    requestId: z.uuid({ error: "Open Adjust stock again." }),
-    productId: z.uuid({ error: "Unknown product." }),
-    locationId: z.uuid({ error: "Choose a location." }),
+    requestId: z.guid({ error: "Open Adjust stock again." }),
+    productId: z.guid({ error: "Unknown product." }),
+    locationId: z.guid({ error: "Choose a location." }),
     direction: z.enum(["add", "remove"], { error: "Choose Add or Remove." }),
     quantity: adjustmentQuantity,
     type: z
@@ -216,10 +216,10 @@ export const adjustStockSchema = z
 
 export const transferStockSchema = z
   .object({
-    requestId: z.uuid({ error: "Open Transfer again." }),
-    productId: z.uuid({ error: "Unknown product." }),
-    fromLocationId: z.uuid({ error: "Choose where it is now." }),
-    toLocationId: z.uuid({ error: "Choose where it goes." }),
+    requestId: z.guid({ error: "Open Transfer again." }),
+    productId: z.guid({ error: "Unknown product." }),
+    fromLocationId: z.guid({ error: "Choose where it is now." }),
+    toLocationId: z.guid({ error: "Choose where it goes." }),
     quantity: transferQuantity,
     reason: optionalReason,
     unitId: optionalId("Unknown unit."),
@@ -242,16 +242,16 @@ export const transferStockSchema = z
   });
 
 export const writeOffUnitSchema = z.object({
-  requestId: z.uuid({ error: "Open Write off again." }),
-  unitId: z.uuid({ error: "Unknown unit." }),
+  requestId: z.guid({ error: "Open Write off again." }),
+  unitId: z.guid({ error: "Unknown unit." }),
   reason: reason("Say why the unit is being written off."),
 });
 
 export const addPartSchema = z
   .object({
-    lineId: z.uuid({ error: "Open Add part again." }),
-    workOrderId: z.uuid({ error: "Unknown job." }),
-    productId: z.uuid({ error: "Choose a part from the list." }),
+    lineId: z.guid({ error: "Open Add part again." }),
+    workOrderId: z.guid({ error: "Unknown job." }),
+    productId: z.guid({ error: "Choose a part from the list." }),
     unitId: optionalId("Choose a part from the list."),
     quantity: partQuantity,
     locationId: optionalId("Choose a location."),
@@ -269,11 +269,11 @@ export const addPartSchema = z
 
 export const searchSchema = z.object({
   q: z.string().trim().max(200),
-  locationId: z.uuid().optional(),
+  locationId: z.guid().optional(),
 });
 
 export const setPublicationSchema = z.object({
-  productId: z.uuid({ error: "Unknown product." }),
+  productId: z.guid({ error: "Unknown product." }),
   status: z.enum(["draft", "internal_only", "public", "sold", "archived"], {
     error: "Choose what to do with the listing.",
   }),
@@ -282,10 +282,10 @@ export const setPublicationSchema = z.object({
 
 /** Split off as unique item (D28): the two ids are made when the sheet opens. */
 export const splitToUniqueSchema = z.object({
-  newProductId: z.uuid({ error: "Open Split off again." }),
-  unitId: z.uuid({ error: "Open Split off again." }),
-  sourceProductId: z.uuid({ error: "Unknown product." }),
-  locationId: z.uuid({ error: "Choose where the item is." }),
+  newProductId: z.guid({ error: "Open Split off again." }),
+  unitId: z.guid({ error: "Open Split off again." }),
+  sourceProductId: z.guid({ error: "Unknown product." }),
+  locationId: z.guid({ error: "Choose where the item is." }),
   name: productFields.name,
   serialNumber: text(100, "serial number"),
   condition: text(500, "condition"),
@@ -301,7 +301,7 @@ export const splitToUniqueSchema = z.object({
 
 /** A location's fields (Settings → Locations); the id is the form's idempotency key. */
 export const locationSchema = z.object({
-  id: z.uuid({ error: "Open the form again." }),
+  id: z.guid({ error: "Open the form again." }),
   name: z
     .string({ error: "Name the location." })
     .trim()

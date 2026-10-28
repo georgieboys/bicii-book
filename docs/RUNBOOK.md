@@ -1380,7 +1380,7 @@ select set_config('request.jwt.claims', json_build_object(
   'role', 'authenticated')::text, true);
 set local role authenticated;
 select * from public.reclassify_as_consignment(
-  item_id => '00000000-0000-4000-8000-000000000000',  -- a new uuid, kept
+  item_id => '00000000-0000-4000-8000-000000000000',  -- gen_random_uuid(), kept
   product_id => (select id from public.products where short_id = 'P-000000'),
   consignor_id => '00000000-0000-4000-8000-000000000000',
   agreed_amount_owed => 10.00,                        -- per unit
@@ -1403,7 +1403,13 @@ only its owner changed), each dated when its product was entered, with
 the amount owed = the cost entered (0.00 where none was entered) and the
 asking price = the product's price. Checked read-only afterwards: every
 product's on-hand unchanged, consignment-owned, its item active with
-those amounts, and no stock reconciliation issue.
+those amounts, and no stock reconciliation issue. The run made each item
+id from `md5(...)::uuid` (so a re-run would replay), which carries no RFC
+4122 version: 23 of the 24 items then failed every Admin form that sends
+an item id ("Check the highlighted fields." with nothing highlighted, the
+owner's Edit terms that evening) until the app's id checks moved to
+`z.guid()` (R-095). Use `gen_random_uuid()` and keep the ids if you run
+this again.
 
 ## When reconciliation or exceptions show a problem
 

@@ -148,3 +148,38 @@ describe("change owner input (D162)", () => {
     expect(reclassifySchema.safeParse({ ...reclassify, reason: `${at}x` }).success).toBe(false);
   });
 });
+
+describe("record ids made outside the app", () => {
+  // Postgres takes any 8-4-4-4-12 hex id, and the app's own UUID_RE does
+  // too; ids made in SQL (md5(...)::uuid, D162's production run) carry no
+  // RFC 4122 version or variant. Every form must still accept them.
+  const sqlMade = "bd0e5b8a-73a1-c2f4-0c11-5e2c9f3a7d10";
+
+  it("Edit terms, charges and returns accept an item id made in SQL", () => {
+    expect(
+      termsSchema.safeParse({ itemId: sqlMade, agreedAmountOwed: "5", reason: "edit" }).success,
+    ).toBe(true);
+    expect(
+      chargeSchema
+        .safeParse({
+          chargeId: ID(9),
+          itemId: sqlMade,
+          description: "Bar tape",
+          amount: "5",
+          bearer: "shop",
+        })
+        .error?.issues.map((i) => i.path.join(".")) ?? [],
+    ).not.toContain("itemId");
+    expect(
+      returnSchema
+        .safeParse({ returnId: ID(9), itemId: sqlMade, reason: "Back" })
+        .error?.issues.map((i) => i.path.join(".")) ?? [],
+    ).not.toContain("itemId");
+  });
+
+  it("still refuses what is not an id", () => {
+    expect(termsSchema.safeParse({ itemId: "C-000002", agreedAmountOwed: "5" }).success).toBe(
+      false,
+    );
+  });
+});

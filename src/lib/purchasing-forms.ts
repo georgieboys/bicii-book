@@ -117,12 +117,12 @@ export const supplierFields = {
 
 export const supplierSchema = z.object({
   /** New supplier: the form's idempotency key. Edit: the supplier. */
-  id: z.uuid({ error: "Open the form again." }),
+  id: z.guid({ error: "Open the form again." }),
   ...supplierFields,
 });
 
 export const setSupplierArchivedSchema = z.object({
-  supplierId: z.uuid({ error: "Unknown supplier." }),
+  supplierId: z.guid({ error: "Unknown supplier." }),
   archived: z.boolean(),
 });
 
@@ -143,21 +143,21 @@ const optionalLeadDays = z
   .transform((v) => (v === undefined ? null : v));
 
 export const supplierProductSchema = z.object({
-  supplierId: z.uuid({ error: "Choose a supplier from the list." }),
-  productId: z.uuid({ error: "Choose a product from the list." }),
+  supplierId: z.guid({ error: "Choose a supplier from the list." }),
+  productId: z.guid({ error: "Choose a product from the list." }),
   supplierSku: text(100, "supplier SKU"),
   leadDays: optionalLeadDays,
   preferred: toggle,
 });
 
 export const removeSupplierProductSchema = z.object({
-  supplierId: z.uuid({ error: "Unknown supplier." }),
-  productId: z.uuid({ error: "Unknown product." }),
+  supplierId: z.guid({ error: "Unknown supplier." }),
+  productId: z.guid({ error: "Unknown product." }),
 });
 
 /** The PO header fields shared by New order and Edit details. */
 export const purchaseOrderFields = {
-  supplierId: z.uuid({ error: "Choose a supplier from the list." }),
+  supplierId: z.guid({ error: "Choose a supplier from the list." }),
   expectedAt: optionalDay("expected date"),
   supplierReference: text(100, "supplier reference"),
   notes: text(2_000, "notes"),
@@ -165,20 +165,20 @@ export const purchaseOrderFields = {
 
 export const createPurchaseOrderSchema = z.object({
   /** The form's idempotency key (made when the sheet opens). */
-  id: z.uuid({ error: "Open New order again." }),
+  id: z.guid({ error: "Open New order again." }),
   ...purchaseOrderFields,
 });
 
 export const updatePurchaseOrderSchema = z.object({
-  purchaseOrderId: z.uuid({ error: "Unknown order." }),
+  purchaseOrderId: z.guid({ error: "Unknown order." }),
   ...purchaseOrderFields,
 });
 
 export const purchaseOrderLineSchema = z.object({
   /** Add: the sheet's idempotency key. Edit: the line. */
-  id: z.uuid({ error: "Open the line again." }),
-  purchaseOrderId: z.uuid({ error: "Unknown order." }),
-  productId: z.uuid({ error: "Choose a product from the list." }),
+  id: z.guid({ error: "Open the line again." }),
+  purchaseOrderId: z.guid({ error: "Unknown order." }),
+  productId: z.guid({ error: "Choose a product from the list." }),
   quantityOrdered: purchaseQuantitySchema,
   unitCost: purchaseUnitCostSchema,
   expectedAt: optionalDay("expected date"),
@@ -187,16 +187,16 @@ export const purchaseOrderLineSchema = z.object({
 });
 
 export const removePurchaseOrderLineSchema = z.object({
-  lineId: z.uuid({ error: "Unknown line." }),
+  lineId: z.guid({ error: "Unknown line." }),
   reason: optionalReason,
 });
 
 export const purchaseOrderIdSchema = z.object({
-  purchaseOrderId: z.uuid({ error: "Unknown order." }),
+  purchaseOrderId: z.guid({ error: "Unknown order." }),
 });
 
 export const cancelPurchaseOrderSchema = z.object({
-  purchaseOrderId: z.uuid({ error: "Unknown order." }),
+  purchaseOrderId: z.guid({ error: "Unknown order." }),
   reason: z
     .string({ error: "Say why the order is being cancelled." })
     .trim()
@@ -205,8 +205,8 @@ export const cancelPurchaseOrderSchema = z.object({
 });
 
 export const purchaseCostDefaultsSchema = z.object({
-  supplierId: z.uuid({ error: "Unknown supplier." }),
-  productIds: z.array(z.uuid()).min(1).max(200),
+  supplierId: z.guid({ error: "Unknown supplier." }),
+  productIds: z.array(z.guid()).min(1).max(200),
 });
 
 export const purchasingSearchSchema = z.object({ q: z.string().trim().max(200) });
@@ -217,14 +217,14 @@ export const purchasingSearchSchema = z.object({ q: z.string().trim().max(200) }
 
 /** One received line: a whole quantity 1..100,000, the actual cost (0 valid), a location. */
 export const receiptLineSchema = z.object({
-  purchaseOrderLineId: z.uuid({ error: "Refresh the order and try again." }),
+  purchaseOrderLineId: z.guid({ error: "Refresh the order and try again." }),
   quantityReceived: z
     .number({ error: "Enter a whole number of units received." })
     .int({ error: "Enter a whole number of units received." })
     .min(1, { error: "Receive at least 1 unit on a line." })
     .max(MAX_PURCHASE_QUANTITY, { error: "Receive at most 100,000 units on a line." }),
   unitCostActual: purchaseUnitCostSchema,
-  locationId: z.uuid({ error: "Choose where the units go." }),
+  locationId: z.guid({ error: "Choose where the units go." }),
 });
 
 /**
@@ -233,8 +233,8 @@ export const receiptLineSchema = z.object({
  * when staff changed it (an ISO instant), else the server uses now() (D64).
  */
 export const receivePurchaseSchema = z.object({
-  purchaseOrderId: z.uuid({ error: "Unknown order." }),
-  idempotencyKey: z.uuid({ error: "Reload the page and try again." }),
+  purchaseOrderId: z.guid({ error: "Unknown order." }),
+  idempotencyKey: z.guid({ error: "Reload the page and try again." }),
   reference: text(100, "delivery note reference"),
   receivedAt: z.iso
     .datetime({ offset: true, error: "Enter the delivery date and time." })
@@ -248,15 +248,15 @@ export const receivePurchaseSchema = z.object({
 });
 
 export const lookupReceiptSchema = z.object({
-  idempotencyKey: z.uuid({ error: "Unknown delivery." }),
+  idempotencyKey: z.guid({ error: "Unknown delivery." }),
 });
 
 /** A draft order from the low-stock list (D66); the id is the page's idempotency key. */
 export const createPurchaseOrderFromLowStockSchema = z.object({
-  id: z.uuid({ error: "Reload the page and try again." }),
-  supplierId: z.uuid({ error: "Choose a supplier from the list." }),
+  id: z.guid({ error: "Reload the page and try again." }),
+  supplierId: z.guid({ error: "Choose a supplier from the list." }),
   productIds: z
-    .array(z.uuid())
+    .array(z.guid())
     .min(1, { error: "Choose at least one product." })
     .max(100, { error: "Choose at most 100 products." }),
 });

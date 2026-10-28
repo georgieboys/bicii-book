@@ -59,10 +59,10 @@ const optionalMoney = (what: string) =>
 
 const optionalId = (what: string) =>
   z
-    .preprocess((v) => (v === "" ? undefined : v), z.uuid({ error: what }).optional())
+    .preprocess((v) => (v === "" ? undefined : v), z.guid({ error: what }).optional())
     .transform((v) => v ?? null);
 
-const workOrderId = z.uuid({ error: "Unknown job." });
+const workOrderId = z.guid({ error: "Unknown job." });
 
 /** Products that can be ordered for a job (shop-owned, counted, active). */
 export const searchIndentProductOptions = staffAction(
@@ -85,7 +85,7 @@ export const supplierOptions = staffAction(
 
 const proposePartSchema = z
   .object({
-    requestId: z.uuid({ error: "Open the form again." }),
+    requestId: z.guid({ error: "Open the form again." }),
     workOrderId,
     productId: optionalId("Choose a part."),
     // A new product (Manage inventory): its name and price, and its cost.
@@ -166,9 +166,9 @@ export const proposePartAction = staffAction(
 /** Propose a catalogue service, such as fitting labour (D140). */
 export const proposeServiceAction = staffAction(
   z.object({
-    requestId: z.uuid({ error: "Open the form again." }),
+    requestId: z.guid({ error: "Open the form again." }),
     workOrderId,
-    serviceId: z.uuid({ error: "Choose a service." }),
+    serviceId: z.guid({ error: "Choose a service." }),
     quantity: z
       .string({ error: "Enter the quantity." })
       .trim()
@@ -189,7 +189,7 @@ export const proposeServiceAction = staffAction(
 /** Cancel a request that is not on an open quote and not fitted, with a reason. */
 export const cancelPartRequestAction = staffAction(
   z.object({
-    requestId: z.uuid({ error: "Unknown item." }),
+    requestId: z.guid({ error: "Unknown item." }),
     reason: z
       .string({ error: "Say why it is cancelled." })
       .trim()
@@ -213,10 +213,10 @@ export const cancelPartRequestAction = staffAction(
  */
 export const sendQuoteAction = staffAction(
   z.object({
-    quoteId: z.uuid({ error: "Open the form again." }),
+    quoteId: z.guid({ error: "Open the form again." }),
     workOrderId,
     requestIds: z
-      .array(z.uuid({ error: "Unknown item." }))
+      .array(z.guid({ error: "Unknown item." }))
       .min(1, { error: "Choose at least one item." })
       .max(50, { error: "Send at most 50 items at once." }),
     channel: z.enum(["whatsapp", "email", "link"], { error: "Choose how to send it." }),
@@ -263,7 +263,7 @@ export const sendQuoteAction = staffAction(
 
 /** Withdraw the open quote: its link stops working, its items go back to proposed. */
 export const withdrawQuoteAction = staffAction(
-  z.object({ quoteId: z.uuid({ error: "Unknown quote." }) }),
+  z.object({ quoteId: z.guid({ error: "Unknown quote." }) }),
   { name: "indent.withdraw_quote" },
   async ({ quoteId }, { supabase }) => {
     await withdrawQuote(supabase, quoteId);
@@ -283,11 +283,11 @@ export const withdrawQuoteAction = staffAction(
 export const orderPartRequestsAction = staffAction(
   z.object({
     requestIds: z
-      .array(z.uuid({ error: "Unknown item." }))
+      .array(z.guid({ error: "Unknown item." }))
       .min(1, { error: "Choose at least one part." })
       .max(50, { error: "Order at most 50 parts at once." }),
-    supplierId: z.uuid({ error: "Choose a supplier." }),
-    purchaseOrderId: z.uuid({ error: "Open the form again." }),
+    supplierId: z.guid({ error: "Choose a supplier." }),
+    purchaseOrderId: z.guid({ error: "Open the form again." }),
     moveToWaiting: z.boolean(),
     overrideReason: z
       .string()
@@ -309,8 +309,8 @@ export const orderPartRequestsAction = staffAction(
 /** Put an approved or ordered request on the job as an ordinary line (D146). */
 export const fitPartRequestAction = staffAction(
   z.object({
-    requestId: z.uuid({ error: "Unknown item." }),
-    lineId: z.uuid({ error: "Open the form again." }),
+    requestId: z.guid({ error: "Unknown item." }),
+    lineId: z.guid({ error: "Open the form again." }),
     locationId: optionalId("Unknown location."),
   }),
   { name: "indent.fit" },
@@ -333,8 +333,8 @@ const MAX_OUTSIDE_COST = new Decimal("99999.99");
  */
 export const fitPartBoughtOutsideAction = staffAction(
   z.object({
-    requestId: z.uuid({ error: "Unknown item." }),
-    lineId: z.uuid({ error: "Open the form again." }),
+    requestId: z.guid({ error: "Unknown item." }),
+    lineId: z.guid({ error: "Open the form again." }),
     unitCost: money("cost each").refine((v) => new Decimal(v).lte(MAX_OUTSIDE_COST), {
       error: "The cost each is too large.",
     }),

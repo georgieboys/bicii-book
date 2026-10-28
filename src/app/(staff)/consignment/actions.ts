@@ -63,7 +63,7 @@ export const updateConsignorAction = staffAction(
 );
 
 export const setConsignorArchivedAction = staffAction(
-  z.object({ consignorId: z.uuid({ error: "Unknown consignor." }), archived: z.boolean() }),
+  z.object({ consignorId: z.guid({ error: "Unknown consignor." }), archived: z.boolean() }),
   { name: "consignment.set_consignor_archived", permission: MANAGE },
   async ({ consignorId, archived }, { supabase }) => {
     await setConsignorArchived(supabase, consignorId, archived);
@@ -74,7 +74,7 @@ export const setConsignorArchivedAction = staffAction(
 
 /** Bank or PayNow details, revealed on request (manage_consignments only, D48). */
 export const revealPayoutDetailsAction = staffAction(
-  z.object({ consignorId: z.uuid({ error: "Unknown consignor." }) }),
+  z.object({ consignorId: z.guid({ error: "Unknown consignor." }) }),
   { name: "consignment.reveal_payout_details", permission: MANAGE },
   async ({ consignorId }, { supabase }) => getConsignorPayoutDetails(supabase, consignorId),
 );
@@ -183,7 +183,7 @@ export const searchShopBikesAction = staffAction(
 
 /** A customer's name and contact, to prefill a consignor linked to them. */
 export const customerContactAction = staffAction(
-  z.object({ customerId: z.uuid({ error: "Unknown customer." }) }),
+  z.object({ customerId: z.guid({ error: "Unknown customer." }) }),
   { name: "consignment.customer_contact" },
   async ({ customerId }, { supabase }) => customerContact(supabase, customerId),
 );

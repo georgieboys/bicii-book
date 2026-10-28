@@ -23,7 +23,7 @@ import { REASON_MAX_LENGTH } from "@/lib/reasons";
  * check in (D37, D40); errors come back as mapped messages with their code.
  */
 
-const appointmentId = z.uuid({ error: "Unknown appointment." });
+const appointmentId = z.guid({ error: "Unknown appointment." });
 
 /** Optional text: blank is null. */
 const optionalText = (max: number, message: string) =>
@@ -42,11 +42,11 @@ const editableText = (max: number, message: string) =>
 /** Book an appointment for a customer; the id (made when the sheet opens) makes a retry one booking. */
 export const bookAppointment = staffAction(
   z.object({
-    id: z.uuid({ error: "Open Book appointment again." }),
-    customerId: z.uuid({ error: "Choose the customer." }),
-    appointmentTypeId: z.uuid({ error: "Choose the type of appointment." }),
+    id: z.guid({ error: "Open Book appointment again." }),
+    customerId: z.guid({ error: "Choose the customer." }),
+    appointmentTypeId: z.guid({ error: "Choose the type of appointment." }),
     startsAt: z.iso.datetime({ offset: true, error: "Choose a time." }),
-    bikeId: z.uuid({ error: "Choose one of the customer's bikes." }).nullable().optional(),
+    bikeId: z.guid({ error: "Choose one of the customer's bikes." }).nullable().optional(),
     customerNote: optionalText(1_000, "Keep the customer's note under 1,000 characters."),
     internalNote: optionalText(5_000, "Keep the internal note under 5,000 characters."),
   }),
@@ -95,7 +95,7 @@ export const cancelAppointment = staffAction(
 export const updateAppointment = staffAction(
   z.object({
     appointmentId,
-    bikeId: z.uuid({ error: "Choose one of the customer's bikes." }).nullable().optional(),
+    bikeId: z.guid({ error: "Choose one of the customer's bikes." }).nullable().optional(),
     clearBike: z.boolean().optional(),
     customerNote: editableText(1_000, "Keep the customer's note under 1,000 characters."),
     internalNote: editableText(5_000, "Keep the internal note under 5,000 characters."),
@@ -113,12 +113,12 @@ export const checkInAppointment = staffAction(
   z
     .object({
       appointmentId,
-      bikeId: z.uuid({ error: "Choose the bike they brought." }),
-      workOrderId: z.uuid({ error: "Choose the job." }),
+      bikeId: z.guid({ error: "Choose the bike they brought." }),
+      workOrderId: z.guid({ error: "Choose the job." }),
       linkExisting: z.boolean(),
       requestedWork: optionalText(2_000, "Keep the requested work under 2,000 characters."),
       intakeNotes: optionalText(5_000, "Keep the condition notes under 5,000 characters."),
-      leadMechanicId: z.uuid({ error: "Choose the lead from the list." }).nullable().optional(),
+      leadMechanicId: z.guid({ error: "Choose the lead from the list." }).nullable().optional(),
     })
     .refine((v) => v.linkExisting || v.requestedWork !== null, {
       error: "Say what the customer wants done.",

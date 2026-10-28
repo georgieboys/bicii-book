@@ -48,14 +48,14 @@ const toggle = z
   .transform((v) => v === "on" || v === "true" || v === true);
 
 const serviceSchema = z.object({
-  id: z.uuid({ error: "Open the form again." }),
+  id: z.guid({ error: "Open the form again." }),
   name: z
     .string({ error: "Name the service." })
     .trim()
     .min(1, { error: "Name the service." })
     .max(120, { error: "Keep the name under 120 characters." }),
   categoryId: z
-    .union([z.uuid({ error: "Choose a category from the list." }), z.literal("")])
+    .union([z.guid({ error: "Choose a category from the list." }), z.literal("")])
     .optional()
     .transform((v) => v || null),
   salePrice: money("price"),
@@ -109,7 +109,7 @@ export const updateService = staffAction(
 
 /** Archive or unarchive a service (hidden from pickers; history keeps it). */
 export const setServiceArchived = staffAction(
-  z.object({ id: z.uuid({ error: "Unknown service." }), archived: z.boolean() }),
+  z.object({ id: z.guid({ error: "Unknown service." }), archived: z.boolean() }),
   { name: "services.set_archived", permission: "manage_inventory" },
   async (input, { supabase }) => {
     const result = await archiveService(supabase, input);
@@ -130,7 +130,7 @@ const categoryKind = z.enum(["service", "product"], { error: "Unknown kind of ca
 /** A new service or product category. */
 export const createCategory = staffAction(
   z.object({
-    id: z.uuid({ error: "Open the form again." }),
+    id: z.guid({ error: "Open the form again." }),
     name: categoryName,
     kind: categoryKind,
   }),
@@ -144,7 +144,7 @@ export const createCategory = staffAction(
 
 /** Rename a service or product category. */
 export const updateCategory = staffAction(
-  z.object({ id: z.uuid({ error: "Unknown category." }), name: categoryName, kind: categoryKind }),
+  z.object({ id: z.guid({ error: "Unknown category." }), name: categoryName, kind: categoryKind }),
   { name: "categories.update", permission: "manage_inventory" },
   async (input, { supabase }) => {
     const result = await renameCategory(supabase, input);
@@ -156,7 +156,7 @@ export const updateCategory = staffAction(
 /** Archive or bring back a service or product category. */
 export const setCategoryArchived = staffAction(
   z.object({
-    id: z.uuid({ error: "Unknown category." }),
+    id: z.guid({ error: "Unknown category." }),
     archived: z.boolean(),
     kind: categoryKind,
   }),
@@ -175,7 +175,7 @@ export const setCategoryArchived = staffAction(
 export const scheduleCultCommonsRate = staffAction(
   z
     .object({
-      rateId: z.uuid({ error: "Open the rate sheet again." }),
+      rateId: z.guid({ error: "Open the rate sheet again." }),
       percent: z
         .string({ error: "Enter the rate." })
         .trim()
@@ -218,7 +218,7 @@ export const scheduleCultCommonsRate = staffAction(
 
 /** Admin: withdraw a rate that has not started yet (D21). */
 export const cancelCultCommonsRate = staffAction(
-  z.object({ rateId: z.uuid({ error: "Unknown rate." }) }),
+  z.object({ rateId: z.guid({ error: "Unknown rate." }) }),
   { name: "cult_commons.cancel", admin: true },
   async (input, { supabase }) => {
     const result = await cancelRate(supabase, input);

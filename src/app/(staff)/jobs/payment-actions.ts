@@ -38,7 +38,7 @@ import { REASON_MAX_LENGTH } from "@/lib/reasons";
  * few reads per payment every 5 minutes.
  */
 export const checkWithStripeAction = staffAction(
-  z.object({ paymentId: z.uuid({ error: "Unknown payment." }) }),
+  z.object({ paymentId: z.guid({ error: "Unknown payment." }) }),
   { name: "payments.check_with_stripe" },
   async (
     { paymentId },
@@ -94,7 +94,7 @@ export const checkWithStripeAction = staffAction(
 // Payment links (D156) and counter payments (D161)
 // ---------------------------------------------------------------------------
 
-const workOrderId = z.uuid({ error: "Unknown job." });
+const workOrderId = z.guid({ error: "Unknown job." });
 
 /**
  * ADMIN_ORIGIN while Stripe is on, else null: the pay link is built from
@@ -123,7 +123,7 @@ function payOrigin(): string | null {
  */
 export const sendBalanceLinkAction = staffAction(
   z.object({
-    linkId: z.uuid({ error: "Open the form again." }),
+    linkId: z.guid({ error: "Open the form again." }),
     workOrderId,
     channel: z.enum(["whatsapp", "email", "link"], { error: "Choose how to send it." }),
     validDays: z.coerce
@@ -229,10 +229,10 @@ const optionalText = (max: number, what: string) =>
  */
 export const recordCounterPaymentAction = staffAction(
   z.object({
-    id: z.uuid({ error: "Open the form again." }),
+    id: z.guid({ error: "Open the form again." }),
     workOrderId,
     quoteId: z
-      .union([z.uuid({ error: "Unknown quote." }), z.literal(""), z.null()])
+      .union([z.guid({ error: "Unknown quote." }), z.literal(""), z.null()])
       .optional()
       .transform((v) => v || null),
     amount: z
@@ -295,7 +295,7 @@ export const recordCounterPaymentAction = staffAction(
  */
 export const voidCounterPaymentAction = staffAction(
   z.object({
-    counterPaymentId: z.uuid({ error: "Unknown counter payment." }),
+    counterPaymentId: z.guid({ error: "Unknown counter payment." }),
     kind: z.enum(COUNTER_VOID_KINDS as [CounterVoidKind, ...CounterVoidKind[]], {
       error: "Choose why it is voided.",
     }),

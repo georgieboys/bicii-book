@@ -17,7 +17,7 @@ import { z } from "zod";
 
 import { optionalReason, reason } from "@/lib/inventory-forms";
 
-const id = (error: string) => z.uuid({ error });
+const id = (error: string) => z.guid({ error });
 
 const gid = (kind: string, error: string) =>
   z

@@ -33,7 +33,7 @@ import {
 const mode = z.enum(["create", "update"]);
 
 export const saveTemplateAction = staffAction(
-  z.object({ id: z.uuid(), mode, template: labelTemplateInputSchema }),
+  z.object({ id: z.guid(), mode, template: labelTemplateInputSchema }),
   { name: "labels.save_template", admin: true },
   async ({ id, mode, template }, { supabase }) => {
     const saved = await saveTemplate(supabase, id, template, mode);
@@ -43,7 +43,7 @@ export const saveTemplateAction = staffAction(
 );
 
 export const setDefaultTemplateAction = staffAction(
-  z.object({ id: z.uuid() }),
+  z.object({ id: z.guid() }),
   { name: "labels.set_default_template", admin: true },
   async ({ id }, { supabase }) => {
     await setDefaultTemplate(supabase, id);
@@ -53,7 +53,7 @@ export const setDefaultTemplateAction = staffAction(
 );
 
 export const saveProfileAction = staffAction(
-  z.object({ id: z.uuid(), mode, profile: printerProfileInputSchema }),
+  z.object({ id: z.guid(), mode, profile: printerProfileInputSchema }),
   { name: "labels.save_profile", admin: true },
   async ({ id, mode, profile }, { supabase }) => {
     const saved = await saveProfile(supabase, id, profile, mode);
@@ -63,7 +63,7 @@ export const saveProfileAction = staffAction(
 );
 
 export const setDefaultProfileAction = staffAction(
-  z.object({ id: z.uuid() }),
+  z.object({ id: z.guid() }),
   { name: "labels.set_default_profile", admin: true },
   async ({ id }, { supabase }) => {
     await setDefaultProfile(supabase, id);

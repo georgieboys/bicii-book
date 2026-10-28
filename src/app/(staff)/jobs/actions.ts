@@ -77,7 +77,7 @@ const reason = (what: string) =>
     .min(1, { error: what })
     .max(REASON_MAX_LENGTH, { error: `Keep the reason under ${REASON_MAX_LENGTH} characters.` });
 
-const workOrderId = z.uuid({ error: "Unknown job." });
+const workOrderId = z.guid({ error: "Unknown job." });
 
 /** D14: only view_costs holders enter a direct cost (the RPC refuses anyone else too). */
 function requireCostPermission(
@@ -94,9 +94,9 @@ function requireCostPermission(
 /** Check a bike in as a new job (intake). Replaying the same id returns the same job. */
 export const createWorkOrder = staffAction(
   z.object({
-    id: z.uuid({ error: "Start the intake again." }),
-    customerId: z.uuid({ error: "Choose the customer." }),
-    bikeId: z.uuid({ error: "Choose the bike." }),
+    id: z.guid({ error: "Start the intake again." }),
+    customerId: z.guid({ error: "Choose the customer." }),
+    bikeId: z.guid({ error: "Choose the bike." }),
     requestedWork: z
       .string({ error: "Say what the customer wants done." })
       .trim()
@@ -108,10 +108,10 @@ export const createWorkOrder = staffAction(
       .max(5_000, { error: "Keep the condition notes under 5,000 characters." })
       .optional()
       .transform((v) => v || null),
-    leadId: z.uuid({ error: "Choose the lead from the list." }).nullable(),
-    additionalIds: z.array(z.uuid()).max(10, { error: "At most 10 additional staff." }),
+    leadId: z.guid({ error: "Choose the lead from the list." }).nullable(),
+    additionalIds: z.array(z.guid()).max(10, { error: "At most 10 additional staff." }),
     services: z
-      .array(z.object({ lineId: z.uuid(), serviceId: z.uuid(), quantity }))
+      .array(z.object({ lineId: z.guid(), serviceId: z.guid(), quantity }))
       .max(20, { error: "At most 20 services at check-in. Add more on the job." }),
   }),
   { name: "jobs.create" },
@@ -141,9 +141,9 @@ export const setWorkOrderStatus = staffAction(
 /** Add a service to an open job; the price may be changed, the cost only with view_costs (D14). */
 export const addServiceLine = staffAction(
   z.object({
-    lineId: z.uuid({ error: "Open Add service again." }),
+    lineId: z.guid({ error: "Open Add service again." }),
     workOrderId,
-    serviceId: z.uuid({ error: "Choose a service from the list." }),
+    serviceId: z.guid({ error: "Choose a service from the list." }),
     quantity,
     unitSalePrice: optionalMoney("price"),
     unitDirectCost: optionalMoney("cost"),
@@ -166,7 +166,7 @@ export const addServiceLine = staffAction(
 /** Add a free-text line (labour, a sundry) to an open job. */
 export const addManualLine = staffAction(
   z.object({
-    lineId: z.uuid({ error: "Open Add manual line again." }),
+    lineId: z.guid({ error: "Open Add manual line again." }),
     workOrderId,
     description: z
       .string({ error: "Describe the line." })
@@ -206,7 +206,7 @@ export const addPartToJob = staffAction(
 /** Void a line with a reason; it stays on the job, struck through (D15: open jobs only). */
 export const voidLine = staffAction(
   z.object({
-    lineId: z.uuid({ error: "Unknown line." }),
+    lineId: z.guid({ error: "Unknown line." }),
     reason: reason("Say why the line is being voided."),
   }),
   { name: "jobs.void_line" },
@@ -229,7 +229,7 @@ export const searchIntakeOptions = staffAction(
  * step 2, the booking sheet and an appointment's Change bike share it.
  */
 export const listIntakeBikes = staffAction(
-  z.object({ customerId: z.uuid({ error: "Unknown customer." }) }),
+  z.object({ customerId: z.guid({ error: "Unknown customer." }) }),
   { name: "jobs.intake_bikes" },
   async ({ customerId }, { supabase }) => customerBikesForIntake(supabase, customerId),
 );
@@ -250,7 +250,7 @@ export const searchServiceOptions = staffAction(
 export const assignStaff = staffAction(
   z.object({
     workOrderId,
-    staffId: z.uuid({ error: "Choose who to assign." }),
+    staffId: z.guid({ error: "Choose who to assign." }),
     role: z.enum(Constants.public.Enums.assignment_role, { error: "Choose lead or additional." }),
   }),
   { name: "jobs.assign_staff" },
@@ -263,7 +263,7 @@ export const assignStaff = staffAction(
 
 /** Take someone off a job (D22); replaying it changes nothing. */
 export const unassignStaff = staffAction(
-  z.object({ workOrderId, staffId: z.uuid({ error: "Unknown staff member." }) }),
+  z.object({ workOrderId, staffId: z.guid({ error: "Unknown staff member." }) }),
   { name: "jobs.unassign_staff" },
   async (input, { supabase }) => {
     const result = await unassign(supabase, input);
@@ -297,7 +297,7 @@ export const setApprovalFlag = staffAction(
 /** Add a note or a diagnosis to the job's timeline; any status. Replay-safe by note id. */
 export const addWorkOrderNote = staffAction(
   z.object({
-    noteId: z.uuid({ error: "Open the note again." }),
+    noteId: z.guid({ error: "Open the note again." }),
     workOrderId,
     kind: z.enum(Constants.public.Enums.work_order_note_kind),
     body: z

@@ -456,7 +456,15 @@ URLs, or customer data in this file.
   items yet either: its Supabase variables are unset). Owner: confirm the
   intended address before more labels are printed; changing it later leaves
   the labels already printed on the old one (the impact above).
-- Last checked: 2026-10-24.
+- Status 2026-10-28 (read-only on the hosted project): nothing has been
+  printed (no print jobs), so changing the address costs nothing yet. The
+  public site now answers on https://bicii.sg with its Supabase variables
+  set, so its `/q/{short_id}` shows published items and the "not listed"
+  page, and sends a signed-in customer to their own bike. Recommended to the
+  owner: set the QR address to https://bicii.sg (Settings → Labels and
+  printers) before the first print, and `NEXT_PUBLIC_PUBLIC_SITE_URL` on the
+  Admin's hosting to the same value.
+- Last checked: 2026-10-28.
 
 ## R-014 — Camera scanning needs HTTPS or localhost
 

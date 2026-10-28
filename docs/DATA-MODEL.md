@@ -2353,6 +2353,43 @@ an `unsettled_consignment` operational exception (§14), visible only to
 consignment money viewers (D48, D108). It is computed live and clears when
 the item is settled, restocked or returned.
 
+### Reclassifying shop stock (D162)
+
+Stock that is really a consignor's but was entered as an ordinary product
+(Inventory → New product, then stock counts) is corrected by
+`reclassify_as_consignment` (admin only; §16;
+[R-095](RISKS.md#r-095--consigned-stock-entered-as-shop-stock-needs-an-admins-correction)).
+It applies only to a shop-owned, quantity-tracked, active, unarchived
+product whose movements are all `stock_adjustment`, `damaged` or
+`transfer`, with no unit, sale line, job line (`source_product_id`),
+purchase order or receipt line, supplier link, indent request or Shopify
+link (print jobs and photos are fine), and with its stock at one
+location. In one transaction it:
+
+1. counts the stock out with one `stock_adjustment` (−on-hand at that
+   location, reason "Reclassified as consigned stock: " + the reason, cost
+   snapshot = `default_direct_cost`, request id derived from the item id);
+2. changes `ownership_type` to `consignment`: the replaced
+   `products_ownership_rules` trigger still refuses an owner change on a
+   product with a unit or a movement (`product_ownership_immutable`, D45),
+   except shop-owned to consignment while the transaction-local setting
+   `bicii.reclassify_product` names this product, it has no unit and its
+   net on-hand is 0;
+3. takes the same quantity in through `create_consignment_item` on the
+   same product (the item id given, the consignor, the agreed amount per
+   unit, asking price = the one given or the product's
+   `default_sale_price`, intake date = the one given or now, internal note
+   "Reclassified from shop stock: " + the reason): one
+   `consignment_received` movement and one item, as any intake.
+
+The product keeps its id, P- number, labels, photos and publication. With
+no stock, step 2 alone runs and no item is made; a later intake works as
+usual. The ledger keeps the shop's counts and the adjustment that offsets
+them, then the consignor's intake; nothing earlier is rewritten. From then
+on the product is ordinary consigned stock (D44, D46, D50), and
+`default_direct_cost` is no longer what a consigned line costs (D44: the
+agreed amount is).
+
 ## 10. Suppliers and purchasing
 
 Built in Phase 7 (migrations `20261005000100_suppliers`,
@@ -3681,6 +3718,7 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `update_consignment_terms(item_id, agreed_amount_owed = null, asking_price = null, reason = null)` → `consignment_item_result` | P(manage_consignments) | Built. `reason_too_long`; `private.lock_consignment_item` (stock, unit, item); null keeps a value, identical values are a no-op; `consignment_item_not_active`; a new agreed amount needs a reason (`reason_required`); a unique item's unit follows (cost = agreed, sale price = asking); lines already on a job keep their snapshots; one `terms_changed` event. |
 | `add_consignment_charge(charge_id, item_id, description, amount, bearer charge_bearer, work_order_id = null)` → `consignment_item_charges` | P(manage_consignments) | Built (D4, D45). 22004 on nulls; `charge_bearer_required`; locks as above; replay by charge id (same item, trimmed description, amount, bearer, job → the row; else `consignment_charge_conflict`); unknown job P0002; `shop`: `consignment_item_not_active`, `shop_charge_unique_only`, `shop_charge_unit_not_available`; `consignor`: any status. 23514 by name (amount > 0, description ≤ 200). |
 | `void_consignment_charge(charge_id, reason)` → `consignment_item_charges` | P(manage_consignments) | Built. `reason_required` / `reason_too_long`; P0002; locks as above, then the charge; already voided → the row unchanged; a shop charge only while the item is active and its unit available (same codes). |
+| `reclassify_as_consignment(item_id, product_id, consignor_id, agreed_amount_owed, reason, asking_price = null, received_at = null)` → `reclassify_result (product_id, consignment_item_id, consignment_item_short_id, quantity, location_id)` | A | Built (D162, `20261028000100`; §9 "Reclassifying shop stock"). (a) 22004 on a null id or agreed amount; `reason_required`, `reason_too_long` (> 460, trimmed). (b) The intake's advisory lock on the item id, then replay by item id: the same product and consignor return the result as it is now, anything else `consignment_item_conflict`. (c) The consignor FOR SHARE (P0002, `consignor_archived`). (d) `lock_stock(product)`, the product FOR UPDATE (P0002): `product_not_shop_owned`, `reclassify_not_quantity`, `product_archived`, `product_inactive`, `product_has_trading_history`, `reclassify_several_locations`. (e) `app.change_reason` = the reason; one `stock_adjustment` counting the stock out; the owner change; `create_consignment_item` (its own checks and codes apply, so a refused intake rolls the whole call back). No stock: the owner change only, item fields null. |
 | `return_consignment_item(return_id, item_id, reason, quantity integer = null, location_id = null)` → `consignment_item_result` | P(manage_consignments) | Built (D50, D51); DATA-MODEL's original row was `return_consignment_item(item_id, reason)`: `return_id` is the client's per-call key, stored as the movement's `request_id` (movement ids are an identity column). 22004 on null ids; `reason_required` / `reason_too_long`; locks (stock, unit, item); replay: a movement with that request_id that is this item's `consignment_returned` (and matches quantity / location when given) → the item unchanged; any other → `consignment_return_conflict`; `consignment_item_not_active`. Unique: the unit must be available (`unit_not_available`; void it from its job first), `unit_location_mismatch`; −1 `consignment_returned`, unit → `returned_to_consignor` (the bike link stays, D51), then (lock order 7) a unique product with no unit left in stock and publication draft, internal_only or public → `archived`. Quantity: `location_id` required (22004); qty = given (1..remaining, `consignment_return_quantity_invalid`) or all of this item's stock there; the item's own stock there ≥ qty (D54; `insufficient_stock`, never another consignor's); −qty. Then the item status (returned when nothing is left or owed). |
 | `record_settlement(settlement_id uuid, consignor_id uuid, amount money_amount, allocations jsonb, paid_at timestamptz = null, reference text = null, notes text = null)` → `settlement_result (settlement_id, consignor_id, amount, paid_at, replayed)` | P(manage_consignments) (D47) | Built (Phase 6 step 2). (1) 22004 on null ids or amount; unknown consignor P0002; `settlement_paid_in_future` (> 5 min ahead); allocations a non-empty array of `{consignment_item_id, amount > 0, override_reason?}` (`settlement_allocations_required`); `settlement_duplicate_item`; unknown item P0002; `settlement_item_wrong_consignor`; Σ ≠ amount `settlement_allocation_mismatch`; the fingerprint (amount and allocation amounts as money_amount text, allocations sorted by item, paid_at as given, trimmed reference, notes and override reasons). (2) Header insert `on conflict (id) do nothing` (`paid_at = coalesce(arg, now())`): a matching replay returns it with `replayed` true even after the outstanding changed, else `settlement_conflict`. (3) Consignor FOR SHARE (`consignor_archived`); items FOR UPDATE ascending. (4) Per allocation the item's outstanding from `reporting.consignor_item_ledger`: above `max(outstanding, 0)` without an override reason `settlement_exceeds_outstanding` (detail: short ID and outstanding). |
 | `reverse_settlement(reversal_id uuid, settlement_id uuid, reason text)` → `consignment_settlement_reversals` | P(manage_consignments) (D47) | Built (Phase 6 step 2). 22004; `reason_required` / `reason_too_long`; replay by reversal id (same settlement → the row, else `settlement_reversal_conflict`); the settlement FOR UPDATE (P0002), then the consignor FOR SHARE; reversed under another id `settlement_already_reversed`; `consignor_archived`. The settlement and its lines stay; the ledger stops counting them. |

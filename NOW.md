@@ -1,9 +1,11 @@
 # Current state
 
-Updated: 2026-10-28 SGT (the public site's state; the hosted project
-read-only: no print jobs, no public items, no public active appointment
-type). Earlier evidence, 2026-10-24: `main` f120c6d; PR #45 (CI and
-label-run e2e green on a666bef) merged as d30473d, `migrate.yml` run 20, the
+Updated: 2026-10-28 SGT (D162, reclassifying shop stock as consigned: built
+and tested locally, in its pull request; the hosted project read-only: 29
+product labels printed, 25 products entered as shop stock that are the
+owner's consigned items, no public active appointment type). Earlier
+evidence, 2026-10-24: `main` f120c6d; PR #45 (CI and label-run e2e green on
+a666bef) merged as d30473d, `migrate.yml` run 20, the
 hosted project read-only (75 migrations, the last `20261019000100`) and
 Vercel's production build of f120c6d READY, all 2026-10-19; the hosted
 project read-only again on 2026-10-24 (below). Earlier checkpoints with each
@@ -15,9 +17,15 @@ and the pull requests.
 
 - Purpose: the staff Admin for BICII's workshop, over one Supabase backend
   shared with the public site ([PRODUCT](docs/PRODUCT.md)).
-- Current objective: none in progress. Phases 0–14 and every code-audit item
-  that needs no owner decision are in production.
-- Next action: the owner's answers to the
+- Current objective: D162. The owner's 25 products entered as shop stock on
+  2026-10-28 are the owner's consigned items; `reclassify_as_consignment`
+  makes them consigned stock on the same products (labels kept). Then an
+  admin-only action on the product page to change an item's owner (the
+  owner's request: the highest role only).
+- Next action: merge D162's pull request, confirm `migrate.yml` applied
+  `20261028000100`, reclassify the 25 products
+  ([RUNBOOK](docs/RUNBOOK.md#reclassifying-shop-stock-as-consigned)), then
+  build the product page's admin action. After that, the owner's answers to the
   [owner questions](docs/PRODUCT.md#open-assumptions-and-owner-questions),
   first 35 (payment links, counter payments, Reports), 36 (payments in the
   public account, D126) and 30 (the public site's defaults), and the QR
@@ -43,20 +51,21 @@ request; the full e2e suite runs on the `e2e` label and nightly.
 | Indent quotes and deposits | Yes (Phases 13–14) | CI, e2e; a live deposit paid and refunded | Production; deposits at 100% |
 | Payment links, counter payments | Yes (Phase 14 step 3) | CI, e2e with the fake Stripe | Production; none used yet (2026-10-24), no test-mode rehearsal |
 | Audit fixes | Yes (PRs #38, #43–#45) | CI and label-run e2e | Production |
+| Reclassify shop stock as consigned (D162) | Database only, admin only; no screen yet | DB tests pass locally (`reclassify-consignment.test.ts` 11, with the consignment and ledger files: 130); CI not run yet | Not deployed |
 
 Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),
 [TESTING](docs/TESTING.md).
 
 ## Work location and continuation
 
-- georgieboys/bicii-book (public), `main` f120c6d. Use `origin/main`.
+- georgieboys/bicii-book (public), `main` 4b20e67 (PR #49). Use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted from
   `main` after each merge; its changes go through their own pull request.
 - Paused: `wip/feat/p10-shopify` (8dbe6c4, an unreviewed refund-roles
   follow-up that conflicts with D108; the owner's call).
 - The public site: georgieboys/BICII, with its own NOW.md.
 - Local-only, git-ignored: `.env.local`, `.devstack/`, `test-results/`.
-- A new migration sorts after `20261019000100_customer_refunded_amounts`.
+- A new migration sorts after `20261028000100_reclassify_as_consignment`.
 
 ## Attention and links
 
@@ -64,7 +73,8 @@ Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),
   [R-002](docs/RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery),
   [R-003](docs/RISKS.md#r-003--the-devstack-differs-from-hosted-supabase),
   [R-013](docs/RISKS.md#r-013--changing-the-qr-base-leaves-printed-labels-on-the-old-address),
-  [R-093](docs/RISKS.md#r-093--mark-collected-is-allowed-while-stripe-is-confirming-a-payment).
+  [R-093](docs/RISKS.md#r-093--mark-collected-is-allowed-while-stripe-is-confirming-a-payment),
+  [R-095](docs/RISKS.md#r-095--consigned-stock-entered-as-shop-stock-needs-an-admins-correction).
 - Before relying on payment links: RUNBOOK "Stripe: verify before go-live"
   steps 11 and 12 in test mode.
 - Before online booking: shop hours are set (shown on the public site's

@@ -704,7 +704,12 @@ while an approved or ordered item is neither fitted nor cancelled:
 - Success looks like: toast "Product added" and the product's page with
   its P- number (a unique item's unit gets its own U- number).
 - Consigned items (owned by someone else) are not added here: use
-  [Receive a consigned item](#receive-a-consigned-item).
+  [Receive a consigned item](#receive-a-consigned-item). If they were
+  added here by mistake, do not archive the product or count its stock
+  out: an admin can make it the consignor's stock on the same product,
+  keeping its P- number and labels, as long as it has not been sold, used
+  on a job or ordered (D162; for now through the
+  [RUNBOOK](RUNBOOK.md#reclassifying-shop-stock-as-consigned)).
 - If it fails: the sheet names the field to fix beside it. If the unit is
   refused, the product still exists and its page offers **Add unit**.
 

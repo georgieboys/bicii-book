@@ -1358,6 +1358,41 @@ project. Before the shop orders through the Admin:
    latest delivery (D5, D63); check the costs entered before go-live,
    because the first deliveries overwrite them.
 
+## Reclassifying shop stock as consigned
+
+For a product entered as shop stock that is really a consignor's (D162,
+[R-095](RISKS.md#r-095--consigned-stock-entered-as-shop-stock-needs-an-admins-correction)).
+Until the product page offers it, an admin runs
+`reclassify_as_consignment` from the Supabase SQL editor as themselves:
+the function checks the caller's staff role, so it must run as the
+admin's login, not as `postgres`. Find the consignor's id first
+(Consignment → the consignor; the address bar ends with it), make one new
+item id per product and keep it, so a re-run replays instead of taking
+the stock in twice:
+
+```sql
+begin;
+select set_config('request.jwt.claims', json_build_object(
+  'sub', (select auth_user_id from public.staff
+          where email = lower('admin@example.com') and role = 'admin' and active),
+  'role', 'authenticated')::text, true);
+set local role authenticated;
+select * from public.reclassify_as_consignment(
+  item_id => '00000000-0000-4000-8000-000000000000',  -- a new uuid, kept
+  product_id => (select id from public.products where short_id = 'P-000000'),
+  consignor_id => '00000000-0000-4000-8000-000000000000',
+  agreed_amount_owed => 10.00,                        -- per unit
+  reason => 'Entered as shop stock; the consignor''s items');
+commit;
+```
+
+One row comes back with the new C- number and the quantity taken in (no
+C- number when the product had no stock). An error names what stops it
+(DATA-MODEL §16); nothing is changed then. Check the product's page: its
+stock is unchanged and a **Consignments** card lists the new item. A
+wrong agreed amount is fixed on the item with **Edit terms** before it
+sells.
+
 ## When reconciliation or exceptions show a problem
 
 Reports → Exceptions and Inventory → Reconcile stock (Phase 9, D106–D108)

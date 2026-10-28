@@ -34,6 +34,17 @@ archiving (restock and job reopen refuse `consignor_archived`), refused a
 Shopify line id on an in-store sale, and moved a new consignor's creation
 into the intake's transaction (`create_consignment_item(…, new_consignor)`).
 
+Status update 2026-10-28 (D162, out of phase; owner to confirm): the owner
+reported that products entered that day as shop stock were the owner's
+own items consigned to the shop. D45 kept their owner fixed because each
+had stock counts, so the only correction was to count them out, archive
+them and take them in again on new products, with new P- numbers and new
+labels when labels for some were already printed. D162 adds one narrow,
+admin-only exception, `reclassify_as_consignment`. Evidence
+`tests/db/reclassify-consignment.test.ts`; migration
+`20261028000100_reclassify_as_consignment.sql`;
+[RISKS R-095](../RISKS.md#r-095--consigned-stock-entered-as-shop-stock-needs-an-admins-correction).
+
 ## Context
 
 SPEC §13 asks for consignment with liability kept apart from settlement,
@@ -70,6 +81,7 @@ consignment stock with the same signature; `customer_owned` stays refused
 | D53 PRICE-OVERRIDE | Any staff may override a sale price, no database floor; the sale sheet warns below the asking price (everyone) and below cost (`view_costs`) | Accepted: build default, owner to confirm; open question below | Phase 6 steps 2 and 4 |
 | D54 CONS-ITEM-LOCATION | Every consigned movement names its item, so each item's stock is known per location (`private.consignment_item_on_hand`); sales and job parts draw FIFO only among items with the quantity at that location, a named item must have it there, a return gives back only that item's stock there; a transfer of consigned quantity stock moves one item's stock (the oldest with the quantity at the source); `saleable_stock` offers each item where it is | Accepted: build default, owner to confirm | `20261004003300_consignment.sql` (movement trigger, helper, replaced `transfer_stock`, return), `…3400` (`add_inventory_line`), `…3500` (`private.sell_line`), `…3700` (`saleable_stock`); `tests/db/consignment-locations.test.ts` |
 | D55 SALE-DATE | Any staff may date a sale in the past, never more than 5 minutes ahead and never before its stock was with the shop (a consigned item's `received_at`, a unit's latest restock: `sale_before_stock`); shop-owned stock has no other lower bound | Accepted: build default, owner to confirm; open question below | `private.sell_line` (`20261004003500_sales.sql`); `tests/db/sales.test.ts`; [RISKS R-027](../RISKS.md#r-027--a-sale-can-be-backdated-without-limit-by-any-staff-member) |
+| D162 RECLASSIFY-AS-CONSIGNED | An admin may turn a shop-owned, quantity-tracked, active product whose only history is stock counts (adjustments, damage, transfers), with its stock at one location and nothing else referring to it, into a consignment-owned product: one stock adjustment counts its stock out with the reason, the owner changes, and one consignment item takes the same quantity in on the same product (amount owed per unit from the admin, asking price defaulting to the product's price); with no stock only the owner changes | Accepted: build default, owner to confirm (the owner asked for the correction on 2026-10-28) | `reclassify_as_consignment` and the replaced `private.products_ownership_rules` in `20261028000100_reclassify_as_consignment.sql`; `tests/db/reclassify-consignment.test.ts` |
 
 Full text of each row: [PLAN §6](../PLAN.md#6-open-decisions-for-the-owner).
 Rationale stated in the rows:
@@ -98,6 +110,13 @@ Rationale stated in the rows:
   timeline (the same reason `work_orders_completed_after_check_in`
   exists); how far back staff may date a sale is a business policy, so it
   is asked, not built.
+- D162: D45 exists so a product's ledger never mixes whose stock moved. A
+  product whose only history is the shop's stock counts, all counted out
+  before its owner changes, has no shop stock left and nothing that sold,
+  fitted, bought or listed it, so its ledger still reads plainly: the
+  shop's counts and the adjustment that offsets them, then the consignor's
+  intake. A product with any trading would carry shop and consigned
+  trading at once, so it is refused and corrected the D45 way.
 
 ## Alternatives actually considered
 
@@ -115,6 +134,9 @@ Rationale stated in the rows:
 | Split a transfer across several consignors' items FIFO (D54) | Rejected: a transfer writes one row per location under one request id (`inventory_movements_request_once`), so one transfer moves one item's stock; staff move a second consignor's stock as a second transfer ([RISKS R-025](../RISKS.md#r-025--a-transfer-of-consigned-stock-cannot-choose-whose-stock-moves)) |
 | A lower bound at a shop unit's registration (D55) | Rejected: shop stock is often registered after it arrived, so its registration says nothing about when it could have been sold |
 | A permission or a window for backdating (D55) | Not chosen for the build default (a new business policy); asked as an open question |
+| Count the stock out, archive the products and take them in again on new consignment products (D162) | Rejected for stock that was only counted: new P- numbers would strand the labels already printed and every product would be entered twice; still the route for a product with trading history |
+| An owner-run SQL update with the trigger disabled (D162) | Rejected: the shop's stock would become the consignor's with no movement, no item and no record of why |
+| Let any `manage_consignments` holder reclassify (D162) | Not chosen: changing whose stock it is moves liability to a consignor and is rare; admin only, like D161's counter payments |
 
 ## Consequences
 
@@ -136,6 +158,13 @@ Rationale stated in the rows:
   consignor FOR SHARE (lock order 0b) and a job reopen takes its
   consignors FOR SHARE before their items; both refuse
   `consignor_archived`.
+- D162 replaces `private.products_ownership_rules` (same trigger): an
+  owner change on a product with history is still
+  `product_ownership_immutable`, except shop-owned to consignment inside
+  `reclassify_as_consignment` once its stock is counted out. The product's
+  `default_direct_cost` stays as entered, but a consigned line's cost is
+  the agreed amount (D44). There is no screen: an admin runs it as the
+  RUNBOOK describes.
 
 ## Open question for the owner
 
@@ -149,7 +178,8 @@ a permission such as `view_financial_reports` or admin?
 
 The owner confirms or changes any row; D53's or D55's open question is answered; the
 first consigned bike that comes back to be consigned again (D51); Phase 9's
-refund-reporting row (D49).
+refund-reporting row (D49); a second product entered as shop stock that is
+really consigned, or one with trading history (D162).
 
 ## Evidence and links
 

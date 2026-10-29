@@ -1195,10 +1195,12 @@ URLs, or customer data in this file.
 - Category: unverified assumption / operational gap (D10, D70, D71).
 - Status and owner: resolved for delivery 2026-10-15 SGT: the shop's
   domain is verified in Resend and Auth sends from it (owner's report),
-  so codes reach addresses other than the owner's. Open for the
-  templates: on 2026-10-29 a first-time customer got a confirmation link
-  instead of a code (below); owner (the Resend domain, the Auth
-  dashboard), build agent (procedure).
+  so codes reach addresses other than the owner's. Resolved for the
+  Confirm signup template 2026-10-29 SGT: the owner pasted
+  `supabase/templates/confirmation.html` and reported that sign-up works
+  (below). The rest of the Auth settings are still to be checked against
+  RUNBOOK; owner (the Resend domain, the Auth dashboard), build agent
+  (procedure).
 - Trigger: inviting the first staff member; opening customer sign-in on
   the public site; any change of mail provider or sender.
 - Impact: without working email nobody can sign in. Production's Auth
@@ -1232,8 +1234,11 @@ URLs, or customer data in this file.
   steps named only Magic Link). The default link goes to Auth's Site URL,
   the Admin. A read-only count that day: four logins created that day,
   each confirmed by its link, none signed in and none linked to a
-  customer; they now get the Magic Link code on their next sign-in. On
-  2026-10-12 the owner signed in to the
+  customer; they now get the Magic Link code on their next sign-in.
+  After the owner set the Confirm signup template the same day, two new
+  logins were created and signed in with a code within a minute
+  (read-only count of `auth.users`, no addresses read). On 2026-10-12
+  the owner signed in to the
   production Admin with an emailed code (Auth records an `otp` session;
   `private.sign_in_attempts` gained rows, so the D72 counters ran with the
   production key); the earlier failure is in the hosted Auth log as
@@ -1245,14 +1250,15 @@ URLs, or customer data in this file.
   address after any SMTP change. The staff sign-in page points customers
   to the public site's sign-in, so anyone who still follows such a link
   can find their way.
-- Next action: the owner pastes `supabase/templates/confirmation.html`
-  into Authentication → Emails → Templates → **Confirm signup** (subject
-  "Your BICII code") and signs in on the public site with an address that
-  has never been used, expecting a code; then checks the other templates
-  and Auth settings against RUNBOOK "Hosted Supabase projects" step 2.
+- Next action: check the remaining Auth settings (OTP length and expiry,
+  the per-address interval, rate limits) against RUNBOOK "Hosted Supabase
+  projects" step 2; optionally set the Admin's `NEXT_PUBLIC_PUBLIC_SITE_URL`
+  to the public site's own address, so the staff sign-in's customer link
+  skips the old alias's redirect.
 - Revisit trigger: the domain is verified; a change of provider or sender.
-- Last checked: 2026-10-29 SGT, the owner's report of the link and the
-  read-only count of logins; 2026-10-15, the owner's report that Auth sends
+- Last checked: 2026-10-29 SGT, the owner's report of the link, then of
+  sign-up working after the template change, and the read-only counts of
+  logins; 2026-10-15, the owner's report that Auth sends
   through Resend from the verified domain; 2026-10-12, hosted Auth log and
   read-only SQL, the owner's sign-in.
 

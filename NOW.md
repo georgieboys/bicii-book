@@ -1,10 +1,10 @@
 # Current state
 
 Updated: 2026-10-29 SGT (D162 and the consigned cost in production: PRs
-#50–#53, `migrate.yml` run 22, the owner's products checked read-only; a
-first-time customer got a confirmation link that opened the staff sign-in:
-production's Confirm signup template is Supabase's default, R-039; no
-public active appointment type yet). Earlier
+#50–#53, `migrate.yml` run 22; customer sign-up fixed: the owner set the
+Confirm signup template and sign-up works, and the staff sign-in points
+customers to theirs, PR #54, R-039; no public active appointment type
+yet). Earlier
 evidence, 2026-10-24: `main` f120c6d; PR #45 (CI and label-run e2e green on
 a666bef) merged as d30473d, `migrate.yml` run 20, the
 hosted project read-only (75 migrations, the last `20261019000100`) and
@@ -18,18 +18,12 @@ and the pull requests.
 
 - Purpose: the staff Admin for BICII's workshop, over one Supabase backend
   shared with the public site ([PRODUCT](docs/PRODUCT.md)).
-- Current objective: customer sign-in. A new customer's first email is
-  Auth's Confirm signup template, still Supabase's default with a link
-  that opens the Admin
-  ([R-039](docs/RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified));
-  the staff sign-in page now points customers to the public site's
-  sign-in (in its pull request).
-- Next action: the owner pastes `supabase/templates/confirmation.html`
-  into Authentication → Emails → Templates → Confirm signup and tests with
-  a new address
-  ([RUNBOOK](docs/RUNBOOK.md#the-public-site-customer-accounts) step 2).
-  The owner sets the amount owed on the reclassified items still at 0.00.
-  After that, the owner's answers to the
+- Current objective: none in progress. Customer sign-up sends a code
+  since the owner set the Confirm signup template (2026-10-29,
+  [R-039](docs/RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified)).
+- Next action: the owner sets the amount owed on the reclassified items
+  still at 0.00, and adds a public, active appointment type for online
+  booking. After that, the owner's answers to the
   [owner questions](docs/PRODUCT.md#open-assumptions-and-owner-questions),
   first 35 (payment links, counter payments, Reports), 36 (payments in the
   public account, D126) and 30 (the public site's defaults), and the QR
@@ -62,7 +56,7 @@ Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),
 
 ## Work location and continuation
 
-- georgieboys/bicii-book (public), `main` e201b34 (PR #53). Use `origin/main`.
+- georgieboys/bicii-book (public), `main` 9b52589 (PR #54). Use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted from
   `main` after each merge; its changes go through their own pull request.
 - Paused: `wip/feat/p10-shopify` (8dbe6c4, an unreviewed refund-roles

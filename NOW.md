@@ -1,9 +1,10 @@
 # Current state
 
-Updated: 2026-10-29 SGT (D162 in production: PRs #50, #51 and #52, the
-owner's 25 products reclassified; a consigned product's page shows the
-amount owed as its cost in its own pull request; no public active
-appointment type yet). Earlier
+Updated: 2026-10-29 SGT (D162 and the consigned cost in production: PRs
+#50–#53, `migrate.yml` run 22, the owner's products checked read-only; a
+first-time customer got a confirmation link that opened the staff sign-in:
+production's Confirm signup template is Supabase's default, R-039; no
+public active appointment type yet). Earlier
 evidence, 2026-10-24: `main` f120c6d; PR #45 (CI and label-run e2e green on
 a666bef) merged as d30473d, `migrate.yml` run 20, the
 hosted project read-only (75 migrations, the last `20261019000100`) and
@@ -17,14 +18,18 @@ and the pull requests.
 
 - Purpose: the staff Admin for BICII's workshop, over one Supabase backend
   shared with the public site ([PRODUCT](docs/PRODUCT.md)).
-- Current objective: a consigned product's cost is its amount owed (the
-  owner's question of 2026-10-29): `product_costs.effective_cost` and the
-  product page, so Edit terms moves both
-  ([R-095](docs/RISKS.md#r-095--consigned-stock-entered-as-shop-stock-needs-an-admins-correction)).
-  The item-id fix (PR #52) is in production.
-- Next action: merge it when CI is green (`migrate.yml` applies
-  `20261029000100`). The owner sets the amount owed on the eleven
-  reclassified items left at 0.00. After that, the owner's answers to the
+- Current objective: customer sign-in. A new customer's first email is
+  Auth's Confirm signup template, still Supabase's default with a link
+  that opens the Admin
+  ([R-039](docs/RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified));
+  the staff sign-in page now points customers to the public site's
+  sign-in (in its pull request).
+- Next action: the owner pastes `supabase/templates/confirmation.html`
+  into Authentication → Emails → Templates → Confirm signup and tests with
+  a new address
+  ([RUNBOOK](docs/RUNBOOK.md#the-public-site-customer-accounts) step 2).
+  The owner sets the amount owed on the reclassified items still at 0.00.
+  After that, the owner's answers to the
   [owner questions](docs/PRODUCT.md#open-assumptions-and-owner-questions),
   first 35 (payment links, counter payments, Reports), 36 (payments in the
   public account, D126) and 30 (the public site's defaults), and the QR
@@ -50,14 +55,14 @@ request; the full e2e suite runs on the `e2e` label and nightly.
 | Indent quotes and deposits | Yes (Phases 13–14) | CI, e2e; a live deposit paid and refunded | Production; deposits at 100% |
 | Payment links, counter payments | Yes (Phase 14 step 3) | CI, e2e with the fake Stripe | Production; none used yet (2026-10-24), no test-mode rehearsal |
 | Audit fixes | Yes (PRs #38, #43–#45) | CI and label-run e2e | Production |
-| Reclassify shop stock as consigned (D162) | Database, the admin-only Change owner and the item-id fix (PRs #50–#52); a consigned product's cost as its amount owed in its pull request | CI and full e2e green on PR #51; PR #52's unit test failed before it and passed after; `consigned-product-costs.test.ts` failed first and passes | Production since 2026-10-28 SGT (the owner's 25 products reclassified, checked read-only; PR #52's build of 0aa580a READY); the cost change not yet |
+| Reclassify shop stock as consigned (D162) | Database, the admin-only Change owner, the item-id fix and a consigned product's cost as its amount owed (PRs #50–#53) | CI and full e2e green on PR #51; PR #52's unit test failed before it and passed after; `consigned-product-costs.test.ts` failed first and passes | Production since 2026-10-28 SGT (the owner's 25 products reclassified, checked read-only); the cost change since 2026-10-29 (`migrate.yml` run 22, Vercel's build of e201b34 READY; the products' costs checked read-only) |
 
 Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),
 [TESTING](docs/TESTING.md).
 
 ## Work location and continuation
 
-- georgieboys/bicii-book (public), `main` 0aa580a (PR #52). Use `origin/main`.
+- georgieboys/bicii-book (public), `main` e201b34 (PR #53). Use `origin/main`.
 - `claude/brave-clarke-kfqhgt`: the go-live session's branch, restarted from
   `main` after each merge; its changes go through their own pull request.
 - Paused: `wip/feat/p10-shopify` (8dbe6c4, an unreviewed refund-roles

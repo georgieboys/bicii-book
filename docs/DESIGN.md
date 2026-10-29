@@ -310,7 +310,11 @@ upload itself, below).
 
 - **`/login`** (`src/app/(auth)/login/`, PLAN D10, D70): two steps on one
   page, no navigation between them, so it behaves the same in a browser
-  tab and in the installed app (codes, never links). Step 1: Email
+  tab and in the installed app (codes, never links). Under the form, after
+  "No access? …", a line for customers who land here (customers share the
+  Auth project, R-039): "Customer? Sign in to your BICII account on the
+  shop's website.", linking to `customerSignInUrl()` (`src/lib/env.ts`:
+  the environment's public site address + `/sign-in`, never a QR base). Step 1: Email
   (`autocomplete="email"`, email keyboard) and "Email me a code". Step 2:
   "Check your email", "If {email} belongs to BICII staff, we've emailed a
   6-digit code. It expires in 10 minutes." (identical for unknown and staff

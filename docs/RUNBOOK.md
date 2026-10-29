@@ -487,7 +487,14 @@ are not open, and nothing below affects staff.
    `main`; [Applying migrations](#applying-migrations-to-a-hosted-project)).
 2. Authentication → Emails → Templates → **Magic Link**: paste the current
    `supabase/templates/magic_link.html` again. It now says "the BICII
-   sign-in screen", because customers receive it too.
+   sign-in screen", because customers receive it too. **Confirm signup**
+   too: paste `supabase/templates/confirmation.html`, subject "Your BICII
+   code". A customer's first sign-in creates their login, and Auth sends a
+   new login this template, not Magic Link; left at Supabase's default it
+   sends a link instead of a code, and the link opens the Site URL, the
+   Admin's staff sign-in (R-039, 2026-10-29). Check it by signing in on
+   the public site with an address never used before: the email must hold
+   a 6-digit code and no link.
 3. Sign In / Providers → Email → **Allow new users to sign up: ON**
    (D120). Staff sign-in is unaffected: the Admin asks for codes with
    `shouldCreateUser: false`, and a login without an active staff row is
@@ -496,7 +503,8 @@ are not open, and nothing below affects staff.
    login.
 4. Rate limits: no change. The public site calls Auth from each visitor's
    browser, so Auth's per-IP limits count each visitor separately.
-5. URL configuration: no change. Emails carry codes only, never links.
+5. URL configuration: no change. Emails carry codes only, never links
+   (step 2's two templates).
 6. The public site's Vercel project, Settings → Environment Variables
    (Production; Preview only if previews may use this project):
    `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (this

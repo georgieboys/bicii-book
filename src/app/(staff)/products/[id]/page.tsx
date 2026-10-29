@@ -61,7 +61,8 @@ const plain = (n: number) => signedQuantity(n).replace(/^\+/, "");
  * category and publication; stock by location with the total (a low-stock
  * note at or below the reorder point, "recount needed" for a location
  * below zero, D23); for a unique product its units; the selling price
- * (public.selling_prices) and, only for view_costs holders, cost, expected
+ * (public.selling_prices) and, only for view_costs holders, cost (a
+ * consigned product: the amount owed on its next consignment, D44), expected
  * yield and Cult Commons (the DTO has none otherwise); photos (internal or
  * public, never customer); recent movements; history; archive. Adjust
  * stock needs adjust_stock, Transfer, Edit details, Add unit and Archive
@@ -198,7 +199,9 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                   categoryId: product.category?.id ?? null,
                   description: product.description,
                   defaultSalePrice: product.defaultSalePrice,
-                  ...(viewCosts ? { cost: product.cost ?? null } : {}),
+                  // A consigned product's cost is its consignments' amount
+                  // owed (D44, Edit terms), so it offers no Cost field.
+                  ...(viewCosts && !consigned ? { cost: product.cost ?? null } : {}),
                   reorderPoint: product.reorderPoint,
                   active: product.active,
                   trackingType: product.trackingType,
@@ -213,7 +216,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                       ]
                     : categories
                 }
-                viewCosts={viewCosts}
+                viewCosts={viewCosts && !consigned}
               />
             ) : null}
             {changeOwner ? (
@@ -362,13 +365,19 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                 Cost and yield (staff with cost access only)
               </h3>
               <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm tabular-nums">
-                <dt>Cost</dt>
-                <dd className="text-right">{money(product.cost)}</dd>
+                <dt>{consigned ? "Amount owed per item" : "Cost"}</dt>
+                <dd className="text-right">{money(product.effectiveCost)}</dd>
                 <dt>Expected yield</dt>
                 <dd className="text-right">{money(product.expectedYield)}</dd>
                 <dt>Cult Commons share</dt>
                 <dd className="text-right">{money(product.expectedCultCommons)}</dd>
               </dl>
+              {consigned ? (
+                <p className="text-sm text-dust-700">
+                  The cost of each sale: what the consignor is owed on the consignment that sells
+                  next. Change it with Edit terms on the item.
+                </p>
+              ) : null}
               {product.cost === null && !consigned ? (
                 <p className="text-sm text-waiting-deep">
                   No cost yet: this product can&apos;t go on a job until it has one.

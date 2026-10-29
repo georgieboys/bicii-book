@@ -4906,6 +4906,7 @@ export type Database = {
         Row: {
           currency: string | null;
           default_direct_cost: number | null;
+          effective_cost: number | null;
           expected_cult_commons: number | null;
           expected_yield: number | null;
           product_id: string | null;

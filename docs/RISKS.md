@@ -3106,7 +3106,13 @@ URLs, or customer data in this file.
   a read-only check against zod's rule). The app's id checks now use
   `z.guid()`, ESLint forbids `z.uuid()` in `src/`, and
   `tests/unit/consignment-forms.test.ts` "record ids made outside the app"
-  failed before the change and passes after it.
+  failed before the change and passes after it. On 2026-10-29 the owner
+  asked why an item's cost and its amount owed differ: sales and job lines
+  already cost a consigned item at the amount owed (D44), but the product
+  page still showed the cost entered as shop stock. Since
+  `20261029000100_consigned_product_costs` the page shows the amount owed
+  on the next consignment as the cost and Edit details offers no Cost for
+  consigned products (`tests/db/consigned-product-costs.test.ts`).
 - Workaround or containment: **Change owner** on the product page, admins
   only ([USER-GUIDE](USER-GUIDE.md#change-who-owns-a-product-admins));
   `reclassify_as_consignment` from SQL for many at once

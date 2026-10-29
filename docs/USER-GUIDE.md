@@ -726,7 +726,9 @@ while an approved or ordered item is neither fitted nor cancelled:
   consigned stock**.
 - Success looks like: toast "C-000123 received from …" and the new
   consignment item's page. The product keeps its P- number, labels,
-  photos and count; its page says "Consigned stock" and its stock now
+  photos and count; its page says "Consigned stock", shows the **Amount
+  owed per item** where the cost was (change it with **Edit terms** on
+  the item; the product's old cost is no longer used), and its stock now
   moves only the consignment way (sell, use on a job, return to the
   consignor, transfer). With no stock, only the owner changes ("Now
   consigned stock").

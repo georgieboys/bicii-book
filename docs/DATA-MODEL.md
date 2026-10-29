@@ -1764,7 +1764,14 @@ columns), and reads them through the definer `security_barrier` views
 `product_costs`, `inventory_unit_costs` and `inventory_movement_costs`
 (rows only for `view_costs`), which also give expected yield and expected
 Cult Commons with exactly Phase 3's generated expression for quantity 1
-(D1). `public.selling_prices` gives every active staff member the
+(D1). Since `20261029000100_consigned_product_costs`, `product_costs`
+also has `effective_cost`, from which its yield and Cult Commons are
+computed: a shop product's `default_direct_cost`, as before; a consigned
+product's agreed amount owed on the consignment that sells next
+(`private.consigned_unit_cost`, the same item `private.selling_price`
+prices; NULL with none), because that is what a sale or job line of it
+costs (D44). `default_direct_cost` stays the product's own field.
+`public.selling_prices` gives every active staff member the
 effective selling price of each product (unit null) and unit. Direct API
 writes of a cost column by a caller without `view_costs` are refused (42501)
 whatever the value (an UPDATE naming the column is refused even when it
@@ -2389,7 +2396,10 @@ usual. The ledger keeps the shop's counts and the adjustment that offsets
 them, then the consignor's intake; nothing earlier is rewritten. From then
 on the product is ordinary consigned stock (D44, D46, D50), and
 `default_direct_cost` is no longer what a consigned line costs (D44: the
-agreed amount is).
+agreed amount is). Its page shows the amount owed instead: `product_costs`
+gives a consigned product the agreed amount of its next consignment as
+`effective_cost` (§6), so Edit terms changes the product's cost and
+expected yield too, and Edit details offers no Cost field for it.
 
 ## 10. Suppliers and purchasing
 

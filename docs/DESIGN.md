@@ -392,7 +392,12 @@ upload itself, below).
   reads cost, expected yield and Cult Commons from `product_costs`,
   `inventory_unit_costs` and `inventory_movement_costs` only for view_costs
   holders; the DTO otherwise has no such key. Product and unit pages show
-  them under "Cost and yield (staff with cost access only)".
+  them under "Cost and yield (staff with cost access only)". A consigned
+  product's row reads "Amount owed per item" (`effective_cost`: the amount
+  owed on the consignment that sells next, D44) with "The cost of each
+  sale: what the consignor is owed on the consignment that sells next.
+  Change it with Edit terms on the item.", and its Edit details has no
+  Cost field.
 - **Selling prices** shown anywhere come from `public.selling_prices`
   (`private.selling_price`), never recomputed in TS, so Phase 6's
   consignment price flows through; edit forms edit the product default and

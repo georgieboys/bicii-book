@@ -73,6 +73,30 @@ test("an admin makes shop stock a consignor's on the same product", async ({
   await expect(toast(page, /^C-\d{6} received from /)).toBeVisible();
   await expect(page).toHaveURL(/\/consignment\/items\/[0-9a-f-]{36}$/);
   await expect(page.getByText(consignorName).first()).toBeVisible();
+  const itemPath = new URL(page.url()).pathname;
+
+  // The product's cost is now the amount owed (D44): 8.00, then whatever
+  // Edit terms sets on the item. Edit details no longer offers a Cost.
+  await page.goto(new URL(product.url).pathname);
+  const prices = section(page, "Prices");
+  await expect(prices).toContainText("Amount owed per item$8.00");
+  await expect(prices).toContainText("Expected yield$12.00");
+  await page.getByRole("button", { name: "Edit details" }).click();
+  const details = page.getByRole("dialog", { name: "Edit details" });
+  await expect(details.getByLabel("Name")).toBeVisible();
+  await expect(details.getByLabel("Cost", { exact: true })).toHaveCount(0);
+  await details.getByRole("button", { name: "Cancel" }).click();
+
+  await page.goto(itemPath);
+  await page.getByRole("button", { name: "Edit terms" }).click();
+  const terms = page.getByRole("dialog", { name: "Edit terms" });
+  await terms.getByLabel("Amount owed to the consignor when it sells").fill("5");
+  await terms.getByRole("textbox", { name: /^Why is the amount owed changing/ }).fill("Agreed");
+  await terms.getByRole("button", { name: "Save terms" }).click();
+  await expect(toast(page, "Terms saved")).toBeVisible();
+  await page.goto(new URL(product.url).pathname);
+  await expect(section(page, "Prices")).toContainText("Amount owed per item$5.00");
+  await expect(section(page, "Prices")).toContainText("Expected yield$15.00");
 
   // 5. The same product, now consigned: same P- number, same count, no
   // shop stock moves and no Change owner.

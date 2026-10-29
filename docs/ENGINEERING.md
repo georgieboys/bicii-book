@@ -239,7 +239,7 @@ from the code:
   `20261019000100_customer_refunded_amounts` (PR #45, applied by run 20
   on 2026-10-19 SGT), and since PR #50 at
   `20261028000100_reclassify_as_consignment` (D162, applied by run 21 on
-  2026-10-28 SGT). A
+  2026-10-28 SGT), with `20261029000100_consigned_product_costs` next. A
   new file must sort after the newest (hosted migrations are
   append-only; `migrate.yml` never uses `--include-all` and skips applied
   versions).

@@ -641,8 +641,14 @@ export type ProductDetail = {
    * private.publication_requirements_met, which stays the authority.
    */
   requirements: PublicationRequirements;
-  /** view_costs only (absent otherwise). */
+  /** view_costs only (absent otherwise). The product's own cost field. */
   cost?: Money | null;
+  /**
+   * view_costs only. What one sells at cost: shop stock, the product's
+   * cost; consigned stock, the amount owed on the consignment that sells
+   * next (D44), which Edit terms changes.
+   */
+  effectiveCost?: Money | null;
   expectedYield?: Money | null;
   expectedCultCommons?: Money | null;
 };
@@ -712,7 +718,7 @@ export async function getProduct(
     viewCosts
       ? supabase
           .from("product_costs")
-          .select("default_direct_cost, expected_yield, expected_cult_commons")
+          .select("default_direct_cost, effective_cost, expected_yield, expected_cult_commons")
           .eq("product_id", id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -823,6 +829,7 @@ export async function getProduct(
   if (viewCosts) {
     const costs = unwrap(costsResult);
     detail.cost = money(costs?.default_direct_cost);
+    detail.effectiveCost = money(costs?.effective_cost);
     detail.expectedYield = money(costs?.expected_yield);
     detail.expectedCultCommons = money(costs?.expected_cult_commons);
   }

@@ -1195,9 +1195,10 @@ URLs, or customer data in this file.
 - Category: unverified assumption / operational gap (D10, D70, D71).
 - Status and owner: resolved for delivery 2026-10-15 SGT: the shop's
   domain is verified in Resend and Auth sends from it (owner's report),
-  so codes reach addresses other than the owner's; the Auth templates and
-  settings are still to be checked against RUNBOOK; owner (the Resend
-  domain, the Auth dashboard), build agent (procedure).
+  so codes reach addresses other than the owner's. Open for the
+  templates: on 2026-10-29 a first-time customer got a confirmation link
+  instead of a code (below); owner (the Resend domain, the Auth
+  dashboard), build agent (procedure).
 - Trigger: inviting the first staff member; opening customer sign-in on
   the public site; any change of mail provider or sender.
 - Impact: without working email nobody can sign in. Production's Auth
@@ -1222,7 +1223,17 @@ URLs, or customer data in this file.
   looks healthy; the login actions log the cause (`limit: "admin"`,
   `cause`), and RUNBOOK's deploy and rotation steps end with a code
   sign-in from a fresh browser.
-- Evidence and confidence: high. On 2026-10-12 the owner signed in to the
+- Evidence and confidence: high. On 2026-10-29 SGT the owner reported
+  that a new customer signing in on the public site got "a link to
+  confirm instead of code", and the link opened the Admin's staff sign-in.
+  `signInWithOtp` sends the **Confirm signup** template, not Magic Link,
+  to a login it has just created, and production's Confirm signup was
+  still Supabase's default with its link (RUNBOOK's customer-accounts
+  steps named only Magic Link). The default link goes to Auth's Site URL,
+  the Admin. A read-only count that day: four logins created that day,
+  each confirmed by its link, none signed in and none linked to a
+  customer; they now get the Magic Link code on their next sign-in. On
+  2026-10-12 the owner signed in to the
   production Admin with an emailed code (Auth records an `otp` session;
   `private.sign_in_attempts` gained rows, so the D72 counters ran with the
   production key); the earlier failure is in the hosted Auth log as
@@ -1230,14 +1241,18 @@ URLs, or customer data in this file.
   migration applied on production (its DELETE grant was present). The
   devstack path is covered by `tests/db/stack.smoke.test.ts` and
   `tests/e2e/auth.spec.ts` through the mail catcher.
-- Workaround or containment: until the domain is verified only the owner
-  signs in; RUNBOOK says to test with the owner's own address after any
-  SMTP change.
-- Next action: the first staff invitation (a code to an address other
-  than the owner's), then check the templates and Auth settings against
-  RUNBOOK "Hosted Supabase projects" step 2.
+- Workaround or containment: RUNBOOK says to test with the owner's own
+  address after any SMTP change. The staff sign-in page points customers
+  to the public site's sign-in, so anyone who still follows such a link
+  can find their way.
+- Next action: the owner pastes `supabase/templates/confirmation.html`
+  into Authentication → Emails → Templates → **Confirm signup** (subject
+  "Your BICII code") and signs in on the public site with an address that
+  has never been used, expecting a code; then checks the other templates
+  and Auth settings against RUNBOOK "Hosted Supabase projects" step 2.
 - Revisit trigger: the domain is verified; a change of provider or sender.
-- Last checked: 2026-10-15 SGT, the owner's report that Auth sends
+- Last checked: 2026-10-29 SGT, the owner's report of the link and the
+  read-only count of logins; 2026-10-15, the owner's report that Auth sends
   through Resend from the verified domain; 2026-10-12, hosted Auth log and
   read-only SQL, the owner's sign-in.
 

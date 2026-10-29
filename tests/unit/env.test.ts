@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EnvError, parsePublicEnv, parseServerEnv } from "@/lib/env";
+import { EnvError, customerSignInUrl, parsePublicEnv, parseServerEnv } from "@/lib/env";
 
 const validPublic = {
   NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
@@ -12,6 +12,10 @@ describe("env", () => {
     expect(parsePublicEnv(validPublic).NEXT_PUBLIC_PUBLIC_SITE_URL).toBe(
       "https://bicii.vercel.app",
     );
+  });
+
+  it("points customers at the public site's own sign-in (R-039)", () => {
+    expect(customerSignInUrl(parsePublicEnv(validPublic))).toBe("https://bicii.vercel.app/sign-in");
   });
 
   it("names every missing or invalid variable and points at .env.example", () => {

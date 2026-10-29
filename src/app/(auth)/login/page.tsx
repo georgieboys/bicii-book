@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { safeNextPath } from "@/lib/auth/redirect";
 import { getSession } from "@/lib/auth/session";
+import { customerSignInUrl } from "@/lib/env";
 
 import { LoginForm } from "./login-form";
 
@@ -35,6 +36,15 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <LoginForm next={nextPath === "/" ? undefined : nextPath} />
       <p className="text-sm text-dust-500">
         No access? Ask an admin to invite or reactivate you in Settings → Staff.
+      </p>
+      {/* Customers share this Auth project; one who lands here (an old email
+          link, a wrong bookmark) is sent to the public site's own sign-in. */}
+      <p className="text-sm text-dust-500">
+        Customer?{" "}
+        <a href={customerSignInUrl()} className="font-semibold text-ink underline">
+          Sign in to your BICII account
+        </a>{" "}
+        on the shop&apos;s website.
       </p>
     </div>
   );

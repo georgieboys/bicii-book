@@ -237,6 +237,16 @@ export function getServerEnv(): ServerEnv {
   return serverEnv;
 }
 
+/**
+ * The public site's customer sign-in page, for the staff sign-in's pointer
+ * to customers who land on the Admin (they share its Auth project, R-039).
+ * Never a QR base: QR URLs come from shop_settings.public_site_url only
+ * (D9; tests/unit/qr-base-sources.test.ts).
+ */
+export function customerSignInUrl(env: PublicEnv = getPublicEnv()): string {
+  return `${env.NEXT_PUBLIC_PUBLIC_SITE_URL}/sign-in`;
+}
+
 /** Test hook: forget memoised values so a test can change process.env. */
 export function resetEnvCache(): void {
   publicEnv = undefined;

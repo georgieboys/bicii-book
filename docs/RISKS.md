@@ -1543,6 +1543,18 @@ URLs, or customer data in this file.
   Store (ADR-020 amendment 2026-11-13), which needs the
   `write_publications` scope. Still unverified: media through `files`,
   the stale-compare codes, `publishablePublish` on the live store.
+  Later on 2026-11-13: the app's version `bicii-admin-2` added
+  `read_publications` and `write_publications`, approved on the store.
+  `publishablePublish` to the "Online Store" publication then worked on
+  the live store (`publishedOnPublication: true`, no userErrors), and the
+  product shows on `shop.bicii.sg/products/bicii-p-000004` at 35.00 SGD.
+  The first Sync now after the deploy still ran the previous build: the
+  staff page was loaded before the deploy, and Vercel keeps an open page's
+  server actions on the build that served it, so that push did not
+  publish. The publish was made directly with the same call. After a
+  deploy that changes sync behaviour, reload the Admin before Sync now
+  (RUNBOOK). Still unverified: media through `files`, the stale-compare
+  codes.
 - Next action: work through
   [RUNBOOK "Verify before go-live"](RUNBOOK.md#shopify-verify-before-go-live)
   on a development store and correct the documents and the tests together.

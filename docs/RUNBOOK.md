@@ -811,7 +811,12 @@ development store before connecting the shop.
    product on the Online Store sales channel, ADR-020 amendment
    2026-11-13) on its version, release that version, and install it on
    the store. A changed scope list needs a new released version, which the
-   store then approves. Put
+   store then approves: open the app from the store admin (Apps → BICII
+   Admin) and press **Update** on the permissions screen; until then the
+   exchanged token keeps the old scopes. After deploying a change to the
+   sync, reload the Admin before pressing **Sync now**: an Admin page
+   loaded before the deploy runs its actions on the previous build
+   (Vercel skew protection). Put
    its **client ID** into `SHOPIFY_CLIENT_ID` and its **client secret**
    (password manager first) into `SHOPIFY_CLIENT_SECRET`; leave
    `SHOPIFY_ADMIN_TOKEN` unset, because a set token is used instead. The

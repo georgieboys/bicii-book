@@ -3216,6 +3216,10 @@ URLs, or customer data in this file.
   the sign-in page still loaded. Production was rolled back to the
   previous build, which restored them; queued booking emails waited and
   none were lost.
+  The value had been stored as a Sensitive variable, so the owner could
+  not see it and several edits did not replace it; deleting the entry and
+  adding it again as a plain variable fixed it. RUNBOOK now keeps the
+  shop domain plain.
 - Evidence and confidence: high; the Vercel runtime log showed
   `EnvError: SHOPIFY_SHOP_DOMAIN: must be the shop's <name>.myshopify.com
   domain` on `/api/cron/appointment-notices`, `/api/cron/integrations`

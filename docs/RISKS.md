@@ -1526,6 +1526,14 @@ URLs, or customer data in this file.
   reason; it now logs `error: error_description` with the HTTP status and
   shows staff an "app is not installed" message for that case
   (`tests/unit/shopify-access-token.test.ts`).
+  After the owner installed the app the same day, the exchange returned
+  HTTP 200 with a token (`expires_in: 86399`; scopes include
+  `write_products`, `write_inventory`, `write_locations`), and that token
+  answered read-only Admin GraphQL on `2026-10`: the shop, 9 products, and
+  the Admin's `locations` query with one location, `isActive: true`. This
+  is the live store, not a development store; no product or inventory
+  write has been tried, so `productSet` and `inventorySetQuantities`
+  remain unverified.
 - Next action: work through
   [RUNBOOK "Verify before go-live"](RUNBOOK.md#shopify-verify-before-go-live)
   on a development store and correct the documents and the tests together.

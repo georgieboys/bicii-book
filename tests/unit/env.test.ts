@@ -75,7 +75,7 @@ describe("Shopify and cron variables (Phase 10)", () => {
     ).toBe("bicii-test.myshopify.com");
   });
 
-  it("refuses a shop domain that is not <name>.myshopify.com", () => {
+  it("switches Shopify off for a shop domain that is not <name>.myshopify.com, without failing the rest (R-097)", () => {
     for (const domain of [
       "https://bicii.myshopify.com",
       "Bicii.myshopify.com",
@@ -83,8 +83,20 @@ describe("Shopify and cron variables (Phase 10)", () => {
       "-bicii.myshopify.com",
       "bicii.myshopify.com/admin",
     ]) {
-      expect(() => parseServerEnv({ SHOPIFY_SHOP_DOMAIN: domain })).toThrow(/SHOPIFY_SHOP_DOMAIN/);
+      const env = parseServerEnv({
+        SHOPIFY_SHOP_DOMAIN: domain,
+        SHOPIFY_ADMIN_TOKEN: TOKEN,
+        CRON_SECRET: "cron",
+        VERCEL_ENV: "production",
+      });
+      expect(env.SHOPIFY_SHOP_DOMAIN).toBeUndefined();
+      expect(env.SHOPIFY_SHOP_DOMAIN_INVALID).toBe(domain);
+      expect(env.CRON_SECRET).toBe("cron");
     }
+    expect(parseServerEnv({}).SHOPIFY_SHOP_DOMAIN_INVALID).toBeNull();
+    expect(
+      parseServerEnv({ SHOPIFY_SHOP_DOMAIN: " bicii-test.myshopify.com " }).SHOPIFY_SHOP_DOMAIN,
+    ).toBe("bicii-test.myshopify.com");
   });
 
   it("accepts fake for local development and E2E", () => {

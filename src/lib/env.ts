@@ -59,14 +59,13 @@ export const serverEnvSchema = z
       .min(1, { error: "must be a whole number from 1 to 100000" })
       .max(100_000, { error: "must be a whole number from 1 to 100000" })
       .default(1),
-    /** Phase 10 (RUNBOOK "Shopify"): the shop's own myshopify.com domain. */
-    SHOPIFY_SHOP_DOMAIN: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/, {
-        error: "must be the shop's <name>.myshopify.com domain, lower case",
-      })
-      .optional(),
+    /**
+     * Phase 10 (RUNBOOK "Shopify"): the shop's own myshopify.com domain.
+     * Checked softly (R-097): a value that is not <name>.myshopify.com is
+     * dropped by parseServerEnv, which switches Shopify off and sets
+     * SHOPIFY_SHOP_DOMAIN_INVALID, instead of failing every server route.
+     */
+    SHOPIFY_SHOP_DOMAIN: z.string().trim().optional(),
     /** The custom app's Admin API access token (live adapter). Secret. */
     SHOPIFY_ADMIN_TOKEN: nonEmpty.optional(),
     /** The webhook signing secret (HMAC on /api/shopify/webhooks). Secret. */
@@ -178,7 +177,16 @@ export const serverEnvSchema = z
   });
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
-export type ServerEnv = z.infer<typeof serverEnvSchema>;
+export type ServerEnv = z.infer<typeof serverEnvSchema> & {
+  /**
+   * The SHOPIFY_SHOP_DOMAIN value refused because it is not
+   * <name>.myshopify.com (Shopify is then off, R-097), else null. Not a
+   * secret: the admin-only Shopify screen shows it so it can be corrected.
+   */
+  SHOPIFY_SHOP_DOMAIN_INVALID: string | null;
+};
+
+const SHOP_DOMAIN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 
 type Source = Record<string, string | undefined>;
 
@@ -206,11 +214,20 @@ export function parsePublicEnv(source: Source): PublicEnv {
 export function parseServerEnv(source: Source): ServerEnv {
   const result = serverEnvSchema.safeParse(blankToUndefined(source));
   if (!result.success) throw new EnvError("server", result.error.issues);
+  // A malformed shop domain switches Shopify off rather than failing every
+  // server route, booking emails and sign-in included (R-097); the Shopify
+  // screen names it.
+  const domain = result.data.SHOPIFY_SHOP_DOMAIN;
+  const domainInvalid = domain !== undefined && !SHOP_DOMAIN.test(domain);
+  const env: ServerEnv = {
+    ...result.data,
+    SHOPIFY_SHOP_DOMAIN: domainInvalid ? undefined : domain,
+    SHOPIFY_SHOP_DOMAIN_INVALID: domainInvalid ? domain : null,
+  };
   // Ignored rather than refused in production: refusing would stop every
   // sign-in (D72), and the limits only need it to be 1.
-  if (result.data.VERCEL_ENV === "production")
-    return { ...result.data, SIGN_IN_LIMIT_MULTIPLIER: 1 };
-  return result.data;
+  if (env.VERCEL_ENV === "production") return { ...env, SIGN_IN_LIMIT_MULTIPLIER: 1 };
+  return env;
 }
 
 let publicEnv: PublicEnv | undefined;

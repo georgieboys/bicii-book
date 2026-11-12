@@ -112,7 +112,10 @@ export default async function ShopifyPage() {
             <div className="flex flex-col gap-1">
               <dt className="text-sm text-dust-500">Shop</dt>
               <dd className="font-mono text-sm break-all">
-                {connection.shopDomain ?? "Not configured"}
+                {connection.shopDomain ??
+                  (connection.shopDomainInvalid
+                    ? `Not valid: SHOPIFY_SHOP_DOMAIN is "${connection.shopDomainInvalid}"; it must be the shop's <name>.myshopify.com domain, lower case`
+                    : "Not configured")}
               </dd>
             </div>
             <div className="flex flex-col gap-1">

@@ -24,7 +24,8 @@ import { shopifyHandle } from "./ids";
  *
  * The hash covers everything pushed plus the location and the pinned API
  * version, so an unchanged hash means nothing to push and a version upgrade
- * re-pushes every product once (D84).
+ * re-pushes every product once (D84). The sales channel is in it too, so
+ * adding Online Store publishing re-pushed every product once.
  */
 
 export type SyncState = Database["public"]["CompositeTypes"]["shopify_product_sync_state"];
@@ -141,6 +142,9 @@ export function buildDesiredState(state: SyncState, options: DesiredStateOptions
         quantity,
         locationId: options.locationId,
         apiVersion: options.apiVersion,
+        // Added 2026-11-13: re-pushes every product once so the ones
+        // synced before Online Store publishing get published.
+        salesChannel: "online_store",
       }),
     )
     .digest("hex");

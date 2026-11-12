@@ -22,7 +22,7 @@ import { FAKE_LOCATION_GID, fakeShopifyIds } from "./fake-ids";
  */
 
 export type FakeCallKind =
-  "productSet" | "variantsBulkUpdate" | "inventorySetQuantities" | "primaryLocation";
+  "productSet" | "variantsBulkUpdate" | "inventorySetQuantities" | "primaryLocation" | "publish";
 
 export type FakeCall = {
   kind: FakeCallKind;
@@ -48,6 +48,8 @@ export type FakeProduct = {
   status: string;
   imageUrls: string[];
   variantIds: string[];
+  /** On the Online Store sales channel (publishToOnlineStore). */
+  published: boolean;
 };
 
 export type FakeVariant = {
@@ -120,6 +122,7 @@ export function createFakeShopifyAdmin(): FakeShopifyAdmin {
       status: input.status,
       imageUrls: [...input.imageUrls],
       variantIds: [ids.variantId],
+      published: previous?.published ?? false,
     });
     const old = variants.get(ids.variantId);
     variants.set(ids.variantId, {
@@ -226,6 +229,13 @@ export function createFakeShopifyAdmin(): FakeShopifyAdmin {
       return FAKE_LOCATION_GID;
     },
 
+    async publishToOnlineStore(productId) {
+      record({ kind: "publish", productId });
+      const product = products.get(productId);
+      if (!product) throw notFound("Product");
+      product.published = true;
+    },
+
     seedExternalProduct({ productId, variants: list }) {
       products.set(productId, {
         productId,
@@ -236,6 +246,7 @@ export function createFakeShopifyAdmin(): FakeShopifyAdmin {
         status: "ACTIVE",
         imageUrls: [],
         variantIds: list.map((v) => v.variantId),
+        published: true,
       });
       for (const v of list) {
         variants.set(v.variantId, {
@@ -259,6 +270,8 @@ export function createFakeShopifyAdmin(): FakeShopifyAdmin {
         status: "ACTIVE",
         imageUrls: [],
         variantIds: [ids.variantId],
+        // Like a product pushed before BICII published to the Online Store.
+        published: false,
       });
       variants.set(ids.variantId, {
         variantId: ids.variantId,

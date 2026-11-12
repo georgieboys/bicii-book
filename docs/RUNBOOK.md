@@ -806,8 +806,12 @@ development store before connecting the shop.
 1. Shopify no longer lets a store create an admin-made custom app with a
    fixed token. Create the app in Shopify's **Dev Dashboard**, in the same
    organization as the store ("BICII Admin"), with the Admin API scopes
-   `write_products`, `write_inventory`, `read_locations`, `read_orders`
-   (write includes read) on its version, and install it on the store. Put
+   `write_products`, `write_inventory`, `read_locations`, `read_orders`,
+   `write_publications` (write includes read; publications put a synced
+   product on the Online Store sales channel, ADR-020 amendment
+   2026-11-13) on its version, release that version, and install it on
+   the store. A changed scope list needs a new released version, which the
+   store then approves. Put
    its **client ID** into `SHOPIFY_CLIENT_ID` and its **client secret**
    (password manager first) into `SHOPIFY_CLIENT_SECRET`; leave
    `SHOPIFY_ADMIN_TOKEN` unset, because a set token is used instead. The

@@ -98,6 +98,31 @@ export const LOCATIONS_QUERY = /* GraphQL */ `
   }
 `;
 
+export const PUBLICATIONS_QUERY = /* GraphQL */ `
+  query BiciiPublications {
+    publications(first: 25) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const PUBLISH_MUTATION = /* GraphQL */ `
+  mutation BiciiPublish($id: ID!, $input: [PublicationInput!]!) {
+    publishablePublish(id: $id, input: $input) {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+/** The Online Store sales channel's publication name. */
+export const ONLINE_STORE_PUBLICATION = "Online Store";
+
 /** userErrors codes meaning "Shopify's quantity is no longer the compare quantity". */
 export const STALE_QUANTITY_CODES = ["CHANGE_FROM_QUANTITY_STALE", "COMPARE_QUANTITY_STALE"];
 
@@ -175,6 +200,8 @@ export function createGraphqlShopifyAdmin({
       );
     }
   }
+
+  let onlineStorePublicationId: string | null = null;
 
   async function call(query: string, variables: Obj): Promise<Obj> {
     let res = await post(query, variables);
@@ -347,6 +374,31 @@ export function createGraphqlShopifyAdmin({
         );
       }
       return active.id as string;
+    },
+
+    async publishToOnlineStore(productId) {
+      if (!onlineStorePublicationId) {
+        const data = await call(PUBLICATIONS_QUERY, {});
+        const nodes = isObj(data.publications) ? data.publications.nodes : null;
+        if (!Array.isArray(nodes)) throw badResponse("no publications");
+        const store = nodes.find(
+          (n) => isObj(n) && n.name === ONLINE_STORE_PUBLICATION && str(n.id),
+        );
+        if (!isObj(store)) {
+          throw new ShopifyError(
+            "shopify_user_error",
+            false,
+            SHOPIFY_MESSAGES.onlineStoreMissing,
+            "no Online Store publication",
+          );
+        }
+        onlineStorePublicationId = store.id as string;
+      }
+      const data = await call(PUBLISH_MUTATION, {
+        id: productId,
+        input: [{ publicationId: onlineStorePublicationId }],
+      });
+      throwUserErrors(userErrorsOf(payloadOf(data, "publishablePublish")));
     },
   };
 }

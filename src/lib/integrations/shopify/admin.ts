@@ -69,6 +69,12 @@ export interface ShopifyAdmin {
   setAvailableQuantity(args: SetAvailableQuantityInput): Promise<void>;
   /** The shop's first active location (used until shopify_settings has one). */
   primaryLocationId(): Promise<string>;
+  /**
+   * publishablePublish to the Online Store sales channel, so an ACTIVE
+   * product is visible on the storefront. productSet does not publish;
+   * publishing an already-published product is a no-op in Shopify.
+   */
+  publishToOnlineStore(productId: string): Promise<void>;
 }
 
 export type ShopifyErrorCode =
@@ -97,7 +103,9 @@ export const SHOPIFY_MESSAGES = {
   appNotInstalled:
     "The Shopify app is not installed on this store. Install it from the Shopify Dev Dashboard, then sync again.",
   accessDenied:
-    "Shopify refused the request. Check that the Shopify app has the products, inventory and locations scopes.",
+    "Shopify refused the request. Check that the Shopify app has the products, inventory, locations and publications scopes.",
+  onlineStoreMissing:
+    "Shopify has no Online Store sales channel, so products cannot be shown on the storefront. Add the Online Store channel in Shopify, then sync again.",
   throttled: "Shopify asked BICII to slow down. The sync will try again shortly.",
   unavailable: "Shopify could not be reached. The sync will try again shortly.",
   badResponse: "Shopify sent an answer BICII did not understand. The sync will try again.",

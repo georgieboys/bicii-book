@@ -1534,6 +1534,15 @@ URLs, or customer data in this file.
   is the live store, not a development store; no product or inventory
   write has been tried, so `productSet` and `inventorySetQuantities`
   remain unverified.
+  The owner then pressed Retry: the sync succeeded (`synced`, price 35,
+  quantity 8, `shopify_location_id` filled; Shopify read back ACTIVE,
+  35.00, 8 available), which verifies `productSet`'s input shape, the SKU
+  on `inventoryItem.sku` and `inventorySetQuantities` for a first push.
+  It also showed that productSet does not publish to a sales channel: the
+  product was not on the storefront. The sync now publishes to the Online
+  Store (ADR-020 amendment 2026-11-13), which needs the
+  `write_publications` scope. Still unverified: media through `files`,
+  the stale-compare codes, `publishablePublish` on the live store.
 - Next action: work through
   [RUNBOOK "Verify before go-live"](RUNBOOK.md#shopify-verify-before-go-live)
   on a development store and correct the documents and the tests together.

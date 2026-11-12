@@ -373,15 +373,21 @@ URLs, or customer data in this file.
 - Workaround or containment: unknown or malformed payloads fail safe:
   nothing is recorded and the event waits for an admin
   (`shopify_payload_invalid`, D82).
-- Next action: the owner provides a development store; the build agent
-  works through
+- Owner answers (2026-11-12): the shop's live Shopify store is up but not
+  yet connected; the shop charges no GST, so the tax-inclusive refund
+  question does not arise unless tax is turned on; Shopify POS is not used
+  for now, and its sales should be counted in BICII if it is adopted
+  (not built: POS orders are still skipped as `pos_order`).
+- Next action: the owner connects the store (custom app, webhooks and the
+  `SHOPIFY_*` variables, RUNBOOK "Shopify: the custom app and its
+  webhooks"); with no development store, the build agent works through
   [RUNBOOK "Verify before go-live"](RUNBOOK.md#shopify-verify-before-go-live)
   (added in step 3) and records the results there; the outbound calls'
   own unverified assumptions are
   [R-047](#r-047--the-live-shopify-adapter-is-unverified-against-a-real-store).
 - Revisit trigger: a development store is connected; Shopify's pinned API
   version changes.
-- Last checked: 2026-10-06, Phase 10 step 3.
+- Last checked: 2026-11-12, owner answers on GST and POS.
 
 ## R-012 — Label printer hardware is unknown
 

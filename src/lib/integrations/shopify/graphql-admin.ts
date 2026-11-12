@@ -7,12 +7,15 @@ import {
   type ShopifyAdmin,
   type ShopifyIds,
 } from "./admin";
+import { staticAccessToken, type AccessTokenSource } from "./access-token";
 import { SHOPIFY_API_VERSION, SHOPIFY_TIMEOUT_MS } from "./config";
 
 /**
  * The live ShopifyAdmin: Shopify's GraphQL Admin API at the pinned version
- * (config.ts), authenticated with the custom app's Admin API access token
- * (D84, D83; ADR-020). Every call is one POST with a 15 s timeout.
+ * (config.ts), authenticated with an Admin API access token: a legacy
+ * custom app's fixed token, or one a Dev Dashboard app's client ID and
+ * secret are exchanged for (access-token.ts), fetched again once after a
+ * 401 (D84, D83; ADR-020). Every call is one POST with a 15 s timeout.
  *
  * Error mapping (D87): HTTP 401/403 -> shopify_auth_failed (a person must
  * fix the token; not retriable); 429, a THROTTLED GraphQL error, 5xx,
@@ -134,7 +137,8 @@ function throwUserErrors(errors: UserError[]): void {
 
 export type GraphqlAdminOptions = {
   shopDomain: string;
-  accessToken: string;
+  /** A fixed token, or a source that fetches and renews one. */
+  accessToken: string | AccessTokenSource;
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
 };
@@ -146,16 +150,17 @@ export function createGraphqlShopifyAdmin({
   timeoutMs = SHOPIFY_TIMEOUT_MS,
 }: GraphqlAdminOptions): ShopifyAdmin {
   const endpoint = `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
+  const tokens = typeof accessToken === "string" ? staticAccessToken(accessToken) : accessToken;
 
-  async function call(query: string, variables: Obj): Promise<Obj> {
-    let res: Response;
+  async function post(query: string, variables: Obj): Promise<Response> {
+    const token = await tokens.get();
     try {
-      res = await fetchImpl(endpoint, {
+      return await fetchImpl(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          "X-Shopify-Access-Token": accessToken,
+          "X-Shopify-Access-Token": token,
         },
         body: JSON.stringify({ query, variables }),
         signal: AbortSignal.timeout(timeoutMs),
@@ -168,6 +173,15 @@ export function createGraphqlShopifyAdmin({
         SHOPIFY_MESSAGES.unavailable,
         e instanceof Error ? `${e.name}: ${e.message}` : "network error",
       );
+    }
+  }
+
+  async function call(query: string, variables: Obj): Promise<Obj> {
+    let res = await post(query, variables);
+    if (res.status === 401 && typeof accessToken !== "string") {
+      // An exchanged token can be revoked before it expires: fetch a new one once.
+      tokens.invalidate();
+      res = await post(query, variables);
     }
     if (res.status === 401 || res.status === 403) {
       throw new ShopifyError(

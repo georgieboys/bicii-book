@@ -441,7 +441,7 @@ One Vercel project for the Admin, connected to this repository.
    | `SUPABASE_SERVICE_ROLE_KEY` | prod service/secret key | staging key | Sensitive; server only; required: without it nobody can sign in (D72) |
    | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | own value | own value | Sensitive; `openssl rand -base64 32` |
    | `LOG_LEVEL` | `info` | `debug` | optional |
-   | `SHOPIFY_*` | see [Shopify](#shopify-environment-variables-and-fake-mode) | **unset**, or a separate Shopify development store's values with `SHOPIFY_ALLOW_PREVIEW=true`; never the live store's | `SHOPIFY_ADMIN_TOKEN` and `SHOPIFY_WEBHOOK_SECRET` Sensitive; `SHOPIFY_SHOP_DOMAIN` plain, not Sensitive, so its value stays visible (R-097); never `SHOPIFY_ADAPTER=fake` in Production |
+   | `SHOPIFY_*` | see [Shopify](#shopify-environment-variables-and-fake-mode) | **unset**, or a separate Shopify development store's values with `SHOPIFY_ALLOW_PREVIEW=true`; never the live store's | `SHOPIFY_CLIENT_SECRET`, `SHOPIFY_ADMIN_TOKEN` and `SHOPIFY_WEBHOOK_SECRET` Sensitive; `SHOPIFY_SHOP_DOMAIN` plain, not Sensitive, so its value stays visible (R-097); never `SHOPIFY_ADAPTER=fake` in Production |
    | `CRON_SECRET` | own value | own value | Sensitive; the cron route's bearer |
    | `RESEND_API_KEY`, `EMAIL_FROM` | see [Quote emails](#quote-emails) | unset (no quote emails from previews) | the key Sensitive |
    | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | see [Stripe payments](#stripe-environment-variables-and-fake-mode); live values only | **unset** (D157: no staging project; the code keeps Stripe off in Preview anyway) | Sensitive; never `STRIPE_ADAPTER=fake` in Production |
@@ -803,18 +803,26 @@ development store before connecting the shop.
 
 ### Shopify: the custom app and its webhooks
 
-1. In the Shopify admin: Settings → Apps and sales channels → Develop apps
-   → create a custom app ("BICII Admin"). Admin API scopes:
+1. Shopify no longer lets a store create an admin-made custom app with a
+   fixed token. Create the app in Shopify's **Dev Dashboard**, in the same
+   organization as the store ("BICII Admin"), with the Admin API scopes
    `write_products`, `write_inventory`, `read_locations`, `read_orders`
-   (write includes read). Install it and copy the **Admin API access
-   token** once (it is shown once) into the password manager and the
-   Vercel environment as `SHOPIFY_ADMIN_TOKEN`.
+   (write includes read) on its version, and install it on the store. Put
+   its **client ID** into `SHOPIFY_CLIENT_ID` and its **client secret**
+   (password manager first) into `SHOPIFY_CLIENT_SECRET`; leave
+   `SHOPIFY_ADMIN_TOKEN` unset, because a set token is used instead. The
+   Admin exchanges them for a 24-hour Admin API token (client credentials
+   grant, `src/lib/integrations/shopify/access-token.ts`) and renews it
+   itself. A store that still has a legacy admin-made custom app may put
+   its `shpat_` token into `SHOPIFY_ADMIN_TOKEN` instead.
 2. Webhook subscriptions (the app's configuration or Settings →
    Notifications → Webhooks): `orders/paid` and `refunds/create`, format
    JSON, URL `https://<admin host>/api/shopify/webhooks`, API version the
    pinned `SHOPIFY_API_VERSION` (`src/lib/integrations/shopify/config.ts`,
    currently 2026-10). Do not subscribe `orders/cancelled` (D85). The
-   signing secret goes into `SHOPIFY_WEBHOOK_SECRET`.
+   signing secret goes into `SHOPIFY_WEBHOOK_SECRET`: for webhooks made
+   under Settings → Notifications, the key that page shows; for webhooks
+   the Dev Dashboard app subscribes, the app's client secret.
 3. `SHOPIFY_SHOP_DOMAIN` is the store's own `<name>.myshopify.com` (lower
    case, with no `https://`, path or custom domain such as the
    storefront's own; a delivery naming any other shop is refused and kept
@@ -844,7 +852,8 @@ logged (`shopify_rejected_rate_limited`;
 | Variable | Where | Notes |
 |---|---|---|
 | `SHOPIFY_SHOP_DOMAIN` | Vercel Production (the live store); Preview only a development store's | `<name>.myshopify.com`; anything else switches Shopify off, and More → Shopify shows the refused value (R-097) |
-| `SHOPIFY_ADMIN_TOKEN` | Vercel Production, Sensitive; Preview only a development store's | the custom app's Admin API token |
+| `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET` | Vercel Production (the secret Sensitive); Preview only a development store's | the Dev Dashboard app's client ID and secret, exchanged for a 24-hour token |
+| `SHOPIFY_ADMIN_TOKEN` | unset, unless the store has a legacy admin-made custom app (Sensitive) | that app's `shpat_` token; used instead of the client ID and secret when set |
 | `SHOPIFY_WEBHOOK_SECRET` | Vercel Production, Sensitive; Preview only a development store's | the webhook signing secret |
 | `SHOPIFY_ALLOW_PREVIEW` | Vercel Preview only, and only with a development store's values | `true` lets the live adapter run in Preview; unset, Shopify is off there |
 | `SHOPIFY_ADAPTER` | unset in Production and Preview | `fake` only for local development, CI and E2E |

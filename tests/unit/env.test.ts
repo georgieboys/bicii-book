@@ -125,6 +125,19 @@ describe("Shopify and cron variables (Phase 10)", () => {
     );
   });
 
+  it("takes a Dev Dashboard app's client ID and secret in place of a token, also for live", () => {
+    const env = parseServerEnv({
+      SHOPIFY_ADAPTER: "live",
+      SHOPIFY_SHOP_DOMAIN: "bicii-test.myshopify.com",
+      SHOPIFY_CLIENT_ID: "id",
+      SHOPIFY_CLIENT_SECRET: "secret",
+    });
+    expect([env.SHOPIFY_CLIENT_ID, env.SHOPIFY_CLIENT_SECRET]).toEqual(["id", "secret"]);
+    expect(() =>
+      parseServerEnv({ SHOPIFY_ADAPTER: "fake", SHOPIFY_CLIENT_SECRET: "secret" }),
+    ).toThrow(/fake cannot be combined/);
+  });
+
   it("requires the domain and token for live", () => {
     let message = "";
     try {

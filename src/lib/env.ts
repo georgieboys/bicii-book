@@ -68,6 +68,14 @@ export const serverEnvSchema = z
     SHOPIFY_SHOP_DOMAIN: z.string().trim().optional(),
     /** The custom app's Admin API access token (live adapter). Secret. */
     SHOPIFY_ADMIN_TOKEN: nonEmpty.optional(),
+    /**
+     * A Dev Dashboard app's client ID and secret, exchanged for a 24-hour
+     * Admin API token (client credentials grant, access-token.ts). Used when
+     * SHOPIFY_ADMIN_TOKEN is unset; Shopify no longer creates the admin-made
+     * custom apps that show a fixed token. The secret is a secret.
+     */
+    SHOPIFY_CLIENT_ID: nonEmpty.optional(),
+    SHOPIFY_CLIENT_SECRET: nonEmpty.optional(),
     /** The webhook signing secret (HMAC on /api/shopify/webhooks). Secret. */
     SHOPIFY_WEBHOOK_SECRET: nonEmpty.optional(),
     /**
@@ -131,11 +139,12 @@ export const serverEnvSchema = z
     VERCEL_ENV: z.string().optional(),
   })
   .superRefine((env, ctx) => {
-    if (env.SHOPIFY_ADAPTER === "fake" && env.SHOPIFY_ADMIN_TOKEN) {
+    if (env.SHOPIFY_ADAPTER === "fake" && (env.SHOPIFY_ADMIN_TOKEN || env.SHOPIFY_CLIENT_SECRET)) {
       ctx.addIssue({
         code: "custom",
         path: ["SHOPIFY_ADAPTER"],
-        message: "fake cannot be combined with SHOPIFY_ADMIN_TOKEN; unset one of them",
+        message:
+          "fake cannot be combined with SHOPIFY_ADMIN_TOKEN or SHOPIFY_CLIENT_SECRET; unset one of them",
       });
     }
     if (env.SHOPIFY_ADAPTER === "fake" && env.VERCEL_ENV === "production") {
@@ -164,14 +173,20 @@ export const serverEnvSchema = z
       });
     }
     if (env.SHOPIFY_ADAPTER === "live") {
-      for (const key of ["SHOPIFY_SHOP_DOMAIN", "SHOPIFY_ADMIN_TOKEN"] as const) {
-        if (!env[key]) {
-          ctx.addIssue({
-            code: "custom",
-            path: [key],
-            message: "is required when SHOPIFY_ADAPTER=live",
-          });
-        }
+      if (!env.SHOPIFY_SHOP_DOMAIN) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["SHOPIFY_SHOP_DOMAIN"],
+          message: "is required when SHOPIFY_ADAPTER=live",
+        });
+      }
+      if (!env.SHOPIFY_ADMIN_TOKEN && !(env.SHOPIFY_CLIENT_ID && env.SHOPIFY_CLIENT_SECRET)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["SHOPIFY_ADMIN_TOKEN"],
+          message:
+            "is required when SHOPIFY_ADAPTER=live, unless SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET are set",
+        });
       }
     }
   });

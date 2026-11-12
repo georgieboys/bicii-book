@@ -229,6 +229,27 @@ Rationale:
   stored payload, so it holds until the owner purges that payload
   ([R-040](../RISKS.md#r-040--shopify-webhook-payloads-hold-customer-personal-data-until-purged-by-hand)).
 
+## Amendment 2026-11-12: a Dev Dashboard app's client ID and secret
+
+Shopify no longer lets a store create the admin-made custom app this record
+assumed, the one that shows a fixed Admin API token. A new app is made in
+the Dev Dashboard and has a client ID and secret. When the app and the store
+belong to the same Shopify organization, a server exchanges them for an Admin
+API token with the client credentials grant. That token lasts 24 hours.
+
+The Admin now takes `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` in place
+of `SHOPIFY_ADMIN_TOKEN`. It fetches the token itself, keeps it in the server
+process and fetches a new one 10 minutes before it expires. After a 401 it
+fetches a new token once and retries
+(`src/lib/integrations/shopify/access-token.ts`). A refused exchange is
+`shopify_auth_failed`, which a person must fix (D87). `SHOPIFY_ADMIN_TOKEN`
+still works for a legacy app and, when set, is used instead of the client ID
+and secret. Nothing else changes: the scopes, webhooks and sync rules
+(D80–D89) stay the same. The exchange is unit-tested against Shopify's
+documented request and response
+(`tests/unit/shopify-access-token.test.ts`), not yet against the live store
+([R-047](../RISKS.md#r-047--the-live-shopify-adapter-is-unverified-against-a-real-store)).
+
 ## Revisit trigger
 
 The owner answers D89 or confirms a row; the first real Shopify store or

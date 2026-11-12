@@ -2,6 +2,7 @@ import "server-only";
 
 import { getServerEnv } from "@/lib/env";
 
+import { clientCredentialsAccessToken } from "./access-token";
 import type { ShopifyAdmin } from "./admin";
 import { SHOPIFY_API_VERSION } from "./config";
 import { createFakeShopifyAdmin, type FakeShopifyAdmin } from "./fake-admin";
@@ -12,7 +13,8 @@ import { createGraphqlShopifyAdmin } from "./graphql-admin";
  *   SHOPIFY_ADAPTER=fake               -> the in-memory fake, one per server
  *                                         process (local development, E2E;
  *                                         env.ts refuses it in production)
- *   SHOPIFY_SHOP_DOMAIN + ADMIN_TOKEN  -> the live GraphQL adapter, except
+ *   SHOPIFY_SHOP_DOMAIN + ADMIN_TOKEN, -> the live GraphQL adapter, except
+ *   or + CLIENT_ID and CLIENT_SECRET     (the token exchanged, access-token.ts)
  *                                         in a Vercel Preview without
  *                                         SHOPIFY_ALLOW_PREVIEW=true (a
  *                                         separate development store): a
@@ -45,20 +47,31 @@ let live: { key: string; admin: ShopifyAdmin } | undefined;
 export function getShopifyAdmin(): ShopifyAdmin | null {
   const env = getServerEnv();
   if (env.SHOPIFY_ADAPTER === "fake") return processFakeShopifyAdmin();
-  if (env.SHOPIFY_SHOP_DOMAIN && env.SHOPIFY_ADMIN_TOKEN && liveShopifyAllowed(env)) {
-    const key = `${env.SHOPIFY_SHOP_DOMAIN}|${env.SHOPIFY_ADMIN_TOKEN}`;
-    if (live?.key !== key) {
-      live = {
-        key,
-        admin: createGraphqlShopifyAdmin({
-          shopDomain: env.SHOPIFY_SHOP_DOMAIN,
-          accessToken: env.SHOPIFY_ADMIN_TOKEN,
-        }),
-      };
-    }
-    return live.admin;
+  const shopDomain = env.SHOPIFY_SHOP_DOMAIN;
+  if (!shopDomain || !liveShopifyAllowed(env)) return null;
+  const token = env.SHOPIFY_ADMIN_TOKEN;
+  const clientId = env.SHOPIFY_CLIENT_ID;
+  const clientSecret = env.SHOPIFY_CLIENT_SECRET;
+  if (!token && !(clientId && clientSecret)) return null;
+  const key = token
+    ? `${shopDomain}|token|${token}`
+    : `${shopDomain}|client|${clientId}|${clientSecret}`;
+  if (live?.key !== key) {
+    live = {
+      key,
+      admin: createGraphqlShopifyAdmin({
+        shopDomain,
+        accessToken: token
+          ? token
+          : clientCredentialsAccessToken({
+              shopDomain,
+              clientId: clientId!,
+              clientSecret: clientSecret!,
+            }),
+      }),
+    };
   }
-  return null;
+  return live.admin;
 }
 
 export type ShopifyConnection = {

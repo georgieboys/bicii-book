@@ -1512,6 +1512,11 @@ URLs, or customer data in this file.
   count are not swallowed by Shopify's idempotency replay).
 - Workaround or containment: the fake adapter for every test and E2E;
   Shopify is off until the variables are set.
+- Update (2026-11-12): the owner's Dev Dashboard app has a client ID and
+  secret, not a fixed token. The first live product sync was refused
+  (`shopify_auth_failed`) because the token variable held them. The Admin
+  now exchanges the ID and secret for a 24-hour token (ADR-020 amendment);
+  that exchange is unit-tested only until the live sync succeeds.
 - Next action: work through
   [RUNBOOK "Verify before go-live"](RUNBOOK.md#shopify-verify-before-go-live)
   on a development store and correct the documents and the tests together.

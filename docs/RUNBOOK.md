@@ -816,8 +816,10 @@ development store before connecting the shop.
    currently 2026-10). Do not subscribe `orders/cancelled` (D85). The
    signing secret goes into `SHOPIFY_WEBHOOK_SECRET`.
 3. `SHOPIFY_SHOP_DOMAIN` is the store's own `<name>.myshopify.com` (lower
-   case; a delivery naming any other shop is refused and kept as
-   `shop_domain_mismatch` evidence).
+   case, with no `https://`, path or custom domain such as the
+   storefront's own; a delivery naming any other shop is refused and kept
+   as `shop_domain_mismatch` evidence). Any other value switches Shopify
+   off, and **More → Shopify** shows the refused value (R-097).
 4. In the Admin, an admin sets the online location and the storefront URL
    (**More → Shopify → Settings**, which calls `set_shopify_settings`; the
    Connection card there shows the webhook address to give Shopify, the
@@ -841,7 +843,7 @@ logged (`shopify_rejected_rate_limited`;
 
 | Variable | Where | Notes |
 |---|---|---|
-| `SHOPIFY_SHOP_DOMAIN` | Vercel Production (the live store); Preview only a development store's | `<name>.myshopify.com`; env.ts refuses anything else |
+| `SHOPIFY_SHOP_DOMAIN` | Vercel Production (the live store); Preview only a development store's | `<name>.myshopify.com`; anything else switches Shopify off, and More → Shopify shows the refused value (R-097) |
 | `SHOPIFY_ADMIN_TOKEN` | Vercel Production, Sensitive; Preview only a development store's | the custom app's Admin API token |
 | `SHOPIFY_WEBHOOK_SECRET` | Vercel Production, Sensitive; Preview only a development store's | the webhook signing secret |
 | `SHOPIFY_ALLOW_PREVIEW` | Vercel Preview only, and only with a development store's values | `true` lets the live adapter run in Preview; unset, Shopify is off there |

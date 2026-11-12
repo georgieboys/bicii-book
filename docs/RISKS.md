@@ -3201,3 +3201,35 @@ URLs, or customer data in this file.
   saying an email did not arrive.
 - Last checked: 2026-11-12 (built and tested; production setup in
   RUNBOOK).
+
+## R-097 — One malformed integration variable stopped the whole Admin's server routes
+
+- Category: operational incident, fixed for the shop domain.
+- Status and owner: mitigated for `SHOPIFY_SHOP_DOMAIN`; build agent
+  (the other strictly checked variables).
+- Trigger: a server variable that `parseServerEnv` refuses is set in
+  Vercel and the project is redeployed.
+- Impact: on 2026-11-12 `SHOPIFY_SHOP_DOMAIN` was set to a value other
+  than `<name>.myshopify.com`. After the redeploy every route that reads
+  the server environment answered 500 for about 5 minutes, among them
+  the booking-email cron, the Shopify webhook and the integrations cron;
+  the sign-in page still loaded. Production was rolled back to the
+  previous build, which restored them; queued booking emails waited and
+  none were lost.
+- Evidence and confidence: high; the Vercel runtime log showed
+  `EnvError: SHOPIFY_SHOP_DOMAIN: must be the shop's <name>.myshopify.com
+  domain` on `/api/cron/appointment-notices`, `/api/cron/integrations`
+  and `/api/shopify/webhooks`.
+- Workaround or containment: `parseServerEnv` now drops a malformed shop
+  domain and sets `SHOPIFY_SHOP_DOMAIN_INVALID`, so Shopify is off
+  (webhooks answer 503 `shop_not_configured`), the rest of the Admin
+  works, and the Shopify screen shows the refused value
+  (`tests/unit/env.test.ts`). Stripe's variables were already checked
+  this softly.
+- Next action: check the remaining refused variables (`SHOPIFY_ADAPTER`
+  combinations, `EMAIL_FROM`, the Supabase values) for the same failure,
+  keeping a hard failure only where running without the value would be
+  unsafe. After a Vercel rollback, new production builds are not put
+  live until one is promoted (RUNBOOK).
+- Revisit trigger: a new server variable is added to `src/lib/env.ts`.
+- Last checked: 2026-11-12.

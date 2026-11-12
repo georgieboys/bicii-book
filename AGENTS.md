@@ -79,7 +79,8 @@ The repository follows
      email sign-in, R-040–R-049 Shopify, R-050–R-054 roles, R-055–R-064
      reporting, R-065–R-074 public site, R-078–R-084 indent parts and
      quotes, R-085–R-089 Stripe payments (its later entries R-090–R-094),
-     R-095+ later (R-095 reclassifying shop stock, R-096 booking emails).
+     R-095+ later (R-095 reclassifying shop stock, R-096 booking emails,
+     R-097 server environment failures).
 3. Record problems, shortcuts and uncertainty with evidence in
    `docs/RISKS.md`. There is one backlog: the PLAN phases, the RISKS next
    actions and NOW.md.

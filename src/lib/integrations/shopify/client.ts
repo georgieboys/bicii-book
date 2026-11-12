@@ -64,6 +64,8 @@ export function getShopifyAdmin(): ShopifyAdmin | null {
 export type ShopifyConnection = {
   mode: "live" | "fake" | "off";
   shopDomain: string | null;
+  /** The malformed SHOPIFY_SHOP_DOMAIN that switched Shopify off (R-097), else null. */
+  shopDomainInvalid: string | null;
   apiVersion: string;
 };
 
@@ -74,6 +76,7 @@ export function shopifyConnection(): ShopifyConnection {
   return {
     mode: admin ? admin.mode : "off",
     shopDomain: env.SHOPIFY_SHOP_DOMAIN ?? null,
+    shopDomainInvalid: env.SHOPIFY_SHOP_DOMAIN_INVALID,
     apiVersion: SHOPIFY_API_VERSION,
   };
 }

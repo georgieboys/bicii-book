@@ -441,7 +441,7 @@ One Vercel project for the Admin, connected to this repository.
    | `SUPABASE_SERVICE_ROLE_KEY` | prod service/secret key | staging key | Sensitive; server only; required: without it nobody can sign in (D72) |
    | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | own value | own value | Sensitive; `openssl rand -base64 32` |
    | `LOG_LEVEL` | `info` | `debug` | optional |
-   | `SHOPIFY_*` | see [Shopify](#shopify-environment-variables-and-fake-mode) | **unset**, or a separate Shopify development store's values with `SHOPIFY_ALLOW_PREVIEW=true`; never the live store's | Sensitive; never `SHOPIFY_ADAPTER=fake` in Production |
+   | `SHOPIFY_*` | see [Shopify](#shopify-environment-variables-and-fake-mode) | **unset**, or a separate Shopify development store's values with `SHOPIFY_ALLOW_PREVIEW=true`; never the live store's | `SHOPIFY_ADMIN_TOKEN` and `SHOPIFY_WEBHOOK_SECRET` Sensitive; `SHOPIFY_SHOP_DOMAIN` plain, not Sensitive, so its value stays visible (R-097); never `SHOPIFY_ADAPTER=fake` in Production |
    | `CRON_SECRET` | own value | own value | Sensitive; the cron route's bearer |
    | `RESEND_API_KEY`, `EMAIL_FROM` | see [Quote emails](#quote-emails) | unset (no quote emails from previews) | the key Sensitive |
    | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | see [Stripe payments](#stripe-environment-variables-and-fake-mode); live values only | **unset** (D157: no staging project; the code keeps Stripe off in Preview anyway) | Sensitive; never `STRIPE_ADAPTER=fake` in Production |

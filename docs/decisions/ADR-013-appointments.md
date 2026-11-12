@@ -23,6 +23,7 @@ slot grid, the late-arrival edges or how appointments are counted.
 | D38 | APPT-GRID: windows aligned to shop-local midnight in `intake_slot_minutes` steps; a booking lies inside one continuous open stretch of one date; `custom_hours` replaces the weekly intervals on its dates; `closed` beats custom hours; settings changes never move, shrink or cancel existing appointments | Accepted | `20261004002900_appointments.sql`; `tests/db/appointment-slots.test.ts`, `tests/db/schedule-settings.test.ts`, `tests/unit/schedule.test.ts` |
 | D39 | APPT-LATE-ARRIVAL: `no_show → arrived` only on the appointment's own shop date, re-checking capacity; cancelled and completed final; `arrived → cancelled` with a reason; `no_show` only after `starts_at` (`appointment_not_started`) | Accepted | `mark_appointment_status` (`20261004002900_appointments.sql`); `tests/db/appointments.test.ts`, `tests/unit/appointment-status.test.ts` |
 | D40 | APPT-CHECK-IN: needs a bike owned by the appointment's customer; creates a work order or links one open work order of the same customer and bike without an appointment; `work_orders.appointment_id` set once | Accepted | `check_in_appointment` (`20261004003100_appointment_check_in.sql`); `tests/db/appointment-check-in.test.ts` |
+| D163 | BOOKING-EMAILS (amendment, 2026-11-12): an appointment booked online sends the shop an alert and the customer a confirmation; the customer's online cancellation sends both again (the shop's with their reason); a staff cancellation of an online booking tells only the customer; staff bookings send nothing. Queued in Postgres with the change, sent by the Admin through Resend from a cron every minute; recipients chosen by an admin | Accepted: the owner asked for both on 2026-11-12; details build defaults, owner to confirm | `20261112000100_appointment_notices.sql` (trigger `appointments_queue_notices`, `set_booking_alert_recipients`, `claim_appointment_notices`, `finish_appointment_notice`); `src/lib/appointment-notices.ts`, `src/lib/integrations/notifications/appointments.ts`, `/api/cron/appointment-notices`; `tests/db/appointment-notices.test.ts`, `tests/unit/appointment-notices.test.ts` |
 | D41 | APPT-COUNTS: Today and reports count appointments by scheduled shop date and current status (scheduled, arrived, no-show) | Accepted | `daily_summary` appointment columns (`20261004003200_appointment_reporting.sql`); `tests/db/appointment-reporting.test.ts` |
 
 Full text: [PLAN §6](../PLAN.md#6-open-decisions-for-the-owner). What
@@ -33,20 +34,28 @@ setting the schedule is in
 
 ## Alternatives actually considered
 
-None recorded.
+| Option | Why chosen or rejected |
+|---|---|
+| Send booking emails from the public site after it books (D163) | Rejected: the public site holds no staff data (the shop's recipients) and calls customer functions only; a cancellation by staff would need a second sender; a database outbox covers every path |
+| Postgres calls the Admin at once through `pg_net` (D163) | Not chosen: the extension and a stored Admin address in the database, absent from the devstack, for a minute saved; the cron every minute is simpler and retries on its own |
+| Alerts to every mechanic by role (D163) | Rejected: the shop's mechanic, Bobby, has the manager role; an admin picks people by name instead |
 
 ## Consequences
 
-- MVP limits: no reschedule (cancel and rebook) and no automatic customer
-  messages; when settings change, staff call the customers whose bookings
-  no longer fit ([RISKS R-017](../RISKS.md#r-017--appointments-mvp-has-no-reschedule-and-no-customer-messages)).
+- MVP limits: no reschedule (cancel and rebook); when settings change,
+  staff call the customers whose bookings no longer fit
+  ([RISKS R-017](../RISKS.md#r-017--appointments-mvp-has-no-reschedule-and-no-customer-messages)).
+  Since D163 (2026-11-12) online bookings and their cancellations send
+  emails; staff bookings still send nothing, and a failed email is not
+  shown in the Admin ([RISKS R-096](../RISKS.md#r-096--booking-emails-can-fail-without-anyone-seeing)).
 - Customer self-booking is built in the database but no customer can sign in
   until Phase 11.
 
 ## Revisit trigger
 
 Phase 11 customer booking goes live, or the owner asks for reschedule or
-customer notifications.
+customer notifications (D163 answered part of it on 2026-11-12: booking
+emails for online bookings).
 
 ## Evidence and links
 

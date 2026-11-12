@@ -567,7 +567,13 @@ URLs, or customer data in this file.
 - Phase 11 (2026-10-06): unchanged. The public site offers Cancel (until
   D37's cutoff) and a new booking; it says to cancel and book again to
   change a time, and sends nothing to the customer.
-- Last checked: 2026-10-06.
+- D163 (2026-11-12, the owner's request): booking emails for online
+  bookings. The shop gets an alert when a customer books or cancels
+  online, and the customer gets a confirmation, and an email when they or
+  the shop cancel. Still none for bookings staff make, for a settings
+  change that leaves a booking outside the hours, and still no reschedule.
+  Delivery: [R-096](#r-096--booking-emails-can-fail-without-anyone-seeing).
+- Last checked: 2026-11-12 (`tests/db/appointment-notices.test.ts`).
 
 ## R-018 — Four sections are placeholder pages
 
@@ -3153,3 +3159,39 @@ URLs, or customer data in this file.
 - Last checked: 2026-10-28 SGT (the production run and read-only checks
   above; `tests/db/reclassify-consignment.test.ts` in CI; the screen's
   `tests/e2e/change-owner.spec.ts`; the item-id fix and its unit test).
+
+## R-096 — Booking emails can fail without anyone seeing
+
+- Category: operational gap (D163). Taken from R-095 onward, the later
+  entries.
+- Status and owner: open, contained by retries; build agent (showing
+  failed booking emails in the Admin), owner (the Resend account,
+  `CRON_SECRET`, the privacy notice).
+- Trigger: Resend refuses or is down, `RESEND_API_KEY` or `EMAIL_FROM` is
+  unset or wrong, the Vercel cron stops running, or an address bounces.
+- Impact: a shop alert or a customer's confirmation does not arrive. Each
+  email is tried up to 5 times, waiting 5, 10, 15 and 20 minutes between
+  attempts; after the fifth failure (about 50 minutes) it is marked failed
+  in `private.appointment_notices` and nothing in the Admin shows it.
+  Staff still see every booking on Today and Appointments. With email off
+  the emails wait unsent and go out late once it is set. Resend accepts
+  an email to a mailbox that later bounces, so a bounce is never retried
+  or seen. The cron route answers anyone while `CRON_SECRET` is unset:
+  a call only sends booking emails that are already due, each once, and
+  never anything Postgres did not queue; with `CRON_SECRET` set (Vercel's
+  cron sends it) it refuses other callers. Customers now get emails from
+  the shop about their bookings, which the privacy notice should say
+  ([R-016](#r-016--no-retention-or-deletion-policy-for-customer-personal-data)).
+- Evidence and confidence: high for the mechanism
+  (`tests/db/appointment-notices.test.ts`, `tests/unit/appointment-notices.test.ts`);
+  delivery in production is checked in
+  [RUNBOOK "Booking emails"](RUNBOOK.md#booking-emails).
+- Workaround or containment: RUNBOOK "Booking emails" lists failed emails
+  with a read-only query and puts one back in the queue.
+- Next action: show failed booking emails among Today's exceptions;
+  the owner sets `CRON_SECRET` in Vercel and adds a line on booking emails
+  to the public site's privacy notice.
+- Revisit trigger: the first failed booking email; a customer or the shop
+  saying an email did not arrive.
+- Last checked: 2026-11-12 (built and tested; production setup in
+  RUNBOOK).

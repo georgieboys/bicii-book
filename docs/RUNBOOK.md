@@ -676,6 +676,53 @@ has `quote email not sent` with Resend's HTTP status (never the address
 or the link). A 401 or 403 is the key or an unverified domain; a 422 is
 usually `EMAIL_FROM` or the customer's address.
 
+
+## Booking emails
+
+Postgres queues booking emails with each online booking and cancellation
+(D163, DATA-MODEL §3 "Booking emails"); the Admin sends them through
+Resend from a Vercel cron every minute (`/api/cron/appointment-notices`).
+Staff bookings send nothing.
+
+1. Email: `RESEND_API_KEY` and `EMAIL_FROM` in the Admin's Vercel
+   Production (the same as [Quote emails](#quote-emails)); `ADMIN_ORIGIN`
+   puts a link to the appointment in each shop alert. While email is off
+   the emails wait in the queue and go out once it is on.
+2. The cron: `vercel.json` deploys it with the Admin. It runs without
+   `CRON_SECRET`; once `CRON_SECRET` is set in Vercel Production, Vercel
+   sends it and the route refuses other callers (the integration cron
+   starts answering too; with Shopify off it finds no jobs).
+3. Recipients: Settings → Shop hours and closures → **Booking emails**
+   (admin; [USER-GUIDE](USER-GUIDE.md#choose-who-gets-booking-emails-admins)).
+   Staff members get alerts at the email they sign in with, active ones
+   only.
+4. Check what was sent (Supabase SQL editor on the hosted project, read
+   only):
+
+   ```sql
+   select n.kind, n.audience, n.status, n.attempts, n.last_error,
+          n.created_at, n.sent_at
+   from private.appointment_notices n
+   order by n.created_at desc
+   limit 20;
+   ```
+
+   `pending` with attempts 0 for more than a couple of minutes means the
+   cron is not running or email is off; `failed` means five attempts
+   failed (`last_error` gives Resend's reason and status).
+5. Put a failed email back in the queue, once the cause is fixed (owner,
+   SQL editor; the notice id from the query above with `n.id` added):
+
+   ```sql
+   update private.appointment_notices
+   set status = 'pending', attempts = 0, next_attempt_at = now(),
+       last_error = null
+   where id = '<notice id>' and status = 'failed';
+   ```
+
+   It goes out within a minute. Resend keeps each notice id as an
+   idempotency key for 24 hours, so an email Resend had already accepted
+   is not sent twice within that time.
 ## Indent items on jobs closed before the guard
 
 From `20261014000900_indent_settle_and_outside_purchase` (D149b, D149c) no

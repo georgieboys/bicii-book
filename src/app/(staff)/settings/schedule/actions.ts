@@ -7,10 +7,12 @@ import {
   affectedBySchedule,
   deleteClosure as removeClosure,
   saveClosure as storeClosure,
+  setBookingAlertRecipients,
   setShopHours as storeHours,
   updateShopSettings as storeSettings,
 } from "@/lib/domain/schedule";
 import {
+  bookingAlertsSchema,
   closureSchema,
   deleteClosureSchema,
   shopHoursSchema,
@@ -26,6 +28,17 @@ import {
  * closure with the ones it affects, for the toast. No time zone or currency
  * (fixed, D35) and no public site URL (D9: Phase 8 decides its role).
  */
+
+/** Who gets the shop's booking alerts (D163b; admin only, checked again in the RPC). */
+export const setBookingAlerts = staffAction(
+  bookingAlertsSchema,
+  { name: "schedule.set_booking_alerts", admin: true },
+  async (input, { supabase }) => {
+    await setBookingAlertRecipients(supabase, input);
+    refresh();
+    return null;
+  },
+);
 
 /** Slot length, intake capacity and the online booking rules. */
 export const updateShopSettings = staffAction(

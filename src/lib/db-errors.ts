@@ -171,6 +171,10 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   consignment_product_required: "Choose a consignment product or name a new one.",
   product_not_consignment: "Consigned stock goes on a consignment product, never on shop stock.",
   // D162: reclassify_as_consignment.
+  // D163: booking email recipients (set_booking_alert_recipients).
+  booking_alert_staff_invalid: "Choose active staff members only.",
+  booking_alert_email_invalid: "Enter each address in full, like team@example.com, one per line.",
+  booking_alert_too_many: "Choose at most 10 staff members and 10 other addresses.",
   product_not_shop_owned: "Only the shop's own stock can change owner.",
   product_has_trading_history:
     "This product has been sold, used on a job, ordered or linked, so it can't change owner. Count its stock out and receive the items as a consignment instead.",
@@ -1002,6 +1006,12 @@ export const CHECK_ERRORS: Record<string, string> = {
   payment_refunds_amount_check: "A refund must be more than zero.",
   payment_refunds_currency_check: "Use a three-letter currency code.",
   payment_refunds_text_check: "That refund's reason is too long.",
+  // Booking emails (D163). Only the RPCs and the sender write these.
+  shop_settings_booking_alert_staff_ids_check: "Choose at most 10 staff members.",
+  shop_settings_booking_alert_emails_check: "List at most 10 other addresses.",
+  appointment_notices_cancelled_by: "Only a cancellation email says who cancelled.",
+  appointment_notices_reason_shop_only: "Only the shop's cancellation alert carries a reason.",
+  appointment_notices_sent_at: "Only a sent email has a sent time.",
   // Indent deposits (Phase 14 step 2, D151, D157, D158).
   shop_settings_indent_deposit_percent_check: "Choose a deposit from 0 to 100%.",
   quotes_deposit_percent_check: "Choose a deposit from 0 to 100%.",

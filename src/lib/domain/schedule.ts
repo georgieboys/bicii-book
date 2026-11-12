@@ -16,6 +16,7 @@ import type {
   AppointmentTypeInput,
   ClosureInput,
   HoursInterval,
+  BookingAlertsInput,
   ShopHoursInput,
   ShopSettingsInput,
 } from "@/lib/schedule";
@@ -43,6 +44,10 @@ export type ShopSettings = ScheduleSettings & {
   cancelCutoffMinutes: number;
   /** Informational in Phase 2 (D9: Phase 8 decides the QR base). */
   publicSiteUrl: string | null;
+  /** D163b: staff members who get booking alerts (active ones are sent to). */
+  bookingAlertStaffIds: string[];
+  /** D163b: other addresses that get booking alerts. */
+  bookingAlertEmails: string[];
 };
 
 export type WeekdayHours = {
@@ -120,7 +125,7 @@ export async function getShopSettings(supabase: ServerSupabase): Promise<ShopSet
     await supabase
       .from("shop_settings")
       .select(
-        "timezone, default_currency, intake_slot_minutes, intake_capacity_units, booking_min_notice_minutes, booking_horizon_days, customer_max_active_bookings, customer_cancel_cutoff_minutes, public_site_url",
+        "timezone, default_currency, intake_slot_minutes, intake_capacity_units, booking_min_notice_minutes, booking_horizon_days, customer_max_active_bookings, customer_cancel_cutoff_minutes, public_site_url, booking_alert_staff_ids, booking_alert_emails",
       )
       .eq("id", 1)
       .maybeSingle(),
@@ -136,6 +141,8 @@ export async function getShopSettings(supabase: ServerSupabase): Promise<ShopSet
     maxActiveBookings: s.customer_max_active_bookings,
     cancelCutoffMinutes: s.customer_cancel_cutoff_minutes,
     publicSiteUrl: s.public_site_url,
+    bookingAlertStaffIds: s.booking_alert_staff_ids ?? [],
+    bookingAlertEmails: s.booking_alert_emails ?? [],
   };
 }
 
@@ -458,6 +465,27 @@ export async function updateShopSettings(
       shop_settings_horizon_check: "horizonDays",
       shop_settings_customer_limit_check: "maxActiveBookings",
       shop_settings_cancel_cutoff_check: "cancelCutoffMinutes",
+    });
+  }
+}
+
+/** set_booking_alert_recipients (D163b, admin): who gets the shop's booking alerts. */
+export async function setBookingAlertRecipients(
+  supabase: ServerSupabase,
+  input: BookingAlertsInput,
+): Promise<void> {
+  try {
+    unwrap(
+      await supabase.rpc("set_booking_alert_recipients", {
+        staff_ids: input.staffIds,
+        emails: input.emails,
+      }),
+    );
+  } catch (err) {
+    rethrowOn(err, {
+      booking_alert_staff_invalid: "staffIds",
+      booking_alert_email_invalid: "emails",
+      booking_alert_too_many: "emails",
     });
   }
 }

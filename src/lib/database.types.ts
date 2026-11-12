@@ -3836,6 +3836,8 @@ export type Database = {
       };
       shop_settings: {
         Row: {
+          booking_alert_emails: string[];
+          booking_alert_staff_ids: string[];
           booking_horizon_days: number;
           booking_min_notice_minutes: number;
           consignment_settlement_alert_days: number;
@@ -3852,6 +3854,8 @@ export type Database = {
           updated_by: string | null;
         };
         Insert: {
+          booking_alert_emails?: string[];
+          booking_alert_staff_ids?: string[];
           booking_horizon_days?: number;
           booking_min_notice_minutes?: number;
           consignment_settlement_alert_days?: number;
@@ -3868,6 +3872,8 @@ export type Database = {
           updated_by?: string | null;
         };
         Update: {
+          booking_alert_emails?: string[];
+          booking_alert_staff_ids?: string[];
           booking_horizon_days?: number;
           booking_min_notice_minutes?: number;
           consignment_settlement_alert_days?: number;
@@ -5741,6 +5747,16 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      claim_appointment_notices: {
+        Args: { max_count?: number };
+        Returns: Database["public"]["CompositeTypes"]["appointment_notice"][];
+        SetofOptions: {
+          from: "*";
+          to: "appointment_notice";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       claim_integration_jobs: {
         Args: { max_jobs: number; only_job_id?: string };
         Returns: {
@@ -6207,6 +6223,10 @@ export type Database = {
           unit_sale_price: number;
           yield_total: number;
         }[];
+      };
+      finish_appointment_notice: {
+        Args: { error?: string; notice_id: string; ok: boolean };
+        Returns: undefined;
       };
       fit_part_bought_outside: {
         Args: {
@@ -7584,6 +7604,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      set_booking_alert_recipients: {
+        Args: { emails: string[]; staff_ids: string[] };
+        Returns: undefined;
+      };
       set_consignment_settlement_alert_days: { Args: { p_days: number }; Returns: number };
       set_default_label_template: {
         Args: { template_id: string };
@@ -8199,6 +8223,8 @@ export type Database = {
           public_site_url?: string;
         };
         Returns: {
+          booking_alert_emails: string[];
+          booking_alert_staff_ids: string[];
           booking_horizon_days: number;
           booking_min_notice_minutes: number;
           consignment_settlement_alert_days: number;
@@ -8410,6 +8436,9 @@ export type Database = {
         | "no_show"
         | "details_changed"
         | "work_order_linked";
+      appointment_notice_audience: "shop" | "customer";
+      appointment_notice_kind: "booked" | "cancelled";
+      appointment_notice_status: "pending" | "sent" | "failed";
       appointment_source: "staff" | "customer";
       appointment_status:
         "booked" | "confirmed" | "arrived" | "checked_in" | "completed" | "cancelled" | "no_show";
@@ -8615,6 +8644,27 @@ export type Database = {
         work_order_id: string | null;
         job_number: string | null;
         created: boolean | null;
+      };
+      appointment_notice: {
+        id: string | null;
+        kind: Database["public"]["Enums"]["appointment_notice_kind"] | null;
+        audience: Database["public"]["Enums"]["appointment_notice_audience"] | null;
+        recipient: string | null;
+        attempts: number | null;
+        appointment_id: string | null;
+        starts_at: string | null;
+        ends_at: string | null;
+        appointment_type: string | null;
+        customer_name: string | null;
+        customer_first_name: string | null;
+        customer_email: string | null;
+        customer_phone: string | null;
+        bike: string | null;
+        customer_note: string | null;
+        cancelled_by: Database["public"]["Enums"]["appointment_source"] | null;
+        reason: string | null;
+        public_site_url: string | null;
+        timezone: string | null;
       };
       consignment_item_result: {
         item_id: string | null;
@@ -9441,6 +9491,9 @@ export const Constants = {
         "details_changed",
         "work_order_linked",
       ],
+      appointment_notice_audience: ["shop", "customer"],
+      appointment_notice_kind: ["booked", "cancelled"],
+      appointment_notice_status: ["pending", "sent", "failed"],
       appointment_source: ["staff", "customer"],
       appointment_status: [
         "booked",

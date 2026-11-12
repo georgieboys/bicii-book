@@ -6,10 +6,12 @@ import { useId, useState, useTransition, type ReactNode } from "react";
 import {
   deleteClosure,
   saveClosure,
+  setBookingAlerts,
   setShopHours,
   updateShopSettings,
 } from "@/app/(staff)/settings/schedule/actions";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import { ChevronRightIcon, CloseIcon, PlusIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
@@ -691,5 +693,139 @@ export function SettingFigure({
       <dd className="font-medium">{value}</dd>
       {note ? <dd className="text-sm text-dust-700">{note}</dd> : null}
     </div>
+  );
+}
+
+/** An active staff member who can get booking alerts. */
+export type AlertStaff = { id: string; name: string };
+
+/**
+ * "Edit" on the Booking emails card (D163b, admins only): which staff
+ * members get the shop's booking alerts (at their login email) and which
+ * other addresses, one per line.
+ */
+export function EditBookingAlertsButton(props: {
+  staff: AlertStaff[];
+  staffIds: string[];
+  emails: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        aria-label="Edit booking emails"
+        onClick={() => setOpen(true)}
+      >
+        Edit
+      </Button>
+      {open ? <BookingAlertsSheet {...props} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+function BookingAlertsSheet({
+  staff,
+  staffIds,
+  emails,
+  onClose,
+}: {
+  staff: AlertStaff[];
+  staffIds: string[];
+  emails: string[];
+  onClose: () => void;
+}) {
+  const formId = useId();
+  const { toast } = useToast();
+  const [chosen, setChosen] = useState(() => new Set(staffIds));
+  const [addresses, setAddresses] = useState(emails.join("\n"));
+  const [state, setState] = useState<ActionResult<null> | null>(null);
+  const [pending, start] = useTransition();
+  const formRef = useFocusFirstInvalid(state);
+  const errors = state && !state.ok ? state.fieldErrors : undefined;
+
+  const toggle = (id: string, on: boolean) =>
+    setChosen((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+  const submit = () =>
+    start(async () => {
+      const result = await callAction(() =>
+        setBookingAlerts({
+          staffIds: staff.filter((s) => chosen.has(s.id)).map((s) => s.id),
+          emails: addresses,
+        }),
+      );
+      setState(result);
+      if (!result.ok) return;
+      toast({ title: "Booking emails saved", tone: "success" });
+      onClose();
+    });
+
+  return (
+    <Sheet
+      open
+      onOpenChange={(next) => (next ? null : onClose())}
+      dismissible={!pending}
+      title="Booking emails"
+      description="Who the shop's alerts go to when a customer books or cancels online."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancel
+          </Button>
+          <Button type="submit" form={formId} pending={pending} pendingLabel="Saving…">
+            Save
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        ref={formRef}
+        noValidate
+        className="flex flex-col gap-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!pending) submit();
+        }}
+      >
+        <FormError state={state} />
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 font-display text-sm font-bold tracking-wide uppercase">
+            Staff
+          </legend>
+          <p className="text-sm text-dust-700">Sent to the email they sign in with.</p>
+          {staff.map((s) => (
+            <Checkbox
+              key={s.id}
+              label={s.name}
+              checked={chosen.has(s.id)}
+              onChange={(e) => toggle(s.id, e.target.checked)}
+            />
+          ))}
+          {errors?.staffIds?.[0] ? (
+            <p className="text-sm text-danger-deep">{errors.staffIds[0]}</p>
+          ) : null}
+        </fieldset>
+        <Field
+          label="Other addresses"
+          hint="One per line, like team@bicii.sg."
+          error={errors?.emails?.[0]}
+        >
+          <Textarea
+            rows={3}
+            autoComplete="off"
+            value={addresses}
+            onChange={(e) => setAddresses(e.target.value)}
+          />
+        </Field>
+      </form>
+    </Sheet>
   );
 }

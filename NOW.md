@@ -1,10 +1,9 @@
 # Current state
 
-Updated: 2026-10-29 SGT (D162 and the consigned cost in production: PRs
-#50–#53, `migrate.yml` run 22; customer sign-up fixed: the owner set the
-Confirm signup template and sign-up works, and the staff sign-in points
-customers to theirs, PR #54, R-039; no public active appointment type
-yet). Earlier
+Updated: 2026-11-12 SGT (booking emails, D163: built and tested locally,
+in its pull request; earlier: D162 and the consigned cost in production,
+PRs #50–#53, customer sign-up fixed, PRs #54–#55; no public active
+appointment type yet). Earlier
 evidence, 2026-10-24: `main` f120c6d; PR #45 (CI and label-run e2e green on
 a666bef) merged as d30473d, `migrate.yml` run 20, the
 hosted project read-only (75 migrations, the last `20261019000100`) and
@@ -18,16 +17,18 @@ and the pull requests.
 
 - Purpose: the staff Admin for BICII's workshop, over one Supabase backend
   shared with the public site ([PRODUCT](docs/PRODUCT.md)).
-- Current objective: none in progress. Customer sign-up sends a code
-  since the owner set the Confirm signup template (2026-10-29,
-  [R-039](docs/RISKS.md#r-039--hosted-email-delivery-and-auth-settings-are-unverified)).
-- Next action: the owner sets the amount owed on the reclassified items
-  still at 0.00, and adds a public, active appointment type for online
-  booking. After that, the owner's answers to the
-  [owner questions](docs/PRODUCT.md#open-assumptions-and-owner-questions),
-  first 35 (payment links, counter payments, Reports), 36 (payments in the
-  public account, D126) and 30 (the public site's defaults), and the QR
-  address ([R-013](docs/RISKS.md#r-013--changing-the-qr-base-leaves-printed-labels-on-the-old-address)).
+- Current objective: booking emails (D163, the owner's request of
+  2026-11-12): alerts to the shop and confirmations to the customer for
+  online bookings and cancellations, queued in Postgres and sent by a
+  minute cron through Resend
+  ([R-096](docs/RISKS.md#r-096--booking-emails-can-fail-without-anyone-seeing)).
+- Next action: merge it when CI and e2e are green, confirm `migrate.yml`
+  applied `20261112000100`, set the recipients the owner named (the shop's
+  mechanic and team mailbox) and check the first emails
+  ([RUNBOOK](docs/RUNBOOK.md#booking-emails)). The owner: a public, active
+  appointment type for online booking, the amounts owed still at 0.00,
+  and the owner questions, first 38 (booking emails), 35, 36 and 30
+  ([PRODUCT](docs/PRODUCT.md#open-assumptions-and-owner-questions)).
 - Main blocker: no restore has been exercised and there is no staging project
   ([R-002](docs/RISKS.md#r-002--no-backups-monitoring-alerting-or-exercised-recovery),
   [R-001](docs/RISKS.md#r-001--nothing-is-deployed)).
@@ -50,6 +51,7 @@ request; the full e2e suite runs on the `e2e` label and nightly.
 | Payment links, counter payments | Yes (Phase 14 step 3) | CI, e2e with the fake Stripe | Production; none used yet (2026-10-24), no test-mode rehearsal |
 | Audit fixes | Yes (PRs #38, #43–#45) | CI and label-run e2e | Production |
 | Reclassify shop stock as consigned (D162) | Database, the admin-only Change owner, the item-id fix and a consigned product's cost as its amount owed (PRs #50–#53) | CI and full e2e green on PR #51; PR #52's unit test failed before it and passed after; `consigned-product-costs.test.ts` failed first and passes | Production since 2026-10-28 SGT (the owner's 25 products reclassified, checked read-only); the cost change since 2026-10-29 (`migrate.yml` run 22, Vercel's build of e201b34 READY; the products' costs checked read-only) |
+| Booking emails (D163) | Yes: Postgres outbox, minute cron, Settings → Booking emails | `appointment-notices.test.ts` (9), unit (11) and the settings e2e locally; CI not run yet | Not deployed |
 
 Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),
 [TESTING](docs/TESTING.md).
@@ -63,7 +65,7 @@ Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),
   follow-up that conflicts with D108; the owner's call).
 - The public site: georgieboys/BICII, with its own NOW.md.
 - Local-only, git-ignored: `.env.local`, `.devstack/`, `test-results/`.
-- A new migration sorts after `20261029000100_consigned_product_costs`.
+- A new migration sorts after `20261112000100_appointment_notices`.
 
 ## Attention and links
 

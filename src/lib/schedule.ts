@@ -129,6 +129,45 @@ export const shopSettingsSchema = z.object({
 
 export type ShopSettingsInput = z.output<typeof shopSettingsSchema>;
 
+/** At most this many staff members and this many other addresses get booking alerts (D163b). */
+export const BOOKING_ALERT_MAX = 10;
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/**
+ * Who gets the shop's booking alerts (D163b): staff members by id and other
+ * addresses typed one per line (commas work too). Blank and repeated
+ * addresses are dropped and the rest lowercased; set_booking_alert_recipients
+ * checks again.
+ */
+export const bookingAlertsSchema = z.object({
+  staffIds: z
+    .array(z.guid({ error: "Choose staff members from the list." }))
+    .max(BOOKING_ALERT_MAX, {
+      error: `Choose at most ${BOOKING_ALERT_MAX} staff members.`,
+    })
+    .transform((ids) => [...new Set(ids)]),
+  emails: z
+    .string()
+    .max(4000, { error: "That list is too long." })
+    .transform((text) => [
+      ...new Set(
+        text
+          .split(/[\n,;]+/)
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ])
+    .refine((list) => list.every((e) => e.length <= 320 && EMAIL_RE.test(e)), {
+      error: "Enter each address in full, like team@example.com, one per line.",
+    })
+    .refine((list) => list.length <= BOOKING_ALERT_MAX, {
+      error: `List at most ${BOOKING_ALERT_MAX} other addresses.`,
+    }),
+});
+
+export type BookingAlertsInput = z.output<typeof bookingAlertsSchema>;
+
 const OPENS = /^([01]\d|2[0-3]):[0-5]\d$/;
 const CLOSES = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 

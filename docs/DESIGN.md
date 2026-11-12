@@ -859,6 +859,17 @@ slot functions exactly, `status.ts`, `history.ts`, `time.ts`,
   the timeline's `appointment_linked` line reads "Opened from the
   appointment on …" (check-in created the job) or "Linked to the
   appointment on …", and its title is a link (`EventDescription.href`).
+- **Booking emails** (D163): a card on the schedule settings page between
+  Booking capacity and Weekly hours, readable by every staff member:
+  "Shop alerts go to" (the chosen active staff by name, then the other
+  addresses, or "Nobody yet"; "When a customer books or cancels online.")
+  and "Customers get: A confirmation" ("When they book online, and an
+  email if the booking is cancelled."), with "Bookings made by staff send
+  no emails. Emails go out within a minute." Admins get **Edit**
+  (`EditBookingAlertsButton`): a sheet "Booking emails" with a Staff
+  fieldset of `Checkbox` rows (active staff, by name; "Sent to the email
+  they sign in with.") and an "Other addresses" textarea (one per line);
+  Save toasts "Booking emails saved".
 - **Schedule settings** (`schedule-settings.tsx`, client sheets; admin
   only, each submits through `onSubmit` with controlled state and stays
   open on a refusal): Booking capacity (`NumberInput`s: slot length,

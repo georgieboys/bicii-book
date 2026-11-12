@@ -715,6 +715,12 @@ shop_settings (single row: id smallint = 1, check shop_settings_singleton;
                                                     -- set_indent_deposit_percent (admin), history in
                                                     -- schedule_events; copied onto each quote when
                                                     -- it is sent (§5)
+  booking_alert_staff_ids uuid[] not null default '{}'
+                                                    -- ≤ 10; D163b: staff whose login email gets
+                                                    -- the shop's booking alerts (active ones)
+  booking_alert_emails text[] not null default '{}' -- ≤ 10 other addresses, lowercase, distinct;
+                                                    -- both written only by
+                                                    -- set_booking_alert_recipients (admin)
   updated_at, updated_by -> staff                   -- updated_by = the caller's staff id
 
 shop_hours
@@ -767,7 +773,42 @@ appointment_events (append-only; triggers)
   -- booked at created_at; a status event at its status stamp; a cancelled
   -- event's payload {"via"}; details_changed {"field": {"from","to"}} for
   -- bike_id, customer_note, internal_note; timelines order by (created_at, id)
+
+private.appointment_notices (D163; RLS on, no policies, no API role)
+  id uuid PK, appointment_id -> appointments (cascade)
+  kind appointment_notice_kind                -- booked | cancelled
+  audience appointment_notice_audience        -- shop | customer
+  recipient citext                            -- one row per address; unique
+                                              -- (appointment_id, kind, audience, recipient)
+  cancelled_by appointment_source null        -- set exactly when kind = cancelled
+  reason text null (≤ 500)                    -- the customer's cancellation reason; shop rows only
+  status appointment_notice_status            -- pending | sent | failed
+  attempts 0..5, next_attempt_at, claimed_until, last_error (≤ 200),
+  sent_at (set exactly when sent), created_at
 ```
+
+**Booking emails (D163).** An appointment booked online (`source =
+'customer'`) queues its emails in the same transaction, through the
+trigger `appointments_queue_notices` (after insert, and after an update
+of `status` to `cancelled`). A booking queues a `shop` row for each
+recipient and a `customer` row for the customer's email. A cancellation
+by the customer (`cancelled_via = 'customer'`) queues the same two kinds,
+the shop rows with the customer's reason (the change reason
+`cancel_my_appointment` sets, without its default "Cancelled by the
+customer"). A cancellation by staff queues only the customer's row,
+without the staff reason. Staff bookings queue nothing, and a replayed
+booking queues nothing more (the unique key). The shop's recipients are
+resolved when a row is queued: the active staff in
+`shop_settings.booking_alert_staff_ids` (their login email) and the
+addresses in `booking_alert_emails`, set by `set_booking_alert_recipients`
+(admin; §16). The Admin's sender, a Vercel cron every minute
+(`/api/cron/appointment-notices`), claims due rows with
+`claim_appointment_notices` and records each result with
+`finish_appointment_notice` (both service_role only): sent is final; a
+failure waits `attempts × 5` minutes, and the fifth failure is final (a
+claim whose result was never recorded is final too once its attempts are
+used up). The notice id is Resend's idempotency key, so a send that
+succeeded but was not recorded is not doubled.
 
 **Time zone.** The shop's time zone is fixed at Asia/Singapore in the MVP
 (D35, SPEC §24): `private.shop_timezone()` reads `shop_settings.timezone`
@@ -3519,6 +3560,7 @@ written out, e.g. `A, M or P(view_costs)`.
 | appointment_types | S; anon/C active + public types (no capacity units) via `public_appointment_types()` | RPC `save_appointment_type` (A) | RPC `save_appointment_type` (A) | — (deactivate) |
 | schedule_events | S | triggers only | never | never |
 | appointments | S; C own via `my_appointments()` (D42 projection); anon/C bookable times via `available_slots()` (D37) | RPC `book_appointment` (S), `book_my_appointment` (C, D37) | RPC `mark_appointment_status`, `cancel_appointment`, `update_appointment`, `check_in_appointment` (S, D40); `cancel_my_appointment` (C, D37); completed only by the D36 work-order trigger | — |
+| private.appointment_notices (D163) | none (RLS on, no policy, no grant; `private` is not exposed) | trigger `appointments_queue_notices` only | RPC `claim_appointment_notices`, `finish_appointment_notice` (service role only) | cascade with its appointment |
 | appointment_events | S | triggers only | never | never |
 | work_orders | S; C own, not cancelled, via `my_work_orders()` (D17) | RPC `create_work_order` | RPC (`set_work_order_status`, `update_work_order`, `set_approval_flag`; `lead_mechanic_id` by the assignments trigger) | — |
 | work_order_assignments | S | RPC `assign_staff` (S, D22) | RPC `unassign_staff` (closes the row) | — |
@@ -3663,6 +3705,9 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `my_appointments(include_past = false)` → `setof my_appointment` | authenticated (C) | Built (Phase 2, D42; consumed by Phase 11). The caller's appointments not yet over, soonest first; `include_past` adds the past ones after them, latest first. Bike fields only while the bike is still theirs and not archived (D12). |
 | `book_my_appointment(appointment_id, appointment_type_id, starts_at, bike_id = null, customer_note = null)` → `my_appointment` | C (42501 otherwise) | Built (Phase 2, D37). The booking core with the caller's customer id and source customer: active public types, `appointment_too_soon`, `appointment_too_far_ahead`, `appointment_customer_limit` (per-customer lock), then hours, closures, capacity; a bike that is not theirs (or unknown) → `appointment_bike_not_owned` with nothing about the bike. |
 | `cancel_my_appointment(appointment_id, reason = null)` → `my_appointment` | C (42501 otherwise) | Built (Phase 2, D37). `reason_too_long`; `shop_settings` FOR SHARE; the caller's row FOR UPDATE, else NULL (no error); already cancelled → it (no event); booked/confirmed before `customer_cancel_cutoff_minutes` ahead of the start, else `appointment_not_cancellable`; reason defaults to 'Cancelled by the customer'; `cancelled_via` = customer. |
+| `set_booking_alert_recipients(staff_ids uuid[], emails text[])` → void | A | Built (D163b, `20261112000100`). Distinct staff ids, each an active staff member (`booking_alert_staff_invalid`); addresses trimmed, lowercased, blank and repeated ones dropped, each `x@y.z` and ≤ 320 (`booking_alert_email_invalid`); at most 10 of each (`booking_alert_too_many`). Writes `shop_settings.booking_alert_staff_ids` and `booking_alert_emails` (history in `schedule_events`). |
+| `claim_appointment_notices(max_count integer = 10)` → setof `appointment_notice` | service role only | Built (D163d). First marks failed any pending row with 5 attempts whose claim lapsed; then claims up to `max_count` (1..50) pending, due, unclaimed rows, oldest due first, `for update skip locked`: each gets attempts + 1 and a 2-minute claim, and is returned with the appointment's time, type, the customer's label, first name, email and phone, the bike (brand model variant), the customer's note, `cancelled_by`, the reason, `public_site_url` and the shop time zone. |
+| `finish_appointment_notice(notice_id, ok boolean, error text = null)` → void | service role only | Built (D163d). A pending row only: ok → `sent` (sent_at); else `failed` once attempts reached 5, or `pending` again after `attempts × 5` minutes with `last_error` (≤ 200). A row already sent or failed is left as it is. |
 | `check_in_appointment(appointment_id uuid, bike_id uuid, work_order_id uuid, link_existing boolean = false, requested_work text = null, intake_notes text = null, lead_mechanic_id uuid = null)` → `appointment_check_in (appointment_id uuid, appointment_status appointment_status, work_order_id uuid, job_number text, created boolean)` | S | Built (Phase 2, D40). In order: 22004 on null ids; the appointment FOR UPDATE (P0002); checked_in or completed → its existing link with `created` false, whatever `work_order_id` was passed (replay, second device); not booked/confirmed/arrived → `appointment_transition_invalid`; `link_existing`: that job FOR UPDATE (P0002), same customer and bike, open (`private.work_order_status_is_open`) and unlinked, else `appointment_work_order_mismatch`; customer then bike FOR SHARE; bike P0002 / `appointment_bike_archived` / `appointment_bike_not_owned` (shop bikes too); the appointment → bike set, `checked_in` (stamps checked_in_at, arrived_at). New job: `private.create_work_order(actor, work_order_id, customer, bike, coalesce(nullif(btrim(requested_work), ''), customer_note), intake_notes, lead_mechanic_id, '{}', '[]', appointment_id)` (job number, `checked_in` event, D18, lead as for a walk-in; blank work and no note → `requested_work_required`), then `work_order_conflict` unless the returned job carries this appointment (an older job under that id). Existing job: `appointment_id` null → this appointment. Both link events from the triggers (§4). One transaction; `created` = not `link_existing`. |
 | `appointment_daily(from_day date = null, to_day date = null)` → `day, booked, expected, arrived, checked_in, no_shows, cancelled` | S | Built (Phase 2, D41). Operational counts, no permission needed (D30). `reporting.appointment_daily` zero-filled one row per day; daily_summary's range rules (null bound = the other, both null = today, ≤ 366 days, else `report_range_invalid`); future days allowed (upcoming appointments). |
 | `create_work_order(work_order_id, customer_id, bike_id, requested_work, intake_notes = null, lead_mechanic_id = null, additional_staff_ids uuid[] = '{}', services jsonb = '[]')` → `work_orders` | S | Calls `private.create_work_order(actor, …, appointment_id)`. Replay first: an existing id returns the row as it is now when customer and bike match (no check, assignment or line re-run, no number burned), else `work_order_conflict`. Then FOR SHARE on customer and bike (D18 against a concurrent transfer), insert (trigger: J- number, `work_order_customer_archived`, `work_order_bike_archived`, `bike_owner_mismatch`), lead, ≤ 10 distinct additional staff, ≤ 20 services `{line_id, service_id, quantity}` (malformed 22023) through `private.insert_service_line`. One transaction. `requested_work_required`; 22004 for missing ids. |

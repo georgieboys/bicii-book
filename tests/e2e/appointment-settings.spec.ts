@@ -263,6 +263,35 @@ test("An admin adds Sunday afternoon hours, sees them offered, then restores the
   await expect(hours.getByRole("button", { name: /^Sunday: 09:00–13:00\. Edit$/ })).toBeVisible();
 });
 
+test("An admin chooses who gets booking emails (D163b), then clears them again", async ({
+  page,
+}) => {
+  await signIn(page, "admin", "/settings/schedule");
+  const card = section(page, "Booking emails");
+  await expect(card).toContainText("Shop alerts go to");
+  await card.getByRole("button", { name: "Edit booking emails" }).click();
+  const sheet = page.getByRole("dialog", { name: "Booking emails" });
+  // The row is the label (the box itself is visually hidden).
+  await sheet.getByText("Marcus Tan", { exact: true }).click();
+  await expect(sheet.getByRole("checkbox", { name: "Marcus Tan" })).toBeChecked();
+  await sheet.getByLabel("Other addresses").fill("Team@Example.com\nnot an address");
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(sheet.getByText("Enter each address in full, like team@example.com")).toBeVisible();
+  await sheet.getByLabel("Other addresses").fill("Team@Example.com\nteam@example.com");
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(toast(page, "Booking emails saved")).toBeVisible();
+  await expect(card).toContainText("Marcus Tan, team@example.com");
+
+  await card.getByRole("button", { name: "Edit booking emails" }).click();
+  await expect(sheet.getByRole("checkbox", { name: "Marcus Tan" })).toBeChecked();
+  await sheet.getByText("Marcus Tan", { exact: true }).click();
+  await expect(sheet.getByRole("checkbox", { name: "Marcus Tan" })).not.toBeChecked();
+  await sheet.getByLabel("Other addresses").fill("");
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(toast(page, "Booking emails saved")).toBeVisible();
+  await expect(card).toContainText("Nobody yet");
+});
+
 test("A mechanic without permissions reads the schedule and types but cannot change them", async ({
   page,
 }) => {

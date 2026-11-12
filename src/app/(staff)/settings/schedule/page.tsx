@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   AddClosureButton,
   DeleteClosureControl,
+  EditBookingAlertsButton,
   EditBookingSettingsButton,
   EditClosureButton,
   SettingFigure,
@@ -13,12 +14,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireStaff } from "@/lib/auth/session";
+import { unwrap } from "@/lib/db-errors";
 import {
   getShopSettings,
   getWeeklyHours,
   listClosures,
   type ClosureItem,
 } from "@/lib/domain/schedule";
+import { staffDirectory } from "@/lib/domain/staff-directory";
 import {
   cancelCutoffSentence,
   capacitySentence,
@@ -46,11 +49,21 @@ export default async function ScheduleSettingsPage() {
   // (private.require_admin()).
   const admin = staff.role === "admin";
   const supabase = await createClient();
-  const [settings, week, closures] = await Promise.all([
+  const [settings, week, closures, directory] = await Promise.all([
     getShopSettings(supabase),
     getWeeklyHours(supabase),
     listClosures(supabase),
+    staffDirectory(supabase),
   ]);
+  // D163b: booking alerts go to the chosen active staff and other addresses.
+  const activeStaff = (unwrap(directory) ?? [])
+    .filter((s) => s.active)
+    .map((s) => ({ id: s.id, name: s.display_name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const alertNames = activeStaff
+    .filter((s) => settings.bookingAlertStaffIds.includes(s.id))
+    .map((s) => s.name);
+  const alertRecipients = [...alertNames, ...settings.bookingAlertEmails];
 
   return (
     <>
@@ -112,6 +125,35 @@ export default async function ScheduleSettingsPage() {
         <p className="mt-3 text-sm text-dust-500">
           Changing these never moves or cancels an existing appointment. Bookings the new settings
           don&apos;t fit are flagged on the appointments list.
+        </p>
+      </Card>
+
+      <Card
+        title="Booking emails"
+        actions={
+          admin ? (
+            <EditBookingAlertsButton
+              staff={activeStaff}
+              staffIds={settings.bookingAlertStaffIds}
+              emails={settings.bookingAlertEmails}
+            />
+          ) : null
+        }
+      >
+        <dl aria-label="Booking emails" className="grid gap-x-6 sm:grid-cols-2">
+          <SettingFigure
+            label="Shop alerts go to"
+            value={alertRecipients.length > 0 ? alertRecipients.join(", ") : "Nobody yet"}
+            note="When a customer books or cancels online."
+          />
+          <SettingFigure
+            label="Customers get"
+            value="A confirmation"
+            note="When they book online, and an email if the booking is cancelled."
+          />
+        </dl>
+        <p className="mt-3 text-sm text-dust-500">
+          Bookings made by staff send no emails. Emails go out within a minute.
         </p>
       </Card>
 

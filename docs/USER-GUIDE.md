@@ -993,7 +993,9 @@ while an approved or ordered item is neither fitted nor cancelled:
     still reinstate them as arrived." → **Mark no-show**. **Reinstate as
     arrived** undoes it if they turn up.
   - **Cancel appointment…** → "Why is the appointment cancelled?" →
-    **Cancel appointment**. The customer is not told automatically.
+    **Cancel appointment**. A customer who booked online gets an email
+    that the shop cancelled it (your reason stays in BICII); a booking you
+    made sends nothing, so tell the customer yourself.
 - Success looks like: "Checked in. J-… opened." and the job linked both
   ways; "Appointment cancelled"; the appointment's History records each
   step and who did it.
@@ -1003,6 +1005,26 @@ while an approved or ordered item is neither fitted nor cancelled:
   reschedule: cancel and book again, and phone the customer
   ([R-017](RISKS.md#r-017--appointments-mvp-has-no-reschedule-and-no-customer-messages)).
 
+
+### Choose who gets booking emails (admins)
+
+- What happens: when a customer books online, the people you choose get
+  an alert ("New booking: Tune-up, Fri 13 Nov 2026, 10:00 am") with the
+  customer's name, phone, email, bike, their note and a link to the
+  appointment, and the customer gets a confirmation. When the customer
+  cancels online, both get an email again (the alert gives their reason).
+  When staff cancel an online booking, only the customer is told. Bookings
+  staff make send nothing. Emails go out within a minute (D163).
+- Before you start: you are an admin.
+- Steps: **Settings** → **Shop hours and closures** → **Booking emails**
+  → **Edit**. Tick the **Staff** who should get alerts (sent to the email
+  they sign in with) and type **Other addresses**, one per line (for
+  example team@bicii.sg). Press **Save**.
+- Success looks like: toast "Booking emails saved", and the card reads
+  "Shop alerts go to: …" with the names and addresses.
+- If it fails: "Enter each address in full, like team@example.com, one
+  per line."; "Choose at most 10 staff members and 10 other addresses."
+  A deactivated staff member gets no alerts even while still ticked.
 ### Help a customer with their website account
 
 Customers sign in on the BICII website, not in this app (Phase 11; the
@@ -1515,7 +1537,7 @@ shown as a badge on Settings → Your profile and on Settings → Staff:
 
 | Role | What it lets you do |
 |---|---|
-| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157), **Record counter payment** and its two voids on a job (D161) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
+| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, who gets booking emails (D163), appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157), **Record counter payment** and its two voids on a job (D161) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
 | Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify, Settings → Customer payments or recording counter payments |
 | Mechanic | The workshop: what everyone can do (next paragraph). Anything more only as extra access |
 

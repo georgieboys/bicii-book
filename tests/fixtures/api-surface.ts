@@ -142,6 +142,8 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // D162: an admin reclassifies shop stock entered by mistake as consigned
   // stock on the same product (admin only, checked inside)
   "public.reclassify_as_consignment(uuid, uuid, uuid, money_amount, text, money_amount, timestamp with time zone)",
+  // Booking emails (D163): who gets the shop's booking alerts (admin only).
+  "public.set_booking_alert_recipients(uuid[], text[])",
   // Sales and settlements (Phase 6): any active staff member records an
   // in-store sale (D48); restocks need adjust_stock (a consigned unit also
   // manage_consignments, D46); refunds are admin only (D49); settlements
@@ -449,6 +451,9 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.record_deposit_checkout(uuid, uuid, jsonb)",
   "public.prepare_balance_checkout(text)",
   "public.record_balance_checkout(uuid, uuid, bigint, jsonb)",
+  // Booking emails (D163): the Admin's sender (src/lib/integrations/notifications/)
+  "public.claim_appointment_notices(integer)",
+  "public.finish_appointment_notice(uuid, boolean, text)",
 ];
 
 /**

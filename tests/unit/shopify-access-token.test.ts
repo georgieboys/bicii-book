@@ -89,6 +89,37 @@ describe("Shopify access token from the client ID and secret", () => {
     }
   });
 
+  it("keeps Shopify's reason for a refusal and names an app that is not installed", async () => {
+    // The exact answer the live store gave on 2026-11-13 (R-047).
+    const notInstalled = tokenSource(
+      json(
+        {
+          error: "app_not_installed",
+          error_description: "The application is not installed on this shop.",
+        },
+        400,
+      ),
+    );
+    await expect(notInstalled.source.get()).rejects.toMatchObject({
+      code: "shopify_auth_failed",
+      retriable: false,
+      userMessage: expect.stringContaining("not installed on this store"),
+      message:
+        "shopify_auth_failed: token: HTTP 400, app_not_installed: The application is not installed on this shop.",
+    });
+
+    const badClient = tokenSource(json({ error: "invalid_client" }, 401));
+    await expect(badClient.source.get()).rejects.toMatchObject({
+      userMessage: "Shopify refused the access token. Check the Shopify app settings.",
+      message: "shopify_auth_failed: token: HTTP 401, invalid_client",
+    });
+
+    const noBody = tokenSource(new Response("", { status: 403 }));
+    await expect(noBody.source.get()).rejects.toMatchObject({
+      message: "shopify_auth_failed: token: HTTP 403",
+    });
+  });
+
   it("the adapter fetches a new token once when Shopify refuses the cached one", async () => {
     const calls: { url: string; token: string | null }[] = [];
     const responses = [

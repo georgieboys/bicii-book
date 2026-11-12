@@ -273,7 +273,8 @@ describe.skipIf(!reachable)("Shopify service layer on the live stack", () => {
     expect(await runJobById(firstJob, deps)).toBe("done");
     const state = check(await service.rpc("product_sync_state", { product_id: STACK }));
     const mine = callsFor(fake, HANDLE, IDS.productId, IDS.inventoryItemId);
-    expect(mine.map((c) => c.kind)).toEqual(["productSet", "inventorySetQuantities"]);
+    // An ACTIVE product also goes on the Online Store channel (ADR-020, 2026-11-13).
+    expect(mine.map((c) => c.kind)).toEqual(["productSet", "inventorySetQuantities", "publish"]);
     expect(mine[0]).toMatchObject({ handle: HANDLE, price: "12.00", status: "ACTIVE" });
     expect(mine[0].imageUrls?.length).toBeGreaterThan(0);
     expect(mine[1]).toMatchObject({

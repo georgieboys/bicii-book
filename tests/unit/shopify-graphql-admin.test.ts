@@ -318,6 +318,71 @@ describe("createGraphqlShopifyAdmin", () => {
     }
   });
 
+  it("publishes to the Online Store publication, looking it up once", async () => {
+    const PUBLICATION = "gid://shopify/Publication/1001";
+    const { admin, sent } = adminWith(
+      ok({
+        publications: {
+          nodes: [
+            { id: "gid://shopify/Publication/1000", name: "Point of Sale" },
+            { id: PUBLICATION, name: "Online Store" },
+          ],
+        },
+      }),
+      ok({ publishablePublish: { userErrors: [] } }),
+      ok({ publishablePublish: { userErrors: [] } }),
+    );
+    await admin.publishToOnlineStore(PRODUCT);
+    await admin.publishToOnlineStore(PRODUCT);
+    expect(sent.map((s) => s.body.query.match(/(query|mutation) (\w+)/)?.[2])).toEqual([
+      "BiciiPublications",
+      "BiciiPublish",
+      "BiciiPublish",
+    ]);
+    expect(sent[1].body.variables).toEqual({
+      id: PRODUCT,
+      input: [{ publicationId: PUBLICATION }],
+    });
+  });
+
+  it("refuses publishing when the store has no Online Store channel, and maps userErrors", async () => {
+    const none = adminWith(
+      ok({ publications: { nodes: [{ id: "gid://shopify/Publication/1000", name: "Shop" }] } }),
+    );
+    const missing = await caught(none.admin.publishToOnlineStore(PRODUCT));
+    expect(missing).toMatchObject({ code: "shopify_user_error", retriable: false });
+    expect(missing.userMessage).toContain("Online Store sales channel");
+
+    const refused = adminWith(
+      ok({
+        publications: { nodes: [{ id: "gid://shopify/Publication/1001", name: "Online Store" }] },
+      }),
+      ok({ publishablePublish: { userErrors: [{ field: ["id"], message: "Product not found" }] } }),
+    );
+    const e = await caught(refused.admin.publishToOnlineStore(PRODUCT));
+    expect(e).toMatchObject({ code: "shopify_user_error", retriable: false });
+  });
+
+  it("maps a missing publications scope to an access refusal naming the scopes", async () => {
+    // Shopify's exact answer without read_publications (live store, 2026-11-13).
+    const { admin } = adminWith(
+      Response.json({
+        errors: [
+          {
+            message:
+              "Access denied for publications field. Required access: `read_publications` access scope.",
+            extensions: { code: "ACCESS_DENIED" },
+            path: ["publications"],
+          },
+        ],
+        data: null,
+      }),
+    );
+    const e = await caught(admin.publishToOnlineStore(PRODUCT));
+    expect(e).toMatchObject({ code: "shopify_auth_failed", retriable: false });
+    expect(e.userMessage).toContain("publications");
+  });
+
   it("returns the first active location", async () => {
     const { admin } = adminWith(
       ok({

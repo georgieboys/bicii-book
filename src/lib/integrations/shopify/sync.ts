@@ -250,7 +250,14 @@ export async function runProductSync(job: SyncJob, deps: IntegrationDeps): Promi
       await setQuantity(null, "overwrite");
     }
 
-    // 8. Done.
+    // 8. An ACTIVE BICII-made product goes on the Online Store sales
+    // channel (productSet does not publish it; Shopify ignores a repeat).
+    // After the price and stock, so a refusal here never holds those back.
+    if (desired.mode === "full" && desired.input?.status === "ACTIVE") {
+      await admin.publishToOnlineStore(ids.productId);
+    }
+
+    // 9. Done.
     try {
       return done(
         await record({

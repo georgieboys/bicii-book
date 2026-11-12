@@ -250,6 +250,33 @@ documented request and response
 (`tests/unit/shopify-access-token.test.ts`), not yet against the live store
 ([R-047](../RISKS.md#r-047--the-live-shopify-adapter-is-unverified-against-a-real-store)).
 
+## Amendment 2026-11-13: publishing to the Online Store sales channel
+
+`productSet` creates an ACTIVE product but does not put it on any sales
+channel. The first live sync (product `bicii-p-000004`, 2026-11-13) left
+the product ACTIVE in Shopify with the right price and stock, but not on
+the storefront: its `onlineStoreUrl` was null, and
+`shop.bicii.sg/products/bicii-p-000004` redirected to the home page. So
+"Publish online" did not make a product visible online.
+
+The product sync now publishes every ACTIVE BICII-made product to the
+Online Store publication with `publishablePublish`, after the price and
+stock pushes (`ShopifyAdmin.publishToOnlineStore`; `sync.ts` step 8). The
+publication is found by its name, "Online Store", once per server process.
+A repeat publish is harmless, so it runs on every ACTIVE push. A DRAFT push
+does not unpublish: DRAFT already hides a product. A product made in
+Shopify (`variant_only`, D84) is never published by BICII. The desired
+state's hash now includes the sales channel, so every product is re-pushed
+once and the products synced before this change get published. A refused
+publish (a missing scope, no Online Store channel) is a failure a person
+must fix (D87), recorded after Shopify already has the right price and
+stock.
+
+This needs one more Admin API scope, `write_publications` (it includes
+`read_publications`), on the Dev Dashboard app's version (RUNBOOK
+"Shopify: the custom app and its webhooks"). Tests:
+`tests/unit/shopify-sync.test.ts`, `tests/unit/shopify-graphql-admin.test.ts`.
+
 ## Revisit trigger
 
 The owner answers D89 or confirms a row; the first real Shopify store or

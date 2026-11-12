@@ -104,7 +104,13 @@ describe("runProductSync", () => {
     const { fake, deps, recorded } = harness(state());
     const result = await runProductSync(job(), deps);
     expect(result).toEqual({ outcome: "pushed", message: null, code: null });
-    expect(fake.calls.map((c) => c.kind)).toEqual(["productSet", "inventorySetQuantities"]);
+    expect(fake.calls.map((c) => c.kind)).toEqual([
+      "productSet",
+      "inventorySetQuantities",
+      "publish",
+    ]);
+    expect(fake.calls[2]).toMatchObject({ productId: IDS.productId });
+    expect(fake.products.get(IDS.productId)?.published).toBe(true);
     expect(fake.calls[0]).toMatchObject({
       handle: "bicii-p-000032",
       productId: undefined,
@@ -285,6 +291,52 @@ describe("runProductSync", () => {
       error_code: "shopify_unavailable",
       retriable: true,
     });
+  });
+
+  it("publishes a product synced before Online Store publishing, once its hash changes", async () => {
+    // Like bicii-p-000004 on 2026-11-13: in Shopify, ACTIVE, not on the channel.
+    const { fake, deps } = harness(
+      state({
+        shopify_product_id: IDS.productId,
+        shopify_variant_id: IDS.variantId,
+        shopify_inventory_item_id: IDS.inventoryItemId,
+        last_pushed_quantity: 50,
+        last_desired_hash: "a hash from before sales channels were hashed",
+      }),
+    );
+    fake.seedProduct(IDS, 50, "bicii-p-000032");
+    expect(fake.products.get(IDS.productId)?.published).toBe(false);
+    expect((await runProductSync(job(), deps)).outcome).toBe("pushed");
+    expect(fake.products.get(IDS.productId)?.published).toBe(true);
+  });
+
+  it("does not publish a product going offline (DRAFT hides it)", async () => {
+    const { fake, deps } = harness(state({ publish_online: false, effective_online: false }));
+    await runProductSync(job(), deps);
+    expect(fake.calls.map((c) => c.kind)).toEqual(["productSet", "inventorySetQuantities"]);
+    expect(fake.calls[0]).toMatchObject({ status: "DRAFT" });
+  });
+
+  it("a publishing refusal comes after the price and stock, and needs a person", async () => {
+    const { fake, deps, recorded } = harness(state());
+    fake.failNext(
+      new ShopifyError(
+        "shopify_auth_failed",
+        false,
+        "Shopify refused the request.",
+        "ACCESS_DENIED",
+      ),
+      "publish",
+    );
+    await runProductSync(job(), deps);
+    expect(fake.calls.map((c) => c.kind)).toEqual([
+      "productSet",
+      "inventorySetQuantities",
+      "publish",
+    ]);
+    expect(fake.quantities.get(IDS.inventoryItemId)).toBe(50);
+    expect(recorded()).toHaveLength(1);
+    expect(recorded()[0]).toMatchObject({ outcome: "failed", retriable: false });
   });
 
   it("records userErrors as needing a person", async () => {

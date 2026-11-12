@@ -94,6 +94,8 @@ export class ShopifyError extends Error {
 
 export const SHOPIFY_MESSAGES = {
   authFailed: "Shopify refused the access token. Check the Shopify app settings.",
+  appNotInstalled:
+    "The Shopify app is not installed on this store. Install it from the Shopify Dev Dashboard, then sync again.",
   accessDenied:
     "Shopify refused the request. Check that the Shopify app has the products, inventory and locations scopes.",
   throttled: "Shopify asked BICII to slow down. The sync will try again shortly.",

@@ -47,6 +47,25 @@ export type ClientCredentialsOptions = {
   timeoutMs?: number;
 };
 
+/**
+ * Shopify's reason for refusing the grant, from its OAuth error body
+ * (`{ error, error_description }`, e.g. `app_not_installed`,
+ * `invalid_client`, `shop_not_permitted`). Never contains the secret.
+ */
+async function refusalReason(res: Response): Promise<{ error: string; text: string } | null> {
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    return null;
+  }
+  if (!body || typeof body !== "object") return null;
+  const { error, error_description: description } = body as Record<string, unknown>;
+  if (typeof error !== "string" || error === "") return null;
+  const text = typeof description === "string" && description ? `${error}: ${description}` : error;
+  return { error, text: text.slice(0, 300) };
+}
+
 /** Fetch again this long before Shopify's expiry. */
 const REFRESH_MARGIN_MS = 10 * 60 * 1000;
 
@@ -88,11 +107,14 @@ export function clientCredentialsAccessToken({
       );
     }
     if (res.status === 400 || res.status === 401 || res.status === 403) {
+      const reason = await refusalReason(res);
       throw new ShopifyError(
         "shopify_auth_failed",
         false,
-        SHOPIFY_MESSAGES.authFailed,
-        `token: HTTP ${res.status}`,
+        reason?.error === "app_not_installed"
+          ? SHOPIFY_MESSAGES.appNotInstalled
+          : SHOPIFY_MESSAGES.authFailed,
+        `token: HTTP ${res.status}${reason ? `, ${reason.text}` : ""}`,
       );
     }
     if (res.status === 429) {

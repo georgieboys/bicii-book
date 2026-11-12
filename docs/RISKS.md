@@ -1517,6 +1517,23 @@ URLs, or customer data in this file.
   (`shopify_auth_failed`) because the token variable held them. The Admin
   now exchanges the ID and secret for a 24-hour token (ADR-020 amendment);
   that exchange is unit-tested only until the live sync succeeds.
+- Update (2026-11-13): the exchange against
+  `bicii-singapore-96e6wu6e.myshopify.com` returned HTTP 400
+  `{"error":"app_not_installed","error_description":"The application is
+  not installed on this shop."}`. The request is right; the Dev Dashboard
+  app must be installed on the store (and belong to the store's
+  organization) before the grant works. The Admin used to drop Shopify's
+  reason; it now logs `error: error_description` with the HTTP status and
+  shows staff an "app is not installed" message for that case
+  (`tests/unit/shopify-access-token.test.ts`).
+  After the owner installed the app the same day, the exchange returned
+  HTTP 200 with a token (`expires_in: 86399`; scopes include
+  `write_products`, `write_inventory`, `write_locations`), and that token
+  answered read-only Admin GraphQL on `2026-10`: the shop, 9 products, and
+  the Admin's `locations` query with one location, `isActive: true`. This
+  is the live store, not a development store; no product or inventory
+  write has been tried, so `productSet` and `inventorySetQuantities`
+  remain unverified.
 - Next action: work through
   [RUNBOOK "Verify before go-live"](RUNBOOK.md#shopify-verify-before-go-live)
   on a development store and correct the documents and the tests together.

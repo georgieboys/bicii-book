@@ -23,6 +23,10 @@ const customerPageHeaders = [
 const nextConfig: NextConfig = {
   // No X-Powered-By: nothing gains from knowing the framework.
   poweredByHeader: false,
+  // Every <Image> already passes `unoptimized`: images are served as they
+  // are from Supabase Storage or /public. Saying so here keeps the image
+  // optimizer, an unauthenticated endpoint nothing uses, out of the picture.
+  images: { unoptimized: true },
   experimental: {
     // forbidden() / unauthorized() and forbidden.tsx / unauthorized.tsx
     // (ADR-001 A3).

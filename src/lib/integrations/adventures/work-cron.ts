@@ -22,6 +22,7 @@ export type WorkSummary = {
   files: ParseSummary;
   emails: Awaited<ReturnType<typeof sendDueAdventureNotices>>;
   feeds: FeedSummary;
+  purged?: number | null;
 };
 
 export type WorkCronDeps = {
@@ -49,7 +50,9 @@ async function defaultRun(deadlineMs: number): Promise<WorkSummary> {
     { supabase, env: process.env, log: deps.log, now: Date.now },
     { maxFeeds: 2, deadlineMs },
   );
-  return { files, emails, feeds };
+  // Tracker messages that belong to no ride go after 30 days (D203).
+  const purge = await supabase.rpc("purge_unattributed_tracking", { max_rows: 1000 });
+  return { files, emails, feeds, purged: purge.error ? null : Number(purge.data ?? 0) };
 }
 
 export async function handleAdventureWork(

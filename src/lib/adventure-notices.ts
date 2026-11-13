@@ -28,7 +28,9 @@ export type AdventureNoticeKind =
   | "ride_submitted"
   | "payment_attention"
   | "departure_joined"
-  | "departure_cancelled";
+  | "departure_cancelled"
+  | "cancellation_requested"
+  | "booking_cancelled";
 
 export type AdventureNotice = {
   id: string;
@@ -50,6 +52,8 @@ export type AdventureNotice = {
   publicSiteUrl: string | null;
   departureStartsAt: string | null;
   departureMeetingPoint: string | null;
+  /** The reason on the event (a cancellation's). */
+  eventNote: string | null;
 };
 
 export type AdventureNoticeRow = {
@@ -72,6 +76,7 @@ export type AdventureNoticeRow = {
   public_site_url: string | null;
   departure_starts_at?: string | null;
   departure_meeting_point?: string | null;
+  event_note?: string | null;
 };
 
 export function adventureNoticeFromRow(row: AdventureNoticeRow): AdventureNotice {
@@ -95,6 +100,7 @@ export function adventureNoticeFromRow(row: AdventureNoticeRow): AdventureNotice
     publicSiteUrl: row.public_site_url,
     departureStartsAt: row.departure_starts_at ?? null,
     departureMeetingPoint: row.departure_meeting_point ?? null,
+    eventNote: row.event_note ?? null,
   };
 }
 
@@ -240,6 +246,17 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
         ],
         { href: ride, label: "Open your ride" },
       );
+    case "booking_cancelled":
+      return compose(
+        `Your ${route} booking is cancelled`,
+        [
+          hello,
+          `Your ${route} booking (${n.reference}) is cancelled.`,
+          n.eventNote ? `From BICII:\n${n.eventNote}` : null,
+          "Any refund owed is made to the card you paid with. Questions? Message the shop.",
+        ],
+        null,
+      );
     default:
       return compose(`Your ${route} ride`, [hello], { href: ride, label: "Open your ride" });
   }
@@ -247,6 +264,20 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
 
 function shopEmail(n: AdventureNotice, adminOrigin: string | null): NoticeEmail {
   const admin = adminOrigin?.trim().replace(/\/+$/, "") || null;
+  if (n.kind === "cancellation_requested") {
+    return compose(
+      `Cancellation asked: ${n.reference}`,
+      [
+        `${n.riderName} asked to cancel their ${n.adventureName} booking (${n.reference}).`,
+        n.eventNote ? `Their reason: ${n.eventNote}` : null,
+        "Decide under the terms they accepted. To cancel, an admin presses Cancel booking and refunds in Stripe.",
+      ],
+      {
+        href: admin ? `${admin}/adventures/bookings/${n.bookingId}` : null,
+        label: "Open the booking",
+      },
+    );
+  }
   if (n.kind === "payment_attention") {
     return compose(
       `Payment needs attention: ${n.reference}`,

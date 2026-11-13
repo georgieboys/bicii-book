@@ -124,6 +124,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   departure_needs_ticket: "Joining a group ride needs a paid self-supported ticket for this route.",
   departure_already_joined: "This rider has already joined a date.",
   departure_full: "That date is full.",
+  adventure_booking_certified:
+    "This ride is certified. Revoke the certificate first if it must go.",
+  tracker_still_out: "The rider still has a tracker. Record its return first.",
   adventure_supported_closed: "Supported rides are not on sale yet.",
   departure_supported_seat: "A supported ride's place can't be changed online. Message us.",
   departure_staff_invalid: "Choose an active staff member.",

@@ -3,7 +3,9 @@
 import { useActionState, useId, useState, useTransition, type ReactNode } from "react";
 
 import {
+  cancelAdventureBookingAction,
   claimAdventureReviewAction,
+  moveSeatAction,
   clearAdventureAttentionAction,
   revokeAdventureCertificateAction,
   setAdventurePackStatusAction,
@@ -13,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Sheet } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
@@ -313,5 +316,85 @@ export function AdventureSalesControl({
         </FormSheet>
       ) : null}
     </div>
+  );
+}
+
+/** Admin: cancel a booking with a reason (D201). Refunds stay in Stripe. */
+export function CancelBookingButton({ bookingId }: { bookingId: string }) {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={show}>
+        Cancel booking
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Cancel this booking?"
+          description="Its date and tracker hire are released and the rider is emailed with your reason. Refund the payment in Stripe yourself. This cannot be undone."
+          submitLabel="Cancel booking"
+          pendingLabel="Cancelling…"
+          danger
+          success="Booking cancelled"
+          action={cancelAdventureBookingAction as unknown as FormAction}
+          hidden={{ bookingId }}
+          onClose={close}
+        >
+          {(errors) => (
+            <Field label="Reason" hint="The rider sees it." error={errors?.reason?.[0]} required>
+              <Textarea name="reason" rows={3} />
+            </Field>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
+  );
+}
+
+/** manage_adventures: move the rider to another date of the same route and kind (D202). */
+export function MoveSeatButton({
+  bookingId,
+  dates,
+}: {
+  bookingId: string;
+  dates: Array<{ id: string; label: string }>;
+}) {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={show} disabled={dates.length === 0}>
+        Move to another date
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Move to another date"
+          submitLabel="Move"
+          pendingLabel="Moving…"
+          success="Moved"
+          action={moveSeatAction as unknown as FormAction}
+          hidden={{ bookingId }}
+          onClose={close}
+        >
+          {(errors) => (
+            <>
+              <Field label="Date" error={errors?.departureId?.[0]} required>
+                <Select name="departureId" defaultValue="">
+                  <option value="" disabled>
+                    Choose a date
+                  </option>
+                  {dates.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Reason" error={errors?.reason?.[0]} required>
+                <Textarea name="reason" rows={2} />
+              </Field>
+            </>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
   );
 }

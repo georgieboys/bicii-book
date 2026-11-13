@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
+  CancelBookingButton,
   ClearAttentionButton,
+  MoveSeatButton,
   PackStatusButtons,
   RevokeCertificateButton,
 } from "@/components/domain/adventures/booking-sheets";
@@ -27,6 +29,7 @@ import { requireStaff } from "@/lib/auth/session";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { getAdventureBooking } from "@/lib/domain/adventure-bookings";
 import { getBookingHire } from "@/lib/domain/trackers";
+import { getBookingDate } from "@/lib/domain/departures";
 import { formatMoney } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
@@ -55,9 +58,10 @@ export default async function AdventureBookingPage({
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
-  const [booking, hire] = await Promise.all([
+  const [booking, hire, date] = await Promise.all([
     getAdventureBooking(supabase, id),
     getBookingHire(supabase, id),
+    getBookingDate(supabase, id),
   ]);
   if (!booking) notFound();
   const admin = staff.role === "admin";
@@ -75,6 +79,11 @@ export default async function AdventureBookingPage({
               {BOOKING_STATUS_LABELS[booking.status]}
             </Badge>
             {booking.needsAttention ? <Badge tone="danger">Needs attention</Badge> : null}
+            {admin &&
+            (booking.status === "confirmed" || booking.status === "pending_payment") &&
+            booking.certificate?.status !== "active" ? (
+              <CancelBookingButton bookingId={booking.id} />
+            ) : null}
           </>
         }
       />
@@ -158,6 +167,29 @@ export default async function AdventureBookingPage({
             </ul>
           )}
         </Card>
+
+        {date ? (
+          <Card
+            title={date.departure.kind === "supported" ? "Supported date" : "Group date"}
+            actions={
+              canManageAdventures(staff) ? (
+                <MoveSeatButton
+                  bookingId={booking.id}
+                  dates={date.others.map((o) => ({
+                    id: o.id,
+                    label: `${formatDateTime(o.startsAt)} · ${o.meetingPoint} (${o.capacity - o.taken} free)`,
+                  }))}
+                />
+              ) : null
+            }
+          >
+            <p className="text-sm">
+              <Link href={`/adventures/departures/${date.departure.id}`} className="underline">
+                {formatDateTime(date.departure.startsAt)} · {date.departure.meetingPoint}
+              </Link>
+            </p>
+          </Card>
+        ) : null}
 
         {hire ? (
           <Card

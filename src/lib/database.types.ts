@@ -7238,6 +7238,7 @@ export type Database = {
           review_radius_m: number;
         }[];
       };
+      adventure_health: { Args: Record<PropertyKey, never>; Returns: Json };
       adventure_sales_state: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -7439,6 +7440,40 @@ export type Database = {
           slot_end: string;
           slot_start: string;
         }[];
+      };
+      cancel_adventure_booking: {
+        Args: { booking_id: string; reason: string };
+        Returns: {
+          adventure_id: string;
+          attention_reason: string | null;
+          cancelled_at: string | null;
+          confirmed_at: string | null;
+          created_at: string;
+          currency: string;
+          customer_id: string;
+          expired_at: string | null;
+          finisher_name: Database["public"]["Enums"]["adventure_finisher_name"];
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          needs_attention: boolean;
+          offer_id: string;
+          recording_method: Database["public"]["Enums"]["adventure_recording_method"];
+          reference: string;
+          request_fingerprint: string;
+          request_id: string;
+          revision_id: string;
+          status: Database["public"]["Enums"]["adventure_booking_status"];
+          terms_version: string;
+          total: number;
+          tshirt_size: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_bookings";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       cancel_adventure_departure: {
         Args: { departure_id: string; reason: string };
@@ -8598,6 +8633,27 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      move_adventure_seat: {
+        Args: { booking_id: string; departure_id: string; reason: string };
+        Returns: {
+          booking_id: string;
+          checked_in_at: string | null;
+          checked_in_by: string | null;
+          departure_id: string;
+          hold_until: string | null;
+          id: string;
+          joined_at: string;
+          left_at: string | null;
+          left_reason: string | null;
+          show_name: boolean;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_departure_participants";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       my_adventure_booking: {
         Args: { booking_id: string };
         Returns: {
@@ -9162,6 +9218,7 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      purge_unattributed_tracking: { Args: { max_rows: number }; Returns: number };
       quote_by_token: { Args: { token: string }; Returns: Json };
       receive_purchase: {
         Args: {
@@ -9870,6 +9927,10 @@ export type Database = {
           unit_id: string;
           unit_short_id: string;
         }[];
+      };
+      request_my_adventure_cancellation: {
+        Args: { booking_id: string; reason: string };
+        Returns: undefined;
       };
       request_product_sync: { Args: { product_id: string }; Returns: string };
       restock_unit: {
@@ -11519,7 +11580,10 @@ export type Database = {
         | "capture_corrected"
         | "departure_joined"
         | "departure_left"
-        | "departure_cancelled";
+        | "departure_cancelled"
+        | "cancellation_requested"
+        | "booking_cancelled"
+        | "seat_moved";
       adventure_booking_status: "pending_payment" | "confirmed" | "cancelled" | "expired";
       adventure_certificate_status: "active" | "revoked";
       adventure_checkpoint_order: "any" | "sequence";
@@ -11539,7 +11603,9 @@ export type Database = {
         | "ride_submitted"
         | "payment_attention"
         | "departure_joined"
-        | "departure_cancelled";
+        | "departure_cancelled"
+        | "cancellation_requested"
+        | "booking_cancelled";
       adventure_pack_status: "awaiting_pack" | "ready" | "fulfilled" | "on_hold";
       adventure_participation: "self_supported" | "self_supported_group" | "supported";
       adventure_recording_method: "own_device" | "tracker_hire";
@@ -11791,6 +11857,7 @@ export type Database = {
         public_site_url: string | null;
         departure_starts_at: string | null;
         departure_meeting_point: string | null;
+        event_note: string | null;
       };
       appointment_check_in: {
         appointment_id: string | null;
@@ -12663,6 +12730,9 @@ export const Constants = {
         "departure_joined",
         "departure_left",
         "departure_cancelled",
+        "cancellation_requested",
+        "booking_cancelled",
+        "seat_moved",
       ],
       adventure_booking_status: ["pending_payment", "confirmed", "cancelled", "expired"],
       adventure_certificate_status: ["active", "revoked"],
@@ -12696,6 +12766,8 @@ export const Constants = {
         "payment_attention",
         "departure_joined",
         "departure_cancelled",
+        "cancellation_requested",
+        "booking_cancelled",
       ],
       adventure_pack_status: ["awaiting_pack", "ready", "fulfilled", "on_hold"],
       adventure_participation: ["self_supported", "self_supported_group", "supported"],

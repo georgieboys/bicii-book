@@ -387,3 +387,62 @@ export async function recordObservation(
     }),
   );
 }
+
+// ---------------------------------------------------- Phase F: moving ----
+// D202: a booking's current date, and the other dates it could move to.
+
+export async function getBookingDate(
+  supabase: ServerSupabase,
+  bookingId: string,
+): Promise<{ departure: Departure; others: Departure[] } | null> {
+  const current = rows(
+    (await supabase
+      .from("adventure_departure_participants")
+      .select("departure_id")
+      .eq("booking_id", bookingId)
+      .is("left_at", null)
+      .is("hold_until", null)
+      .limit(1)) as unknown as Rows<{ departure_id: string }>,
+  )[0];
+  if (!current) return null;
+  const d = unwrap(
+    (await supabase
+      .from("adventure_departures")
+      .select(COLUMNS)
+      .eq("id", current.departure_id)
+      .maybeSingle()) as unknown as {
+      data: DepartureRow | null;
+      error: Parameters<typeof unwrap>[0]["error"];
+    },
+  );
+  if (!d) return null;
+  const departure = fromRow(d);
+  const others = rows(
+    (await supabase
+      .from("adventure_departures")
+      .select(COLUMNS)
+      .eq("adventure_id", departure.adventureId)
+      .eq("kind", departure.kind)
+      .eq("status", "scheduled")
+      .neq("id", departure.id)
+      .gt("starts_at", new Date().toISOString())
+      .order("starts_at")
+      .limit(50)) as unknown as Rows<DepartureRow>,
+  ).map(fromRow);
+  return { departure, others };
+}
+
+export async function moveSeat(
+  supabase: ServerSupabase,
+  bookingId: string,
+  departureId: string,
+  reason: string,
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("move_adventure_seat", {
+      booking_id: bookingId,
+      departure_id: departureId,
+      reason,
+    }),
+  );
+}

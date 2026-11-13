@@ -1243,6 +1243,16 @@ of the published terms riders accept). Until then nothing is sold.
   hold** with a reason).
 - An admin can **Revoke** a certificate from its booking, with a reason.
   It comes off the finisher board; the certificate and its history stay.
+- **Cancelling** (admins): a booking's page has **Cancel booking** (with a
+  reason the rider is emailed). Its date and tracker hire are released;
+  refund the payment in Stripe yourself. A certified booking, or one whose
+  tracker is still out, can't be cancelled. A rider can ask to cancel from
+  bicii.sg; the booking-email people get it, and nothing changes until you
+  decide. **Move to another date** (Manage adventures) moves a rider on a
+  group or supported date to another date of the same route.
+- **Health** (admins, Settings → Adventure sales) counts rides waiting for
+  review, flagged bookings, cancellation requests, waiting and failed
+  emails, files waiting or failed, overdue trackers and failing feeds.
 - Emails: the rider is emailed when their ticket is paid, when you ask for
   changes, when the ride is certified or not (with your message to them),
   and when you mark the pack ready to collect. The people on **Booking

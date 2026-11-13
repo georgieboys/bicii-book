@@ -295,6 +295,13 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.prepare_my_adventure_checkout(uuid, text, adventure_participation, integer, text, adventure_finisher_name, text)",
   "public.my_adventure_bookings()",
   "public.my_adventure_booking(uuid)",
+  // Adventures Phase B, evidence (D175, D177): the rider's own draft only
+  // (private.my_adventure_draft checks the booking is theirs and paid)
+  "public.prepare_my_adventure_upload(uuid, adventure_evidence_kind, integer, text, text, bigint)",
+  "public.finalise_my_adventure_upload(uuid)",
+  "public.remove_my_adventure_file(uuid)",
+  "public.submit_my_adventure_evidence(uuid, text)",
+  "public.my_adventure_evidence(uuid)",
   "public.update_adventure_draft(uuid, integer, text, text, text, text, text, text, text, text, numeric, integer, text, integer, integer, adventure_checkpoint_order, text, text, text, text, text, text, boolean)",
 ];
 
@@ -463,6 +470,14 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.adventure_bookings": ["SELECT"],
   "public.adventure_payments": ["SELECT"],
   "public.adventure_settings": ["SELECT"],
+  // Adventures Phase B, evidence (D175-D177): attempts and submissions for
+  // staff (RLS is_staff); files, tracks and points only for staff who
+  // verify or manage adventures; riders use the my_adventure_* RPCs
+  "public.adventure_attempts": ["SELECT"],
+  "public.adventure_evidence_files": ["SELECT"],
+  "public.adventure_submissions": ["SELECT"],
+  "public.adventure_track_points": ["SELECT"],
+  "public.adventure_tracks": ["SELECT"],
 };
 
 /**
@@ -503,6 +518,9 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   // Adventures Phase B (D167): the Admin's checkout endpoint records the
   // Checkout Session it created for an adventure payment
   "public.record_adventure_checkout(uuid, jsonb)",
+  // The evidence parse worker (src/lib/integrations/adventures/)
+  "public.claim_adventure_parse_jobs(integer)",
+  "public.finish_adventure_parse(uuid, boolean, text, text, text, jsonb)",
 ];
 
 /**

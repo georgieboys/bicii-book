@@ -76,6 +76,21 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   adventure_session_mismatch: "The payment page did not match this booking. Start again.",
   adventure_booking_immutable: "What was bought, by whom and at what price never changes.",
   adventure_payment_immutable: "A payment changes only through Stripe.",
+  // Adventures, Phase B (D175-D177): evidence.
+  adventure_booking_not_paid: "Evidence can be added once the booking is paid.",
+  adventure_submission_locked: "Your evidence is with BICII for review.",
+  adventure_file_type:
+    "Upload your ride as a GPX or FIT file, and photos as JPEG, PNG, WebP or HEIC.",
+  adventure_file_too_large: "Ride files can be up to 25 MB and photos up to 15 MB.",
+  adventure_checkpoint_unknown: "Choose which checkpoint the photo is for.",
+  adventure_evidence_full:
+    "This submission has reached its limit of 100 files or 250 MB. Ask BICII for help.",
+  adventure_upload_missing: "The file did not arrive. Upload it again.",
+  adventure_evidence_immutable: "Submitted evidence cannot change. Wait for a correction request.",
+  adventure_evidence_processing:
+    "Your files are still being uploaded or read. Try again in a minute.",
+  adventure_evidence_incomplete:
+    "Add your ride's recording (a GPX or FIT file with times) before requesting certification.",
   adventure_rules_incomplete:
     "A route with certification offers needs its nominal days and a maximum time.",
   staff_email_mismatch: "That email does not match the login it belongs to.",
@@ -518,6 +533,7 @@ export const UNIQUE_ERRORS: Record<string, string> = {
   adventure_payments_session_key: "That payment page is already linked to another payment.",
   adventure_payments_payment_intent_key:
     "That Stripe payment is already linked to another payment.",
+  adventure_submissions_one_draft: "This ride already has a draft. Add to it instead.",
   adventure_payments_one_open: "This booking already has a payment open. Finish or wait for it.",
   staff_email_key: "A staff member with that email already exists.",
   staff_auth_user_id_key: "That login is already linked to a staff member.",
@@ -666,6 +682,9 @@ export const CHECK_ERRORS: Record<string, string> = {
   adventure_payments_paid_at: "A paid payment needs its payment time.",
   payment_refunds_one_subject:
     "A refund belongs to a workshop payment or an adventure payment, not both.",
+  adventure_attempts_interval: "A ride cannot finish before it starts.",
+  adventure_submissions_submitted_at: "A submitted version needs its submission time.",
+  adventure_evidence_files_photo: "A photo needs its checkpoint; a ride file has none.",
   adventures_published_has_revision: "Publish a version before showing this adventure.",
   adventure_revisions_window_order: "The minimum time cannot be longer than the maximum.",
   adventure_checkpoints_coordinates: "Enter both latitude and longitude, or neither.",

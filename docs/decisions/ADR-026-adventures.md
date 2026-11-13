@@ -53,6 +53,16 @@ the Admin through Vercel).
    only; longer routes stay planned until each has real checkpoints and
    rules.
 
+## Amendment 2026-11-14: reading ride files
+
+FIT files are read with `fit-file-parser` (MIT, pinned to 6.2.3, published
+2026-10-20), not Garmin's official FIT SDK: the SDK's licence is a binding
+agreement with use restrictions, which is the owner's to accept (R-099).
+GPX is read without an XML library: a file declaring a DOCTYPE or an entity
+is refused before anything is read, so no entity can be expanded or
+fetched. Points are stored as recorded and the distance is point to point,
+a derived figure for the reviewer (D176).
+
 ## Alternatives considered
 
 | Alternative | Why not |

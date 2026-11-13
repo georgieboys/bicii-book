@@ -320,12 +320,27 @@ npx supabase@2.119.0 db push                        # apply pending migrations, 
 ### From GitHub Actions (the hosted project)
 
 [`migrate.yml`](../.github/workflows/migrate.yml) runs the same `db push`
-from GitHub, so nobody needs the database password on their machine. It
-runs on manual dispatch (Actions → "Migrate hosted database" → Run
-workflow, branch `main`) and on every push to `main` that changes
-`supabase/migrations/`, one run at a time. Each run prints the migration
-history, a `--dry-run`, applies the pending files and prints the history
-again.
+from GitHub, so nobody needs the database password on their machine. Since
+2026-11-13 it runs only **after CI (`check`, `test (unit + db)`, `build`)
+succeeds for a push to `main`**, on the commit CI tested, and on manual
+dispatch from `main` (Actions → "Migrate hosted database" → Run workflow);
+a red or cancelled CI run applies nothing, and a dispatch from any other
+branch is skipped. One run at a time. Each run prints the migration
+history, a `--dry-run`, applies the pending files (a no-op when none are
+pending) and prints the history again. Expect it about 4 minutes after the
+merge, once CI has finished.
+
+- The job runs in the GitHub Environment **`production-db`**. Owner setup,
+  once: Settings → Environments → `production-db` → Deployment branches:
+  `main` only; add the secret `SUPABASE_DB_URL` there; then delete the
+  repository-level secret of the same name (Settings → Secrets and
+  variables → Actions), so no other workflow or branch can read it. Until
+  then the job still finds the repository secret.
+- Vercel deploys `main` on its own, usually before this job finishes, so a
+  new app version can briefly run against the previous schema. Either keep
+  every app change tolerant of the previous schema (the default rule), or
+  have Vercel wait: Vercel project → Settings → Deployment Checks → require
+  the GitHub check **db push** before promoting to production.
 
 - The owner sets one GitHub Actions secret, `SUPABASE_DB_URL`: the
   project's **session pooler** connection string (Project Settings →

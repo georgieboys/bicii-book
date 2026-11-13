@@ -1,9 +1,23 @@
 # Apply supabase/migrations to the hosted Supabase project (docs/RUNBOOK.md
 # "Applying migrations to a hosted project").
 #
-# Runs on manual dispatch and on every push to `main` that changes a file
-# under supabase/migrations/. It prints the migration history, shows what a
-# push would apply (--dry-run), applies it, and prints the history again.
+# Runs after the CI workflow (check, test, build) finishes GREEN for a push to
+# `main`, and on manual dispatch from `main` only. A red or cancelled CI run
+# applies nothing. Every run prints the migration history, shows what a push
+# would apply (--dry-run), applies it and prints the history again; with no
+# pending file the push is a no-op, so it runs on every green `main` commit
+# (workflow_run cannot filter by path).
+#
+# - workflow_run always uses this file as it is on `main`, so a branch cannot
+#   change what runs here; the job also refuses any ref but `main`.
+# - The job runs in the `production-db` environment. Restrict that
+#   environment to `main` and keep SUPABASE_DB_URL as its secret, not a
+#   repository secret (RUNBOOK "From GitHub Actions"), so no other workflow
+#   or branch can read the production credential.
+# - Vercel deploys `main` independently and may go live a few minutes before
+#   this job applies the migrations: keep every app change tolerant of the
+#   previous schema, or gate Vercel's production promotion on the "db push"
+#   check (RUNBOOK).
 #
 # - The only secret is SUPABASE_DB_URL, the project's session pooler
 #   connection string (Project Settings -> Database -> Connection string ->
@@ -19,11 +33,11 @@
 name: Migrate hosted database
 
 on:
-  workflow_dispatch:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths:
-      - "supabase/migrations/**"
+  workflow_dispatch:
 
 concurrency:
   group: migrate-hosted
@@ -39,32 +53,52 @@ env:
 jobs:
   migrate:
     name: db push
+    # Green CI for a push to main, or a manual run from main. Nothing else.
+    if: >-
+      (github.event_name == 'workflow_run'
+        && github.event.workflow_run.conclusion == 'success'
+        && github.event.workflow_run.event == 'push'
+        && github.event.workflow_run.head_branch == 'main')
+      || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    environment: production-db
     steps:
-      - uses: actions/checkout@v5
+      # The exact commit CI tested (workflow_run), or main (dispatch).
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
 
       - name: Check the connection secret is set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "::error::The SUPABASE_DB_URL Actions secret is not set (docs/RUNBOOK.md, Applying migrations to a hosted project)."
+            echo "::error::SUPABASE_DB_URL is not set for the production-db environment (docs/RUNBOOK.md, From GitHub Actions)."
             exit 1
           fi
 
       - name: Migration history before
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npx --yes "$SUPABASE_CLI" migration list --db-url "$SUPABASE_DB_URL"
 
       - name: What would be applied (dry run)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npx --yes "$SUPABASE_CLI" db push --dry-run --db-url "$SUPABASE_DB_URL"
 
       - name: Apply pending migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npx --yes "$SUPABASE_CLI" db push --yes --db-url "$SUPABASE_DB_URL"
 
       - name: Migration history after
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npx --yes "$SUPABASE_CLI" migration list --db-url "$SUPABASE_DB_URL"

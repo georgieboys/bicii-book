@@ -8,7 +8,9 @@
 #          (so the live-stack smoke test runs too).
 #   build  next build with placeholder public env.
 #
-# These three are the required checks on `main` (RUNBOOK "CI"). Playwright
+# These three should be the required checks on `main` (RUNBOOK "CI"; branch
+# protection is the owner's setting). migrate.yml applies migrations to
+# production only after this workflow succeeds for a push to `main`. Playwright
 # lives in e2e.yml: this workflow never runs on `labeled`, because a run
 # triggered by a label would post SKIPPED `check`/`test`/`build` check runs
 # on the head commit, and GitHub counts a skipped required check as passing,

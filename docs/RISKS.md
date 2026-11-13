@@ -346,6 +346,15 @@ URLs, or customer data in this file.
 - Next action: owner confirms or sets branch protection on `main` (see
   [RUNBOOK "CI"](RUNBOOK.md#ci)) and decides whether `e2e` should gate
   merges.
+- Update (2026-11-13): branch protection is verified ABSENT (`gh api
+  repos/georgieboys/bicii-book/branches/main/protection` → 404 "Branch not
+  protected"; no rulesets). Since `migrate.yml` went live this also meant a
+  merge applied migrations to production without waiting for CI.
+  `migrate.yml` now runs only after CI succeeds for a push to `main`, from
+  `main` only, in the `production-db` environment. Still owner actions:
+  protect `main` (require a pull request and `check`, `test (unit + db)`,
+  `build`; block force pushes), restrict `production-db` to `main` and move
+  `SUPABASE_DB_URL` into it, optionally gate Vercel production on `db push`.
 - Revisit trigger: before merging PR #1.
 - Last checked: 2026-10-05, GitHub REST API.
 

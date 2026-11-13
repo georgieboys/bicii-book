@@ -136,6 +136,9 @@ export const BOOKING_EVENT_LABELS: Record<AdventureBookingEventKind, string> = {
   tracker_replaced: "Tracker replaced",
   tracker_returned: "Tracker returned",
   tracker_hire_cancelled: "Tracker hire cancelled",
+  ride_started: "Ride started",
+  ride_finished: "Ride finished",
+  capture_corrected: "Ride window corrected",
 };
 
 export const SUBMISSION_STATE_LABELS: Record<AdventureSubmissionState, string> = {

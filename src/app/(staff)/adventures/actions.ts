@@ -18,6 +18,7 @@ import {
   replaceTrackerSchema,
   returnTrackerSchema,
   trackerHireSchema,
+  trackingFeedSchema,
   clearAttentionSchema,
   createAdventureSchema,
   decideReviewSchema,
@@ -55,6 +56,7 @@ import {
   replaceTracker,
   returnTracker,
   setTrackerHire,
+  saveTrackingFeed,
   setTrackingDeviceState,
 } from "@/lib/domain/trackers";
 
@@ -312,5 +314,15 @@ export const setTrackerHireAction = staffAction(
     await setTrackerHire(supabase, enabled, maxDays);
     refresh();
     return { enabled };
+  },
+);
+
+export const saveTrackingFeedAction = staffAction(
+  trackingFeedSchema,
+  { name: "adventures.save_feed", admin: true },
+  async (input, { supabase }) => {
+    await saveTrackingFeed(supabase, input);
+    refresh();
+    return null;
   },
 );

@@ -5,7 +5,9 @@ import { AdventuresSectionNav } from "@/components/domain/adventures/section-nav
 import {
   RegisterTrackerButton,
   TrackerStateButton,
+  TrackingFeedButton,
 } from "@/components/domain/adventures/tracker-sheets";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RouteIcon } from "@/components/ui/icons";
@@ -14,7 +16,7 @@ import { RowList } from "@/components/ui/row-list";
 import { canManageAdventures, TRACKER_STATE_LABELS } from "@/lib/adventures";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/dates";
-import { listTrackingDevices } from "@/lib/domain/trackers";
+import { listTrackingDevices, listTrackingFeeds } from "@/lib/domain/trackers";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Trackers" };
@@ -27,7 +29,12 @@ export const metadata: Metadata = { title: "Trackers" };
 export default async function TrackersPage() {
   const staff = await requireStaff();
   const manage = canManageAdventures(staff);
-  const devices = await listTrackingDevices(await createClient());
+  const supabase = await createClient();
+  const [devices, feeds] = await Promise.all([
+    listTrackingDevices(supabase),
+    listTrackingFeeds(supabase),
+  ]);
+  const admin = staff.role === "admin";
 
   return (
     <>
@@ -86,6 +93,45 @@ export default async function TrackersPage() {
           ))}
         </RowList>
       )}
+
+      <div className="mt-6">
+        <Card title="Feeds" actions={admin ? <TrackingFeedButton /> : null}>
+          {feeds.length === 0 ? (
+            <p className="text-sm text-dust-700">
+              No feed yet. Positions are read from the trackers&apos; service (SPOT) through a feed
+              an admin adds here.
+            </p>
+          ) : (
+            <ul aria-label="Feeds" className="flex flex-col gap-3 text-sm">
+              {feeds.map((f) => (
+                <li key={f.id} className="flex flex-wrap items-center gap-3">
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{f.label}</span>
+                      <Badge tone={!f.enabled ? "neutral" : f.lastError ? "danger" : "done"}>
+                        {!f.enabled ? "Off" : f.lastError ? "Failing" : "Reading"}
+                      </Badge>
+                    </span>
+                    <span className="text-dust-700">
+                      {f.provider === "fake" ? "Test feed" : "SPOT"} · {f.configName} ·{" "}
+                      {f.lastSuccessAt
+                        ? `last read ${formatDateTime(f.lastSuccessAt)}`
+                        : "not read yet"}
+                    </span>
+                    {f.lastError ? (
+                      <span className="text-danger-deep">
+                        {f.lastError}
+                        {f.failures > 1 ? ` (${f.failures} times)` : ""}
+                      </span>
+                    ) : null}
+                  </span>
+                  {admin ? <TrackingFeedButton feed={f} /> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </>
   );
 }

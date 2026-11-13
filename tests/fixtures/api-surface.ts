@@ -324,6 +324,14 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.cancel_tracker_hire(uuid, text)",
   "public.my_adventure_tracker(uuid)",
   "public.adventure_tracker_hire_state(date, date)",
+  // Adventures Phase C, the tracking feed (D189-D190): feeds are set up by
+  // an admin; a rider starts and finishes their own ride and reads it;
+  // verifying or managing staff correct a ride window (the functions check)
+  "public.save_tracking_feed(uuid, tracking_provider, text, text, boolean)",
+  "public.start_my_adventure_ride(uuid)",
+  "public.finish_my_adventure_ride(uuid)",
+  "public.correct_adventure_capture(uuid, timestamp with time zone, timestamp with time zone, text)",
+  "public.my_adventure_ride(uuid)",
   // D181: clearing a booking's payment flag is admin-only (the function checks)
   "public.clear_adventure_booking_attention(uuid, text)",
   // D182: the review workspace's reads, security invoker under the evidence RLS
@@ -521,6 +529,10 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.tracker_assignments": ["SELECT"],
   "public.tracker_reservations": ["SELECT"],
   "public.tracking_devices": ["SELECT"],
+  // Adventures Phase C (D190): feed health for staff; positions for staff
+  // who verify or manage adventures
+  "public.tracking_feeds": ["SELECT"],
+  "public.tracking_messages": ["SELECT"],
 };
 
 /**
@@ -568,6 +580,11 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   // due emails under a claim token and records each result with it
   "public.claim_adventure_notices(integer)",
   "public.finish_adventure_notice(uuid, uuid, text, text)",
+  // Adventures Phase C (D190): the feed worker claims a feed under a lease
+  // and stores what it fetched, or records a failure
+  "public.claim_tracking_feed()",
+  "public.store_tracking_messages(uuid, uuid, jsonb, boolean, timestamp with time zone, timestamp with time zone)",
+  "public.fail_tracking_feed(uuid, uuid, text)",
 ];
 
 /**

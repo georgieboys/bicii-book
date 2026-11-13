@@ -1265,7 +1265,11 @@ trackers and handovers needs **Manage adventures**.
    condition: good puts it back in service, needs charging or faulty sends
    it to maintenance, lost marks it lost. If a tracker fails during a ride,
    press **Replace** and choose another: both stay on the rider's ride.
-4. There is no deposit and nothing is charged for a late or lost tracker:
+4. **Feeds** (admins, at the bottom of Trackers) are where the trackers'
+   positions come from: **Add feed** with the name of the server variable
+   that holds the feed (the RUNBOOK says how to set it up). Each shows
+   whether it is reading, when it last read and why it is failing.
+5. There is no deposit and nothing is charged for a late or lost tracker:
    settle it with the rider yourself. An admin can **Cancel hire** for a
    hire nobody collected (refund it in Stripe if it's owed).
 

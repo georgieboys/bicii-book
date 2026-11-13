@@ -71,7 +71,7 @@ The repository follows
      reporting, D120–D139 public site, D140–D149 indent parts and quotes,
      D150–D159 Stripe payments, D160–D163 later (D160 indent follow-up,
      D161 counter payments, D162 reclassifying shop stock, D163 booking
-     emails), D164–D189 adventures (D164–D188 taken), D190+ later.
+     emails), D164–D189 and D190–D209 adventures (D164–D190 taken), D210+ later.
      Records: ADR-017 labels,
      ADR-018 purchasing, ADR-019 email sign-in, ADR-020 Shopify, ADR-021
      staff roles, ADR-022 reporting, ADR-023 public site, ADR-024 indent
@@ -82,7 +82,7 @@ The repository follows
      quotes, R-085–R-089 Stripe payments (its later entries R-090–R-094),
      R-095–R-097 later (R-095 reclassifying shop stock, R-096 booking
      emails, R-097 server environment failures), R-098–R-119 adventures
-     (R-098–R-101 taken), R-120+ later.
+     (R-098–R-102 taken), R-120+ later.
 3. Record problems, shortcuts and uncertainty with evidence in
    `docs/RISKS.md`. There is one backlog: the PLAN phases, the RISKS next
    actions and NOW.md.

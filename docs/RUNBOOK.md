@@ -28,8 +28,10 @@ exercised, per section (as of 2026-10-12):
     needed: the project's only login never had a known password
     ([R-035](RISKS.md#r-035--logins-created-before-email-codes-keep-a-known-password-until-the-pre-deploy-reset)).
   - Rotating keys and passwords, Shopify: never.
-- Local Supabase with Docker (Supabase CLI): never exercised here; the
-  build environment has no Docker.
+- Local Supabase with Docker (Supabase CLI): exercised 2026-11-13 on the
+  owner's Mac (Colima): `npx supabase@2.119.0 start` applied all 80
+  migrations and the seed; `scripts/dev-local.sh` served the Admin against
+  it (Adventures screens checked by hand).
 - The camera scanner on phones and iPads: not exercised (no LAN device
   test, no HTTPS dev server, no flag); `tests/e2e/scan.spec.ts` covers
   scanning on localhost with a stubbed camera and manual entry.
@@ -96,7 +98,15 @@ npx supabase@2.119.0 db reset     # re-apply supabase/migrations and supabase/se
 npx supabase@2.119.0 stop
 ```
 
-Point the app at it with `.env.local` (copy from `.env.example`):
+`scripts/dev-local.sh` starts the Admin's dev server (port 3001, or
+`PORT`) against this stack whatever `.env.local` says: it reads the URL and
+keys from `supabase status`, and blanks every live Shopify, Stripe and
+Resend variable so nothing reaches a real store or inbox (`.claude/launch.json`
+config `bicii-admin-local`). Sign in as a seeded staff member, such as
+`admin@bicii.test`, and read the code in Mailpit (`http://127.0.0.1:54324`).
+Use it on a machine whose `.env.local` points at production.
+
+Or point the app at it with `.env.local` (copy from `.env.example`):
 
 ```sh
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321

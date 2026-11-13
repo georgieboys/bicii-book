@@ -3414,8 +3414,10 @@ URLs, or customer data in this file.
   - T02: the multi-page feed catch-up is tested piece by piece (cursor,
     watermark), not as one run across two pages.
   - S01: no test asserts that a handover creates no work order.
-  - A14: the adventure staff specs use labelled controls on a phone, but
-    have no keyboard-only run.
+  - A14: the adventure staff specs use labelled controls on a phone, and
+    axe-core (WCAG A/AA) found nothing on the twelve Admin adventure
+    screens, on phone and tablet, on 2026-11-14 (after the tab bar was made
+    opaque). There is still no keyboard-only run.
   - A01 and C06 on the public site: the signed-out buy path and the
     `?checkout=done` page have no end-to-end test there.
   - S02: not applicable, because handovers are not workshop appointments.

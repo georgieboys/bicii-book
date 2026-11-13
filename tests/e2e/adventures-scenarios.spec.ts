@@ -438,7 +438,7 @@ async function resubmit(bookingId: string): Promise<string> {
         if (!waiting.delete(c.file_id)) continue;
         await q("select public.finish_adventure_parse($1, true, '', $2, 'e2e', $3::jsonb)", [
           c.file_id,
-          "e".repeat(64),
+          c.file_id.replace(/-/g, "").repeat(2),
           track,
         ]);
       }

@@ -369,6 +369,8 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // admin-only; the rider's GPX points, share links and profile are their
   // own (the functions check)
   "public.set_adventure_public_surfaces(boolean, boolean)",
+  // D211: putting failed adventure emails back in the queue is admin-only
+  "public.retry_failed_adventure_notices()",
   "public.my_adventure_ride_points(uuid)",
   "public.create_my_ride_share(uuid, integer)",
   "public.revoke_my_ride_share(uuid)",

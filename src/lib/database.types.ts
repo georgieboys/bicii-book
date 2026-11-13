@@ -7362,12 +7362,14 @@ export type Database = {
       adventure_tracker_summary: {
         Args: { submission_id: string };
         Returns: {
+          approximate: boolean;
           attempt_id: string;
           capture_finished_at: string;
           capture_started_at: string;
           distance_km: number;
           first_at: string;
           last_at: string;
+          late_points: number;
           points: number;
         }[];
       };
@@ -10061,6 +10063,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      retry_failed_adventure_notices: { Args: Record<PropertyKey, never>; Returns: number };
       retry_integration_job: {
         Args: { job_id: string };
         Returns: {

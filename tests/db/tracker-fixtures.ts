@@ -106,9 +106,16 @@ export async function reservation(tx: Connection, bookingId: string) {
   };
 }
 
-/** BICII 125 on sale with hire on and exactly `fleet` trackers in service (others retired, in this transaction). */
+/** BICII 125 on sale with hire on and exactly `fleet` trackers in service (others retired and other hires cancelled, in this transaction). */
 export async function setup(tx: Connection, fleet = 1) {
   await tx.query("reset role");
+  // Only this test's fleet and hires count (the database may hold others,
+  // committed by an earlier E2E run): in this transaction, every other
+  // hire is cancelled and every other tracker retired.
+  await tx.query(
+    `update public.tracker_reservations set status = 'cancelled', hold_until = null, cancel_reason = 'test isolation'
+      where status in ('held', 'confirmed')`,
+  );
   await tx.query(
     "update public.tracking_devices set service_state = 'retired' where service_state = 'in_service'",
   );

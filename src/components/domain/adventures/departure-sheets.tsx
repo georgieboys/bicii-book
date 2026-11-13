@@ -9,6 +9,7 @@ import {
   createDepartureAction,
   recordObservationAction,
   removeDepartureStaffAction,
+  retryFailedNoticesAction,
   setSupportedSalesAction,
   setPublicSurfacesAction,
   updateDepartureAction,
@@ -441,5 +442,22 @@ export function PublicSurfacesControl({
         </FormSheet>
       ) : null}
     </div>
+  );
+}
+
+/** Admin: put failed adventure emails back in the queue (D211). */
+export function RetryFailedEmailsButton({ failed }: { failed: number }) {
+  const { pending, run } = useQuick();
+  if (failed === 0) return null;
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      pending={pending}
+      pendingLabel="Retrying…"
+      onClick={() => run(() => retryFailedNoticesAction({}) as never, "Emails queued again")}
+    >
+      Retry failed emails
+    </Button>
   );
 }

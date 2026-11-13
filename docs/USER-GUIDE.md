@@ -1254,9 +1254,21 @@ of the published terms riders accept). Until then nothing is sold.
   and public rider profiles, both off. Riders opt in themselves on
   bicii.sg; switching either off hides every link or profile at once.
   Riders can always download their tracker's GPX from their ride page.
+- **Tickets are personal** (D207): a ticket can't be given to someone
+  else. If a rider can't ride, they ask to cancel; the new rider buys
+  their own.
+- **Reviewing a tracker ride**: "approximate" means the tracker's points
+  are minutes apart, so the distance is an estimate. Positions that arrive
+  after you decide are listed as "after the decision" and never change
+  the decision. A recording added twice is refused as a duplicate, and the
+  recorded distance is the longest recording's.
+- **Short of trackers**: putting a tracker into maintenance (or marking it
+  lost) flags any paid hire the remaining trackers can't cover; it shows
+  in Health as a booking needing attention.
 - **Health** (admins, Settings → Adventure sales) counts rides waiting for
   review, flagged bookings, cancellation requests, waiting and failed
   emails, files waiting or failed, overdue trackers and failing feeds.
+  **Retry failed emails** puts failed adventure emails back in the queue.
 - Emails: the rider is emailed when their ticket is paid, when you ask for
   changes, when the ride is certified or not (with your message to them),
   and when you mark the pack ready to collect. The people on **Booking

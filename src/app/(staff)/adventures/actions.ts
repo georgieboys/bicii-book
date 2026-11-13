@@ -11,6 +11,13 @@ import {
   adventureOrderSchema,
   adventureSalesSchema,
   archiveAdventureSchema,
+  cancelHireSchema,
+  deviceStateSchema,
+  issueTrackerSchema,
+  registerDeviceSchema,
+  replaceTrackerSchema,
+  returnTrackerSchema,
+  trackerHireSchema,
   clearAttentionSchema,
   createAdventureSchema,
   decideReviewSchema,
@@ -41,6 +48,15 @@ import {
   setAdventurePackStatus,
   setAdventureSales,
 } from "@/lib/domain/adventure-bookings";
+import {
+  cancelTrackerHire,
+  issueTracker,
+  registerTrackingDevice,
+  replaceTracker,
+  returnTracker,
+  setTrackerHire,
+  setTrackingDeviceState,
+} from "@/lib/domain/trackers";
 
 /**
  * Adventure catalogue Server Actions (DATA-MODEL §20, D164-D166). Every
@@ -223,5 +239,78 @@ export const setAdventureSalesAction = staffAction(
     await setAdventureSales(supabase, salesEnabled, termsVersion);
     refresh();
     return { salesEnabled };
+  },
+);
+
+// ------------------------------------------------------- tracker hire ----
+// Phase C (D186-D188). The RPCs check the permission and every rule again.
+
+export const registerTrackingDeviceAction = staffAction(
+  registerDeviceSchema,
+  { name: "adventures.register_tracker", permission: "manage_adventures" },
+  async (input, { supabase }) => {
+    const result = await registerTrackingDevice(supabase, input);
+    refresh();
+    return result;
+  },
+);
+
+export const setTrackingDeviceStateAction = staffAction(
+  deviceStateSchema,
+  { name: "adventures.set_tracker_state", permission: "manage_adventures" },
+  async ({ deviceId, state, note }, { supabase }) => {
+    await setTrackingDeviceState(supabase, deviceId, state, note);
+    refresh();
+    return null;
+  },
+);
+
+export const issueTrackerAction = staffAction(
+  issueTrackerSchema,
+  { name: "adventures.issue_tracker", permission: "manage_adventures" },
+  async ({ reservationId, deviceId, note }, { supabase }) => {
+    await issueTracker(supabase, reservationId, deviceId, note);
+    refresh();
+    return null;
+  },
+);
+
+export const replaceTrackerAction = staffAction(
+  replaceTrackerSchema,
+  { name: "adventures.replace_tracker", permission: "manage_adventures" },
+  async ({ assignmentId, deviceId, reason }, { supabase }) => {
+    await replaceTracker(supabase, assignmentId, deviceId, reason);
+    refresh();
+    return null;
+  },
+);
+
+export const returnTrackerAction = staffAction(
+  returnTrackerSchema,
+  { name: "adventures.return_tracker", permission: "manage_adventures" },
+  async ({ assignmentId, condition, note }, { supabase }) => {
+    await returnTracker(supabase, assignmentId, condition, note);
+    refresh();
+    return null;
+  },
+);
+
+export const cancelTrackerHireAction = staffAction(
+  cancelHireSchema,
+  { name: "adventures.cancel_hire", admin: true },
+  async ({ reservationId, reason }, { supabase }) => {
+    await cancelTrackerHire(supabase, reservationId, reason);
+    refresh();
+    return null;
+  },
+);
+
+export const setTrackerHireAction = staffAction(
+  trackerHireSchema,
+  { name: "adventures.set_tracker_hire", admin: true },
+  async ({ enabled, maxDays }, { supabase }) => {
+    await setTrackerHire(supabase, enabled, maxDays);
+    refresh();
+    return { enabled };
   },
 );

@@ -1246,6 +1246,29 @@ of the published terms riders accept). Until then nothing is sold.
   sent for review and when a payment needs attention. Revoking a
   certificate emails nobody: tell the rider yourself.
 
+### Tracker hire at the counter
+
+Riders can hire a GPS tracker with a certified ride once an admin turns
+hire on (Settings → **Adventure sales** → **Tracker hire**, with the
+longest hire in days) and at least one tracker is in service. Changing
+trackers and handovers needs **Manage adventures**.
+
+1. **Trackers**: **Add tracker** with the label written on it, its service
+   (SPOT) and its device ID. It starts in **Maintenance**; once it's
+   charged and its feed shows it, press **Change** and choose **In
+   service**. A tracker someone has can't be changed.
+2. **Handovers** lists paid hires. **To collect** is ordered by collection
+   day: when the rider comes in, press **Give out**, choose a free tracker
+   and note its condition.
+3. **Out with riders** shows who has which tracker and when it's due back
+   (**Overdue** after its return day). Press **Take back** and choose its
+   condition: good puts it back in service, needs charging or faulty sends
+   it to maintenance, lost marks it lost. If a tracker fails during a ride,
+   press **Replace** and choose another: both stay on the rider's ride.
+4. There is no deposit and nothing is charged for a late or lost tracker:
+   settle it with the rider yourself. An admin can **Cancel hire** for a
+   hire nobody collected (refund it in Stripe if it's owed).
+
 ### Read reports
 
 - Steps: **Reports** (More on a phone, the rail on an iPad). Choose

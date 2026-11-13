@@ -206,3 +206,34 @@ export function formatMetres(m: number | string | null): string | null {
   if (!Number.isFinite(value)) return null;
   return value >= 1000 ? `${(value / 1000).toFixed(1)} km` : `${Math.round(value)} m`;
 }
+
+// ------------------------------------------------------- tracker hire ----
+// Phase C (D185-D188): labels for the Trackers and Handovers screens.
+
+export const TRACKER_STATE_LABELS: Record<
+  "in_service" | "maintenance" | "lost" | "retired",
+  string
+> = {
+  in_service: "In service",
+  maintenance: "Maintenance",
+  lost: "Lost",
+  retired: "Retired",
+};
+
+export const TRACKER_CONDITION_LABELS: Record<
+  "good" | "needs_service" | "faulty" | "lost",
+  string
+> = {
+  good: "Good: back in service",
+  needs_service: "Needs charging or a check",
+  faulty: "Faulty",
+  lost: "Lost",
+};
+
+export const HIRE_STATUS_LABELS: Record<"held" | "confirmed" | "completed" | "cancelled", string> =
+  {
+    held: "Waiting for payment",
+    confirmed: "Paid",
+    completed: "Returned",
+    cancelled: "Cancelled",
+  };

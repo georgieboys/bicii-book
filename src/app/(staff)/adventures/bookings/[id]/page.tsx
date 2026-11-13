@@ -20,10 +20,13 @@ import {
   PACK_STATUS_LABELS,
   PARTICIPATION_LABELS,
   SUBMISSION_STATE_LABELS,
+  HIRE_STATUS_LABELS,
+  TRACKER_CONDITION_LABELS,
 } from "@/lib/adventures";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { getAdventureBooking } from "@/lib/domain/adventure-bookings";
+import { getBookingHire } from "@/lib/domain/trackers";
 import { formatMoney } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
@@ -51,7 +54,11 @@ export default async function AdventureBookingPage({
   const staff = await requireStaff();
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const booking = await getAdventureBooking(await createClient(), id);
+  const supabase = await createClient();
+  const [booking, hire] = await Promise.all([
+    getAdventureBooking(supabase, id),
+    getBookingHire(supabase, id),
+  ]);
   if (!booking) notFound();
   const admin = staff.role === "admin";
   const verify = canVerifyAdventures(staff);
@@ -151,6 +158,56 @@ export default async function AdventureBookingPage({
             </ul>
           )}
         </Card>
+
+        {hire ? (
+          <Card
+            title="Tracker hire"
+            actions={
+              hire.status === "confirmed" ? (
+                <Link href="/adventures/handovers" className="text-sm underline">
+                  Open handovers
+                </Link>
+              ) : null
+            }
+          >
+            <div className="flex flex-col gap-2 text-sm">
+              <p>
+                <Badge
+                  tone={
+                    hire.status === "confirmed"
+                      ? "progress"
+                      : hire.status === "completed"
+                        ? "done"
+                        : "neutral"
+                  }
+                >
+                  {HIRE_STATUS_LABELS[hire.status]}
+                </Badge>
+              </p>
+              <p>
+                Collect {formatDate(`${hire.collectOn}T12:00:00+08:00`)}, back{" "}
+                {formatDate(`${hire.returnOn}T12:00:00+08:00`)} ({hire.days}{" "}
+                {hire.days === 1 ? "day" : "days"})
+              </p>
+              {hire.assignment ? (
+                <p>
+                  {hire.assignment.deviceLabel}: given out{" "}
+                  {formatDateTime(hire.assignment.issuedAt)}
+                  {hire.assignment.returnedAt
+                    ? `, back ${formatDateTime(hire.assignment.returnedAt)}${
+                        hire.assignment.returnCondition
+                          ? ` (${TRACKER_CONDITION_LABELS[hire.assignment.returnCondition]})`
+                          : ""
+                      }`
+                    : ", still out"}
+                </p>
+              ) : null}
+              {hire.cancelReason ? (
+                <p className="text-dust-700">Cancelled: {hire.cancelReason}</p>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
 
         <Card title="Evidence">
           {booking.submissions.length === 0 ? (

@@ -16,7 +16,10 @@ import {
   createAdventureSchema,
   decideReviewSchema,
   packStatusSchema,
+  registerDeviceSchema,
+  returnTrackerSchema,
   revokeCertificateSchema,
+  trackerHireSchema,
 } from "@/lib/adventure-forms";
 import {
   canManageAdventures,
@@ -367,5 +370,35 @@ describe("review helpers", () => {
     expect(formatMetres(null)).toBeNull();
     expect(canVerifyAdventures({ permissions: ["verify_adventures"] })).toBe(true);
     expect(canVerifyAdventures({ permissions: ["manage_adventures"] })).toBe(false);
+  });
+});
+
+describe("tracker hire forms (D186-D188)", () => {
+  it("registering, returning and the hire switch", () => {
+    expect(
+      registerDeviceSchema.parse({
+        label: " T-01 ",
+        provider: "spot",
+        providerDeviceId: " 0-123 ",
+        model: "",
+      }),
+    ).toEqual({ label: "T-01", provider: "spot", providerDeviceId: "0-123", model: "" });
+    expect(
+      registerDeviceSchema.safeParse({ label: "T/01", provider: "spot", providerDeviceId: "1" })
+        .success,
+    ).toBe(false);
+    expect(
+      registerDeviceSchema.safeParse({ label: "T-01", provider: "tack", providerDeviceId: "1" })
+        .success,
+    ).toBe(false);
+    expect(
+      returnTrackerSchema.safeParse({ assignmentId: SUBMISSION, condition: "broken", note: "" })
+        .success,
+    ).toBe(false);
+    expect(trackerHireSchema.parse({ enabled: "on", maxDays: "7" })).toEqual({
+      enabled: true,
+      maxDays: 7,
+    });
+    expect(trackerHireSchema.safeParse({ maxDays: "31" }).success).toBe(false);
   });
 });

@@ -2565,6 +2565,15 @@ DATABASE_URL=<local> BICII_MAIL_KIND=mailpit BICII_MAIL_URL=<local mailpit>
 npx playwright test tests/e2e/adventures-review.spec.ts`: 2 passed (phone,
 tablet).
 
+Tracker hire (Phase C, D185-D188): `tracker-hire.test.ts` (database: hire
+at checkout, per-day capacity, the hire following its booking, custody,
+and the committed two-riders-one-tracker race on isolated databases) and
+`adventures-trackers.spec.ts` (the manager adds a tracker, puts it in
+service, gives it out to a paid hire built by `adventure-helpers.ts`
+`paidBooking(..., { hire: true })` and takes it back). Run locally on
+2026-11-14 against `supabase start` as above with
+`adventures-review.spec.ts`: 4 passed (phone, tablet).
+
 ## Seed data
 
 `supabase/seed.sql` is both the demo dataset and the test fixture. Fixed

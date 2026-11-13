@@ -28,7 +28,7 @@ import { callAction } from "@/lib/call-action";
  */
 
 type State = ActionResult<unknown> | null;
-type FormAction = (prev: State, formData: FormData) => Promise<ActionResult<unknown>>;
+export type FormAction = (prev: State, formData: FormData) => Promise<ActionResult<unknown>>;
 
 function FormError({ state }: { state: State }) {
   return state && !state.ok ? (
@@ -39,7 +39,7 @@ function FormError({ state }: { state: State }) {
 }
 
 /** A sheet with one form: hidden ids, a few fields, a submit button. */
-function FormSheet({
+export function FormSheet({
   title,
   description,
   submitLabel,
@@ -115,7 +115,7 @@ function FormSheet({
   );
 }
 
-function useOpen() {
+export function useOpen() {
   const [open, setOpen] = useState(false);
   return { open, show: () => setOpen(true), close: () => setOpen(false) };
 }

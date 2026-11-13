@@ -39,10 +39,16 @@ function loop(n = 500): Array<[string, number, number]> {
 
 export type SubmittedRide = { bookingId: string; submissionId: string; reference: string };
 
-export async function submittedRide(
+/**
+ * A rider's paid booking (the offer published and sales on first). With
+ * `hire`, tracker hire is switched on and the booking hires a tracker on
+ * the next two days the shop is open.
+ */
+export async function paidBooking(
   request: APIRequestContext,
   riderName: string,
-): Promise<SubmittedRide> {
+  options: { hire?: boolean } = {},
+): Promise<{ bookingId: string; reference: string }> {
   let prepared: { bookingId: string; paymentId: string; amountCents: number } | null = null;
   await sqlTransaction(async (q) => {
     // One offer for every worker: the first one in publishes it.
@@ -75,13 +81,14 @@ export async function submittedRide(
           { label: "Seletar", latitude: 1.35, longitude: 103.57, review_radius_m: 500 },
         ]),
       ]);
-      await q("select public.set_adventure_offer($1, 'self_supported', 49, null, null, 'Pack')", [
+      await q("select public.set_adventure_offer($1, 'self_supported', 49, 20, null, 'Pack')", [
         draft.id,
       ]);
       await q("select public.publish_adventure_revision($1, null)", [draft.id]);
     }
     await actAs(q, "authenticated", AUTH_USER.admin);
     await q("select public.set_adventure_sales(true, $1)", [TERMS]);
+    if (options.hire) await q("select public.set_adventure_tracker_hire(true, 7)");
 
     await q("reset role");
     const authUserId = randomUUID();
@@ -100,11 +107,27 @@ export async function submittedRide(
       `select r.revision_number from public.adventures a
          join public.adventure_revisions r on r.id = a.current_revision_id where a.slug = 'bicii-125'`,
     );
+    const days = options.hire
+      ? (
+          await q<{ day: string }>(
+            `select d::date::text as day from generate_series(private.shop_today() + 1, private.shop_today() + 30, interval '1 day') d
+              where private.shop_open_on(d::date) order by d limit 2`,
+          )
+        ).map((d) => d.day)
+      : [null, null];
     await actAs(q, "authenticated", authUserId);
     const [checkout] = await q<{ booking_id: string; payment_id: string; amount_cents: string }>(
       `select booking_id, payment_id, amount_cents::text from public.prepare_my_adventure_checkout(
-         $1, 'bicii-125', 'self_supported', $2, 'M', 'first_name_initial', $3)`,
-      [randomUUID(), revision.revision_number, TERMS],
+         $1, 'bicii-125', 'self_supported', $2, 'M', 'first_name_initial', $3,
+         recording_method => $4, hire_collect_on => $5::date, hire_return_on => $6::date)`,
+      [
+        randomUUID(),
+        revision.revision_number,
+        TERMS,
+        options.hire ? "tracker_hire" : "own_device",
+        days[0],
+        days[1],
+      ],
     );
     prepared = {
       bookingId: checkout.booking_id,
@@ -137,7 +160,23 @@ export async function submittedRide(
     headers: stripeWebhookHeaders({ raw }),
   });
   if (!delivered.ok()) throw new Error(`Stripe webhook refused: ${delivered.status()}`);
+  let reference = "";
+  await sqlTransaction(async (q) => {
+    const [b] = await q<{ reference: string; status: string }>(
+      "select reference, status::text from public.adventure_bookings where id = $1",
+      [bookingId],
+    );
+    if (b.status !== "confirmed") throw new Error(`Booking not paid: ${b.status}`);
+    reference = b.reference;
+  });
+  return { bookingId, reference };
+}
 
+export async function submittedRide(
+  request: APIRequestContext,
+  riderName: string,
+): Promise<SubmittedRide> {
+  const { bookingId } = await paidBooking(request, riderName);
   let result: SubmittedRide | null = null;
   await sqlTransaction(async (q) => {
     // One worker at a time: the claim below must only find this rider's file.

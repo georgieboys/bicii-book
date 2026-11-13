@@ -40,6 +40,9 @@ export const ANON_FUNCTIONS: readonly string[] = [
   // Adventures Phase B, review (D180): the finisher board, active
   // certificates only, a display name, date and badge
   "public.public_adventure_finishers(text, integer)",
+  // Adventures Phase C (D187): whether hire is on and a tracker is free on
+  // some days (a hint; checkout decides again)
+  "public.adventure_tracker_hire_state(date, date)",
 ];
 
 /**
@@ -295,7 +298,7 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // their own bookings (private.require_customer)
   "public.adventure_sales_state()",
   "public.set_adventure_sales(boolean, text)",
-  "public.prepare_my_adventure_checkout(uuid, text, adventure_participation, integer, text, adventure_finisher_name, text)",
+  "public.prepare_my_adventure_checkout(uuid, text, adventure_participation, integer, text, adventure_finisher_name, text, adventure_recording_method, date, date)",
   "public.my_adventure_bookings()",
   "public.my_adventure_booking(uuid)",
   // Adventures Phase B, evidence (D175, D177): the rider's own draft only
@@ -309,6 +312,18 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // verify_adventures (never one's own ride), revoking is admin-only, packs
   // need manage_adventures; a rider reads only their own outcome
   "public.claim_adventure_review(uuid)",
+  // Adventures Phase C, tracker hire (D186-D188): the switch is admin-only;
+  // devices and handovers need manage_adventures; cancelling a hire is
+  // admin-only; a rider reads only their own hire (the functions check)
+  "public.set_adventure_tracker_hire(boolean, integer)",
+  "public.register_tracking_device(text, tracking_provider, text, text)",
+  "public.set_tracking_device_state(uuid, tracker_service_state, text)",
+  "public.issue_adventure_tracker(uuid, uuid, text)",
+  "public.replace_adventure_tracker(uuid, uuid, text)",
+  "public.return_adventure_tracker(uuid, tracker_return_condition, text)",
+  "public.cancel_tracker_hire(uuid, text)",
+  "public.my_adventure_tracker(uuid)",
+  "public.adventure_tracker_hire_state(date, date)",
   // D181: clearing a booking's payment flag is admin-only (the function checks)
   "public.clear_adventure_booking_attention(uuid, text)",
   // D182: the review workspace's reads, security invoker under the evidence RLS
@@ -502,6 +517,10 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.adventure_certificates": ["SELECT"],
   "public.adventure_fulfilments": ["SELECT"],
   "public.adventure_reviews": ["SELECT"],
+  // Adventures Phase C (D186-D188): devices, hires and custody, for staff
+  "public.tracker_assignments": ["SELECT"],
+  "public.tracker_reservations": ["SELECT"],
+  "public.tracking_devices": ["SELECT"],
 };
 
 /**

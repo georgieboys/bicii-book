@@ -208,6 +208,27 @@ describe("POST /api/adventures/checkout", () => {
     expect(unverified.riderCalls).toEqual([]);
   });
 
+  it("passes tracker hire days to the database, and refuses a malformed day (D187)", async () => {
+    const h = harness();
+    const res = await handleAdventureCheckout(
+      post({ ...BODY, hire: { collectOn: "2026-12-05", returnOn: "2026-12-07" } }),
+      h.deps,
+    );
+    expect(res.status).toBe(200);
+    expect(h.riderCalls[0].args).toMatchObject({
+      recording_method: "tracker_hire",
+      hire_collect_on: "2026-12-05",
+      hire_return_on: "2026-12-07",
+    });
+    const bad = harness();
+    const refused = await handleAdventureCheckout(
+      post({ ...BODY, hire: { collectOn: "5/12/2026", returnOn: "2026-12-07" } }),
+      bad.deps,
+    );
+    expect(refused.status).toBe(400);
+    expect(bad.riderCalls).toEqual([]);
+  });
+
   it("prepares as the rider, creates a session with the payment's key, records it and returns Stripe's URL", async () => {
     const h = harness();
     const res = await handleAdventureCheckout(post(), h.deps);

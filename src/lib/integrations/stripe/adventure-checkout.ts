@@ -40,6 +40,8 @@ export type AdventureCheckoutRequest = {
   tshirtSize: string;
   finisherName: "first_name_initial" | "full_name" | "hidden";
   termsVersion: string;
+  /** Tracker hire days (D187); absent: the rider's own device. */
+  hire?: { collectOn: string; returnOn: string };
 };
 
 export type AdventureCheckoutResult =
@@ -130,6 +132,13 @@ export async function startAdventureCheckout(
     tshirt_size: request.tshirtSize,
     finisher_name: request.finisherName,
     terms_version: request.termsVersion,
+    ...(request.hire
+      ? {
+          recording_method: "tracker_hire" as const,
+          hire_collect_on: request.hire.collectOn,
+          hire_return_on: request.hire.returnOn,
+        }
+      : {}),
   });
   if (error) return refused(error);
   const prepared = (Array.isArray(data) ? data[0] : data) as Prepared | undefined;

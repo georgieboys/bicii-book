@@ -99,6 +99,20 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   adventure_booking_attention: "This booking needs attention before it can be certified.",
   adventure_certificate_immutable:
     "Certificates are never deleted. Revoke it with a reason instead.",
+  adventure_tracker_hire_closed: "Tracker hire isn't available. Ride with your own device.",
+  adventure_hire_dates_invalid:
+    "Collect the tracker from tomorrow, and return it within the days allowed.",
+  adventure_hire_day_closed: "The shop is closed on one of those days. Choose days it is open.",
+  adventure_trackers_unavailable:
+    "No tracker is free for those days. Choose other days or ride with your own device.",
+  tracker_hire_days_invalid: "Allow from 1 to 30 days of hire.",
+  tracker_in_use: "Someone has this tracker. Record its return first.",
+  tracker_not_in_service: "That tracker is not in service. Choose another.",
+  tracker_hire_not_confirmed: "This hire is not paid, or is already finished.",
+  tracker_already_issued: "This rider already has a tracker. Replace it instead.",
+  tracker_already_returned: "This tracker was already returned.",
+  tracker_hire_not_cancellable: "This hire is finished, or its tracker is still out.",
+  tracker_assignment_immutable: "Who held a tracker and when is kept as it was.",
   adventure_rules_incomplete:
     "A route with certification offers needs its nominal days and a maximum time.",
   staff_email_mismatch: "That email does not match the login it belongs to.",
@@ -537,6 +551,10 @@ export const BUSINESS_ERRORS: Record<string, string> = {
 
 /** 23505 unique violations by constraint name. */
 export const UNIQUE_ERRORS: Record<string, string> = {
+  tracking_devices_label_key: "Another tracker already has that label.",
+  tracking_devices_provider_key: "That tracker is already registered.",
+  tracker_assignments_device_open: "Someone has this tracker. Record its return first.",
+  tracker_assignments_reservation_open: "This rider already has a tracker. Replace it instead.",
   adventure_revisions_one_draft: "This adventure already has a draft. Open it instead.",
   adventure_payments_session_key: "That payment page is already linked to another payment.",
   adventure_payments_payment_intent_key:
@@ -692,6 +710,10 @@ export const CHECK_ERRORS: Record<string, string> = {
     "A refund belongs to a workshop payment or an adventure payment, not both.",
   adventure_attempts_interval: "A ride cannot finish before it starts.",
   adventure_submissions_submitted_at: "A submitted version needs its submission time.",
+  tracker_reservations_dates: "The return day must be after the collection day.",
+  tracker_reservations_hold: "A held tracker needs the time its hold ends.",
+  tracker_assignments_return: "A return needs who received it, when, and its condition.",
+  tracker_assignments_order: "A tracker cannot come back before it went out.",
   adventure_notices_sent_at: "A sent email needs its sending time.",
   adventure_notices_claim: "A claimed email needs its claim token and time.",
   adventure_submissions_claim: "A claimed review needs its reviewer and time.",

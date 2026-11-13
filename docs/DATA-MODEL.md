@@ -4965,3 +4965,18 @@ Columns: `kind`, `audience`, `recipient`, `status` (pending, sent, failed), `att
 
 Service role only: `claim_adventure_notices(max_count)` (1..20 due rows, each for 5 minutes under a new token, with what its email needs; gives up on rows claimed 15 times without a result); `finish_adventure_notice(notice_id, claim_token, result, error)` with result `sent` (also on a row given up meanwhile, if never sent), `failed` (attempt + 1, waits attempts × 5 minutes, the fifth is final) or `released` (no attempt, the claim is returned); a different token changes nothing and returns false.
 
+
+### Tracker hire (Phase C, D185-D188)
+
+Migrations `20261114000900_tracker_enums.sql` (booking history `tracker_issued`, `tracker_replaced`, `tracker_returned`, `tracker_hire_cancelled`) and `20261114001000_tracker_hire.sql`.
+
+| Table | Purpose and rules |
+|---|---|
+| `tracking_devices` | BICII's trackers: `label` (unique, case-insensitive), `provider` (`spot`, `fake`) and `provider_device_id` (unique together), `model`, `service_state` (`in_service`, `maintenance`, `lost`, `retired`; new devices start in maintenance), `note` |
+| `adventure_settings` (added) | `tracker_hire_enabled` (false until an admin turns it on, D186), `tracker_hire_max_days` (1..30, default 7) |
+| `tracker_reservations` | One per hiring booking: `collect_on`, `return_on` (after it), `days`, `status` (`held` with `hold_until`, `confirmed`, `completed`, `cancelled` with `cancel_reason`) |
+| `tracker_assignments` | Custody: reservation, booking, attempt, device, issued at and by, issue note, returned at, received by, `return_condition` (`good`, `needs_service`, `faulty`, `lost`), return note. One open assignment per device and per reservation; only the return is ever written, once |
+
+Capacity (D187): `private.trackers_free(from, to)` is the fewest devices free on any day, counting confirmed reservations and unexpired holds (an assignment still open keeps its reservation on every later day). Checked under `private.lock_tracker_pool()` (lock order: booking, pool, device). `prepare_my_adventure_checkout` gains `recording_method`, `hire_collect_on`, `hire_return_on` (defaults: own device, no dates; a call without them is as before): hire needs the switch on, the offer's `tracker_hire_price`, valid open days (`adventure_hire_dates_invalid`, `adventure_hire_day_closed`) and a free tracker (`adventure_trackers_unavailable`); it adds a `tracker_hire` line and holds the tracker until the payment page expires. A trigger on the booking's status confirms the hire when paid (and flags the booking if its hold had lapsed and no tracker is free), and cancels it when the checkout expires or the booking is cancelled.
+
+RPCs: `set_adventure_tracker_hire(enabled, max_days)` (admin); `register_tracking_device(label, provider, provider_device_id, model)` and `set_tracking_device_state(device_id, state, note)` (manage_adventures; not while held, `tracker_in_use`); `issue_adventure_tracker(reservation_id, device_id, note)`, `replace_adventure_tracker(assignment_id, device_id, reason)`, `return_adventure_tracker(assignment_id, condition, note)` (manage_adventures); `cancel_tracker_hire(reservation_id, reason)` (admin, nothing out); `adventure_tracker_hire_state(collect_on, return_on)` (anyone: on, longest hire, whether a tracker is free); `my_adventure_tracker(booking_id)` (the rider's own).

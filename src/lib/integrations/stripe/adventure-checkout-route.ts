@@ -38,6 +38,13 @@ export const checkoutBodySchema = z.object({
   tshirtSize: z.string().trim().min(1).max(10),
   finisherName: z.enum(["first_name_initial", "full_name", "hidden"]),
   termsVersion: z.string().trim().min(1).max(40),
+  // Tracker hire (Phase C, D187): both days, or neither (own device).
+  hire: z
+    .object({
+      collectOn: z.iso.date(),
+      returnOn: z.iso.date(),
+    })
+    .optional(),
 });
 
 export type CheckoutRouteDeps = {

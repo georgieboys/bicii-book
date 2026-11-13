@@ -3358,3 +3358,23 @@ URLs, or customer data in this file.
   recorded".
 - Last checked: 2026-11-14.
 
+## R-101 — A lost or late tracker is the shop's loss unless staff recover it
+
+- Category: business.
+- Status and owner: accepted by the owner on 2026-11-14 (D185); owner.
+- Trigger: a rider loses a tracker or keeps it past its return day.
+- Impact: hire takes no deposit and the database charges nothing. A lost
+  device leaves the fleet (`lost`) and its cost falls on the shop unless
+  staff settle with the rider; a late one blocks later hires until it is
+  back.
+- Evidence and confidence: high; `return_adventure_tracker` records the
+  condition and a "returned after its return day" note
+  (`tests/db/tracker-hire.test.ts`).
+- Workaround or containment: hire stays off until the owner turns it on
+  (D186); the terms riders accept should say what a lost tracker costs.
+- Next action: the owner writes the hire terms (late and loss) before
+  switching hire on.
+- Revisit trigger: the first lost tracker, or more than a handful of
+  devices.
+- Last checked: 2026-11-14.
+

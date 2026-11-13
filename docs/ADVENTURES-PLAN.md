@@ -183,8 +183,8 @@ Needed before the first paid sale (they gate selling, not building):
 7. Finisher board identity: default to first name + initial, opt-in to full name?
 
 Needed before tracker hire / supported rides:
-8. Tracker deposit (amount or none), late-return and loss terms.
-9. A SPOT feed set up on the shop's account, and how many devices.
+8. Tracker deposit (amount or none), late-return and loss terms. Answered 2026-11-14: no deposit; staff settle late and lost trackers by hand (D185).
+9. A SPOT feed set up on the shop's account, and how many devices. Answered 2026-11-14: none yet; build against a fake feed, hire off until devices exist (D186).
 10. Supported rides: insurance policy, facilitator ratio, emergency procedure, overrun terms.
 
 ## 7. Size and order of work (estimate)

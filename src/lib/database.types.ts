@@ -920,6 +920,8 @@ export type Database = {
           id: number;
           sales_enabled: boolean;
           terms_version: string | null;
+          tracker_hire_enabled: boolean;
+          tracker_hire_max_days: number;
           updated_at: string;
           updated_by: string | null;
         };
@@ -928,6 +930,8 @@ export type Database = {
           id?: number;
           sales_enabled?: boolean;
           terms_version?: string | null;
+          tracker_hire_enabled?: boolean;
+          tracker_hire_max_days?: number;
           updated_at?: string;
           updated_by?: string | null;
         };
@@ -936,6 +940,8 @@ export type Database = {
           id?: number;
           sales_enabled?: boolean;
           terms_version?: string | null;
+          tracker_hire_enabled?: boolean;
+          tracker_hire_max_days?: number;
           updated_at?: string;
           updated_by?: string | null;
         };
@@ -5516,6 +5522,188 @@ export type Database = {
         };
         Relationships: [];
       };
+      tracker_assignments: {
+        Row: {
+          attempt_id: string;
+          booking_id: string;
+          device_id: string;
+          id: string;
+          issue_note: string;
+          issued_at: string;
+          issued_by: string;
+          received_by: string | null;
+          reservation_id: string;
+          return_condition: Database["public"]["Enums"]["tracker_return_condition"] | null;
+          return_note: string;
+          returned_at: string | null;
+        };
+        Insert: {
+          attempt_id: string;
+          booking_id: string;
+          device_id: string;
+          id?: string;
+          issue_note?: string;
+          issued_at?: string;
+          issued_by: string;
+          received_by?: string | null;
+          reservation_id: string;
+          return_condition?: Database["public"]["Enums"]["tracker_return_condition"] | null;
+          return_note?: string;
+          returned_at?: string | null;
+        };
+        Update: {
+          attempt_id?: string;
+          booking_id?: string;
+          device_id?: string;
+          id?: string;
+          issue_note?: string;
+          issued_at?: string;
+          issued_by?: string;
+          received_by?: string | null;
+          reservation_id?: string;
+          return_condition?: Database["public"]["Enums"]["tracker_return_condition"] | null;
+          return_note?: string;
+          returned_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracker_assignments_attempt_id_fkey";
+            columns: ["attempt_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_attempts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracker_assignments_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_bookings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracker_assignments_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "tracking_devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracker_assignments_issued_by_fkey";
+            columns: ["issued_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracker_assignments_received_by_fkey";
+            columns: ["received_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracker_assignments_reservation_id_fkey";
+            columns: ["reservation_id"];
+            isOneToOne: false;
+            referencedRelation: "tracker_reservations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tracker_reservations: {
+        Row: {
+          booking_id: string;
+          cancel_reason: string | null;
+          collect_on: string;
+          created_at: string;
+          days: number | null;
+          hold_until: string | null;
+          id: string;
+          return_on: string;
+          status: Database["public"]["Enums"]["tracker_reservation_status"];
+          updated_at: string;
+        };
+        Insert: {
+          booking_id: string;
+          cancel_reason?: string | null;
+          collect_on: string;
+          created_at?: string;
+          days?: never;
+          hold_until?: string | null;
+          id?: string;
+          return_on: string;
+          status?: Database["public"]["Enums"]["tracker_reservation_status"];
+          updated_at?: string;
+        };
+        Update: {
+          booking_id?: string;
+          cancel_reason?: string | null;
+          collect_on?: string;
+          created_at?: string;
+          days?: never;
+          hold_until?: string | null;
+          id?: string;
+          return_on?: string;
+          status?: Database["public"]["Enums"]["tracker_reservation_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracker_reservations_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: true;
+            referencedRelation: "adventure_bookings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tracking_devices: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          label: string;
+          model: string;
+          note: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id: string;
+          service_state: Database["public"]["Enums"]["tracker_service_state"];
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          label: string;
+          model?: string;
+          note?: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id: string;
+          service_state?: Database["public"]["Enums"]["tracker_service_state"];
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          label?: string;
+          model?: string;
+          note?: string;
+          provider?: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id?: string;
+          service_state?: Database["public"]["Enums"]["tracker_service_state"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracking_devices_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       work_order_assignments: {
         Row: {
           assigned_at: string;
@@ -6694,6 +6882,14 @@ export type Database = {
           seq: number;
         }[];
       };
+      adventure_tracker_hire_state: {
+        Args: { collect_on?: string; return_on?: string };
+        Returns: {
+          available: boolean;
+          enabled: boolean;
+          max_days: number;
+        }[];
+      };
       answer_quote: { Args: { decisions: Json; name: string; token: string }; Returns: Json };
       appointment_daily: {
         Args: { from_day?: string; to_day?: string };
@@ -6918,6 +7114,27 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "purchase_orders";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      cancel_tracker_hire: {
+        Args: { reason: string; reservation_id: string };
+        Returns: {
+          booking_id: string;
+          cancel_reason: string | null;
+          collect_on: string;
+          created_at: string;
+          days: number | null;
+          hold_until: string | null;
+          id: string;
+          return_on: string;
+          status: Database["public"]["Enums"]["tracker_reservation_status"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "tracker_reservations";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -7651,6 +7868,29 @@ export type Database = {
           work_order_id: string;
         }[];
       };
+      issue_adventure_tracker: {
+        Args: { device_id: string; note: string; reservation_id: string };
+        Returns: {
+          attempt_id: string;
+          booking_id: string;
+          device_id: string;
+          id: string;
+          issue_note: string;
+          issued_at: string;
+          issued_by: string;
+          received_by: string | null;
+          reservation_id: string;
+          return_condition: Database["public"]["Enums"]["tracker_return_condition"] | null;
+          return_note: string;
+          returned_at: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "tracker_assignments";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       label_preview: {
         Args: { entity_id: string; kind: Database["public"]["Enums"]["label_kind"] };
         Returns: Json;
@@ -7852,6 +8092,18 @@ export type Database = {
           tshirt_size: string;
         }[];
       };
+      my_adventure_tracker: {
+        Args: { booking_id: string };
+        Returns: {
+          collect_on: string;
+          days: number;
+          device_label: string;
+          issued_at: string;
+          return_on: string;
+          returned_at: string;
+          status: Database["public"]["Enums"]["tracker_reservation_status"];
+        }[];
+      };
       my_appointments: {
         Args: { include_past?: boolean };
         Returns: Database["public"]["CompositeTypes"]["my_appointment"][];
@@ -8046,7 +8298,10 @@ export type Database = {
         Args: {
           adventure_slug: string;
           finisher_name: Database["public"]["Enums"]["adventure_finisher_name"];
+          hire_collect_on?: string;
+          hire_return_on?: string;
           kind: Database["public"]["Enums"]["adventure_participation"];
+          recording_method?: Database["public"]["Enums"]["adventure_recording_method"];
           request_id: string;
           revision_number: number;
           terms_version: string;
@@ -8580,6 +8835,32 @@ export type Database = {
           payment_status: Database["public"]["Enums"]["payment_status"];
         }[];
       };
+      register_tracking_device: {
+        Args: {
+          label: string;
+          model: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id: string;
+        };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          label: string;
+          model: string;
+          note: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id: string;
+          service_state: Database["public"]["Enums"]["tracker_service_state"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "tracking_devices";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       remove_adventure_offer: {
         Args: { kind: Database["public"]["Enums"]["adventure_participation"]; revision_id: string };
         Returns: undefined;
@@ -8645,6 +8926,29 @@ export type Database = {
           supplier_linked: boolean;
           supplier_sku: string;
         }[];
+      };
+      replace_adventure_tracker: {
+        Args: { assignment_id: string; device_id: string; reason: string };
+        Returns: {
+          attempt_id: string;
+          booking_id: string;
+          device_id: string;
+          id: string;
+          issue_note: string;
+          issued_at: string;
+          issued_by: string;
+          received_by: string | null;
+          reservation_id: string;
+          return_condition: Database["public"]["Enums"]["tracker_return_condition"] | null;
+          return_note: string;
+          returned_at: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "tracker_assignments";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       report_activity: {
         Args: { p_from: string; p_to: string };
@@ -8955,6 +9259,33 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "integration_retry_queue";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      return_adventure_tracker: {
+        Args: {
+          assignment_id: string;
+          condition: Database["public"]["Enums"]["tracker_return_condition"];
+          note: string;
+        };
+        Returns: {
+          attempt_id: string;
+          booking_id: string;
+          device_id: string;
+          id: string;
+          issue_note: string;
+          issued_at: string;
+          issued_by: string;
+          received_by: string | null;
+          reservation_id: string;
+          return_condition: Database["public"]["Enums"]["tracker_return_condition"] | null;
+          return_note: string;
+          returned_at: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "tracker_assignments";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -9289,6 +9620,27 @@ export type Database = {
           id: number;
           sales_enabled: boolean;
           terms_version: string | null;
+          tracker_hire_enabled: boolean;
+          tracker_hire_max_days: number;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_settings";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_adventure_tracker_hire: {
+        Args: { enabled: boolean; max_days: number };
+        Returns: {
+          checkout_minutes: number;
+          id: number;
+          sales_enabled: boolean;
+          terms_version: string | null;
+          tracker_hire_enabled: boolean;
+          tracker_hire_max_days: number;
           updated_at: string;
           updated_by: string | null;
         };
@@ -9593,6 +9945,31 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "supplier_products";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_tracking_device_state: {
+        Args: {
+          device_id: string;
+          note: string;
+          state: Database["public"]["Enums"]["tracker_service_state"];
+        };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          label: string;
+          model: string;
+          note: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id: string;
+          service_state: Database["public"]["Enums"]["tracker_service_state"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "tracking_devices";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -10361,7 +10738,11 @@ export type Database = {
         | "not_certified"
         | "certificate_revoked"
         | "pack_updated"
-        | "attention_cleared";
+        | "attention_cleared"
+        | "tracker_issued"
+        | "tracker_replaced"
+        | "tracker_returned"
+        | "tracker_hire_cancelled";
       adventure_booking_status: "pending_payment" | "confirmed" | "cancelled" | "expired";
       adventure_certificate_status: "active" | "revoked";
       adventure_checkpoint_order: "any" | "sequence";
@@ -10543,6 +10924,10 @@ export type Database = {
         | "event_shape_invalid"
         | "livemode_mismatch"
         | "not_recorded";
+      tracker_reservation_status: "held" | "confirmed" | "completed" | "cancelled";
+      tracker_return_condition: "good" | "needs_service" | "faulty" | "lost";
+      tracker_service_state: "in_service" | "maintenance" | "lost" | "retired";
+      tracking_provider: "spot" | "fake";
       tracking_type: "quantity" | "unique";
       unit_status:
         | "available"
@@ -11483,6 +11868,10 @@ export const Constants = {
         "certificate_revoked",
         "pack_updated",
         "attention_cleared",
+        "tracker_issued",
+        "tracker_replaced",
+        "tracker_returned",
+        "tracker_hire_cancelled",
       ],
       adventure_booking_status: ["pending_payment", "confirmed", "cancelled", "expired"],
       adventure_certificate_status: ["active", "revoked"],
@@ -11722,6 +12111,10 @@ export const Constants = {
         "livemode_mismatch",
         "not_recorded",
       ],
+      tracker_reservation_status: ["held", "confirmed", "completed", "cancelled"],
+      tracker_return_condition: ["good", "needs_service", "faulty", "lost"],
+      tracker_service_state: ["in_service", "maintenance", "lost", "retired"],
+      tracking_provider: ["spot", "fake"],
       tracking_type: ["quantity", "unique"],
       unit_status: [
         "available",

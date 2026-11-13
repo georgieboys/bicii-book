@@ -92,6 +92,17 @@ function can run, records results only under the claim's token and records
 a late success, because the booking emails' outbox lacked these (R-100;
 D183, D184).
 
+## Amendment 2026-11-14: tracker hire
+
+Hire is a pool, not a device chosen at checkout: a rider buys days, and a
+specific tracker is attached at the counter. The pool is counted per day
+under one advisory lock, the way the brief asks (no read-then-write in
+TypeScript), and a tracker still out past its return day keeps its place
+until it is back, so an overdue device is never promised twice. The owner
+chose no deposit and hire switched off until real devices and a feed
+exist (D185, D186); custody records are append-only like other history
+(D187, D188).
+
 ## Alternatives considered
 
 | Alternative | Why not |

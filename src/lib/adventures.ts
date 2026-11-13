@@ -132,6 +132,10 @@ export const BOOKING_EVENT_LABELS: Record<AdventureBookingEventKind, string> = {
   certificate_revoked: "Certificate revoked",
   pack_updated: "Finisher pack updated",
   attention_cleared: "Payment flag cleared",
+  tracker_issued: "Tracker given out",
+  tracker_replaced: "Tracker replaced",
+  tracker_returned: "Tracker returned",
+  tracker_hire_cancelled: "Tracker hire cancelled",
 };
 
 export const SUBMISSION_STATE_LABELS: Record<AdventureSubmissionState, string> = {

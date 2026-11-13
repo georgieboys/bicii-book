@@ -59,6 +59,23 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   adventure_not_certifiable: "Certification starts at 125 km. Shorter routes stay free to ride.",
   adventure_planned: 'A planned route cannot be sold. Untick "Still being planned" first.',
   adventure_archived: "Unarchive this adventure before publishing it.",
+  // Adventures, Phase B (D167, D170, D172): buying a certification.
+  adventure_terms_required:
+    "Publish the sales terms (cancellation, refunds, retries) and give their version before selling.",
+  adventure_sales_closed: "Certified rides are not on sale yet.",
+  adventure_terms_changed: "The terms have changed. Read them again and confirm.",
+  adventure_size_invalid: "Choose a T-shirt size.",
+  adventure_unavailable: "This adventure is not on sale.",
+  adventure_quote_changed: "This adventure's details or price changed. Check them and try again.",
+  adventure_offer_unavailable: "That way to ride is not on sale for this adventure.",
+  adventure_request_conflict: "This purchase was already started with other details. Start again.",
+  adventure_already_paid: "This booking is already paid.",
+  adventure_booking_closed: "This checkout has expired. Start again.",
+  adventure_payment_processing:
+    "Your payment is still being confirmed. Check back in a few minutes.",
+  adventure_session_mismatch: "The payment page did not match this booking. Start again.",
+  adventure_booking_immutable: "What was bought, by whom and at what price never changes.",
+  adventure_payment_immutable: "A payment changes only through Stripe.",
   adventure_rules_incomplete:
     "A route with certification offers needs its nominal days and a maximum time.",
   staff_email_mismatch: "That email does not match the login it belongs to.",
@@ -498,6 +515,10 @@ export const BUSINESS_ERRORS: Record<string, string> = {
 /** 23505 unique violations by constraint name. */
 export const UNIQUE_ERRORS: Record<string, string> = {
   adventure_revisions_one_draft: "This adventure already has a draft. Open it instead.",
+  adventure_payments_session_key: "That payment page is already linked to another payment.",
+  adventure_payments_payment_intent_key:
+    "That Stripe payment is already linked to another payment.",
+  adventure_payments_one_open: "This booking already has a payment open. Finish or wait for it.",
   staff_email_key: "A staff member with that email already exists.",
   staff_auth_user_id_key: "That login is already linked to a staff member.",
   staff_permissions_pkey: "That permission is already granted.",
@@ -639,6 +660,12 @@ export const UNIQUE_ERRORS: Record<string, string> = {
 export const CHECK_ERRORS: Record<string, string> = {
   distance_km_not_nan: "Enter the distance as a number of kilometres.",
   geo_degrees_not_nan: "Enter coordinates as decimal degrees.",
+  adventure_settings_sales_need_terms: "Give the terms version before turning sales on.",
+  adventure_bookings_confirmed_at: "A confirmed booking needs its confirmation time.",
+  adventure_bookings_attention: "Say why this booking needs attention.",
+  adventure_payments_paid_at: "A paid payment needs its payment time.",
+  payment_refunds_one_subject:
+    "A refund belongs to a workshop payment or an adventure payment, not both.",
   adventures_published_has_revision: "Publish a version before showing this adventure.",
   adventure_revisions_window_order: "The minimum time cannot be longer than the maximum.",
   adventure_checkpoints_coordinates: "Enter both latitude and longitude, or neither.",

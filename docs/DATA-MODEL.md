@@ -4898,3 +4898,21 @@ public site listed on 2026-11-13, facts only (no route links, checkpoints
 or offers): 30, 50, 80 and 125 km published as free routes; 250, 500,
 1,000, 2,000 and 3,000 km published as planned.
 
+### Bookings and payments (Phase B, D167, D170, D172-D174)
+
+Migration `20261114000100_adventure_bookings.sql`.
+
+| Table | Purpose and rules |
+|---|---|
+| `adventure_settings` | One row: `sales_enabled` (default false), `terms_version` (required to sell), `checkout_minutes` (30-1440). Set by `set_adventure_sales` (admin); `adventure_sales_state()` is public |
+| `adventure_bookings` | One rider's purchase: `reference` (`AV-000001`), customer, adventure, the sealed `revision_id` and `offer_id`, `kind`, `status` (`pending_payment`, `confirmed`, `cancelled`, `expired`), `recording_method`, `tshirt_size` (XS-XXXL), `finisher_name`, `terms_version`, frozen `total` (SGD), `request_id` (unique) and its fingerprint, `needs_attention` with a reason. Only status, attention and their times change (trigger); never deleted |
+| `adventure_booking_lines` | The frozen lines (certification now; tracker hire from Phase C): quantity, unit price, generated total. Append-only |
+| `adventure_payments` | Stripe Checkout payments for bookings, never workshop `payments` (D167): amount and generated cents, `payment_status`, amount received and refunded, the Checkout Session (recorded, or adopted from an earlier webhook), PaymentIntent, mode, timestamps, `last_event_id`. At most one `pending` per booking; status changes only while a verified Stripe event is applied (trigger) |
+| `adventure_booking_events` | Append-only history: created, payment started, confirmed, expired, payment failed or processing, payment needing attention, refund recorded |
+
+`stripe_events.adventure_payment_id` and `payment_refunds.adventure_payment_id` (never both subjects on a refund) link Stripe evidence to adventure payments; workshop reports join `payment_id` only.
+
+RPCs: `prepare_my_adventure_checkout(request_id, adventure_slug, kind, revision_number, tshirt_size, finisher_name, terms_version)` (customer; sales on, terms matching, the current revision, a sold offer (self-supported only in Phase B, D173); a retry reuses the booking and an open payment with time left; `adventure_sales_closed`, `adventure_terms_changed`, `adventure_quote_changed`, `adventure_offer_unavailable`, `adventure_size_invalid`, `adventure_request_conflict`, `adventure_already_paid`, `adventure_booking_closed`, `adventure_payment_processing`); `record_adventure_checkout(payment_id, session)` (service role; the session must carry `bicii_subject=adventure`, this payment's id, SGD and the exact cents); `my_adventure_bookings()`, `my_adventure_booking(booking_id)` (the customer's own; buyer-only instructions once confirmed).
+
+Stripe: `private.apply_stripe_object` sends sessions with `metadata.bicii_subject = adventure` to `apply_adventure_stripe_session` and refunds whose PaymentIntent belongs to an adventure payment to `apply_adventure_stripe_refund`; everything else goes to the unchanged workshop functions. A paid session confirms the booking only for the exact amount on a booking still pending; otherwise the money is recorded and the booking flagged. Lock order: PaymentIntent advisory lock, booking, payment.
+

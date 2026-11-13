@@ -5,17 +5,26 @@
  * the RPCs expect and refuse what they would refuse.
  */
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import {
   adventureCheckpointsSchema,
   adventureDraftSchema,
   adventureOfferSchema,
+  adventureSalesSchema,
+  clearAttentionSchema,
   createAdventureSchema,
+  decideReviewSchema,
+  packStatusSchema,
+  revokeCertificateSchema,
 } from "@/lib/adventure-forms";
 import {
   canManageAdventures,
+  canVerifyAdventures,
   formatDistance,
   formatElapsed,
+  formatMetres,
+  minutesBetween,
   isCertifiableDistance,
   suggestedPrice,
 } from "@/lib/adventures";
@@ -244,5 +253,119 @@ describe("adventureOfferSchema", () => {
     expect(
       adventureOfferSchema.safeParse({ revisionId: REVISION, kind: "race", price: "49" }).success,
     ).toBe(false);
+  });
+});
+
+// ------------------------------------------- review, packs, sales (D178-D182) ----
+
+const SUBMISSION = "6a6a6a6a-0000-4000-8000-000000000002";
+const ALL_TICKED = {
+  identity: "on",
+  coverage: "on",
+  checkpoints: "on",
+  chronology: "on",
+  time_window: "on",
+  distance: "on",
+};
+
+describe("decideReviewSchema (D178)", () => {
+  it("an approval sends the checklist as booleans with the distance and day", () => {
+    const parsed = decideReviewSchema.parse({
+      submissionId: SUBMISSION,
+      decision: "approved",
+      ...ALL_TICKED,
+      chronology: undefined,
+      acceptedDistanceKm: "1,128.45",
+      completedOn: "2026-11-15",
+    });
+    expect(parsed).toMatchObject({
+      identity: true,
+      chronology: false,
+      acceptedDistanceKm: "1128.45",
+      completedOn: "2026-11-15",
+      messageToRider: "",
+    });
+  });
+
+  it("an approval needs the distance and the day; anything else needs a message", () => {
+    const approval = decideReviewSchema.safeParse({
+      submissionId: SUBMISSION,
+      decision: "approved",
+      ...ALL_TICKED,
+    });
+    expect(approval.success).toBe(false);
+    expect(Object.keys(z.flattenError(approval.error!).fieldErrors).sort()).toEqual([
+      "acceptedDistanceKm",
+      "completedOn",
+    ]);
+    const changes = decideReviewSchema.safeParse({
+      submissionId: SUBMISSION,
+      decision: "changes_requested",
+      messageToRider: "  ",
+    });
+    expect(z.flattenError(changes.error!).fieldErrors.messageToRider).toBeDefined();
+    expect(
+      decideReviewSchema.safeParse({
+        submissionId: SUBMISSION,
+        decision: "rejected",
+        messageToRider: "The track stops at 80 km.",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses a bad distance, day or decision", () => {
+    for (const bad of [
+      { acceptedDistanceKm: "12.3456" },
+      { acceptedDistanceKm: "-5" },
+      { completedOn: "15/11/2026" },
+      { decision: "maybe" },
+    ]) {
+      expect(
+        decideReviewSchema.safeParse({
+          submissionId: SUBMISSION,
+          decision: "approved",
+          ...ALL_TICKED,
+          acceptedDistanceKm: "128",
+          completedOn: "2026-11-15",
+          ...bad,
+        }).success,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("the other review and sales forms", () => {
+  it("pack status, revoking, clearing a flag and the sales switch", () => {
+    expect(
+      packStatusSchema.parse({ fulfilmentId: SUBMISSION, status: "ready", note: null }),
+    ).toEqual({ fulfilmentId: SUBMISSION, status: "ready", note: "" });
+    expect(packStatusSchema.safeParse({ fulfilmentId: SUBMISSION, status: "lost" }).success).toBe(
+      false,
+    );
+    expect(
+      revokeCertificateSchema.safeParse({ certificateId: SUBMISSION, reason: " " }).success,
+    ).toBe(false);
+    expect(
+      clearAttentionSchema.safeParse({ bookingId: SUBMISSION, note: "Refunded" }).success,
+    ).toBe(true);
+    expect(adventureSalesSchema.safeParse({ salesEnabled: "on", termsVersion: "" }).success).toBe(
+      false,
+    );
+    expect(adventureSalesSchema.parse({ termsVersion: "" })).toEqual({
+      salesEnabled: false,
+      termsVersion: "",
+    });
+  });
+});
+
+describe("review helpers", () => {
+  it("minutesBetween, formatMetres and canVerifyAdventures", () => {
+    expect(minutesBetween("2026-11-14T07:00:00Z", "2026-11-15T01:30:00Z")).toBe(1110);
+    expect(minutesBetween(null, "2026-11-15T01:30:00Z")).toBeNull();
+    expect(formatMetres(87)).toBe("87 m");
+    expect(formatMetres("1234")).toBe("1.2 km");
+    expect(formatMetres(null)).toBeNull();
+    expect(canVerifyAdventures({ permissions: ["verify_adventures"] })).toBe(true);
+    expect(canVerifyAdventures({ permissions: ["manage_adventures"] })).toBe(false);
   });
 });

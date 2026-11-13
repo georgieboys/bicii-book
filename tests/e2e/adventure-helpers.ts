@@ -1,0 +1,194 @@
+import { randomUUID } from "node:crypto";
+
+import type { APIRequestContext } from "@playwright/test";
+
+import { AUTH_USER } from "../fixtures/ids";
+import { stripeEvent, stripeWebhookHeaders } from "../fixtures/stripe";
+import { sqlTransaction } from "./db";
+
+/**
+ * Builds what a rider does on the public site (another repository): a
+ * BICII 125 self-supported offer on sale, a rider with a login, a booking
+ * paid through a signed Stripe webhook to this Admin (as Stripe would),
+ * and a ride recording read and submitted. The RPCs run with the claims of
+ * whoever would call them (the manager, an admin, the rider, the parse
+ * worker), so every rule applies; only the Auth user and the Storage
+ * object (what Auth and the Storage API create) are inserted directly.
+ */
+
+type Query = Parameters<Parameters<typeof sqlTransaction>[0]>[0];
+
+const TERMS = "2026-11-e2e";
+
+async function actAs(q: Query, role: "authenticated" | "service_role", sub?: string) {
+  await q("reset role");
+  await q(`set local role ${role}`);
+  await q("select set_config('request.jwt.claims', $1, true)", [
+    JSON.stringify(sub ? { role, aud: "authenticated", sub } : { role }),
+  ]);
+}
+
+/** A loop of about 133 km around Singapore, 500 timed points over ten hours. */
+function loop(n = 500): Array<[string, number, number]> {
+  return Array.from({ length: n }, (_, i) => {
+    const a = (2 * Math.PI * i) / (n - 1);
+    const at = new Date(Date.parse("2026-11-14T22:00:00Z") + i * 72_000).toISOString();
+    return [at, 1.35 + 0.12 * Math.sin(a), 103.82 + 0.25 * Math.cos(a)];
+  });
+}
+
+export type SubmittedRide = { bookingId: string; submissionId: string; reference: string };
+
+export async function submittedRide(
+  request: APIRequestContext,
+  riderName: string,
+): Promise<SubmittedRide> {
+  let prepared: { bookingId: string; paymentId: string; amountCents: number } | null = null;
+  await sqlTransaction(async (q) => {
+    // One offer for every worker: the first one in publishes it.
+    await q("select pg_advisory_xact_lock(hashtext('e2e-adventure-offer'))");
+    const [adventure] = await q<{ id: string; has_offer: boolean }>(
+      `select a.id, exists (select 1 from public.adventure_offers o
+                             where o.revision_id = a.current_revision_id and o.kind = 'self_supported') as has_offer
+         from public.adventures a where a.slug = 'bicii-125'`,
+    );
+    if (!adventure.has_offer) {
+      await actAs(q, "authenticated", AUTH_USER.manager);
+      const [draft] = await q<{ id: string; version: number }>(
+        "select id, version from public.start_adventure_draft($1)",
+        [adventure.id],
+      );
+      await q(
+        `select public.update_adventure_draft(
+           revision_id => $1, expected_version => $2, name => 'BICII 125', summary => '', description => '',
+           note => '', region => '', terrain => 'Road', when_to_start => '', start_finish => '294 River Valley',
+           distance_km => 125, nominal_days => 1, time_zone => 'Asia/Singapore', min_elapsed_minutes => null,
+           max_elapsed_minutes => 1440, checkpoint_order => 'any', route_url => null, rules => 'Ride it all',
+           equipment => '', rider_instructions => '', emergency_procedure => '', staff_notes => '',
+           is_planned => false)`,
+        [draft.id, draft.version],
+      );
+      await q("select public.set_adventure_checkpoints($1, $2::jsonb)", [
+        draft.id,
+        JSON.stringify([
+          { label: "Lim Chu Kang", latitude: 1.47, longitude: 103.82, review_radius_m: 500 },
+          { label: "Seletar", latitude: 1.35, longitude: 103.57, review_radius_m: 500 },
+        ]),
+      ]);
+      await q("select public.set_adventure_offer($1, 'self_supported', 49, null, null, 'Pack')", [
+        draft.id,
+      ]);
+      await q("select public.publish_adventure_revision($1, null)", [draft.id]);
+    }
+    await actAs(q, "authenticated", AUTH_USER.admin);
+    await q("select public.set_adventure_sales(true, $1)", [TERMS]);
+
+    await q("reset role");
+    const authUserId = randomUUID();
+    await q(
+      `insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+       values ('00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2, now(), now())`,
+      [authUserId, `rider-${authUserId.slice(0, 8)}@example.com`],
+    );
+    const [first, ...rest] = riderName.split(" ");
+    await q(
+      `insert into public.customers (display_name, first_name, last_name, auth_user_id)
+       values ($1, $2, $3, $4)`,
+      [riderName, first, rest.join(" "), authUserId],
+    );
+    const [revision] = await q<{ revision_number: number }>(
+      `select r.revision_number from public.adventures a
+         join public.adventure_revisions r on r.id = a.current_revision_id where a.slug = 'bicii-125'`,
+    );
+    await actAs(q, "authenticated", authUserId);
+    const [checkout] = await q<{ booking_id: string; payment_id: string; amount_cents: string }>(
+      `select booking_id, payment_id, amount_cents::text from public.prepare_my_adventure_checkout(
+         $1, 'bicii-125', 'self_supported', $2, 'M', 'first_name_initial', $3)`,
+      [randomUUID(), revision.revision_number, TERMS],
+    );
+    prepared = {
+      bookingId: checkout.booking_id,
+      paymentId: checkout.payment_id,
+      amountCents: Number(checkout.amount_cents),
+    };
+  });
+  const { bookingId, paymentId, amountCents } = prepared!;
+
+  // Stripe's confirmation, signed with the test secret, to the real webhook route.
+  const raw = JSON.stringify(
+    stripeEvent({
+      id: `evt_${randomUUID().replace(/-/g, "")}`,
+      type: "checkout.session.completed",
+      object: {
+        id: `cs_test_${randomUUID().replace(/-/g, "")}`,
+        object: "checkout.session",
+        livemode: false,
+        status: "complete",
+        payment_status: "paid",
+        amount_total: amountCents,
+        currency: "sgd",
+        payment_intent: `pi_${randomUUID().replace(/-/g, "")}`,
+        metadata: { bicii_subject: "adventure", bicii_adventure_payment_id: paymentId },
+      },
+    }),
+  );
+  const delivered = await request.post("/api/stripe/webhooks", {
+    data: raw,
+    headers: stripeWebhookHeaders({ raw }),
+  });
+  if (!delivered.ok()) throw new Error(`Stripe webhook refused: ${delivered.status()}`);
+
+  let result: SubmittedRide | null = null;
+  await sqlTransaction(async (q) => {
+    // One worker at a time: the claim below must only find this rider's file.
+    await q("select pg_advisory_xact_lock(hashtext('e2e-adventure-parse'))");
+    const [booking] = await q<{ reference: string; auth_user_id: string; status: string }>(
+      `select b.reference, c.auth_user_id, b.status::text from public.adventure_bookings b
+         join public.customers c on c.id = b.customer_id where b.id = $1`,
+      [bookingId],
+    );
+    if (booking.status !== "confirmed") throw new Error(`Booking not paid: ${booking.status}`);
+    await actAs(q, "authenticated", booking.auth_user_id);
+    const [file] = await q<{ file_id: string; storage_path: string }>(
+      `select file_id, storage_path from public.prepare_my_adventure_upload(
+         $1, 'activity', null, 'ride.gpx', 'application/gpx+xml', 50000)`,
+      [bookingId],
+    );
+    await q("reset role");
+    await q(
+      `insert into storage.objects (bucket_id, name, metadata)
+       values ('adventure-evidence', $1, jsonb_build_object('mimetype', 'application/gpx+xml', 'size', 50000))`,
+      [file.storage_path],
+    );
+    await actAs(q, "authenticated", booking.auth_user_id);
+    await q("select public.finalise_my_adventure_upload($1)", [file.file_id]);
+    await actAs(q, "service_role");
+    await q("select public.claim_adventure_parse_jobs(50)");
+    const points = loop();
+    await q("select public.finish_adventure_parse($1, true, '', $2, 'e2e', $3::jsonb)", [
+      file.file_id,
+      "d".repeat(64),
+      JSON.stringify({
+        format: "gpx",
+        started_at: points[0][0],
+        finished_at: points[points.length - 1][0],
+        distance_km: 133.4,
+        has_times: true,
+        points,
+      }),
+    ]);
+    await actAs(q, "authenticated", booking.auth_user_id);
+    await q("select public.submit_my_adventure_evidence($1, 'Clockwise, lunch at Seletar.')", [
+      bookingId,
+    ]);
+    await q("reset role");
+    const [submission] = await q<{ id: string }>(
+      `select s.id from public.adventure_submissions s
+         join public.adventure_attempts a on a.id = s.attempt_id
+        where a.booking_id = $1 and s.state = 'submitted'`,
+      [bookingId],
+    );
+    result = { bookingId, submissionId: submission.id, reference: booking.reference };
+  });
+  return result!;
+}

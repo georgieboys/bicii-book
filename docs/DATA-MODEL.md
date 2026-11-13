@@ -4949,3 +4949,11 @@ Access: reviews for staff who verify or manage adventures; certificates, badges 
 
 RPCs: `claim_adventure_review(submission_id)` and `decide_adventure_review(submission_id, decision, checklist, accepted_distance_km, completed_on, message_to_rider, internal_note)` (`verify_adventures`; locks the booking then the submission, refuses one's own ride `review_not_permitted`, a decided version `submission_version_conflict`; approval issues certificate, badge and pack together); `revoke_adventure_certificate(certificate_id, reason)` (admin); `set_adventure_pack_status(fulfilment_id, status, note)` (`manage_adventures`); `public_adventure_finishers(adventure_slug, max_rows)` (anyone; active certificates only, display name, completion date and badge).
 
+### Admin screens' functions (Phase B, D181-D182)
+
+Migrations `20261114000600_adventure_attention_enums.sql` (booking history `attention_cleared`) and `20261114000700_adventure_admin.sql`.
+
+- `clear_adventure_booking_attention(booking_id, note)` (admin): clears `needs_attention` and its reason, records the note in the booking's history; a booking with no flag is returned unchanged.
+- `adventure_track_outline(track_id, max_points)` (security invoker, so the evidence RLS applies): a track's points thinned to at most `max_points` (capped at 1,000, PostgREST's row limit), first and last kept, for drawing.
+- `adventure_checkpoint_passes(submission_id)` (security invoker, evidence readers only): each checkpoint of the bought revision with the nearest recorded point across the version's parsed tracks, its distance in metres (haversine) and time. A hint for the reviewer.
+

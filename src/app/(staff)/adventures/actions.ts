@@ -9,8 +9,14 @@ import {
   adventureIdSchema,
   adventureOfferSchema,
   adventureOrderSchema,
+  adventureSalesSchema,
   archiveAdventureSchema,
+  clearAttentionSchema,
   createAdventureSchema,
+  decideReviewSchema,
+  packStatusSchema,
+  revokeCertificateSchema,
+  submissionIdSchema,
   publishAdventureSchema,
   removeAdventureOfferSchema,
 } from "@/lib/adventure-forms";
@@ -27,6 +33,14 @@ import {
   startAdventureDraft,
   unarchiveAdventure,
 } from "@/lib/domain/adventures";
+import {
+  claimAdventureReview,
+  clearAdventureBookingAttention,
+  decideAdventureReview,
+  revokeAdventureCertificate,
+  setAdventurePackStatus,
+  setAdventureSales,
+} from "@/lib/domain/adventure-bookings";
 
 /**
  * Adventure catalogue Server Actions (DATA-MODEL §20, D164-D166). Every
@@ -129,5 +143,85 @@ export const setAdventureOrderAction = staffAction(
     await setAdventureOrder(supabase, adventureId, sortOrder);
     refresh();
     return null;
+  },
+);
+
+// ------------------------------------------- bookings, review, packs ----
+// Phase B (D178-D182). The RPCs check the permission and every rule again:
+// nobody reviews their own ride, a version is decided once, approval needs
+// the whole checklist.
+
+export const claimAdventureReviewAction = staffAction(
+  submissionIdSchema,
+  { name: "adventures.claim_review", permission: "verify_adventures" },
+  async ({ submissionId }, { supabase }) => {
+    await claimAdventureReview(supabase, submissionId);
+    refresh();
+    return null;
+  },
+);
+
+export const decideAdventureReviewAction = staffAction(
+  decideReviewSchema,
+  { name: "adventures.decide_review", permission: "verify_adventures" },
+  async (input, { supabase }) => {
+    await decideAdventureReview(supabase, {
+      submissionId: input.submissionId,
+      decision: input.decision,
+      checklist: {
+        identity: input.identity,
+        coverage: input.coverage,
+        checkpoints: input.checkpoints,
+        chronology: input.chronology,
+        time_window: input.time_window,
+        distance: input.distance,
+      },
+      acceptedDistanceKm: input.decision === "approved" ? input.acceptedDistanceKm : null,
+      completedOn: input.decision === "approved" ? input.completedOn : null,
+      messageToRider: input.messageToRider,
+      internalNote: input.internalNote,
+    });
+    refresh();
+    return { decision: input.decision };
+  },
+);
+
+export const revokeAdventureCertificateAction = staffAction(
+  revokeCertificateSchema,
+  { name: "adventures.revoke_certificate", admin: true },
+  async ({ certificateId, reason }, { supabase }) => {
+    await revokeAdventureCertificate(supabase, certificateId, reason);
+    refresh();
+    return null;
+  },
+);
+
+export const clearAdventureAttentionAction = staffAction(
+  clearAttentionSchema,
+  { name: "adventures.clear_attention", admin: true },
+  async ({ bookingId, note }, { supabase }) => {
+    await clearAdventureBookingAttention(supabase, bookingId, note);
+    refresh();
+    return null;
+  },
+);
+
+export const setAdventurePackStatusAction = staffAction(
+  packStatusSchema,
+  { name: "adventures.set_pack_status", permission: "manage_adventures" },
+  async ({ fulfilmentId, status, note }, { supabase }) => {
+    await setAdventurePackStatus(supabase, fulfilmentId, status, note);
+    refresh();
+    return null;
+  },
+);
+
+export const setAdventureSalesAction = staffAction(
+  adventureSalesSchema,
+  { name: "adventures.set_sales", admin: true },
+  async ({ salesEnabled, termsVersion }, { supabase }) => {
+    await setAdventureSales(supabase, salesEnabled, termsVersion);
+    refresh();
+    return { salesEnabled };
   },
 );

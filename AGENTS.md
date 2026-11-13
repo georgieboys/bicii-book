@@ -2,7 +2,7 @@
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
@@ -71,7 +71,7 @@ The repository follows
      reporting, D120–D139 public site, D140–D149 indent parts and quotes,
      D150–D159 Stripe payments, D160–D163 later (D160 indent follow-up,
      D161 counter payments, D162 reclassifying shop stock, D163 booking
-     emails), D164–D189 adventures (D164–D180 taken), D190+ later.
+     emails), D164–D189 adventures (D164–D182 taken), D190+ later.
      Records: ADR-017 labels,
      ADR-018 purchasing, ADR-019 email sign-in, ADR-020 Shopify, ADR-021
      staff roles, ADR-022 reporting, ADR-023 public site, ADR-024 indent

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { NewAdventureButton } from "@/components/domain/adventures/catalogue-sheets";
+import { AdventuresSectionNav } from "@/components/domain/adventures/section-nav";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChevronRightIcon, RouteIcon } from "@/components/ui/icons";
@@ -31,6 +32,7 @@ export default async function AdventuresPage() {
         description="Routes anyone can ride free, and the certified rides BICII sells from 125 km."
         actions={manage ? <NewAdventureButton /> : null}
       />
+      <AdventuresSectionNav current="/adventures" />
       {adventures.length === 0 ? (
         <EmptyState
           icon={<RouteIcon />}

@@ -7,6 +7,7 @@ import {
   ClockIcon,
   PrinterIcon,
   ReceiptIcon,
+  RouteIcon,
   ShareIcon,
   TagIcon,
   UserIcon,
@@ -86,6 +87,12 @@ export default async function SettingsPage() {
             label: "Customer payments",
             description: "Stripe and the deposit on indent parts",
             icon: ReceiptIcon,
+          },
+          {
+            href: "/settings/adventures",
+            label: "Adventure sales",
+            description: "Whether riders can buy certified rides, and the terms",
+            icon: RouteIcon,
           },
         ]
       : []),

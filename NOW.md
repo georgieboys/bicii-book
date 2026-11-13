@@ -4,8 +4,9 @@ Updated: 2026-11-14 SGT (Adventures Phase B in progress, sales off: catalogue,
 admin catalogue screens and the public route list merged (PRs #66–#67,
 BICII #38); bookings and Stripe checkout (PRs #68–#69); evidence uploads and
 file reading (PR #70); review, certificates, finisher board and packs
-(D178–D180) in its pull request. Next: the Admin bookings, review and pack
-screens, then the public site's buy and evidence journey
+(D178–D180, PR #71); the Admin bookings, review and pack screens and
+Settings → Adventure sales (D181–D182) in their pull request. Next: the
+public site's buy and evidence journey
 ([ADVENTURES-PLAN](docs/ADVENTURES-PLAN.md)). Earlier: Adventures Phase A,
 D164–D171; earlier the same day, PRs #61–#65:
 Shopify connected and publishing to the Online Store, migrations only after
@@ -59,7 +60,7 @@ request; the full e2e suite runs on the `e2e` label and nightly.
 | Payment links, counter payments | Yes (Phase 14 step 3) | CI, e2e with the fake Stripe | Production; none used yet (2026-10-24), no test-mode rehearsal |
 | Audit fixes | Yes (PRs #38, #43–#45) | CI and label-run e2e | Production |
 | Reclassify shop stock as consigned (D162) | Database, the admin-only Change owner, the item-id fix and a consigned product's cost as its amount owed (PRs #50–#53) | CI and full e2e green on PR #51; PR #52's unit test failed before it and passed after; `consigned-product-costs.test.ts` failed first and passes | Production since 2026-10-28 SGT (the owner's 25 products reclassified, checked read-only); the cost change since 2026-10-29 (`migrate.yml` run 22, Vercel's build of e201b34 READY; the products' costs checked read-only) |
-| Adventures (D164–D180) | Catalogue and its screens; bookings, checkout, evidence, review and certificates in the database; no rider or review screens yet | DB tests (`adventure-*.test.ts`), unit tests; checkout and webhook end to end against the local stack | Catalogue in production (9 routes); sales switched off (`adventure_settings.sales_enabled` false) |
+| Adventures (D164–D182) | Catalogue, bookings, review and pack screens in the Admin; checkout, evidence, review and certificates in the database; no rider screens on the public site yet | DB tests (`adventure-*.test.ts`), unit tests, `adventures-review.spec.ts` against the local stack; checkout and webhook end to end against the local stack | Catalogue in production (9 routes); sales switched off (`adventure_settings.sales_enabled` false) |
 | Booking emails (D163) | Yes: Postgres outbox, minute cron, Settings → Booking emails | `appointment-notices.test.ts` (9), unit (11) and the settings e2e locally; CI not run yet | Not deployed |
 
 Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),

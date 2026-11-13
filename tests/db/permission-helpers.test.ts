@@ -46,10 +46,13 @@ async function deactivate(tx: pg.Client, staffId: string) {
 }
 
 describe("permission_key enum", () => {
-  it("is exactly the seven permissions from SPEC §4.2", () => {
+  it("is exactly the seven permissions from SPEC §4.2 plus the three adventure ones (D169)", () => {
     expect([...ALL_PERMISSIONS].sort()).toEqual(
       [
         "adjust_stock",
+        "facilitate_adventures",
+        "manage_adventures",
+        "verify_adventures",
         "manage_consignments",
         "manage_inventory",
         "manage_purchasing",

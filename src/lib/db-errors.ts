@@ -48,6 +48,19 @@ export const FORBIDDEN_ERROR = "You don't have permission to do that.";
  * code here when a migration introduces one.
  */
 export const BUSINESS_ERRORS: Record<string, string> = {
+  // Adventures, Phase A (D164-D166): the catalogue editor.
+  adventure_revision_sealed: "This version is published and cannot change. Start a new draft.",
+  adventure_slug_invalid:
+    "Use 2 to 60 lowercase letters, digits and single hyphens, like bicii-125.",
+  adventure_slug_taken: "Another adventure already uses this web address.",
+  adventure_draft_changed: "Someone changed this draft since you opened it. Reload and try again.",
+  adventure_time_zone_invalid: "Use a time zone name such as Asia/Singapore.",
+  adventure_checkpoints_invalid: "Each checkpoint needs a label, and there can be up to 100.",
+  adventure_not_certifiable: "Certification starts at 125 km. Shorter routes stay free to ride.",
+  adventure_planned: 'A planned route cannot be sold. Untick "Still being planned" first.',
+  adventure_archived: "Unarchive this adventure before publishing it.",
+  adventure_rules_incomplete:
+    "A route with certification offers needs its nominal days and a maximum time.",
   staff_email_mismatch: "That email does not match the login it belongs to.",
   reason_required: "Give a reason for this change.",
   reason_too_long: "Keep the reason under 500 characters.",
@@ -484,6 +497,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
 
 /** 23505 unique violations by constraint name. */
 export const UNIQUE_ERRORS: Record<string, string> = {
+  adventure_revisions_one_draft: "This adventure already has a draft. Open it instead.",
   staff_email_key: "A staff member with that email already exists.",
   staff_auth_user_id_key: "That login is already linked to a staff member.",
   staff_permissions_pkey: "That permission is already granted.",
@@ -623,6 +637,11 @@ export const UNIQUE_ERRORS: Record<string, string> = {
 
 /** 23514 check violations by constraint name. */
 export const CHECK_ERRORS: Record<string, string> = {
+  adventures_published_has_revision: "Publish a version before showing this adventure.",
+  adventure_revisions_window_order: "The minimum time cannot be longer than the maximum.",
+  adventure_checkpoints_coordinates: "Enter both latitude and longitude, or neither.",
+  adventure_offers_supported_days: "A supported offer needs its number of days; others do not.",
+  adventure_offers_supported_tracker: "The tracker is included in a supported offer.",
   staff_display_name_check: "Enter a name.",
   staff_events_reason_check: "Keep the reason under 500 characters.",
   customers_identifies_someone: "Enter a name, an email or a phone number.",

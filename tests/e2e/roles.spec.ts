@@ -191,7 +191,8 @@ test("an admin changes a role and the change shows in history", async ({
 
   // Extra access on top of the Mechanic role.
   const extra = section(page, "Extra access");
-  await expect(extra.getByRole("switch")).toHaveCount(7);
+  // The seven from SPEC §4.2 and the three adventure permissions (D169).
+  await expect(extra.getByRole("switch")).toHaveCount(10);
   await extra.getByRole("switch", { name: "Manage purchasing" }).click();
   await expect(toast(page, "Manage purchasing granted")).toBeVisible();
   await expect(history).toContainText("Extra access: Manage purchasing granted");

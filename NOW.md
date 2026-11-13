@@ -1,7 +1,9 @@
 # Current state
 
-Updated: 2026-11-12 SGT (booking emails, D163: built and tested locally,
-in its pull request; earlier: D162 and the consigned cost in production,
+Updated: 2026-11-13 SGT (Adventures Phase A started, D164–D171: the
+catalogue database in its pull request; earlier the same day, PRs #61–#65:
+Shopify connected and publishing to the Online Store, migrations only after
+green CI, Next.js 16.4.6; earlier: D162 and the consigned cost in production,
 PRs #50–#53, customer sign-up fixed, PRs #54–#55; no public active
 appointment type yet). Earlier
 evidence, 2026-10-24: `main` f120c6d; PR #45 (CI and label-run e2e green on

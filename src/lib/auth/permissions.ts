@@ -40,6 +40,18 @@ export const PERMISSION_LABELS: Record<PermissionKey, { label: string; descripti
     label: "View financial reports",
     description: "Sales, yield and Cult Commons reports.",
   },
+  manage_adventures: {
+    label: "Manage adventures",
+    description: "Adventure routes, offers, departures, bookings, trackers and finisher packs.",
+  },
+  verify_adventures: {
+    label: "Verify adventures",
+    description: "Review riders' evidence and certify or reject rides.",
+  },
+  facilitate_adventures: {
+    label: "Facilitate adventures",
+    description: "Run an assigned supported departure: manifest, check-in and observations.",
+  },
 };
 
 export function isPermissionKey(value: unknown): value is PermissionKey {

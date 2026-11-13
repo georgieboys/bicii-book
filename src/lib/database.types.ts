@@ -8426,6 +8426,11 @@ export type Database = {
       };
     };
     Enums: {
+      adventure_checkpoint_order: "any" | "sequence";
+      adventure_event_kind:
+        "created" | "draft_started" | "published" | "archived" | "unarchived" | "order_changed";
+      adventure_participation: "self_supported" | "self_supported_group" | "supported";
+      adventure_status: "draft" | "published" | "archived";
       appointment_event_type:
         | "booked"
         | "confirmed"
@@ -8525,7 +8530,10 @@ export type Database = {
         | "manage_consignments"
         | "manage_purchasing"
         | "manage_staff"
-        | "view_financial_reports";
+        | "view_financial_reports"
+        | "manage_adventures"
+        | "verify_adventures"
+        | "facilitate_adventures";
       print_status: "queued" | "rendered" | "printed" | "failed";
       printer_adapter: "browser" | "pdf" | "network_raw" | "bluetooth";
       product_event_type:
@@ -9480,6 +9488,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      adventure_checkpoint_order: ["any", "sequence"],
+      adventure_event_kind: [
+        "created",
+        "draft_started",
+        "published",
+        "archived",
+        "unarchived",
+        "order_changed",
+      ],
+      adventure_participation: ["self_supported", "self_supported_group", "supported"],
+      adventure_status: ["draft", "published", "archived"],
       appointment_event_type: [
         "booked",
         "confirmed",
@@ -9607,6 +9626,9 @@ export const Constants = {
         "manage_purchasing",
         "manage_staff",
         "view_financial_reports",
+        "manage_adventures",
+        "verify_adventures",
+        "facilitate_adventures",
       ],
       print_status: ["queued", "rendered", "printed", "failed"],
       printer_adapter: ["browser", "pdf", "network_raw", "bluetooth"],

@@ -30,6 +30,10 @@ export const ANON_FUNCTIONS: readonly string[] = [
   // Phase 14 step 3 (D156f): the payment link page, for whoever holds a
   // balance link; the token is checked against its stored SHA-256
   "public.balance_by_token(text)",
+  // Adventures Phase A (D164, D166): the published catalogue, current
+  // sealed revision and public columns only
+  "public.public_adventure(text)",
+  "public.public_adventures()",
 ];
 
 /**
@@ -266,6 +270,21 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.report_payment_items(date, date, integer, timestamp with time zone, uuid)",
   "public.report_payment_summary(date, date)",
   "public.report_payments_held()",
+  // Adventures Phase A (D164-D166, D169): every catalogue change needs
+  // manage_adventures (the functions check); the public reads as for anon
+  "public.archive_adventure(uuid, text)",
+  "public.create_adventure(text, text, numeric)",
+  "public.public_adventure(text)",
+  "public.public_adventures()",
+  "public.publish_adventure_revision(uuid, text)",
+  "public.remove_adventure_offer(uuid, adventure_participation)",
+  "public.set_adventure_checkpoints(uuid, jsonb)",
+  "public.set_adventure_offer(uuid, adventure_participation, numeric, numeric, integer, text)",
+  "public.set_adventure_order(uuid, integer)",
+  "public.start_adventure_draft(uuid)",
+  "public.suggested_adventure_price(adventure_participation, integer, integer)",
+  "public.unarchive_adventure(uuid)",
+  "public.update_adventure_draft(uuid, timestamp with time zone, text, text, text, text, text, text, text, text, numeric, integer, text, integer, integer, adventure_checkpoint_order, text, text, text, text, text, text, boolean)",
 ];
 
 /**
@@ -417,6 +436,14 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.balance_links": ["SELECT"],
   "public.counter_payment_voids": ["SELECT"],
   "public.counter_payments": ["SELECT"],
+  // Adventures Phase A (D166): staff read the catalogue (RLS is_staff);
+  // every change is an RPC; customers and anon read only the public_*
+  // functions
+  "public.adventure_checkpoints": ["SELECT"],
+  "public.adventure_events": ["SELECT"],
+  "public.adventure_offers": ["SELECT"],
+  "public.adventure_revisions": ["SELECT"],
+  "public.adventures": ["SELECT"],
 };
 
 /**

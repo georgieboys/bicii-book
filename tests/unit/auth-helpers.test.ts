@@ -69,8 +69,8 @@ describe("permission resolution (mirrors private.has_permission)", () => {
     ).toBe(false);
   });
 
-  it("recognises only the seven permission keys", () => {
-    expect(PERMISSIONS).toHaveLength(7);
+  it("recognises only the ten permission keys", () => {
+    expect(PERMISSIONS).toHaveLength(10);
     expect(isPermissionKey("view_costs")).toBe(true);
     expect(isPermissionKey("superuser")).toBe(false);
     expect(isPermissionKey(1)).toBe(false);
@@ -183,7 +183,8 @@ describe("greetingFor", () => {
 });
 
 describe("roles (D90, D91, mirrors private.role_implies)", () => {
-  // The full table: 3 roles x 7 permissions. tests/db/staff-roles.test.ts
+  // The full table: 3 roles x 10 permissions (the three adventure
+  // permissions since 2026-11-13, D169). tests/db/staff-roles.test.ts
   // proves private.role_implies gives the same answers.
   const table: Record<StaffRole, Record<PermissionKey, boolean>> = {
     admin: {
@@ -194,6 +195,9 @@ describe("roles (D90, D91, mirrors private.role_implies)", () => {
       manage_purchasing: true,
       manage_staff: true,
       view_financial_reports: true,
+      manage_adventures: true,
+      verify_adventures: true,
+      facilitate_adventures: true,
     },
     manager: {
       view_costs: true,
@@ -203,6 +207,9 @@ describe("roles (D90, D91, mirrors private.role_implies)", () => {
       manage_purchasing: true,
       manage_staff: false,
       view_financial_reports: true,
+      manage_adventures: true,
+      verify_adventures: true,
+      facilitate_adventures: true,
     },
     mechanic: {
       view_costs: false,
@@ -212,6 +219,9 @@ describe("roles (D90, D91, mirrors private.role_implies)", () => {
       manage_purchasing: false,
       manage_staff: false,
       view_financial_reports: false,
+      manage_adventures: false,
+      verify_adventures: false,
+      facilitate_adventures: false,
     },
   };
 

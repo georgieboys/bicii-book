@@ -97,6 +97,9 @@ describe("role change wording", () => {
       "Manage consignments",
       "Manage purchasing",
       "View financial reports",
+      "Manage adventures",
+      "Verify adventures",
+      "Facilitate adventures",
       "Record refunds",
     ]);
     expect(s.lines[0]).toBe(

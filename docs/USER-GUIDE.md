@@ -1177,6 +1177,37 @@ website's account pages go live when the owner switches them on,
   signature did not match is **Rejected** and keeps no body; nothing was
   recorded from it.
 
+### Edit an adventure route
+
+More → **Adventures** lists every route in the order bicii.sg shows them,
+with whether each is published, planned, has certification offers or has a
+draft in progress. Anyone on staff can look; changing one needs **Manage
+adventures** (admins and managers have it).
+
+1. Open the route and press **Edit**. You get a draft: a copy of what the
+   public sees. Nothing you change is public until you publish.
+2. Change the content and rules and press **Save draft**. If someone else
+   saved the same draft since you opened it, you are asked to reload, so
+   neither of you overwrites the other.
+3. **Checkpoints**: add, reorder or remove them, say what each photo must
+   show, then **Save checkpoints**. Coordinates are optional.
+4. **Certification offers** (routes of 125 km or more that are not still
+   being planned): **Add offer** for Self-supported, Self-supported group
+   or Supported. The price starts at the pricing formula's figure (for
+   example S$49 for a one-day route, S$149 for one supported day); change
+   it if you want. Self-supported offers may add tracker hire per 24 hours;
+   a supported offer includes the tracker. No GST is added.
+5. Press **Publish** and say what changed. A route with offers needs its
+   nominal days and a maximum time first. The published version is then
+   locked: the next change starts a new draft, and anything sold keeps the
+   terms it was sold with.
+
+**New adventure** creates a draft with a web address you cannot change
+later. **Archive** (with a reason) takes a route off sale and off the
+public list without deleting anything. Nothing is sold yet: bookings come
+later, and bicii.sg still shows its own route list until it reads this
+catalogue.
+
 ### Read reports
 
 - Steps: **Reports** (More on a phone, the rail on an iPad). Choose

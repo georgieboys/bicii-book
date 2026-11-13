@@ -10,6 +10,7 @@ import {
   MoreIcon,
   PrinterIcon,
   ReceiptIcon,
+  RouteIcon,
   ScanIcon,
   SettingsIcon,
   TagIcon,
@@ -56,6 +57,12 @@ export const MORE_ITEMS: readonly NavItem[] = [
     label: "Appointments",
     icon: CalendarIcon,
     description: "Bookings, shop hours and capacity",
+  },
+  {
+    href: "/adventures",
+    label: "Adventures",
+    icon: RouteIcon,
+    description: "Routes, certification offers and prices",
   },
   {
     href: "/consignment",

@@ -30,8 +30,10 @@ create table public.adventure_settings (
   terms_version text null check (
     pg_catalog.char_length(terms_version) between 1 and 40 and terms_version ~ '^[A-Za-z0-9._-]+$'
   ),
-  -- How long a Checkout Session stays open (Stripe allows 30 min to 24 h).
-  checkout_minutes integer not null default 30 check (checkout_minutes between 30 and 1440),
+  -- How long a Checkout Session stays open. Stripe allows 30 minutes to 24
+  -- hours from when it creates the session, which is a few seconds after
+  -- the payment is prepared, so at least 35 (the workshop uses 60).
+  checkout_minutes integer not null default 35 check (checkout_minutes between 35 and 1440),
   updated_at timestamptz not null default pg_catalog.now(),
   updated_by uuid null references public.staff (id) on delete restrict,
   constraint adventure_settings_sales_need_terms check (not sales_enabled or terms_version is not null)

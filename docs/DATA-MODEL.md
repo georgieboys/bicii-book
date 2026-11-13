@@ -4904,7 +4904,7 @@ Migration `20261114000100_adventure_bookings.sql`.
 
 | Table | Purpose and rules |
 |---|---|
-| `adventure_settings` | One row: `sales_enabled` (default false), `terms_version` (required to sell), `checkout_minutes` (30-1440). Set by `set_adventure_sales` (admin); `adventure_sales_state()` is public |
+| `adventure_settings` | One row: `sales_enabled` (default false), `terms_version` (required to sell), `checkout_minutes` (35-1440, default 35). Set by `set_adventure_sales` (admin); `adventure_sales_state()` is public |
 | `adventure_bookings` | One rider's purchase: `reference` (`AV-000001`), customer, adventure, the sealed `revision_id` and `offer_id`, `kind`, `status` (`pending_payment`, `confirmed`, `cancelled`, `expired`), `recording_method`, `tshirt_size` (XS-XXXL), `finisher_name`, `terms_version`, frozen `total` (SGD), `request_id` (unique) and its fingerprint, `needs_attention` with a reason. Only status, attention and their times change (trigger); never deleted |
 | `adventure_booking_lines` | The frozen lines (certification now; tracker hire from Phase C): quantity, unit price, generated total. Append-only |
 | `adventure_payments` | Stripe Checkout payments for bookings, never workshop `payments` (D167): amount and generated cents, `payment_status`, amount received and refunded, the Checkout Session (recorded, or adopted from an earlier webhook), PaymentIntent, mode, timestamps, `last_event_id`. At most one `pending` per booking; status changes only while a verified Stripe event is applied (trigger) |

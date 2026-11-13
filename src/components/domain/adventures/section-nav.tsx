@@ -7,6 +7,8 @@ const SECTIONS = [
   { href: "/adventures/bookings", label: "Bookings" },
   { href: "/adventures/reviews", label: "Reviews" },
   { href: "/adventures/packs", label: "Packs" },
+  { href: "/adventures/handovers", label: "Handovers" },
+  { href: "/adventures/trackers", label: "Trackers" },
 ] as const;
 
 export type AdventureSection = (typeof SECTIONS)[number]["href"];

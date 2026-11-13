@@ -343,3 +343,58 @@ export const adventureSalesSchema = z
         message: "Give the version of the published terms riders accept.",
       });
   });
+
+// ------------------------------------------------------- tracker hire ----
+// Phase C (D186-D188).
+
+const TRACKER_STATES = ["in_service", "maintenance", "lost", "retired"] as const;
+const RETURN_CONDITIONS = ["good", "needs_service", "faulty", "lost"] as const;
+
+export const registerDeviceSchema = z.object({
+  label: z
+    .string({ error: "Enter the label on the tracker." })
+    .trim()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,29}$/, {
+      error: "Use up to 30 letters, numbers, spaces, dots, dashes or underscores, like T-01.",
+    }),
+  provider: z.enum(["spot", "fake"], { error: "Choose the tracker's service." }),
+  providerDeviceId: required(80, "device ID"),
+  model: text(80, "model"),
+});
+
+export const deviceStateSchema = z.object({
+  deviceId: z.guid({ error: "Unknown tracker." }),
+  state: z.enum(TRACKER_STATES, { error: "Choose a state." }),
+  note: text(500, "note"),
+});
+
+export const issueTrackerSchema = z.object({
+  reservationId: z.guid({ error: "Unknown hire." }),
+  deviceId: z.guid({ error: "Choose a tracker." }),
+  note: text(500, "note"),
+});
+
+export const replaceTrackerSchema = z.object({
+  assignmentId: z.guid({ error: "Unknown tracker." }),
+  deviceId: z.guid({ error: "Choose the replacement tracker." }),
+  reason: required(500, "reason"),
+});
+
+export const returnTrackerSchema = z.object({
+  assignmentId: z.guid({ error: "Unknown tracker." }),
+  condition: z.enum(RETURN_CONDITIONS, { error: "Choose its condition." }),
+  note: text(500, "note"),
+});
+
+export const cancelHireSchema = z.object({
+  reservationId: z.guid({ error: "Unknown hire." }),
+  reason: required(500, "reason"),
+});
+
+export const trackerHireSchema = z.object({
+  enabled: z
+    .union([z.string(), z.boolean()])
+    .nullish()
+    .transform((v) => v === true || v === "on" || v === "true"),
+  maxDays: whole(1, 30, "Enter a whole number of days, like 7.", "Allow from 1 to 30 days."),
+});

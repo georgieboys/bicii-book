@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/dates";
 import { getAdventureSalesSettings } from "@/lib/domain/adventure-bookings";
+import { getTrackerHireSettings, listTrackingDevices } from "@/lib/domain/trackers";
+import { TrackerHireControl } from "@/components/domain/adventures/tracker-sheets";
 import { stripeConnection } from "@/lib/integrations/stripe/client";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,7 +20,12 @@ export const metadata: Metadata = { title: "Adventure sales" };
  */
 export default async function AdventureSalesSettingsPage() {
   await requireAdmin();
-  const settings = await getAdventureSalesSettings(await createClient());
+  const supabase = await createClient();
+  const [settings, hire, devices] = await Promise.all([
+    getAdventureSalesSettings(supabase),
+    getTrackerHireSettings(supabase),
+    listTrackingDevices(supabase),
+  ]);
   const stripeOn = stripeConnection().state === "on";
 
   return (
@@ -54,6 +61,17 @@ export default async function AdventureSalesSettingsPage() {
           <p className="text-sm text-dust-700">The adventure settings are missing.</p>
         )}
       </Card>
+      {hire ? (
+        <div className="mt-6">
+          <Card title="Tracker hire">
+            <TrackerHireControl
+              enabled={hire.enabled}
+              maxDays={hire.maxDays}
+              inService={devices.filter((d) => d.serviceState === "in_service").length}
+            />
+          </Card>
+        </div>
+      ) : null}
     </>
   );
 }

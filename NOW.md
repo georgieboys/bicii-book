@@ -7,9 +7,10 @@ file reading (PR #70); review, certificates, finisher board and packs
 (D178–D180, PR #71); the Admin bookings, review and pack screens and
 Settings → Adventure sales (D181–D182, PR #72); the public site's route
 pages, buying and the rider's ride page (BICII #43); adventure emails
-(D183–D184, PR #73). Phase C (tracker hire) started: its database (D185–D188)
-in its pull request; hire stays off until real trackers exist. Next: the
-tracker screens in the Admin, then the feed, then the rider's side
+(D183–D184, PR #73). Phase C (tracker hire): its database (D185–D188, PR #74) and
+the Admin's Trackers and Handovers screens in their pull request; hire
+stays off until real trackers exist. Next: the tracking feed (fake, then
+SPOT) with Start/Finish Ride, then the rider's side
 ([ADVENTURES-PLAN](docs/ADVENTURES-PLAN.md)). Earlier: Adventures Phase A,
 D164–D171; earlier the same day, PRs #61–#65:
 Shopify connected and publishing to the Online Store, migrations only after

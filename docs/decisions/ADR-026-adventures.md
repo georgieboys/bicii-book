@@ -73,6 +73,15 @@ is refused (E08). Certificate, badge and pack are issued in the approving
 transaction. Certificates are revoked, never deleted, so the history of a
 withdrawn finish stays (D178-D180).
 
+## Amendment 2026-11-14: the Admin screens
+
+The review workspace draws the ride itself (an SVG outline of the thinned
+track with the checkpoints at their review radius) instead of using a map
+service: no tiles, keys or third party see a rider's ride. The two reads
+behind it are security-invoker functions, so the evidence RLS decides who
+gets rows. A payment flag is cleared by an admin with a note, never by the
+review itself (D181, D182).
+
 ## Alternatives considered
 
 | Alternative | Why not |

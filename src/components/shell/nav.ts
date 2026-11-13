@@ -62,7 +62,7 @@ export const MORE_ITEMS: readonly NavItem[] = [
     href: "/adventures",
     label: "Adventures",
     icon: RouteIcon,
-    description: "Routes, certification offers and prices",
+    description: "Routes, bookings, ride reviews and packs",
   },
   {
     href: "/consignment",

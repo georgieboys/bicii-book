@@ -95,3 +95,110 @@ export function formatElapsed(minutes: number | null): string | null {
   if (hours === 0) return `${rest} min`;
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
+
+// ------------------------------------------------- bookings and review ----
+// Phase B (D172-D182): labels for the bookings, review and pack screens.
+
+export type AdventureBookingStatus = Database["public"]["Enums"]["adventure_booking_status"];
+export type AdventureBookingEventKind = Database["public"]["Enums"]["adventure_booking_event_kind"];
+export type AdventureSubmissionState = Database["public"]["Enums"]["adventure_submission_state"];
+export type AdventureFileState = Database["public"]["Enums"]["adventure_file_state"];
+export type AdventureReviewDecision = Database["public"]["Enums"]["adventure_review_decision"];
+export type AdventurePackStatus = Database["public"]["Enums"]["adventure_pack_status"];
+export type AdventureFinisherName = Database["public"]["Enums"]["adventure_finisher_name"];
+
+export const BOOKING_STATUS_LABELS: Record<AdventureBookingStatus, string> = {
+  pending_payment: "Awaiting payment",
+  confirmed: "Paid",
+  cancelled: "Cancelled",
+  expired: "Checkout expired",
+};
+
+export const BOOKING_EVENT_LABELS: Record<AdventureBookingEventKind, string> = {
+  created: "Booking started",
+  payment_started: "Checkout opened",
+  confirmed: "Paid",
+  expired: "Checkout expired",
+  payment_failed: "Payment failed",
+  payment_processing: "Payment processing",
+  payment_attention: "Payment needs attention",
+  refund_recorded: "Refund recorded",
+  evidence_started: "Evidence started",
+  evidence_submitted: "Certification requested",
+  review_started: "Review started",
+  changes_requested: "Changes requested",
+  certified: "Certified",
+  not_certified: "Not certified",
+  certificate_revoked: "Certificate revoked",
+  pack_updated: "Finisher pack updated",
+  attention_cleared: "Payment flag cleared",
+};
+
+export const SUBMISSION_STATE_LABELS: Record<AdventureSubmissionState, string> = {
+  draft: "Rider is adding evidence",
+  submitted: "Waiting for review",
+  in_review: "In review",
+  changes_requested: "Changes requested",
+  approved: "Approved",
+  rejected: "Not certified",
+};
+
+export const FILE_STATE_LABELS: Record<AdventureFileState, string> = {
+  awaiting_upload: "Not uploaded",
+  uploaded: "Waiting to be read",
+  parsing: "Being read",
+  parsed: "Read",
+  failed: "Could not be read",
+  removed: "Removed",
+};
+
+export const DECISION_LABELS: Record<AdventureReviewDecision, string> = {
+  approved: "Approved",
+  changes_requested: "Changes requested",
+  rejected: "Not certified",
+};
+
+export const PACK_STATUS_LABELS: Record<AdventurePackStatus, string> = {
+  awaiting_pack: "To pack",
+  ready: "Ready to collect",
+  fulfilled: "Collected",
+  on_hold: "On hold",
+};
+
+export const FINISHER_NAME_LABELS: Record<AdventureFinisherName, string> = {
+  first_name_initial: "First name and initial",
+  full_name: "Full name",
+  hidden: "Hidden (A BICII rider)",
+};
+
+/** The review checklist, in the order the workspace asks it (D178). */
+export const REVIEW_CHECKS = [
+  { key: "identity", label: "The recording is the rider's own ride" },
+  { key: "coverage", label: "The track covers the whole route" },
+  { key: "checkpoints", label: "Every mandatory checkpoint is passed, with its photo" },
+  { key: "chronology", label: "Times run forward with no impossible jumps" },
+  { key: "time_window", label: "The ride is inside the route's time limit" },
+  { key: "distance", label: "The distance is at least the route's" },
+] as const;
+
+export type ReviewCheckKey = (typeof REVIEW_CHECKS)[number]["key"];
+
+/** Whether this staff member may review rides (D178). */
+export function canVerifyAdventures(staff: { permissions: readonly PermissionKey[] }): boolean {
+  return staff.permissions.includes("verify_adventures");
+}
+
+/** Minutes between two instants, or null. */
+export function minutesBetween(from: string | null, to: string | null): number | null {
+  if (!from || !to) return null;
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  return Number.isFinite(ms) ? Math.round(ms / 60_000) : null;
+}
+
+/** "1.2 km", "350 m". */
+export function formatMetres(m: number | string | null): string | null {
+  if (m === null) return null;
+  const value = Number(m);
+  if (!Number.isFinite(value)) return null;
+  return value >= 1000 ? `${(value / 1000).toFixed(1)} km` : `${Math.round(value)} m`;
+}

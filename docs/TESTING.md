@@ -2545,6 +2545,26 @@ database, signed in as the seeded admin and mechanic:
    (D161); Reports shows the Customer payments figures and the money held
    on jobs now, each payment and both CSVs (`reports.spec.ts`, D154).
 
+#### Adventures (Phase B, D172-D182)
+
+Database: `adventure-bookings.test.ts` (checkout preparation and the
+Stripe routing), `adventure-evidence.test.ts` (uploads, the bucket
+policies, parsing claims, submission), `adventure-review.test.ts` (the
+checklist, self review, a payment flag and clearing it, the correction
+loop, the board and revocation, packs, the review workspace's reads, and
+the committed two-reviewer race, isolated databases only). Unit:
+`adventures.test.ts` (the forms and helpers), `adventure-checkout.test.ts`,
+`adventure-tracks.test.ts`. End to end: `adventures-review.spec.ts`
+builds a paid booking and a submitted recording as the public site and
+Stripe would (`adventure-helpers.ts`: the RPCs under each caller's claims
+and a signed webhook to `/api/stripe/webhooks`), then the manager certifies
+the ride and readies its pack. Run locally against `supabase start` on
+2026-11-14 with an Admin dev server on 3100 wired to the local stack:
+`E2E_EXTERNAL_STACK=1 E2E_REUSE_SERVER=1 PGDATABASE=postgres
+DATABASE_URL=<local> BICII_MAIL_KIND=mailpit BICII_MAIL_URL=<local mailpit>
+npx playwright test tests/e2e/adventures-review.spec.ts`: 2 passed (phone,
+tablet).
+
 ## Seed data
 
 `supabase/seed.sql` is both the demo dataset and the test fixture. Fixed

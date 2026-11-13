@@ -309,6 +309,11 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // verify_adventures (never one's own ride), revoking is admin-only, packs
   // need manage_adventures; a rider reads only their own outcome
   "public.claim_adventure_review(uuid)",
+  // D181: clearing a booking's payment flag is admin-only (the function checks)
+  "public.clear_adventure_booking_attention(uuid, text)",
+  // D182: the review workspace's reads, security invoker under the evidence RLS
+  "public.adventure_track_outline(uuid, integer)",
+  "public.adventure_checkpoint_passes(uuid)",
   "public.decide_adventure_review(uuid, adventure_review_decision, jsonb, numeric, date, text, text)",
   "public.revoke_adventure_certificate(uuid, text)",
   "public.set_adventure_pack_status(uuid, adventure_pack_status, text)",

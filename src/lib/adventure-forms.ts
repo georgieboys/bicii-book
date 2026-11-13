@@ -236,3 +236,110 @@ export const adventureOrderSchema = z.object({
     .transform((v) => Number(v))
     .refine((v) => v >= -10_000 && v <= 10_000, { error: "Enter from -10,000 to 10,000." }),
 });
+
+// ------------------------------------------- bookings, review, packs ----
+// Phase B (D178-D182).
+
+const DECISIONS = ["approved", "changes_requested", "rejected"] as const;
+const PACK_STATUSES = ["awaiting_pack", "ready", "fulfilled", "on_hold"] as const;
+
+/** A checkbox: "on", "true" or true is ticked; anything else is not. */
+const ticked = z
+  .union([z.string(), z.boolean()])
+  .nullish()
+  .transform((v) => v === true || v === "on" || v === "true");
+
+/** A shop day, YYYY-MM-DD; blank is null. */
+const optionalDay = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((v) => (v ? v : null))
+  .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), {
+    error: "Enter the date as a day, like 2026-11-15.",
+  });
+
+/** A distance in kilometres with up to three decimals, as text; blank is null. */
+const optionalAcceptedKm = z
+  .union([z.string(), z.number()])
+  .nullish()
+  .transform((v) => (v === null || v === undefined ? "" : String(v).trim().replace(/,/g, "")))
+  .refine(
+    (v) => v === "" || (/^\d+(\.\d{1,3})?$/.test(v) && Number(v) > 0 && Number(v) <= 10_000),
+    {
+      error: "Enter the accepted distance in kilometres, like 128.4.",
+    },
+  )
+  .transform((v) => (v === "" ? null : v));
+
+export const submissionIdSchema = z.object({
+  submissionId: z.guid({ error: "Unknown submission." }),
+});
+
+export const decideReviewSchema = z
+  .object({
+    submissionId: z.guid({ error: "Unknown submission." }),
+    decision: z.enum(DECISIONS, { error: "Choose a decision." }),
+    identity: ticked,
+    coverage: ticked,
+    checkpoints: ticked,
+    chronology: ticked,
+    time_window: ticked,
+    distance: ticked,
+    acceptedDistanceKm: optionalAcceptedKm,
+    completedOn: optionalDay,
+    messageToRider: text(2000, "message to the rider"),
+    internalNote: text(2000, "internal note"),
+  })
+  .superRefine((v, ctx) => {
+    if (v.decision === "approved") {
+      if (v.acceptedDistanceKm === null)
+        ctx.addIssue({
+          code: "custom",
+          path: ["acceptedDistanceKm"],
+          message: "Enter the accepted distance.",
+        });
+      if (v.completedOn === null)
+        ctx.addIssue({
+          code: "custom",
+          path: ["completedOn"],
+          message: "Enter the day the ride was completed.",
+        });
+    } else if (v.messageToRider === "") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["messageToRider"],
+        message: "Tell the rider what to change or why.",
+      });
+    }
+  });
+
+export const revokeCertificateSchema = z.object({
+  certificateId: z.guid({ error: "Unknown certificate." }),
+  reason: required(500, "reason"),
+});
+
+export const clearAttentionSchema = z.object({
+  bookingId: z.guid({ error: "Unknown booking." }),
+  note: required(500, "note"),
+});
+
+export const packStatusSchema = z.object({
+  fulfilmentId: z.guid({ error: "Unknown pack." }),
+  status: z.enum(PACK_STATUSES, { error: "Choose a status." }),
+  note: text(500, "note"),
+});
+
+export const adventureSalesSchema = z
+  .object({
+    salesEnabled: ticked,
+    termsVersion: text(40, "terms version"),
+  })
+  .superRefine((v, ctx) => {
+    if (v.salesEnabled && v.termsVersion === "")
+      ctx.addIssue({
+        code: "custom",
+        path: ["termsVersion"],
+        message: "Give the version of the published terms riders accept.",
+      });
+  });

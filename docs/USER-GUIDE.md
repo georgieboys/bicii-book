@@ -1204,9 +1204,41 @@ adventures** (admins and managers have it).
 
 **New adventure** creates a draft with a web address you cannot change
 later. **Archive** (with a reason) takes a route off sale and off the
-public list without deleting anything. Nothing is sold yet: bookings come
-later, and bicii.sg still shows its own route list until it reads this
-catalogue.
+public list without deleting anything.
+
+### Certified ride bookings, reviews and packs
+
+Adventures has four lists along the top: **Routes**, **Bookings**,
+**Reviews** and **Packs**. Riders buy certified rides on bicii.sg once an
+admin switches sales on (Settings → **Adventure sales**, with the version
+of the published terms riders accept). Until then nothing is sold.
+
+- **Bookings** shows paid bookings by default; **Needs attention** shows
+  bookings whose payment looked wrong (paid twice, paid after the checkout
+  expired). Open one for the rider, what they bought, the payments, the
+  evidence versions, the certificate, the pack and the history. An admin
+  handles the payment in Stripe, then presses **Clear the flag** and says
+  how it was handled. A flagged ride cannot be certified.
+- **Reviews** lists the rides riders have sent, oldest first. Reviewing
+  needs **Verify adventures**; nobody can review their own ride.
+  1. Open the ride and press **Start review**, so others see you have it.
+  2. Look at the drawing (circle: start, square: finish, numbered circles:
+     checkpoints at their review radius), the recorded distance and time
+     against the route's, each checkpoint's nearest recorded point and its
+     photo, and what the rider wrote. These figures are hints: you decide.
+  3. Choose **Approve and certify**, tick every check, confirm the accepted
+     distance and the day the ride finished, and press **Certify this
+     ride**. The certificate (BC- number), badge and finisher pack are
+     issued at once, and the rider's name goes on the route's finisher
+     board in the form they chose.
+  4. Or choose **Ask the rider for changes** or **Do not certify** and
+     write the message the rider will read. After a change request the
+     rider sends a new version, which comes back to this list.
+- **Packs** lists finisher packs to prepare. With **Manage adventures**,
+  press **Packed, ready to collect**, then **Collected** (or **Put on
+  hold** with a reason).
+- An admin can **Revoke** a certificate from its booking, with a reason.
+  It comes off the finisher board; the certificate and its history stay.
 
 ### Read reports
 

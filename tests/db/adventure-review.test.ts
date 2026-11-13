@@ -321,6 +321,108 @@ describe("review (E07, E08, E10)", () => {
   });
 });
 
+describe("clearing a payment flag (D181)", () => {
+  it("an admin clears it with a note, kept in the history; then the ride can be certified", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const { bookingId, submissionId } = await submitted(tx, await makeRider(tx), sale);
+      await tx.query("reset role");
+      await tx.query(
+        "update public.adventure_bookings set needs_attention = true, attention_reason = 'Paid twice' where id = $1",
+        [bookingId],
+      );
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await failsWith(
+        tx,
+        () =>
+          tx.query("select public.clear_adventure_booking_attention($1, 'Refunded')", [bookingId]),
+        { code: "42501" },
+      );
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      await failsWith(
+        tx,
+        () => tx.query("select public.clear_adventure_booking_attention($1, ' ')", [bookingId]),
+        refused("reason_required"),
+      );
+      await tx.query(
+        "select public.clear_adventure_booking_attention($1, 'Refunded the second payment')",
+        [bookingId],
+      );
+      await tx.query("reset role");
+      expect(
+        (
+          await tx.query(
+            "select needs_attention, attention_reason from public.adventure_bookings where id = $1",
+            [bookingId],
+          )
+        ).rows,
+      ).toEqual([{ needs_attention: false, attention_reason: null }]);
+      expect(
+        await scalar<string>(
+          tx,
+          "select detail ->> 'note' from public.adventure_booking_events where booking_id = $1 and kind = 'attention_cleared'",
+          [bookingId],
+        ),
+      ).toBe("Refunded the second payment");
+      await decide(tx, submissionId, "approved");
+    });
+  });
+});
+
+describe("the review workspace's reads (D182)", () => {
+  it("thin a track for drawing and find each checkpoint's nearest point, for verifying staff only", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const { submissionId } = await submitted(tx, await makeRider(tx), sale);
+      await tx.query("reset role");
+      // The fixture's checkpoints have no coordinates; give one a place (the
+      // sealed revision's guard is a trigger, bypassed for this setup only).
+      await tx.query("set local session_replication_role = replica");
+      await tx.query(
+        `update public.adventure_checkpoints c set latitude = 1.3, longitude = 103.81
+           from public.adventure_bookings b join public.adventure_attempts a on a.booking_id = b.id
+           join public.adventure_submissions s on s.attempt_id = a.id
+          where s.id = $1 and c.revision_id = b.revision_id and c.position = 1`,
+        [submissionId],
+      );
+      await tx.query("set local session_replication_role = origin");
+      const track = await scalar<string>(
+        tx,
+        `select k.id from public.adventure_tracks k join public.adventure_evidence_files f on f.id = k.file_id
+          where f.submission_id = $1`,
+        [submissionId],
+      );
+
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      const outline = await tx.query("select seq from public.adventure_track_outline($1, 500)", [
+        track,
+      ]);
+      expect(outline.rows.map((r: { seq: number }) => r.seq)).toEqual([0, 1]);
+      const passes = await tx.query(
+        "select checkpoint_position, label, nearest_m::float as m from public.adventure_checkpoint_passes($1)",
+        [submissionId],
+      );
+      expect(passes.rows).toHaveLength(2);
+      expect(passes.rows[0]).toMatchObject({ checkpoint_position: 1, label: "Lim Chu Kang" });
+      // 0.01 degrees of longitude from (1.3, 103.8): about 1.1 km.
+      expect(passes.rows[0].m).toBeGreaterThan(1000);
+      expect(passes.rows[0].m).toBeLessThan(1200);
+      expect(passes.rows[1].m).toBeNull();
+
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      expect(
+        (await tx.query("select * from public.adventure_track_outline($1, 500)", [track])).rows,
+      ).toEqual([]);
+      expect(
+        (await tx.query("select * from public.adventure_checkpoint_passes($1)", [submissionId]))
+          .rows,
+      ).toEqual([]);
+    });
+  });
+});
+
 describe("finisher board and revocation (E12, E13)", () => {
   it("lists active certificates by completion date with the chosen name, and nothing else", async () => {
     await inTransaction(conn, async (tx) => {

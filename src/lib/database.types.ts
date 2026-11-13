@@ -6664,11 +6664,34 @@ export type Database = {
           on_hand: number;
         }[];
       };
+      adventure_checkpoint_passes: {
+        Args: { submission_id: string };
+        Returns: {
+          checkpoint_position: number;
+          label: string;
+          latitude: number;
+          longitude: number;
+          mandatory: boolean;
+          nearest_at: string;
+          nearest_m: number;
+          photo_required: boolean;
+          review_radius_m: number;
+        }[];
+      };
       adventure_sales_state: {
         Args: Record<PropertyKey, never>;
         Returns: {
           sales_enabled: boolean;
           terms_version: string;
+        }[];
+      };
+      adventure_track_outline: {
+        Args: { max_points: number; track_id: string };
+        Returns: {
+          latitude: number;
+          longitude: number;
+          recorded_at: string;
+          seq: number;
         }[];
       };
       answer_quote: { Args: { decisions: Json; name: string; token: string }; Returns: Json };
@@ -6999,6 +7022,40 @@ export type Database = {
           to: "customer_profile";
           isOneToOne: false;
           isSetofReturn: true;
+        };
+      };
+      clear_adventure_booking_attention: {
+        Args: { booking_id: string; note: string };
+        Returns: {
+          adventure_id: string;
+          attention_reason: string | null;
+          cancelled_at: string | null;
+          confirmed_at: string | null;
+          created_at: string;
+          currency: string;
+          customer_id: string;
+          expired_at: string | null;
+          finisher_name: Database["public"]["Enums"]["adventure_finisher_name"];
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          needs_attention: boolean;
+          offer_id: string;
+          recording_method: Database["public"]["Enums"]["adventure_recording_method"];
+          reference: string;
+          request_fingerprint: string;
+          request_id: string;
+          revision_id: string;
+          status: Database["public"]["Enums"]["adventure_booking_status"];
+          terms_version: string;
+          total: number;
+          tshirt_size: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_bookings";
+          isOneToOne: true;
+          isSetofReturn: false;
         };
       };
       consignor_payout_details: { Args: { consignor_id: string }; Returns: string };
@@ -10289,7 +10346,8 @@ export type Database = {
         | "certified"
         | "not_certified"
         | "certificate_revoked"
-        | "pack_updated";
+        | "pack_updated"
+        | "attention_cleared";
       adventure_booking_status: "pending_payment" | "confirmed" | "cancelled" | "expired";
       adventure_certificate_status: "active" | "revoked";
       adventure_checkpoint_order: "any" | "sequence";
@@ -11381,6 +11439,7 @@ export const Constants = {
         "not_certified",
         "certificate_revoked",
         "pack_updated",
+        "attention_cleared",
       ],
       adventure_booking_status: ["pending_payment", "confirmed", "cancelled", "expired"],
       adventure_certificate_status: ["active", "revoked"],

@@ -54,6 +54,9 @@ const ALL: PermissionKey[] = [
   "manage_purchasing",
   "manage_staff",
   "view_financial_reports",
+  "manage_adventures",
+  "verify_adventures",
+  "facilitate_adventures",
 ];
 // Written out, not derived from the code under test (D91).
 const MANAGER_IMPLIES: PermissionKey[] = [
@@ -63,6 +66,9 @@ const MANAGER_IMPLIES: PermissionKey[] = [
   "manage_consignments",
   "manage_purchasing",
   "view_financial_reports",
+  "manage_adventures",
+  "verify_adventures",
+  "facilitate_adventures",
 ];
 
 /** Superuser, no session: setup that records no actor. */
@@ -453,6 +459,12 @@ const GATES: Gate[] = [
     name: "update_staff",
     family: "manage_staff",
     knock: knock(`select public.update_staff(${nil}, display_name => 'Nobody')`),
+  },
+  // manage_adventures (D169): an invalid slug is a business refusal, not 42501
+  {
+    name: "create_adventure",
+    family: "manage_adventures",
+    knock: knock("select public.create_adventure('!', 'Nobody', 125)"),
   },
   // refunds (D94): a role check
   {

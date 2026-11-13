@@ -3289,3 +3289,24 @@ URLs, or customer data in this file.
   live until one is promoted (RUNBOOK).
 - Revisit trigger: a new server variable is added to `src/lib/env.ts`.
 - Last checked: 2026-11-12.
+
+## R-098 — The public site's route list and the adventure catalogue can drift
+
+- Category: known gap (two sources of truth, temporary).
+- Status and owner: open; build agent.
+- Trigger: an admin edits or archives a route in the catalogue (Phase A)
+  before the public site reads `public_adventures`.
+- Impact: the catalogue is seeded from the public site's static list
+  (`src/lib/content.ts` in georgieboys/BICII, 2026-11-13). Until the site's
+  Adventures page reads the catalogue, a change made in the Admin does not
+  reach bicii.sg, and a copy edit on the site does not reach the
+  catalogue.
+- Evidence and confidence: high; `20261113000200_adventure_catalogue.sql`
+  seed, and the site's `src/app/adventures/page.tsx` reading `content.ts`.
+- Workaround or containment: no adventure is sold in Phase A; the seed
+  holds the same facts as the site.
+- Next action: switch the site's Adventures page to `public_adventures` /
+  `public_adventure` (Phase A, third slice) and delete the static list.
+- Revisit trigger: the site's Adventures page reads the catalogue.
+- Last checked: 2026-11-13.
+

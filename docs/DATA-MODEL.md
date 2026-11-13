@@ -4847,3 +4847,54 @@ balance_links          (D156c; a bearer link to pay a job's balance)
   `prepare_balance_checkout` takes no lock. The D152 gate reads
   `quote_deposits`, and so the counter tables, under the job locks it
   already holds.
+
+## 20. Adventures
+
+Phase A, the catalogue ([ADVENTURES.md](ADVENTURES.md),
+[ADR-026](decisions/ADR-026-adventures.md), D164–D171). Migrations
+`20261113000100_adventure_permissions.sql` (the permissions
+`manage_adventures`, `verify_adventures`, `facilitate_adventures`) and
+`20261113000200_adventure_catalogue.sql`.
+
+| Table | Purpose and rules |
+|---|---|
+| `adventures` | A route: `slug` (unique, lowercase with hyphens), `status` (`draft`, `published`, `archived`), `current_revision_id` (the sealed revision the public sees; required when published), `sort_order`. Archived instead of deleted |
+| `adventure_revisions` | The route's content and rules: name, summary, description, note, region, terrain, when to start, start/finish, `distance_km`, `nominal_days` (D165), `time_zone` (IANA, checked against `pg_timezone_names`), `min_elapsed_minutes` / `max_elapsed_minutes`, `checkpoint_order`, `route_url` (https), rules, equipment, `rider_instructions` and `emergency_procedure` (buyers only, from Phase B), `staff_notes` (staff only), `is_planned`. At most one draft per adventure (`sealed_at is null`, partial unique index); sealed rows refuse every update and delete (`adventure_revision_sealed`, trigger) |
+| `adventure_checkpoints` | A revision's checkpoints by `position`: label, instructions, optional coordinates (both or neither), review radius, `mandatory`, `photo_required`. Insert, update and delete refused once the revision is sealed (trigger) |
+| `adventure_offers` | One per participation kind per revision (`self_supported`, `self_supported_group`, `supported`): explicit `price` (money, > 0), `tracker_hire_price` per 24 h (self-supported kinds; null when not offered), `supported_days` (supported only), inclusions. Immutable once sealed (trigger) |
+| `adventure_events` | Append-only history: `created`, `draft_started`, `published`, `archived`, `unarchived`, `order_changed`, with staff and reason; `created_at` is `clock_timestamp()` so events in one transaction keep their order |
+
+Access: staff read every table (RLS `private.is_staff()`); no API role
+writes them. Anonymous visitors and customers read only:
+
+- `public_adventures()`: published adventures with their current sealed
+  revision: public columns, `certifiable` and the offers (kind, price,
+  tracker hire price, supported days, inclusions).
+- `public_adventure(slug)`: one, adding description, time zone, the
+  elapsed-time window, checkpoint order, rules, equipment and the
+  checkpoints. Never `staff_notes`, `rider_instructions` or
+  `emergency_procedure`.
+
+RPCs (all require `manage_adventures`; the adventure row is locked before
+its draft): `create_adventure(slug, name, distance_km)`;
+`update_adventure_draft(revision_id, expected_version, …)` (every field;
+bumps `version`; refused as `adventure_draft_changed` when the draft's
+version moved since the editor opened it); `set_adventure_checkpoints(revision_id, jsonb)`
+(replaces the list); `set_adventure_offer` / `remove_adventure_offer`
+(refused under 125 km, `adventure_not_certifiable`, and on a planned
+route, `adventure_planned`); `start_adventure_draft(adventure_id)` (copies
+the latest revision with its checkpoints and offers; returns the existing
+draft if there is one); `publish_adventure_revision(revision_id,
+change_summary)` (with offers: 125 km or more, not planned, nominal days
+and a maximum time, else `adventure_not_certifiable`, `adventure_planned`,
+`adventure_rules_incomplete`; refused while archived,
+`adventure_archived`); `archive_adventure(adventure_id, reason)`,
+`unarchive_adventure`, `set_adventure_order`;
+`suggested_adventure_price(kind, nominal_days, supported_days)` (D165's
+formula, for the editor).
+
+Seed (in the migration, so also in production): the nine routes the
+public site listed on 2026-11-13, facts only (no route links, checkpoints
+or offers): 30, 50, 80 and 125 km published as free routes; 250, 500,
+1,000, 2,000 and 3,000 km published as planned.
+

@@ -3,6 +3,315 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      adventure_checkpoints: {
+        Row: {
+          id: string;
+          instructions: string;
+          label: string;
+          latitude: number | null;
+          longitude: number | null;
+          mandatory: boolean;
+          photo_required: boolean;
+          position: number;
+          review_radius_m: number | null;
+          revision_id: string;
+        };
+        Insert: {
+          id?: string;
+          instructions?: string;
+          label: string;
+          latitude?: number | null;
+          longitude?: number | null;
+          mandatory?: boolean;
+          photo_required?: boolean;
+          position: number;
+          review_radius_m?: number | null;
+          revision_id: string;
+        };
+        Update: {
+          id?: string;
+          instructions?: string;
+          label?: string;
+          latitude?: number | null;
+          longitude?: number | null;
+          mandatory?: boolean;
+          photo_required?: boolean;
+          position?: number;
+          review_radius_m?: number | null;
+          revision_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_checkpoints_revision_id_fkey";
+            columns: ["revision_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_revisions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_events: {
+        Row: {
+          adventure_id: string;
+          created_at: string;
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_event_kind"];
+          reason: string | null;
+          revision_id: string | null;
+          staff_id: string | null;
+        };
+        Insert: {
+          adventure_id: string;
+          created_at?: string;
+          id?: string;
+          kind: Database["public"]["Enums"]["adventure_event_kind"];
+          reason?: string | null;
+          revision_id?: string | null;
+          staff_id?: string | null;
+        };
+        Update: {
+          adventure_id?: string;
+          created_at?: string;
+          id?: string;
+          kind?: Database["public"]["Enums"]["adventure_event_kind"];
+          reason?: string | null;
+          revision_id?: string | null;
+          staff_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_events_adventure_id_fkey";
+            columns: ["adventure_id"];
+            isOneToOne: false;
+            referencedRelation: "adventures";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_events_revision_id_fkey";
+            columns: ["revision_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_revisions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_events_staff_id_fkey";
+            columns: ["staff_id"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_offers: {
+        Row: {
+          id: string;
+          inclusions: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          price: number;
+          revision_id: string;
+          supported_days: number | null;
+          tracker_hire_price: number | null;
+        };
+        Insert: {
+          id?: string;
+          inclusions?: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          price: number;
+          revision_id: string;
+          supported_days?: number | null;
+          tracker_hire_price?: number | null;
+        };
+        Update: {
+          id?: string;
+          inclusions?: string;
+          kind?: Database["public"]["Enums"]["adventure_participation"];
+          price?: number;
+          revision_id?: string;
+          supported_days?: number | null;
+          tracker_hire_price?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_offers_revision_id_fkey";
+            columns: ["revision_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_revisions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_revisions: {
+        Row: {
+          adventure_id: string;
+          change_summary: string | null;
+          checkpoint_order: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          created_at: string;
+          created_by: string | null;
+          description: string;
+          distance_km: number;
+          emergency_procedure: string;
+          equipment: string;
+          id: string;
+          is_planned: boolean;
+          max_elapsed_minutes: number | null;
+          min_elapsed_minutes: number | null;
+          name: string;
+          nominal_days: number | null;
+          note: string;
+          region: string;
+          revision_number: number;
+          rider_instructions: string;
+          route_url: string | null;
+          rules: string;
+          sealed_at: string | null;
+          sealed_by: string | null;
+          staff_notes: string;
+          start_finish: string;
+          summary: string;
+          terrain: string;
+          time_zone: string;
+          updated_at: string;
+          version: number;
+          when_to_start: string;
+        };
+        Insert: {
+          adventure_id: string;
+          change_summary?: string | null;
+          checkpoint_order?: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          created_at?: string;
+          created_by?: string | null;
+          description?: string;
+          distance_km: number;
+          emergency_procedure?: string;
+          equipment?: string;
+          id?: string;
+          is_planned?: boolean;
+          max_elapsed_minutes?: number | null;
+          min_elapsed_minutes?: number | null;
+          name: string;
+          nominal_days?: number | null;
+          note?: string;
+          region?: string;
+          revision_number: number;
+          rider_instructions?: string;
+          route_url?: string | null;
+          rules?: string;
+          sealed_at?: string | null;
+          sealed_by?: string | null;
+          staff_notes?: string;
+          start_finish?: string;
+          summary?: string;
+          terrain?: string;
+          time_zone?: string;
+          updated_at?: string;
+          version?: number;
+          when_to_start?: string;
+        };
+        Update: {
+          adventure_id?: string;
+          change_summary?: string | null;
+          checkpoint_order?: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          created_at?: string;
+          created_by?: string | null;
+          description?: string;
+          distance_km?: number;
+          emergency_procedure?: string;
+          equipment?: string;
+          id?: string;
+          is_planned?: boolean;
+          max_elapsed_minutes?: number | null;
+          min_elapsed_minutes?: number | null;
+          name?: string;
+          nominal_days?: number | null;
+          note?: string;
+          region?: string;
+          revision_number?: number;
+          rider_instructions?: string;
+          route_url?: string | null;
+          rules?: string;
+          sealed_at?: string | null;
+          sealed_by?: string | null;
+          staff_notes?: string;
+          start_finish?: string;
+          summary?: string;
+          terrain?: string;
+          time_zone?: string;
+          updated_at?: string;
+          version?: number;
+          when_to_start?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_revisions_adventure_id_fkey";
+            columns: ["adventure_id"];
+            isOneToOne: false;
+            referencedRelation: "adventures";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_revisions_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_revisions_sealed_by_fkey";
+            columns: ["sealed_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventures: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          current_revision_id: string | null;
+          id: string;
+          slug: string;
+          sort_order: number;
+          status: Database["public"]["Enums"]["adventure_status"];
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          current_revision_id?: string | null;
+          id?: string;
+          slug: string;
+          sort_order?: number;
+          status?: Database["public"]["Enums"]["adventure_status"];
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          current_revision_id?: string | null;
+          id?: string;
+          slug?: string;
+          sort_order?: number;
+          status?: Database["public"]["Enums"]["adventure_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventures_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventures_current_revision_fk";
+            columns: ["current_revision_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_revisions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       appointment_events: {
         Row: {
           actor_staff_id: string | null;
@@ -5533,6 +5842,25 @@ export type Database = {
           no_shows: number;
         }[];
       };
+      archive_adventure: {
+        Args: { adventure_id: string; reason: string };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          current_revision_id: string | null;
+          id: string;
+          slug: string;
+          sort_order: number;
+          status: Database["public"]["Enums"]["adventure_status"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       assign_staff: {
         Args: {
           role?: Database["public"]["Enums"]["assignment_role"];
@@ -5840,6 +6168,48 @@ export type Database = {
           unit_short_id: string;
           unit_status: Database["public"]["Enums"]["unit_status"];
         }[];
+      };
+      create_adventure: {
+        Args: { distance_km: number; name: string; slug: string };
+        Returns: {
+          adventure_id: string;
+          change_summary: string | null;
+          checkpoint_order: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          created_at: string;
+          created_by: string | null;
+          description: string;
+          distance_km: number;
+          emergency_procedure: string;
+          equipment: string;
+          id: string;
+          is_planned: boolean;
+          max_elapsed_minutes: number | null;
+          min_elapsed_minutes: number | null;
+          name: string;
+          nominal_days: number | null;
+          note: string;
+          region: string;
+          revision_number: number;
+          rider_instructions: string;
+          route_url: string | null;
+          rules: string;
+          sealed_at: string | null;
+          sealed_by: string | null;
+          staff_notes: string;
+          start_finish: string;
+          summary: string;
+          terrain: string;
+          time_zone: string;
+          updated_at: string;
+          version: number;
+          when_to_start: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_revisions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       create_consignment_item: {
         Args: {
@@ -6648,6 +7018,56 @@ export type Database = {
         };
         Returns: string;
       };
+      public_adventure: {
+        Args: { adventure_slug: string };
+        Returns: {
+          certifiable: boolean;
+          checkpoint_order: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          checkpoints: Json;
+          description: string;
+          distance_km: number;
+          equipment: string;
+          is_planned: boolean;
+          max_elapsed_minutes: number;
+          min_elapsed_minutes: number;
+          name: string;
+          nominal_days: number;
+          note: string;
+          offers: Json;
+          published_at: string;
+          region: string;
+          revision_number: number;
+          route_url: string;
+          rules: string;
+          slug: string;
+          start_finish: string;
+          summary: string;
+          terrain: string;
+          time_zone: string;
+          when_to_start: string;
+        }[];
+      };
+      public_adventures: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          certifiable: boolean;
+          distance_km: number;
+          is_planned: boolean;
+          name: string;
+          nominal_days: number;
+          note: string;
+          offers: Json;
+          region: string;
+          revision_number: number;
+          route_url: string;
+          slug: string;
+          sort_order: number;
+          start_finish: string;
+          summary: string;
+          terrain: string;
+          when_to_start: string;
+        }[];
+      };
       public_appointment_types: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -6664,6 +7084,48 @@ export type Database = {
           opens_at: string;
           weekday: number;
         }[];
+      };
+      publish_adventure_revision: {
+        Args: { change_summary: string; revision_id: string };
+        Returns: {
+          adventure_id: string;
+          change_summary: string | null;
+          checkpoint_order: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          created_at: string;
+          created_by: string | null;
+          description: string;
+          distance_km: number;
+          emergency_procedure: string;
+          equipment: string;
+          id: string;
+          is_planned: boolean;
+          max_elapsed_minutes: number | null;
+          min_elapsed_minutes: number | null;
+          name: string;
+          nominal_days: number | null;
+          note: string;
+          region: string;
+          revision_number: number;
+          rider_instructions: string;
+          route_url: string | null;
+          rules: string;
+          sealed_at: string | null;
+          sealed_by: string | null;
+          staff_notes: string;
+          start_finish: string;
+          summary: string;
+          terrain: string;
+          time_zone: string;
+          updated_at: string;
+          version: number;
+          when_to_start: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_revisions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       purchase_cost_defaults: {
         Args: { product_ids: string[]; supplier_id: string };
@@ -6956,6 +7418,10 @@ export type Database = {
           outcome: string;
           payment_status: Database["public"]["Enums"]["payment_status"];
         }[];
+      };
+      remove_adventure_offer: {
+        Args: { kind: Database["public"]["Enums"]["adventure_participation"]; revision_id: string };
+        Returns: undefined;
       };
       remove_purchase_order_line: {
         Args: { line_id: string; reason?: string };
@@ -7538,6 +8004,71 @@ export type Database = {
         };
         Returns: string;
       };
+      set_adventure_checkpoints: {
+        Args: { checkpoints: Json; revision_id: string };
+        Returns: {
+          id: string;
+          instructions: string;
+          label: string;
+          latitude: number | null;
+          longitude: number | null;
+          mandatory: boolean;
+          photo_required: boolean;
+          position: number;
+          review_radius_m: number | null;
+          revision_id: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "adventure_checkpoints";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      set_adventure_offer: {
+        Args: {
+          inclusions: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          price: number;
+          revision_id: string;
+          supported_days: number;
+          tracker_hire_price: number;
+        };
+        Returns: {
+          id: string;
+          inclusions: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          price: number;
+          revision_id: string;
+          supported_days: number | null;
+          tracker_hire_price: number | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_offers";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_adventure_order: {
+        Args: { adventure_id: string; sort_order: number };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          current_revision_id: string | null;
+          id: string;
+          slug: string;
+          sort_order: number;
+          status: Database["public"]["Enums"]["adventure_status"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       set_approval_flag: {
         Args: { flagged: boolean; note?: string; work_order_id: string };
         Returns: {
@@ -7943,6 +8474,48 @@ export type Database = {
           title: string;
         }[];
       };
+      start_adventure_draft: {
+        Args: { adventure_id: string };
+        Returns: {
+          adventure_id: string;
+          change_summary: string | null;
+          checkpoint_order: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          created_at: string;
+          created_by: string | null;
+          description: string;
+          distance_km: number;
+          emergency_procedure: string;
+          equipment: string;
+          id: string;
+          is_planned: boolean;
+          max_elapsed_minutes: number | null;
+          min_elapsed_minutes: number | null;
+          name: string;
+          nominal_days: number | null;
+          note: string;
+          region: string;
+          revision_number: number;
+          rider_instructions: string;
+          route_url: string | null;
+          rules: string;
+          sealed_at: string | null;
+          sealed_by: string | null;
+          staff_notes: string;
+          start_finish: string;
+          summary: string;
+          terrain: string;
+          time_zone: string;
+          updated_at: string;
+          version: number;
+          when_to_start: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_revisions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       stock_adjustments_on: {
         Args: { on_day?: string };
         Returns: {
@@ -7990,6 +8563,14 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      suggested_adventure_price: {
+        Args: {
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          nominal_days: number;
+          supported_days: number;
+        };
+        Returns: unknown;
       };
       today_dashboard: {
         Args: { on_day?: string };
@@ -8081,6 +8662,25 @@ export type Database = {
           quantity_delta: number;
         }[];
       };
+      unarchive_adventure: {
+        Args: { adventure_id: string };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          current_revision_id: string | null;
+          id: string;
+          slug: string;
+          sort_order: number;
+          status: Database["public"]["Enums"]["adventure_status"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       unassign_staff: {
         Args: { staff_id: string; work_order_id: string };
         Returns: {
@@ -8096,6 +8696,72 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "work_order_assignments";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_adventure_draft: {
+        Args: {
+          checkpoint_order: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          description: string;
+          distance_km: number;
+          emergency_procedure: string;
+          equipment: string;
+          expected_version: number;
+          is_planned: boolean;
+          max_elapsed_minutes: number;
+          min_elapsed_minutes: number;
+          name: string;
+          nominal_days: number;
+          note: string;
+          region: string;
+          revision_id: string;
+          rider_instructions: string;
+          route_url: string;
+          rules: string;
+          staff_notes: string;
+          start_finish: string;
+          summary: string;
+          terrain: string;
+          time_zone: string;
+          when_to_start: string;
+        };
+        Returns: {
+          adventure_id: string;
+          change_summary: string | null;
+          checkpoint_order: Database["public"]["Enums"]["adventure_checkpoint_order"];
+          created_at: string;
+          created_by: string | null;
+          description: string;
+          distance_km: number;
+          emergency_procedure: string;
+          equipment: string;
+          id: string;
+          is_planned: boolean;
+          max_elapsed_minutes: number | null;
+          min_elapsed_minutes: number | null;
+          name: string;
+          nominal_days: number | null;
+          note: string;
+          region: string;
+          revision_number: number;
+          rider_instructions: string;
+          route_url: string | null;
+          rules: string;
+          sealed_at: string | null;
+          sealed_by: string | null;
+          staff_notes: string;
+          start_finish: string;
+          summary: string;
+          terrain: string;
+          time_zone: string;
+          updated_at: string;
+          version: number;
+          when_to_start: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_revisions";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -8426,6 +9092,11 @@ export type Database = {
       };
     };
     Enums: {
+      adventure_checkpoint_order: "any" | "sequence";
+      adventure_event_kind:
+        "created" | "draft_started" | "published" | "archived" | "unarchived" | "order_changed";
+      adventure_participation: "self_supported" | "self_supported_group" | "supported";
+      adventure_status: "draft" | "published" | "archived";
       appointment_event_type:
         | "booked"
         | "confirmed"
@@ -8525,7 +9196,10 @@ export type Database = {
         | "manage_consignments"
         | "manage_purchasing"
         | "manage_staff"
-        | "view_financial_reports";
+        | "view_financial_reports"
+        | "manage_adventures"
+        | "verify_adventures"
+        | "facilitate_adventures";
       print_status: "queued" | "rendered" | "printed" | "failed";
       printer_adapter: "browser" | "pdf" | "network_raw" | "bluetooth";
       product_event_type:
@@ -9480,6 +10154,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      adventure_checkpoint_order: ["any", "sequence"],
+      adventure_event_kind: [
+        "created",
+        "draft_started",
+        "published",
+        "archived",
+        "unarchived",
+        "order_changed",
+      ],
+      adventure_participation: ["self_supported", "self_supported_group", "supported"],
+      adventure_status: ["draft", "published", "archived"],
       appointment_event_type: [
         "booked",
         "confirmed",
@@ -9607,6 +10292,9 @@ export const Constants = {
         "manage_purchasing",
         "manage_staff",
         "view_financial_reports",
+        "manage_adventures",
+        "verify_adventures",
+        "facilitate_adventures",
       ],
       print_status: ["queued", "rendered", "printed", "failed"],
       printer_adapter: ["browser", "pdf", "network_raw", "bluetooth"],

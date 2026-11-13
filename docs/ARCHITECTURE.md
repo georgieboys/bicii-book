@@ -57,9 +57,11 @@ Supabase services run without Docker on the devstack
 (SMTP :2525) that receives Auth's emails, Auth on :9999, PostgREST on
 :3001, Storage on :5000 behind a gateway on :54321, and Postgres 16.
 
-Installed versions (from `package.json` and `node_modules`, 2026-10-05):
-`next` 16.3.8, `react` / `react-dom` 19.2.8, `@supabase/ssr` 0.12.7,
-`@supabase/supabase-js` 2.117.2, `zod` 4.6.5, `decimal.js` 10.6.0, `pino`
+Installed versions (from `package.json` and `node_modules`, 2026-10-05;
+`next` and `eslint-config-next` moved to 16.4.6 and `zod` to 4.6.7 on
+2026-11-13 for published security fixes):
+`next` 16.4.6, `react` / `react-dom` 19.2.8, `@supabase/ssr` 0.12.7,
+`@supabase/supabase-js` 2.117.2, `zod` 4.6.7, `decimal.js` 10.6.0, `pino`
 10.4.0, `@zxing/browser` 0.2.1 (the Scan screen imports it dynamically, only
 when the browser has no `BarcodeDetector` for QR codes), and for labels
 (Phase 8 step 2) `qrcode` 1.5.4 (the QR matrix), `pdf-lib` 1.17.1 (the

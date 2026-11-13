@@ -3402,3 +3402,33 @@ URLs, or customer data in this file.
 - Revisit trigger: a feed error after adding the real feed.
 - Last checked: 2026-11-14.
 
+## R-103 — Some of the handoff's acceptance checks are proven only in part
+
+- Category: test coverage.
+- Status and owner: open; code.
+- Trigger: before switching on sales outside Singapore, live sharing, or
+  real trackers.
+- Impact: these checks have no complete test.
+  - A15: every adventure date shows in Singapore time. Launch is the
+    125 km route in Singapore only.
+  - T02: the multi-page feed catch-up is tested piece by piece (cursor,
+    watermark), not as one run across two pages.
+  - S01: no test asserts that a handover creates no work order.
+  - A14: the adventure staff specs use labelled controls on a phone, and
+    axe-core (WCAG A/AA) found nothing on the twelve Admin adventure
+    screens, on phone and tablet, on 2026-11-14 (after the tab bar was made
+    opaque). There is still no keyboard-only run.
+  - A01 and C06 on the public site: the signed-out buy path and the
+    `?checkout=done` page have no end-to-end test there.
+  - S02: not applicable, because handovers are not workshop appointments.
+- Evidence and confidence: high. An audit on 2026-11-14 read every test
+  against handoff §20.1–§20.5. The gaps that needed code (E02, E03, E09,
+  S07, A09) were fixed with database tests (`tests/db/evidence-integrity.test.ts`).
+  The §20.6 scenarios are in `tests/e2e/adventures-scenarios.spec.ts`.
+- Workaround or containment: launch scope (one route, Singapore), and the
+  switches stay off.
+- Next action: before the first non-Singapore route, show dates in the
+  route's zone with a test. Before real trackers, a two-page worker test
+  using SPOT's saved response (R-102).
+- Revisit trigger: any of the triggers above.
+- Last checked: 2026-11-14.

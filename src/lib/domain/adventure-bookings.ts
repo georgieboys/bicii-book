@@ -460,6 +460,10 @@ export type ReviewWorkspace = {
     distanceKm: string;
     captureStartedAt: string | null;
     captureFinishedAt: string | null;
+    /** Points more than two minutes apart (D208): the distance is approximate. */
+    approximate: boolean;
+    /** Points that arrived after the decision (D208): kept, not counted. */
+    latePoints: number;
     outline: Array<{ lat: number; lon: number }>;
   } | null;
 };
@@ -628,6 +632,8 @@ export async function getReviewWorkspace(
             distanceKm: String(ts.distance_km ?? 0),
             captureStartedAt: ts.capture_started_at,
             captureFinishedAt: ts.capture_finished_at,
+            approximate: ts.approximate === true,
+            latePoints: ts.late_points ?? 0,
             outline: rows(trackerOutline).map((p) => ({
               lat: Number(p.latitude),
               lon: Number(p.longitude),
@@ -829,6 +835,11 @@ export async function cancelAdventureBooking(
 export type AdventureHealth = Record<string, number | string | null>;
 
 /** D203: the counts an admin needs (admin only; the RPC checks). */
+/** Admin: failed adventure emails back in the queue (D211). Returns how many. */
+export async function retryFailedAdventureNotices(supabase: ServerSupabase): Promise<number> {
+  return Number(unwrap(await supabase.rpc("retry_failed_adventure_notices")) ?? 0);
+}
+
 export async function getAdventureHealth(supabase: ServerSupabase): Promise<AdventureHealth> {
   return (unwrap(await supabase.rpc("adventure_health")) ?? {}) as AdventureHealth;
 }

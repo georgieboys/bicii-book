@@ -21,6 +21,7 @@ import {
   removeDepartureStaffSchema,
   supportedSalesSchema,
   publicSurfacesSchema,
+  emptySchema,
   cancelHireSchema,
   createDepartureSchema,
   updateDepartureSchema,
@@ -61,6 +62,7 @@ import {
   decideAdventureReview,
   revokeAdventureCertificate,
   setAdventurePackStatus,
+  retryFailedAdventureNotices,
   setAdventureSales,
 } from "@/lib/domain/adventure-bookings";
 import {
@@ -478,6 +480,16 @@ export const setSupportedSalesAction = staffAction(
     await setSupportedSales(supabase, enabled);
     refresh();
     return { enabled };
+  },
+);
+
+export const retryFailedNoticesAction = staffAction(
+  emptySchema,
+  { name: "adventures.retry_failed_notices", admin: true },
+  async (_input, { supabase }) => {
+    const n = await retryFailedAdventureNotices(supabase);
+    refresh();
+    return { n };
   },
 );
 

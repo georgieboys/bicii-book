@@ -533,6 +533,9 @@ const onOff = z
   .union([z.string(), z.boolean()])
   .nullish()
   .transform((v) => v === true || v === "on" || v === "true");
+/** No input: the action itself is the request (D211). */
+export const emptySchema = z.object({});
+
 export const publicSurfacesSchema = z.object({ liveSharing: onOff, publicProfiles: onOff });
 
 // ------------------------------------------------- Phase F (D201, D202) ----

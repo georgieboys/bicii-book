@@ -10,6 +10,7 @@ import { getTrackerHireSettings, listTrackingDevices } from "@/lib/domain/tracke
 import { TrackerHireControl } from "@/components/domain/adventures/tracker-sheets";
 import {
   PublicSurfacesControl,
+  RetryFailedEmailsButton,
   SupportedSalesControl,
 } from "@/components/domain/adventures/departure-sheets";
 import { stripeConnection } from "@/lib/integrations/stripe/client";
@@ -115,6 +116,9 @@ export default async function AdventureSalesSettingsPage() {
               </div>
             ))}
           </dl>
+          <div className="mt-4">
+            <RetryFailedEmailsButton failed={n("emails_failed")} />
+          </div>
         </Card>
       </div>
       {hire ? (

@@ -89,7 +89,9 @@ export default async function AdventureReviewPage({
   const elapsed = minutesBetween(starts[0] ?? null, ends.at(-1) ?? null);
   const overTime =
     elapsed !== null && w.route.maxElapsedMinutes !== null && elapsed > w.route.maxElapsedMinutes;
-  const totalKm = tracks.reduce((sum, t) => sum + Number(t.distanceKm), 0);
+  // The longest recording, not the sum: overlapping recordings of one ride
+  // must not add up (D209).
+  const totalKm = tracks.reduce((max, t) => Math.max(max, Number(t.distanceKm)), 0);
   const short = totalKm < Number(w.route.distanceKm);
   const open = w.state === "submitted" || w.state === "in_review";
   const s = suggestions(w);
@@ -137,7 +139,8 @@ export default async function AdventureReviewPage({
             <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
               <dt className="text-dust-700">Recorded distance</dt>
               <dd className={short ? "font-semibold text-danger-deep" : undefined}>
-                {formatDistance(totalKm.toFixed(1))} (point to point) · route{" "}
+                {formatDistance(totalKm.toFixed(1))} (point to point
+                {tracks.length > 1 ? `, longest of ${tracks.length}` : ""}) · route{" "}
                 {formatDistance(w.route.distanceKm)}
               </dd>
               <dt className="text-dust-700">Recorded time</dt>
@@ -183,8 +186,19 @@ export default async function AdventureReviewPage({
               </dd>
               <dt className="text-dust-700">Positions</dt>
               <dd>
-                {w.tracker.points} · {formatDistance(w.tracker.distanceKm)} (point to point)
+                {w.tracker.points} · {formatDistance(w.tracker.distanceKm)} (point to point
+                {w.tracker.approximate ? ", approximate: points are minutes apart" : ""})
               </dd>
+              {w.tracker.latePoints > 0 ? (
+                <>
+                  <dt className="text-dust-700">After the decision</dt>
+                  <dd>
+                    {w.tracker.latePoints} more{" "}
+                    {w.tracker.latePoints === 1 ? "position" : "positions"} arrived; they are kept
+                    with the ride but not counted here.
+                  </dd>
+                </>
+              ) : null}
               <dt className="text-dust-700">First and last</dt>
               <dd>
                 {w.tracker.firstAt ? formatDateTime(w.tracker.firstAt) : "None"}

@@ -81,7 +81,8 @@ async function parse(tx: Connection, fileId: string, ok = true, hasTimes = true)
     fileId,
     ok,
     ok ? "" : "This file could not be read.",
-    "a".repeat(64),
+    // A distinct digest per file (the same digest twice is a duplicate, D209).
+    fileId.replace(/-/g, "").repeat(2),
     JSON.stringify(
       ok
         ? {

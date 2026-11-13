@@ -2,7 +2,8 @@
 
 import { refresh } from "next/cache";
 
-import { staffAction } from "@/lib/actions";
+import { ActionError, staffAction } from "@/lib/actions";
+import { fromShopLocal } from "@/lib/dates";
 import {
   adventureCheckpointsSchema,
   adventureDraftSchema,
@@ -12,6 +13,7 @@ import {
   adventureSalesSchema,
   archiveAdventureSchema,
   cancelHireSchema,
+  correctCaptureSchema,
   deviceStateSchema,
   issueTrackerSchema,
   registerDeviceSchema,
@@ -51,6 +53,7 @@ import {
 } from "@/lib/domain/adventure-bookings";
 import {
   cancelTrackerHire,
+  correctCapture,
   issueTracker,
   registerTrackingDevice,
   replaceTracker,
@@ -322,6 +325,30 @@ export const saveTrackingFeedAction = staffAction(
   { name: "adventures.save_feed", admin: true },
   async (input, { supabase }) => {
     await saveTrackingFeed(supabase, input);
+    refresh();
+    return null;
+  },
+);
+
+export const correctCaptureAction = staffAction(
+  correctCaptureSchema,
+  { name: "adventures.correct_capture", permission: "verify_adventures" },
+  async ({ attemptId, startedAt, finishedAt, reason }, { supabase }) => {
+    const start = startedAt ? fromShopLocal(startedAt) : null;
+    const finish = finishedAt ? fromShopLocal(finishedAt) : null;
+    if (!start)
+      throw new ActionError("Enter when the ride started.", {
+        startedAt: ["Enter a real date and time."],
+      });
+    if (finishedAt && !finish)
+      throw new ActionError("Check the finish.", { finishedAt: ["Enter a real date and time."] });
+    await correctCapture(
+      supabase,
+      attemptId,
+      start.toISOString(),
+      finish ? finish.toISOString() : null,
+      reason,
+    );
     refresh();
     return null;
   },

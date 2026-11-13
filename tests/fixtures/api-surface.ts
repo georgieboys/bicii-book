@@ -332,6 +332,9 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.finish_my_adventure_ride(uuid)",
   "public.correct_adventure_capture(uuid, timestamp with time zone, timestamp with time zone, text)",
   "public.my_adventure_ride(uuid)",
+  // D191: the reviewer reads the hired tracker's track (evidence RLS)
+  "public.adventure_tracker_outline(uuid, integer)",
+  "public.adventure_tracker_summary(uuid)",
   // D181: clearing a booking's payment flag is admin-only (the function checks)
   "public.clear_adventure_booking_attention(uuid, text)",
   // D182: the review workspace's reads, security invoker under the evidence RLS

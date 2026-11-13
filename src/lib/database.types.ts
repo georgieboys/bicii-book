@@ -7031,6 +7031,26 @@ export type Database = {
           max_days: number;
         }[];
       };
+      adventure_tracker_outline: {
+        Args: { max_points: number; submission_id: string };
+        Returns: {
+          latitude: number;
+          longitude: number;
+          recorded_at: string;
+        }[];
+      };
+      adventure_tracker_summary: {
+        Args: { submission_id: string };
+        Returns: {
+          attempt_id: string;
+          capture_finished_at: string;
+          capture_started_at: string;
+          distance_km: number;
+          first_at: string;
+          last_at: string;
+          points: number;
+        }[];
+      };
       answer_quote: { Args: { decisions: Json; name: string; token: string }; Returns: Json };
       appointment_daily: {
         Args: { from_day?: string; to_day?: string };

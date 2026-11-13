@@ -1222,7 +1222,11 @@ of the published terms riders accept). Until then nothing is sold.
 - **Reviews** lists the rides riders have sent, oldest first. Reviewing
   needs **Verify adventures**; nobody can review their own ride.
   1. Open the ride and press **Start review**, so others see you have it.
-  2. Look at the drawing (circle: start, square: finish, numbered circles:
+  2. A rider who hired a tracker shows a **Hired tracker** card: the ride
+     window (between their Start Ride and Finish Ride), positions and
+     distance. If they forgot Start or Finish, **Correct the ride window**
+     with the real times and a reason; the tracker's points are counted
+     again. Then look at the drawing (circle: start, square: finish, numbered circles:
      checkpoints at their review radius), the recorded distance and time
      against the route's, each checkpoint's nearest recorded point and its
      photo, and what the rider wrote. These figures are hints: you decide.

@@ -433,6 +433,17 @@ export type ReviewWorkspace = {
   files: EvidenceFile[];
   checkpoints: CheckpointPass[];
   history: PastReview[];
+  /** The hired tracker's track on this attempt (D191), when it has points or a window. */
+  tracker: {
+    attemptId: string;
+    points: number;
+    firstAt: string | null;
+    lastAt: string | null;
+    distanceKm: string;
+    captureStartedAt: string | null;
+    captureFinishedAt: string | null;
+    outline: Array<{ lat: number; lon: number }>;
+  } | null;
 };
 
 const EVIDENCE_BUCKET = "adventure-evidence";
@@ -474,7 +485,7 @@ export async function getReviewWorkspace(
   }>(booking?.revision);
   if (!booking || !revision) return null;
 
-  const [files, passes, versions] = await Promise.all([
+  const [files, passes, versions, trackerSummary, trackerOutline] = await Promise.all([
     supabase
       .from("adventure_evidence_files")
       .select(
@@ -493,7 +504,13 @@ export async function getReviewWorkspace(
       )
       .eq("attempt_id", sub.attempt_id)
       .order("version", { ascending: false }),
+    supabase.rpc("adventure_tracker_summary", { submission_id: submissionId }),
+    supabase.rpc("adventure_tracker_outline", {
+      submission_id: submissionId,
+      max_points: OUTLINE_POINTS,
+    }),
   ]);
+  const ts = rows(trackerSummary)[0] ?? null;
 
   const evidence: EvidenceFile[] = await Promise.all(
     rows(files).map(async (f) => {
@@ -584,6 +601,22 @@ export async function getReviewWorkspace(
       nearestM: c.nearest_m === null ? null : Number(c.nearest_m),
       nearestAt: c.nearest_at,
     })),
+    tracker:
+      ts && (ts.points > 0 || ts.capture_started_at)
+        ? {
+            attemptId: ts.attempt_id,
+            points: ts.points,
+            firstAt: ts.first_at,
+            lastAt: ts.last_at,
+            distanceKm: String(ts.distance_km ?? 0),
+            captureStartedAt: ts.capture_started_at,
+            captureFinishedAt: ts.capture_finished_at,
+            outline: rows(trackerOutline).map((p) => ({
+              lat: Number(p.latitude),
+              lon: Number(p.longitude),
+            })),
+          }
+        : null,
     history: rows(versions).flatMap((v) =>
       (v.reviews ? [v.reviews].flat() : []).map((raw: unknown) => {
         const r = raw as {

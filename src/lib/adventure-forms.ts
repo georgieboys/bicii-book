@@ -419,3 +419,35 @@ export const trackingFeedSchema = z.object({
     .nullish()
     .transform((v) => v === true || v === "on" || v === "true"),
 });
+
+/** "2026-11-14T07:30" as typed in a datetime-local field (shop time); blank is null. */
+const localDateTime = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((v) => (v ? v : null))
+  .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v), {
+    error: "Enter a date and time.",
+  });
+
+export const correctCaptureSchema = z
+  .object({
+    attemptId: z.guid({ error: "Unknown ride." }),
+    startedAt: localDateTime,
+    finishedAt: localDateTime,
+    reason: required(500, "reason"),
+  })
+  .superRefine((v, ctx) => {
+    if (v.startedAt === null)
+      ctx.addIssue({
+        code: "custom",
+        path: ["startedAt"],
+        message: "Enter when the ride started.",
+      });
+    if (v.startedAt && v.finishedAt && v.finishedAt < v.startedAt)
+      ctx.addIssue({
+        code: "custom",
+        path: ["finishedAt"],
+        message: "The finish must be after the start.",
+      });
+  });

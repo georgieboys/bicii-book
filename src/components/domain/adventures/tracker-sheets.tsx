@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import {
   cancelTrackerHireAction,
+  correctCaptureAction,
   issueTrackerAction,
   registerTrackingDeviceAction,
   replaceTrackerAction,
@@ -442,6 +443,61 @@ export function TrackingFeedButton({
                 label="Read this feed"
                 defaultChecked={feed?.enabled ?? false}
               />
+            </>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
+  );
+}
+
+/** verify_adventures: correct a missed or wrong Start or Finish (D189). */
+export function CorrectCaptureButton({
+  attemptId,
+  startedAt,
+  finishedAt,
+}: {
+  attemptId: string;
+  /** datetime-local values in shop time, or "". */
+  startedAt: string;
+  finishedAt: string;
+}) {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={show}>
+        Correct the ride window
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Correct the ride window"
+          description="Only the tracker's points recorded inside this window count for the ride. Changing it never certifies anything by itself."
+          submitLabel="Save"
+          pendingLabel="Saving…"
+          success="Ride window corrected"
+          action={act(correctCaptureAction)}
+          hidden={{ attemptId }}
+          onClose={close}
+        >
+          {(errors) => (
+            <>
+              <Field label="Started" error={errors?.startedAt?.[0]} required>
+                <Input name="startedAt" type="datetime-local" defaultValue={startedAt} />
+              </Field>
+              <Field
+                label="Finished"
+                hint="Leave empty if the ride is still going."
+                error={errors?.finishedAt?.[0]}
+              >
+                <Input name="finishedAt" type="datetime-local" defaultValue={finishedAt} />
+              </Field>
+              <Field label="Why" error={errors?.reason?.[0]} required>
+                <Textarea
+                  name="reason"
+                  rows={2}
+                  placeholder="The rider forgot to press Start Ride."
+                />
+              </Field>
             </>
           )}
         </FormSheet>

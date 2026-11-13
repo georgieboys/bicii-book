@@ -113,6 +113,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   tracker_already_returned: "This tracker was already returned.",
   tracker_hire_not_cancellable: "This hire is finished, or its tracker is still out.",
   tracker_assignment_immutable: "Who held a tracker and when is kept as it was.",
+  adventure_ride_still_open: "Press Finish Ride before sending your ride.",
   adventure_tracker_not_issued: "Collect your tracker from the shop first.",
   adventure_ride_already_started: "Your ride has already started.",
   adventure_ride_not_started: "Start your ride first.",

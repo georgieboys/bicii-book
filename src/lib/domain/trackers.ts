@@ -365,3 +365,21 @@ export async function saveTrackingFeed(
     }),
   );
 }
+
+/** D189: staff correct a ride window with a reason; points are attributed again. */
+export async function correctCapture(
+  supabase: ServerSupabase,
+  attemptId: string,
+  startedAt: string,
+  finishedAt: string | null,
+  reason: string,
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("correct_adventure_capture", {
+      attempt_id: attemptId,
+      started_at: startedAt,
+      finished_at: finishedAt as unknown as string,
+      reason,
+    }),
+  );
+}

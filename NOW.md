@@ -1,25 +1,28 @@
 # Current state
 
-Updated: 2026-11-14 SGT (Adventures Phase B in progress, sales off: catalogue,
-admin catalogue screens and the public route list merged (PRs #66–#67,
-BICII #38); bookings and Stripe checkout (PRs #68–#69); evidence uploads and
-file reading (PR #70); review, certificates, finisher board and packs
-(D178–D180, PR #71); the Admin bookings, review and pack screens and
-Settings → Adventure sales (D181–D182, PR #72); the public site's route
-pages, buying and the rider's ride page (BICII #43); adventure emails
-(D183–D184, PR #73). Phase C (tracker hire): its database (D185–D188, PR #74) and
-the Admin's Trackers and Handovers screens (PR #75); the tracking feed
-(D189–D190, PR #76); the tracker's track as ride evidence and the Live
-rides list (D191–D192) in their pull request, with the rider's side on
-bicii.sg in BICII's; hire stays off until real trackers exist. Phase D
-(group departures, D193–D195, PR #77) and Phase E (supported departures,
-D196–D199) in their pull requests; supported sales have their own switch,
-off until the owner confirms insurance and staffing; Phase F's admin side
-(cancelling, moving, retention, health; D200–D203) in its pull request.
-Phase F's rider side (GPX export, live-share links and public profiles,
-D204–D206, both public switches off) in its pull request.
-Next: the accessibility pass and the closing e2e scenarios
-([ADVENTURES-PLAN](docs/ADVENTURES-PLAN.md)). Earlier: Adventures Phase A,
+Updated: 2026-11-14 SGT (Adventures built, Phases 0–F, every switch
+off in production. Backend PRs #66–#80, all merged with green CI and
+label-run e2e, and their migrations applied by `migrate.yml` (the last,
+`20261114001900_rider_surfaces.sql`, on ea19235). Public site BICII #38,
+#43 and #45 merged and live on bicii.sg. Checked read-only in production:
+the new functions are present and `sales_enabled`, `tracker_hire_enabled`,
+`supported_sales_enabled`, `live_sharing_enabled` and
+`public_profiles_enabled` are off. Phases: catalogue and sales (A, B);
+tracker hire, the tracking feed against a fake provider, ride evidence and
+Live rides (C, D185–D192); group dates (D, D193–D195); supported dates (E,
+D196–D199); cancelling, moving seats, retention and health (F,
+D200–D203); GPX export, live-share links and public profiles (F,
+D204–D206). axe-core (WCAG A/AA) found no violations on the public route,
+`/track` and `/riders` pages. Not done: a Playwright scenario for share
+links and profiles (their switches are off everywhere), and the live SPOT
+adapter against a real feed (no trackers yet, D186).
+Next, the owner's decisions before any switch goes on: the sales terms
+version, the 125 km rules, T-shirt sizes, the default board name, the
+group offer's role (D193), the cost of a late or lost tracker (D185), and,
+before supported sales, insurance, the staffing ratio, the emergency
+procedure and overrun terms
+([ADVENTURES-PLAN](docs/ADVENTURES-PLAN.md) §6, [PLAN §6](docs/PLAN.md)).
+Earlier: Adventures Phase A,
 D164–D171; earlier the same day, PRs #61–#65:
 Shopify connected and publishing to the Online Store, migrations only after
 green CI, Next.js 16.4.6; earlier: D162 and the consigned cost in production,
@@ -72,7 +75,7 @@ request; the full e2e suite runs on the `e2e` label and nightly.
 | Payment links, counter payments | Yes (Phase 14 step 3) | CI, e2e with the fake Stripe | Production; none used yet (2026-10-24), no test-mode rehearsal |
 | Audit fixes | Yes (PRs #38, #43–#45) | CI and label-run e2e | Production |
 | Reclassify shop stock as consigned (D162) | Database, the admin-only Change owner, the item-id fix and a consigned product's cost as its amount owed (PRs #50–#53) | CI and full e2e green on PR #51; PR #52's unit test failed before it and passed after; `consigned-product-costs.test.ts` failed first and passes | Production since 2026-10-28 SGT (the owner's 25 products reclassified, checked read-only); the cost change since 2026-10-29 (`migrate.yml` run 22, Vercel's build of e201b34 READY; the products' costs checked read-only) |
-| Adventures (D164–D206) | Catalogue, bookings, review and pack screens in the Admin; checkout, evidence, review, certificates and emails in the database; the rider's journey on the public site (BICII #43) | DB tests (`adventure-*.test.ts`), unit tests, `adventures-review.spec.ts` against the local stack; checkout and webhook end to end against the local stack | Catalogue in production (9 routes); sales switched off (`adventure_settings.sales_enabled` false) |
+| Adventures (D164–D206) | Catalogue, bookings, review and pack screens in the Admin; checkout, evidence, review, certificates and emails in the database; the rider's journey on the public site (BICII #43) | DB tests (`adventure-*.test.ts`), unit tests, `adventures-review.spec.ts` against the local stack; checkout and webhook end to end against the local stack | Catalogue in production (9 routes); every adventure switch off (sales, tracker hire, supported sales, live sharing, public profiles) |
 | Booking emails (D163) | Yes: Postgres outbox, minute cron, Settings → Booking emails | `appointment-notices.test.ts` (9), unit (11) and the settings e2e locally; CI not run yet | Not deployed |
 
 Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),

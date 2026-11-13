@@ -528,6 +528,13 @@ export const supportedSalesSchema = z.object({
     .transform((v) => v === true || v === "on" || v === "true"),
 });
 
+/** Admin: the rider's public surfaces (D205, D206), both off by default. */
+const onOff = z
+  .union([z.string(), z.boolean()])
+  .nullish()
+  .transform((v) => v === true || v === "on" || v === "true");
+export const publicSurfacesSchema = z.object({ liveSharing: onOff, publicProfiles: onOff });
+
 // ------------------------------------------------- Phase F (D201, D202) ----
 
 export const cancelBookingSchema = z.object({

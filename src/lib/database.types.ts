@@ -1148,10 +1148,86 @@ export type Database = {
           },
         ];
       };
+      adventure_ride_shares: {
+        Row: {
+          attempt_id: string;
+          created_at: string;
+          customer_id: string;
+          expires_at: string;
+          id: string;
+          revoked_at: string | null;
+          token_hash: string;
+        };
+        Insert: {
+          attempt_id: string;
+          created_at?: string;
+          customer_id: string;
+          expires_at: string;
+          id?: string;
+          revoked_at?: string | null;
+          token_hash: string;
+        };
+        Update: {
+          attempt_id?: string;
+          created_at?: string;
+          customer_id?: string;
+          expires_at?: string;
+          id?: string;
+          revoked_at?: string | null;
+          token_hash?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_ride_shares_attempt_id_fkey";
+            columns: ["attempt_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_attempts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_ride_shares_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_rider_profiles: {
+        Row: {
+          customer_id: string;
+          public_id: string;
+          updated_at: string;
+          visible: boolean;
+        };
+        Insert: {
+          customer_id: string;
+          public_id?: string;
+          updated_at?: string;
+          visible?: boolean;
+        };
+        Update: {
+          customer_id?: string;
+          public_id?: string;
+          updated_at?: string;
+          visible?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_rider_profiles_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: true;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       adventure_settings: {
         Row: {
           checkout_minutes: number;
           id: number;
+          live_sharing_enabled: boolean;
+          public_profiles_enabled: boolean;
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
@@ -1163,6 +1239,8 @@ export type Database = {
         Insert: {
           checkout_minutes?: number;
           id?: number;
+          live_sharing_enabled?: boolean;
+          public_profiles_enabled?: boolean;
           sales_enabled?: boolean;
           supported_sales_enabled?: boolean;
           terms_version?: string | null;
@@ -1174,6 +1252,8 @@ export type Database = {
         Update: {
           checkout_minutes?: number;
           id?: number;
+          live_sharing_enabled?: boolean;
+          public_profiles_enabled?: boolean;
           sales_enabled?: boolean;
           supported_sales_enabled?: boolean;
           terms_version?: string | null;
@@ -7239,6 +7319,13 @@ export type Database = {
         }[];
       };
       adventure_health: { Args: Record<PropertyKey, never>; Returns: Json };
+      adventure_public_surfaces: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          live_sharing: boolean;
+          public_profiles: boolean;
+        }[];
+      };
       adventure_sales_state: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -7960,6 +8047,13 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      create_my_ride_share: {
+        Args: { booking_id: string; hours: number };
+        Returns: {
+          expires_at: string;
+          token: string;
+        }[];
       };
       create_print_job: {
         Args: {
@@ -8753,6 +8847,14 @@ export type Database = {
           positions: number;
         }[];
       };
+      my_adventure_ride_points: {
+        Args: { booking_id: string };
+        Returns: {
+          latitude: number;
+          longitude: number;
+          recorded_at: string;
+        }[];
+      };
       my_adventure_tracker: {
         Args: { booking_id: string };
         Returns: {
@@ -8813,6 +8915,20 @@ export type Database = {
           isOneToOne: false;
           isSetofReturn: true;
         };
+      };
+      my_ride_share: {
+        Args: { booking_id: string };
+        Returns: {
+          created_at: string;
+          expires_at: string;
+        }[];
+      };
+      my_rider_profile: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          public_id: string;
+          visible: boolean;
+        }[];
       };
       my_staff_profile: {
         Args: Record<PropertyKey, never>;
@@ -9140,6 +9256,8 @@ export type Database = {
           name: string;
         }[];
       };
+      public_rider_profile: { Args: { public_id: string }; Returns: Json };
+      public_shared_ride: { Args: { token: string }; Returns: Json };
       public_shop_hours: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -10055,6 +10173,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      revoke_my_ride_share: { Args: { booking_id: string }; Returns: undefined };
       revoke_permission: {
         Args: {
           permission: Database["public"]["Enums"]["permission_key"];
@@ -10356,11 +10475,35 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      set_adventure_public_surfaces: {
+        Args: { live_sharing: boolean; public_profiles: boolean };
+        Returns: {
+          checkout_minutes: number;
+          id: number;
+          live_sharing_enabled: boolean;
+          public_profiles_enabled: boolean;
+          sales_enabled: boolean;
+          supported_sales_enabled: boolean;
+          terms_version: string | null;
+          tracker_hire_enabled: boolean;
+          tracker_hire_max_days: number;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_settings";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       set_adventure_sales: {
         Args: { sales_enabled: boolean; terms_version: string };
         Returns: {
           checkout_minutes: number;
           id: number;
+          live_sharing_enabled: boolean;
+          public_profiles_enabled: boolean;
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
@@ -10381,6 +10524,8 @@ export type Database = {
         Returns: {
           checkout_minutes: number;
           id: number;
+          live_sharing_enabled: boolean;
+          public_profiles_enabled: boolean;
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
@@ -10401,6 +10546,8 @@ export type Database = {
         Returns: {
           checkout_minutes: number;
           id: number;
+          live_sharing_enabled: boolean;
+          public_profiles_enabled: boolean;
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
@@ -10531,6 +10678,7 @@ export type Database = {
         };
       };
       set_indent_deposit_percent: { Args: { p_percent: number }; Returns: number };
+      set_my_rider_profile: { Args: { shown: boolean }; Returns: string };
       set_print_job_status: {
         Args: {
           error?: string;

@@ -1250,6 +1250,10 @@ of the published terms riders accept). Until then nothing is sold.
   bicii.sg; the booking-email people get it, and nothing changes until you
   decide. **Move to another date** (Manage adventures) moves a rider on a
   group or supported date to another date of the same route.
+- **Rider sharing** (admins, Settings → Adventure sales): live-share links
+  and public rider profiles, both off. Riders opt in themselves on
+  bicii.sg; switching either off hides every link or profile at once.
+  Riders can always download their tracker's GPX from their ride page.
 - **Health** (admins, Settings → Adventure sales) counts rides waiting for
   review, flagged bookings, cancellation requests, waiting and failed
   emails, files waiting or failed, overdue trackers and failing feeds.

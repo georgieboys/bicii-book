@@ -224,7 +224,13 @@ export async function getBookingHire(
   return data[0] ? hireFromRow(data[0]) : null;
 }
 
-export type TrackerHireSettings = { enabled: boolean; maxDays: number; supportedSales: boolean };
+export type TrackerHireSettings = {
+  enabled: boolean;
+  maxDays: number;
+  supportedSales: boolean;
+  liveSharing: boolean;
+  publicProfiles: boolean;
+};
 
 export async function getTrackerHireSettings(
   supabase: ServerSupabase,
@@ -232,7 +238,9 @@ export async function getTrackerHireSettings(
   const row = unwrap(
     await supabase
       .from("adventure_settings")
-      .select("tracker_hire_enabled, tracker_hire_max_days, supported_sales_enabled")
+      .select(
+        "tracker_hire_enabled, tracker_hire_max_days, supported_sales_enabled, live_sharing_enabled, public_profiles_enabled",
+      )
       .eq("id", 1)
       .maybeSingle(),
   );
@@ -241,6 +249,8 @@ export async function getTrackerHireSettings(
         enabled: row.tracker_hire_enabled,
         maxDays: row.tracker_hire_max_days,
         supportedSales: row.supported_sales_enabled,
+        liveSharing: row.live_sharing_enabled,
+        publicProfiles: row.public_profiles_enabled,
       }
     : null;
 }
@@ -489,6 +499,20 @@ export async function listLiveRides(supabase: ServerSupabase): Promise<LiveRide[
           .reverse()
           .map((p) => ({ lat: Number(p.latitude), lon: Number(p.longitude) })),
       };
+    }),
+  );
+}
+
+/** Admin: live-share links and public rider profiles (D205, D206). */
+export async function setPublicSurfaces(
+  supabase: ServerSupabase,
+  liveSharing: boolean,
+  publicProfiles: boolean,
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("set_adventure_public_surfaces", {
+      live_sharing: liveSharing,
+      public_profiles: publicProfiles,
     }),
   );
 }

@@ -48,6 +48,12 @@ export const ANON_FUNCTIONS: readonly string[] = [
   "public.public_adventure_departures(text)",
   // Adventures Phase E (D196): whether supported rides are on sale
   "public.adventure_supported_sales_state()",
+  // Adventures Phase F (D205, D206): which public surfaces are on; a
+  // live-share link's view (by token, null when off, revoked or expired);
+  // an opted-in rider's profile (null when off or hidden)
+  "public.adventure_public_surfaces()",
+  "public.public_shared_ride(text)",
+  "public.public_rider_profile(uuid)",
 ];
 
 /**
@@ -359,6 +365,19 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.cancel_adventure_booking(uuid, text)",
   "public.move_adventure_seat(uuid, uuid, text)",
   "public.adventure_health()",
+  // Adventures Phase F (D204-D206): the public surfaces switch is
+  // admin-only; the rider's GPX points, share links and profile are their
+  // own (the functions check)
+  "public.set_adventure_public_surfaces(boolean, boolean)",
+  "public.my_adventure_ride_points(uuid)",
+  "public.create_my_ride_share(uuid, integer)",
+  "public.revoke_my_ride_share(uuid)",
+  "public.my_ride_share(uuid)",
+  "public.set_my_rider_profile(boolean)",
+  "public.my_rider_profile()",
+  "public.adventure_public_surfaces()",
+  "public.public_shared_ride(text)",
+  "public.public_rider_profile(uuid)",
   "public.assign_departure_staff(uuid, uuid, departure_staff_role)",
   "public.remove_departure_staff(uuid, uuid)",
   "public.check_in_departure_rider(uuid, uuid)",
@@ -572,6 +591,9 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.adventure_departure_observations": ["SELECT"],
   "public.adventure_departure_staff": ["SELECT"],
   "public.tracking_messages": ["SELECT"],
+  // Adventures Phase F (D205, D206): staff see that links and profiles exist
+  "public.adventure_ride_shares": ["SELECT"],
+  "public.adventure_rider_profiles": ["SELECT"],
 };
 
 /**

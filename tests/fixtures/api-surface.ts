@@ -37,6 +37,9 @@ export const ANON_FUNCTIONS: readonly string[] = [
   // Adventures Phase B (D170): whether certified rides are on sale and
   // which terms riders accept
   "public.adventure_sales_state()",
+  // Adventures Phase B, review (D180): the finisher board, active
+  // certificates only, a display name, date and badge
+  "public.public_adventure_finishers(text, integer)",
 ];
 
 /**
@@ -302,6 +305,15 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.remove_my_adventure_file(uuid)",
   "public.submit_my_adventure_evidence(uuid, text)",
   "public.my_adventure_evidence(uuid)",
+  // Adventures Phase B, review (D178-D180): reviewing needs
+  // verify_adventures (never one's own ride), revoking is admin-only, packs
+  // need manage_adventures; a rider reads only their own outcome
+  "public.claim_adventure_review(uuid)",
+  "public.decide_adventure_review(uuid, adventure_review_decision, jsonb, numeric, date, text, text)",
+  "public.revoke_adventure_certificate(uuid, text)",
+  "public.set_adventure_pack_status(uuid, adventure_pack_status, text)",
+  "public.my_adventure_outcome(uuid)",
+  "public.public_adventure_finishers(text, integer)",
   "public.update_adventure_draft(uuid, integer, text, text, text, text, text, text, text, text, numeric, integer, text, integer, integer, adventure_checkpoint_order, text, text, text, text, text, text, boolean)",
 ];
 
@@ -478,6 +490,13 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.adventure_submissions": ["SELECT"],
   "public.adventure_track_points": ["SELECT"],
   "public.adventure_tracks": ["SELECT"],
+  // Adventures Phase B, review (D178-D180): reviews (internal notes) for
+  // staff who verify or manage adventures; certificates, badges and packs
+  // for staff; riders use my_adventure_outcome
+  "public.adventure_badge_awards": ["SELECT"],
+  "public.adventure_certificates": ["SELECT"],
+  "public.adventure_fulfilments": ["SELECT"],
+  "public.adventure_reviews": ["SELECT"],
 };
 
 /**

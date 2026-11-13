@@ -63,6 +63,16 @@ is refused before anything is read, so no entity can be expanded or
 fetched. Points are stored as recorded and the distance is point to point,
 a derived figure for the reviewer (D176).
 
+## Amendment 2026-11-14: review and certificates
+
+Certification is a person's decision, never automatic: the parser's
+figures inform it. The review RPC locks the booking and then the
+submission, so one version gets one decision and one certificate however
+many reviewers press approve (E07); a reviewer whose login is the rider's
+is refused (E08). Certificate, badge and pack are issued in the approving
+transaction. Certificates are revoked, never deleted, so the history of a
+withdrawn finish stays (D178-D180).
+
 ## Alternatives considered
 
 | Alternative | Why not |

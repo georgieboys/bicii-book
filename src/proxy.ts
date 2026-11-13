@@ -89,7 +89,8 @@ export const config = {
     // Shopify webhooks (authenticated by HMAC, not by session), Stripe
     // webhooks (authenticated by signature) and the integration cron (a
     // bearer secret; a signed-out GET must reach the route, not be
-    // redirected to /login).
-    "/((?!_next/static|_next/image|favicon\\.ico|sw\\.js|manifest\\.webmanifest|icons/|apple-touch-icon|logo\\.svg|api/health|api/shopify/webhooks|api/stripe/webhooks|api/cron).*)",
+    // redirected to /login), and the adventure checkout (a customer's
+    // bearer token, checked by the route; never a staff session).
+    "/((?!_next/static|_next/image|favicon\\.ico|sw\\.js|manifest\\.webmanifest|icons/|apple-touch-icon|logo\\.svg|api/health|api/shopify/webhooks|api/stripe/webhooks|api/cron|api/adventures).*)",
   ],
 };

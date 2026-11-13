@@ -59,16 +59,26 @@ export function checkoutSessionParams(
   if (lifetime < SESSION_MIN_LIFETIME_SECONDS || lifetime > SESSION_MAX_LIFETIME_SECONDS) {
     throw new Error("expiresAt must be 30 minutes to 24 hours from now (Stripe's window)");
   }
-  const name = `${input.kind === "deposit" ? "Deposit" : "Balance"} for job ${input.jobNumber}`;
+  const name =
+    input.subject === "adventure"
+      ? `${input.description} (${input.bookingReference})`
+      : `${input.kind === "deposit" ? "Deposit" : "Balance"} for job ${input.jobNumber}`;
   if (name.length < 1 || name.length > 250) {
     throw new Error("the product name must be 1-250 characters");
   }
-  const metadata: Array<[string, string]> = [
-    [METADATA_KEYS.payment, input.paymentId],
-    [METADATA_KEYS.job, input.workOrderId],
-  ];
-  if (input.quoteId !== null) metadata.push([METADATA_KEYS.quote, input.quoteId]);
-  metadata.push([METADATA_KEYS.kind, input.kind]);
+  const metadata: Array<[string, string]> = [];
+  if (input.subject === "adventure") {
+    // D167: the dispatcher routes on bicii_subject; no workshop key is sent.
+    metadata.push(
+      [METADATA_KEYS.subject, "adventure"],
+      [METADATA_KEYS.adventurePayment, input.paymentId],
+      [METADATA_KEYS.booking, input.bookingReference],
+    );
+  } else {
+    metadata.push([METADATA_KEYS.payment, input.paymentId], [METADATA_KEYS.job, input.workOrderId]);
+    if (input.quoteId !== null) metadata.push([METADATA_KEYS.quote, input.quoteId]);
+    metadata.push([METADATA_KEYS.kind, input.kind]);
+  }
 
   return [
     ["mode", "payment"],

@@ -18,13 +18,13 @@ const {
 } = await import("@/lib/integrations/stripe/http-gateway");
 const { StripeError } = await import("@/lib/integrations/stripe/gateway");
 
-import type { CheckoutSessionInput } from "@/lib/integrations/stripe/gateway";
+import type { WorkshopCheckoutInput } from "@/lib/integrations/stripe/gateway";
 
 const KEY = "rk_test_NotARealKey123";
 const PAYMENT = "11111111-2222-4333-8444-555555555555";
 const SESSION = "cs_test_a1B2c3";
 
-const INPUT: CheckoutSessionInput = {
+const INPUT: WorkshopCheckoutInput = {
   paymentId: PAYMENT,
   workOrderId: "66666666-7777-4888-9999-000000000000",
   quoteId: null,

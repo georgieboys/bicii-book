@@ -138,12 +138,21 @@ export function createFakeStripeGateway({
         return existing(seen.sessionId);
       }
       const id = `cs_test_fake_${input.paymentId.replace(/-/g, "")}`;
-      const metadata: Record<string, string> = {
-        [METADATA_KEYS.payment]: input.paymentId,
-        [METADATA_KEYS.job]: input.workOrderId,
-        [METADATA_KEYS.kind]: input.kind,
-      };
-      if (input.quoteId !== null) metadata[METADATA_KEYS.quote] = input.quoteId;
+      const metadata: Record<string, string> =
+        input.subject === "adventure"
+          ? {
+              [METADATA_KEYS.subject]: "adventure",
+              [METADATA_KEYS.adventurePayment]: input.paymentId,
+              [METADATA_KEYS.booking]: input.bookingReference,
+            }
+          : {
+              [METADATA_KEYS.payment]: input.paymentId,
+              [METADATA_KEYS.job]: input.workOrderId,
+              [METADATA_KEYS.kind]: input.kind,
+            };
+      if (input.subject !== "adventure" && input.quoteId !== null) {
+        metadata[METADATA_KEYS.quote] = input.quoteId;
+      }
       bodies.set(idempotencyKey, { body, sessionId: id });
       return store({
         id,

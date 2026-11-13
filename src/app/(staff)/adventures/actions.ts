@@ -13,6 +13,11 @@ import {
   adventureSalesSchema,
   archiveAdventureSchema,
   cancelDepartureSchema,
+  checkInSchema,
+  departureStaffSchema,
+  observationSchema,
+  removeDepartureStaffSchema,
+  supportedSalesSchema,
   cancelHireSchema,
   createDepartureSchema,
   updateDepartureSchema,
@@ -54,7 +59,15 @@ import {
   setAdventurePackStatus,
   setAdventureSales,
 } from "@/lib/domain/adventure-bookings";
-import { cancelDeparture, createDeparture, updateDeparture } from "@/lib/domain/departures";
+import {
+  assignDepartureStaff,
+  cancelDeparture,
+  checkInRider,
+  createDeparture,
+  recordObservation,
+  removeDepartureStaff,
+  updateDeparture,
+} from "@/lib/domain/departures";
 import {
   cancelTrackerHire,
   correctCapture,
@@ -64,6 +77,7 @@ import {
   returnTracker,
   setTrackerHire,
   saveTrackingFeed,
+  setSupportedSales,
   setTrackingDeviceState,
 } from "@/lib/domain/trackers";
 
@@ -403,5 +417,60 @@ export const cancelDepartureAction = staffAction(
     await cancelDeparture(supabase, departureId, reason);
     refresh();
     return null;
+  },
+);
+
+// -------------------------------------------- supported departures ----
+// Phase E (D196-D199). Check-ins and observations are open to any staff
+// member here: the RPCs allow facilitators assigned to the date, and
+// manage_adventures.
+
+export const assignDepartureStaffAction = staffAction(
+  departureStaffSchema,
+  { name: "adventures.assign_departure_staff", permission: "manage_adventures" },
+  async ({ departureId, staffId, role }, { supabase }) => {
+    await assignDepartureStaff(supabase, departureId, staffId, role);
+    refresh();
+    return null;
+  },
+);
+
+export const removeDepartureStaffAction = staffAction(
+  removeDepartureStaffSchema,
+  { name: "adventures.remove_departure_staff", permission: "manage_adventures" },
+  async ({ departureId, staffId }, { supabase }) => {
+    await removeDepartureStaff(supabase, departureId, staffId);
+    refresh();
+    return null;
+  },
+);
+
+export const checkInRiderAction = staffAction(
+  checkInSchema,
+  { name: "adventures.check_in_rider" },
+  async ({ departureId, bookingId }, { supabase }) => {
+    await checkInRider(supabase, departureId, bookingId);
+    refresh();
+    return null;
+  },
+);
+
+export const recordObservationAction = staffAction(
+  observationSchema,
+  { name: "adventures.record_observation" },
+  async ({ departureId, bookingId, kind, body }, { supabase }) => {
+    await recordObservation(supabase, departureId, bookingId, kind, body);
+    refresh();
+    return null;
+  },
+);
+
+export const setSupportedSalesAction = staffAction(
+  supportedSalesSchema,
+  { name: "adventures.set_supported_sales", admin: true },
+  async ({ enabled }, { supabase }) => {
+    await setSupportedSales(supabase, enabled);
+    refresh();
+    return { enabled };
   },
 );

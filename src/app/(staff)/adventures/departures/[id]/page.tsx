@@ -3,8 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
+  AssignStaffButton,
   CancelDepartureButton,
+  CheckInButton,
   EditDepartureButton,
+  ObservationButton,
+  RemoveStaffButton,
 } from "@/components/domain/adventures/departure-sheets";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -12,7 +16,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { canManageAdventures, DEPARTURE_KIND_LABELS } from "@/lib/adventures";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, toShopLocal } from "@/lib/dates";
-import { getDeparture } from "@/lib/domain/departures";
+import { getDeparture, getDepartureWork } from "@/lib/domain/departures";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
 
@@ -27,10 +31,18 @@ export default async function DeparturePage({ params }: { params: Promise<{ id: 
   const staff = await requireStaff();
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const result = await getDeparture(await createClient(), id);
+  const supabase = await createClient();
+  const [result, work] = await Promise.all([
+    getDeparture(supabase, id),
+    getDepartureWork(supabase, id),
+  ]);
   if (!result) notFound();
   const { departure: d, riders } = result;
   const manage = canManageAdventures(staff) && d.status === "scheduled";
+  const supported = d.kind === "supported";
+  // Facilitators assigned to this date (or managers) work it; the RPCs decide.
+  const onIt = canManageAdventures(staff) || work.staff.some((x) => x.staffId === staff.staffId);
+  const riderName = new Map(riders.map((r) => [r.bookingId, r.name]));
 
   return (
     <>
@@ -85,6 +97,13 @@ export default async function DeparturePage({ params }: { params: Promise<{ id: 
                     </Link>
                     <span className="text-dust-500 tabular-nums">{r.reference}</span>
                     {r.showName ? <Badge tone="info">Name shown publicly</Badge> : null}
+                    {supported ? (
+                      r.checkedInAt ? (
+                        <Badge tone="done">Checked in {formatDateTime(r.checkedInAt)}</Badge>
+                      ) : onIt && d.status === "scheduled" ? (
+                        <CheckInButton departureId={d.id} bookingId={r.bookingId} name={r.name} />
+                      ) : null
+                    ) : null}
                   </span>
                   <span className="text-dust-700">
                     {[r.phone, r.email].filter(Boolean).join(" · ") || "No contact details"} ·
@@ -95,6 +114,65 @@ export default async function DeparturePage({ params }: { params: Promise<{ id: 
             </ul>
           )}
         </Card>
+        {supported ? (
+          <Card
+            title="Staff"
+            actions={
+              manage ? <AssignStaffButton departureId={d.id} staff={work.activeStaff} /> : null
+            }
+          >
+            {work.staff.length === 0 ? (
+              <p className="text-sm text-dust-700">No staff on this date yet.</p>
+            ) : (
+              <ul aria-label="Staff on this date" className="flex flex-col gap-2 text-sm">
+                {work.staff.map((x) => (
+                  <li key={x.staffId} className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{x.name}</span>
+                    <Badge>{x.role === "lead" ? "Lead" : "Facilitator"}</Badge>
+                    {manage ? (
+                      <RemoveStaffButton departureId={d.id} staffId={x.staffId} name={x.name} />
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        ) : null}
+
+        {supported ? (
+          <Card
+            title="Observations"
+            actions={
+              onIt ? (
+                <ObservationButton
+                  departureId={d.id}
+                  riders={riders.map((r) => ({ bookingId: r.bookingId, name: r.name }))}
+                />
+              ) : null
+            }
+          >
+            {work.observations.length === 0 ? (
+              <p className="text-sm text-dust-700">Nothing recorded yet.</p>
+            ) : (
+              <ol aria-label="Observations" className="flex flex-col gap-3 text-sm">
+                {work.observations.map((o) => (
+                  <li key={o.id} className="flex flex-col">
+                    <span>
+                      <span className="font-medium capitalize">{o.kind}</span>
+                      {o.bookingId
+                        ? ` · ${riderName.get(o.bookingId) ?? "a rider"}`
+                        : " · whole group"}
+                      {o.staffName ? ` · ${o.staffName}` : ""}
+                    </span>
+                    <span className="whitespace-pre-wrap">{o.body}</span>
+                    <span className="text-dust-500">{formatDateTime(o.createdAt)}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Card>
+        ) : null}
+
         <Card title="Notes">
           <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
             <dt className="text-dust-700">Expected finish</dt>

@@ -45,6 +45,8 @@ export const checkoutBodySchema = z.object({
       returnOn: z.iso.date(),
     })
     .optional(),
+  // A supported ride's date (Phase E, D196).
+  departureId: z.guid().optional(),
 });
 
 export type CheckoutRouteDeps = {

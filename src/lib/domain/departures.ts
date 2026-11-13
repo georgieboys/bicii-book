@@ -43,6 +43,7 @@ export type Departure = {
 };
 
 export type ManifestRider = {
+  checkedInAt: string | null;
   bookingId: string;
   reference: string;
   name: string;
@@ -137,14 +138,16 @@ export async function getDeparture(
     (await supabase
       .from("adventure_departure_participants")
       .select(
-        "booking_id, show_name, joined_at, booking:booking_id (reference, customer:customer_id (display_name, first_name, last_name, email, phone))",
+        "booking_id, show_name, joined_at, checked_in_at, booking:booking_id (reference, customer:customer_id (display_name, first_name, last_name, email, phone))",
       )
       .eq("departure_id", id)
       .is("left_at", null)
+      .is("hold_until", null)
       .order("joined_at")) as unknown as Rows<{
       booking_id: string;
       show_name: boolean;
       joined_at: string;
+      checked_in_at: string | null;
       booking: unknown;
     }>,
   );
@@ -174,6 +177,7 @@ export async function getDeparture(
         phone: c?.phone ?? null,
         showName: r.show_name,
         joinedAt: r.joined_at,
+        checkedInAt: r.checked_in_at,
       };
     }),
   };
@@ -263,4 +267,123 @@ export async function cancelDeparture(
   reason: string,
 ): Promise<void> {
   unwrap(await supabase.rpc("cancel_adventure_departure", { departure_id: departureId, reason }));
+}
+
+// ------------------------------------------------- Phase E: staff, notes ----
+// D199: who works a departure, and what facilitators recorded.
+
+export type DepartureStaff = { staffId: string; name: string; role: "lead" | "facilitator" };
+export type DepartureObservation = {
+  id: string;
+  kind: "attendance" | "deviation" | "withdrawal" | "completion" | "note";
+  body: string;
+  staffName: string | null;
+  bookingId: string | null;
+  createdAt: string;
+};
+
+export async function getDepartureWork(
+  supabase: ServerSupabase,
+  departureId: string,
+): Promise<{
+  staff: DepartureStaff[];
+  observations: DepartureObservation[];
+  activeStaff: Array<{ id: string; name: string }>;
+}> {
+  const [staff, observations, active] = await Promise.all([
+    supabase
+      .from("adventure_departure_staff")
+      .select("staff_id, role, staff:staff_id (display_name)")
+      .eq("departure_id", departureId)
+      .order("assigned_at") as unknown as Promise<
+      Rows<{ staff_id: string; role: "lead" | "facilitator"; staff: unknown }>
+    >,
+    supabase
+      .from("adventure_departure_observations")
+      .select("id, kind, body, booking_id, created_at, staff:staff_id (display_name)")
+      .eq("departure_id", departureId)
+      .order("created_at", { ascending: false })
+      .limit(200) as unknown as Promise<
+      Rows<{
+        id: string;
+        kind: DepartureObservation["kind"];
+        body: string;
+        booking_id: string | null;
+        created_at: string;
+        staff: unknown;
+      }>
+    >,
+    supabase.from("staff").select("id, display_name").eq("active", true).order("display_name"),
+  ]);
+  return {
+    staff: rows(staff).map((x) => ({
+      staffId: x.staff_id,
+      role: x.role,
+      name: one<{ display_name: string }>(x.staff)?.display_name ?? "Staff",
+    })),
+    observations: rows(observations).map((o) => ({
+      id: o.id,
+      kind: o.kind,
+      body: o.body,
+      bookingId: o.booking_id,
+      createdAt: o.created_at,
+      staffName: one<{ display_name: string }>(o.staff)?.display_name ?? null,
+    })),
+    activeStaff: rows(active).map((a) => ({ id: a.id, name: a.display_name })),
+  };
+}
+
+export async function assignDepartureStaff(
+  supabase: ServerSupabase,
+  departureId: string,
+  staffId: string,
+  role: "lead" | "facilitator",
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("assign_departure_staff", {
+      departure_id: departureId,
+      staff_id: staffId,
+      role,
+    }),
+  );
+}
+
+export async function removeDepartureStaff(
+  supabase: ServerSupabase,
+  departureId: string,
+  staffId: string,
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("remove_departure_staff", { departure_id: departureId, staff_id: staffId }),
+  );
+}
+
+export async function checkInRider(
+  supabase: ServerSupabase,
+  departureId: string,
+  bookingId: string,
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("check_in_departure_rider", {
+      departure_id: departureId,
+      booking_id: bookingId,
+    }),
+  );
+}
+
+export async function recordObservation(
+  supabase: ServerSupabase,
+  departureId: string,
+  bookingId: string | null,
+  kind: DepartureObservation["kind"],
+  body: string,
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("record_departure_observation", {
+      departure_id: departureId,
+      booking_id: bookingId as unknown as string,
+      kind,
+      body,
+    }),
+  );
 }

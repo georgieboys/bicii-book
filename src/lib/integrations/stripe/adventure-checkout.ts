@@ -42,6 +42,8 @@ export type AdventureCheckoutRequest = {
   termsVersion: string;
   /** Tracker hire days (D187); absent: the rider's own device. */
   hire?: { collectOn: string; returnOn: string };
+  /** The supported departure (D196). */
+  departureId?: string;
 };
 
 export type AdventureCheckoutResult =
@@ -139,6 +141,7 @@ export async function startAdventureCheckout(
           hire_return_on: request.hire.returnOn,
         }
       : {}),
+    ...(request.departureId ? { departure_id: request.departureId } : {}),
   });
   if (error) return refused(error);
   const prepared = (Array.isArray(data) ? data[0] : data) as Prepared | undefined;

@@ -488,3 +488,42 @@ export const cancelDepartureSchema = z.object({
   departureId: z.guid({ error: "Unknown departure." }),
   reason: required(500, "reason"),
 });
+
+// -------------------------------------------- supported departures ----
+// Phase E (D196-D199).
+
+export const departureStaffSchema = z.object({
+  departureId: z.guid({ error: "Unknown departure." }),
+  staffId: z.guid({ error: "Choose a staff member." }),
+  role: z.enum(["lead", "facilitator"], { error: "Choose a role." }),
+});
+
+export const removeDepartureStaffSchema = z.object({
+  departureId: z.guid({ error: "Unknown departure." }),
+  staffId: z.guid({ error: "Unknown staff member." }),
+});
+
+export const checkInSchema = z.object({
+  departureId: z.guid({ error: "Unknown departure." }),
+  bookingId: z.guid({ error: "Unknown rider." }),
+});
+
+export const observationSchema = z.object({
+  departureId: z.guid({ error: "Unknown departure." }),
+  bookingId: z
+    .string()
+    .nullish()
+    .transform((v) => (v ? v : null))
+    .refine((v) => v === null || /^[0-9a-f-]{36}$/i.test(v), { error: "Unknown rider." }),
+  kind: z.enum(["attendance", "deviation", "withdrawal", "completion", "note"], {
+    error: "Choose what it is.",
+  }),
+  body: required(2000, "observation"),
+});
+
+export const supportedSalesSchema = z.object({
+  enabled: z
+    .union([z.string(), z.boolean()])
+    .nullish()
+    .transform((v) => v === true || v === "on" || v === "true"),
+});

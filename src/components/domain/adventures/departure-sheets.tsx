@@ -1,10 +1,20 @@
 "use client";
 
+import { useTransition } from "react";
+
 import {
+  assignDepartureStaffAction,
   cancelDepartureAction,
+  checkInRiderAction,
   createDepartureAction,
+  recordObservationAction,
+  removeDepartureStaffAction,
+  setSupportedSalesAction,
   updateDepartureAction,
 } from "@/app/(staff)/adventures/actions";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/components/ui/toast";
+import { callAction } from "@/lib/call-action";
 import { FormSheet, useOpen, type FormAction } from "@/components/domain/adventures/booking-sheets";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -181,5 +191,209 @@ export function CancelDepartureButton({ departureId }: { departureId: string }) 
         </FormSheet>
       ) : null}
     </>
+  );
+}
+
+// -------------------------------------------- supported departures ----
+
+export function AssignStaffButton({
+  departureId,
+  staff,
+}: {
+  departureId: string;
+  staff: Array<{ id: string; name: string }>;
+}) {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={show}>
+        Add staff
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Add staff to this date"
+          description="Facilitators with Facilitate adventures can check riders in and record observations on dates they're on."
+          submitLabel="Add"
+          pendingLabel="Adding…"
+          success="Added"
+          action={act(assignDepartureStaffAction)}
+          hidden={{ departureId }}
+          onClose={close}
+        >
+          {(errors) => (
+            <>
+              <Field label="Staff member" error={errors?.staffId?.[0]} required>
+                <Select name="staffId" defaultValue="">
+                  <option value="" disabled>
+                    Choose
+                  </option>
+                  {staff.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Role" error={errors?.role?.[0]} required>
+                <Select name="role" defaultValue="facilitator">
+                  <option value="lead">Lead</option>
+                  <option value="facilitator">Facilitator</option>
+                </Select>
+              </Field>
+            </>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
+  );
+}
+
+function useQuick() {
+  const { toast } = useToast();
+  const [pending, start] = useTransition();
+  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, success: string) =>
+    start(async () => {
+      const result = await callAction(fn as never);
+      if (result.ok) toast({ title: success, tone: "success" });
+      else toast({ title: (result as { error: string }).error, tone: "error" });
+    });
+  return { pending, run };
+}
+
+export function RemoveStaffButton({
+  departureId,
+  staffId,
+  name,
+}: {
+  departureId: string;
+  staffId: string;
+  name: string;
+}) {
+  const { pending, run } = useQuick();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      pending={pending}
+      pendingLabel="Removing…"
+      onClick={() =>
+        run(() => removeDepartureStaffAction({ departureId, staffId }) as never, "Removed")
+      }
+    >
+      Remove<span className="sr-only"> {name}</span>
+    </Button>
+  );
+}
+
+export function CheckInButton({
+  departureId,
+  bookingId,
+  name,
+}: {
+  departureId: string;
+  bookingId: string;
+  name: string;
+}) {
+  const { pending, run } = useQuick();
+  return (
+    <Button
+      size="sm"
+      pending={pending}
+      pendingLabel="Checking in…"
+      onClick={() =>
+        run(() => checkInRiderAction({ departureId, bookingId }) as never, "Checked in")
+      }
+    >
+      Check in<span className="sr-only"> {name}</span>
+    </Button>
+  );
+}
+
+export function ObservationButton({
+  departureId,
+  riders,
+}: {
+  departureId: string;
+  riders: Array<{ bookingId: string; name: string }>;
+}) {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button size="sm" onClick={show}>
+        Add observation
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Add an observation"
+          description="Kept as written. The reviewer reads it beside the rider's evidence; it never certifies anyone."
+          submitLabel="Save"
+          pendingLabel="Saving…"
+          success="Saved"
+          action={act(recordObservationAction)}
+          hidden={{ departureId }}
+          onClose={close}
+        >
+          {(errors) => (
+            <>
+              <Field
+                label="Rider"
+                hint="Leave empty for the whole group."
+                error={errors?.bookingId?.[0]}
+              >
+                <Select name="bookingId" defaultValue="">
+                  <option value="">The whole group</option>
+                  {riders.map((r) => (
+                    <option key={r.bookingId} value={r.bookingId}>
+                      {r.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="What" error={errors?.kind?.[0]} required>
+                <Select name="kind" defaultValue="note">
+                  <option value="note">Note</option>
+                  <option value="deviation">Left the route</option>
+                  <option value="withdrawal">Withdrew</option>
+                  <option value="completion">Finished</option>
+                  <option value="attendance">Attendance</option>
+                </Select>
+              </Field>
+              <Field label="Observation" error={errors?.body?.[0]} required>
+                <Textarea name="body" rows={3} />
+              </Field>
+            </>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
+  );
+}
+
+/** Admin: whether supported rides are on sale (off until insurance and staffing are confirmed). */
+export function SupportedSalesControl({ enabled }: { enabled: boolean }) {
+  const { open, show, close } = useOpen();
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <p className="text-sm">
+        {enabled ? "Supported rides are on sale." : "Supported rides are not on sale."}
+      </p>
+      <Button variant="outline" size="sm" onClick={show}>
+        Change<span className="sr-only"> supported ride sales</span>
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Supported ride sales"
+          description="Turn on only once the insurance policy, the staffing ratio, the emergency procedure and the overrun terms are confirmed. Certified ride sales must be on too."
+          submitLabel="Save"
+          pendingLabel="Saving…"
+          success="Saved"
+          action={act(setSupportedSalesAction)}
+          hidden={{}}
+          onClose={close}
+        >
+          {() => <Checkbox name="enabled" label="Sell supported rides" defaultChecked={enabled} />}
+        </FormSheet>
+      ) : null}
+    </div>
   );
 }

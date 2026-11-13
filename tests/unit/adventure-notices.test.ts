@@ -35,6 +35,7 @@ function notice(kind: AdventureNoticeKind, over: Partial<AdventureNotice> = {}):
     publicSiteUrl: "https://bicii.sg/",
     departureStartsAt: null,
     departureMeetingPoint: null,
+    eventNote: null,
     ...over,
   };
 }
@@ -141,6 +142,24 @@ describe("departure emails (D195)", () => {
     const cancelled = adventureNoticeEmail(notice("departure_cancelled", at), null);
     expect(cancelled.subject).toBe("The BICII 125 group ride is cancelled");
     expect(cancelled.text).toContain("Your ticket still stands");
+  });
+});
+
+describe("cancellation emails (D200, D201)", () => {
+  it("the shop hears the rider's reason; the rider hears the decision", () => {
+    const asked = adventureNoticeEmail(
+      notice("cancellation_requested", { audience: "shop", eventNote: "Knee injury" }),
+      "https://admin.example",
+    );
+    expect(asked.subject).toBe("Cancellation asked: AV-000012");
+    expect(asked.text).toContain("Their reason: Knee injury");
+    expect(asked.text).toContain("https://admin.example/adventures/bookings/b-1");
+    const done = adventureNoticeEmail(
+      notice("booking_cancelled", { eventNote: "Refunded in full" }),
+      null,
+    );
+    expect(done.subject).toBe("Your BICII 125 booking is cancelled");
+    expect(done.text).toContain("Refunded in full");
   });
 });
 

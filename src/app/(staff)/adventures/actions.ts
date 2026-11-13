@@ -12,7 +12,9 @@ import {
   adventureOrderSchema,
   adventureSalesSchema,
   archiveAdventureSchema,
+  cancelBookingSchema,
   cancelDepartureSchema,
+  moveSeatSchema,
   checkInSchema,
   departureStaffSchema,
   observationSchema,
@@ -52,6 +54,7 @@ import {
   unarchiveAdventure,
 } from "@/lib/domain/adventures";
 import {
+  cancelAdventureBooking,
   claimAdventureReview,
   clearAdventureBookingAttention,
   decideAdventureReview,
@@ -64,6 +67,7 @@ import {
   cancelDeparture,
   checkInRider,
   createDeparture,
+  moveSeat,
   recordObservation,
   removeDepartureStaff,
   updateDeparture,
@@ -472,5 +476,27 @@ export const setSupportedSalesAction = staffAction(
     await setSupportedSales(supabase, enabled);
     refresh();
     return { enabled };
+  },
+);
+
+// ------------------------------------------------- Phase F (D201, D202) ----
+
+export const cancelAdventureBookingAction = staffAction(
+  cancelBookingSchema,
+  { name: "adventures.cancel_booking", admin: true },
+  async ({ bookingId, reason }, { supabase }) => {
+    await cancelAdventureBooking(supabase, bookingId, reason);
+    refresh();
+    return null;
+  },
+);
+
+export const moveSeatAction = staffAction(
+  moveSeatSchema,
+  { name: "adventures.move_seat", permission: "manage_adventures" },
+  async ({ bookingId, departureId, reason }, { supabase }) => {
+    await moveSeat(supabase, bookingId, departureId, reason);
+    refresh();
+    return null;
   },
 );

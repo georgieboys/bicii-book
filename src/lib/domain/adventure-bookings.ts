@@ -815,3 +815,20 @@ export async function setAdventureSales(
     }),
   );
 }
+
+// ------------------------------------------- Phase F: cancel, health ----
+
+export async function cancelAdventureBooking(
+  supabase: ServerSupabase,
+  bookingId: string,
+  reason: string,
+): Promise<void> {
+  unwrap(await supabase.rpc("cancel_adventure_booking", { booking_id: bookingId, reason }));
+}
+
+export type AdventureHealth = Record<string, number | string | null>;
+
+/** D203: the counts an admin needs (admin only; the RPC checks). */
+export async function getAdventureHealth(supabase: ServerSupabase): Promise<AdventureHealth> {
+  return (unwrap(await supabase.rpc("adventure_health")) ?? {}) as AdventureHealth;
+}

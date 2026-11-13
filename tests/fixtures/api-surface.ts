@@ -352,6 +352,13 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // staff assignment needs manage_adventures; check-ins and observations
   // need facilitate_adventures on that departure, or manage_adventures
   "public.set_adventure_supported_sales(boolean)",
+  // Adventures Phase F (D200-D203): a rider asks to cancel their own
+  // booking; cancelling and the health counts are admin-only; moving a seat
+  // needs manage_adventures (the functions check)
+  "public.request_my_adventure_cancellation(uuid, text)",
+  "public.cancel_adventure_booking(uuid, text)",
+  "public.move_adventure_seat(uuid, uuid, text)",
+  "public.adventure_health()",
   "public.assign_departure_staff(uuid, uuid, departure_staff_role)",
   "public.remove_departure_staff(uuid, uuid)",
   "public.check_in_departure_rider(uuid, uuid)",
@@ -617,6 +624,8 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.claim_tracking_feed()",
   "public.store_tracking_messages(uuid, uuid, jsonb, boolean, timestamp with time zone, timestamp with time zone)",
   "public.fail_tracking_feed(uuid, uuid, text)",
+  // D203: the cron deletes tracker messages that belong to no ride after 30 days
+  "public.purge_unattributed_tracking(integer)",
 ];
 
 /**

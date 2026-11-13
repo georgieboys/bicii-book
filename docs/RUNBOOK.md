@@ -1106,6 +1106,10 @@ Positions belong to a ride only between the rider's Start Ride and Finish
 Ride while they hold the tracker; a missed Start is corrected by verifying
 staff with a reason (`correct_adventure_capture`).
 
+The same cron deletes tracker messages that belong to no ride 30 days
+after they arrive (D203). Settings → Adventure sales → Health is the first
+place to look when something seems stuck.
+
 Adventure certifications (Adventures Phase B, D167) use the same Stripe
 account, webhook endpoint (`/api/stripe/webhooks`), signing secret and
 events: nothing changes in the Stripe Dashboard. Their Checkout Sessions

@@ -527,3 +527,16 @@ export const supportedSalesSchema = z.object({
     .nullish()
     .transform((v) => v === true || v === "on" || v === "true"),
 });
+
+// ------------------------------------------------- Phase F (D201, D202) ----
+
+export const cancelBookingSchema = z.object({
+  bookingId: z.guid({ error: "Unknown booking." }),
+  reason: required(500, "reason"),
+});
+
+export const moveSeatSchema = z.object({
+  bookingId: z.guid({ error: "Unknown booking." }),
+  departureId: z.guid({ error: "Choose a date." }),
+  reason: required(500, "reason"),
+});

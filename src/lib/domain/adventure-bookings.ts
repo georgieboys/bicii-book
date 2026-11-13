@@ -12,6 +12,7 @@ import type {
   ReviewCheckKey,
 } from "@/lib/adventures";
 import { unwrap } from "@/lib/db-errors";
+import { customerLabel } from "@/lib/people";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
 /**
@@ -35,6 +36,24 @@ function one<T>(value: unknown): T | null {
   return (value as T) ?? null;
 }
 
+/** An embedded customer's name as staff see it everywhere (display name, else first and last, else email). */
+function riderLabel(value: unknown): string {
+  const c = one<{
+    display_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  }>(value);
+  return c
+    ? customerLabel({
+        displayName: c.display_name,
+        firstName: c.first_name,
+        lastName: c.last_name,
+        email: c.email,
+      })
+    : "Unknown rider";
+}
+
 type Named = { display_name: string } | null;
 
 // ------------------------------------------------------------ bookings ----
@@ -53,7 +72,7 @@ export type AdventureBookingListItem = {
 };
 
 const LIST_COLUMNS =
-  "id, reference, status, kind, total, needs_attention, created_at, confirmed_at, customer:customer_id (display_name), revision:revision_id (name)";
+  "id, reference, status, kind, total, needs_attention, created_at, confirmed_at, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)";
 
 type ListRow = {
   id: string;
@@ -74,7 +93,7 @@ function listItem(r: ListRow): AdventureBookingListItem {
     reference: r.reference,
     status: r.status,
     kind: r.kind,
-    customerName: one<{ display_name: string }>(r.customer)?.display_name ?? "Unknown rider",
+    customerName: riderLabel(r.customer),
     routeName: one<{ name: string }>(r.revision)?.name ?? "Unknown route",
     total: String(r.total),
     needsAttention: r.needs_attention,
@@ -332,7 +351,7 @@ export async function listReviewQueue(supabase: ServerSupabase): Promise<ReviewQ
     (await supabase
       .from("adventure_submissions")
       .select(
-        "id, version, state, submitted_at, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, customer:customer_id (display_name), revision:revision_id (name)))",
+        "id, version, state, submitted_at, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)))",
       )
       .in("state", ["submitted", "in_review"])
       .order("submitted_at")
@@ -350,8 +369,7 @@ export async function listReviewQueue(supabase: ServerSupabase): Promise<ReviewQ
       submissionId: s.id,
       bookingId: booking?.id ?? "",
       reference: booking?.reference ?? "",
-      customerName:
-        one<{ display_name: string }>(booking?.customer)?.display_name ?? "Unknown rider",
+      customerName: riderLabel(booking?.customer),
       routeName: one<{ name: string }>(booking?.revision)?.name ?? "Unknown route",
       version: s.version,
       state: s.state,
@@ -457,7 +475,7 @@ export async function getReviewWorkspace(
     (await supabase
       .from("adventure_submissions")
       .select(
-        "id, attempt_id, version, state, submitted_at, rider_statement, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, attention_reason, customer:customer_id (display_name), revision:revision_id (name, revision_number, distance_km, min_elapsed_minutes, max_elapsed_minutes, checkpoint_order, rules)))",
+        "id, attempt_id, version, state, submitted_at, rider_statement, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, attention_reason, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name, revision_number, distance_km, min_elapsed_minutes, max_elapsed_minutes, checkpoint_order, rules)))",
       )
       .eq("id", submissionId)
       .maybeSingle()) as unknown as {
@@ -575,8 +593,7 @@ export async function getReviewWorkspace(
     booking: {
       id: booking.id,
       reference: booking.reference,
-      customerName:
-        one<{ display_name: string }>(booking.customer)?.display_name ?? "Unknown rider",
+      customerName: riderLabel(booking.customer),
       needsAttention: booking.needs_attention,
       attentionReason: booking.attention_reason,
     },
@@ -711,7 +728,7 @@ export async function listAdventurePacks(
   let query = supabase
     .from("adventure_fulfilments")
     .select(
-      "id, booking_id, tshirt_size, items, status, note, ready_at, fulfilled_at, created_at, certificate:certificate_id (reference, status), booking:booking_id (reference, customer:customer_id (display_name), revision:revision_id (name))",
+      "id, booking_id, tshirt_size, items, status, note, ready_at, fulfilled_at, created_at, certificate:certificate_id (reference, status), booking:booking_id (reference, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name))",
     );
   if ("bookingId" in scope) query = query.eq("booking_id", scope.bookingId);
   else if (scope.open) query = query.neq("status", "fulfilled");
@@ -726,8 +743,7 @@ export async function listAdventurePacks(
       bookingId: p.booking_id,
       reference: booking?.reference ?? "",
       certificateReference: one<{ reference: string }>(p.certificate)?.reference ?? "",
-      customerName:
-        one<{ display_name: string }>(booking?.customer)?.display_name ?? "Unknown rider",
+      customerName: riderLabel(booking?.customer),
       routeName: one<{ name: string }>(booking?.revision)?.name ?? "Unknown route",
       tshirtSize: p.tshirt_size,
       items: p.items,

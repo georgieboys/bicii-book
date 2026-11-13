@@ -1,6 +1,7 @@
 import "server-only";
 
 import { unwrap } from "@/lib/db-errors";
+import { customerLabel } from "@/lib/people";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
 /**
@@ -19,6 +20,24 @@ function rows<T>(result: Rows<T>): T[] {
 function one<T>(value: unknown): T | null {
   if (Array.isArray(value)) return (value[0] as T) ?? null;
   return (value as T) ?? null;
+}
+
+/** An embedded customer's name as staff see it everywhere (display name, else first and last, else email). */
+function riderLabel(value: unknown): string {
+  const c = one<{
+    display_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  }>(value);
+  return c
+    ? customerLabel({
+        displayName: c.display_name,
+        firstName: c.first_name,
+        lastName: c.last_name,
+        email: c.email,
+      })
+    : "Unknown rider";
 }
 
 export type TrackerServiceState = "in_service" | "maintenance" | "lost" | "retired";
@@ -59,7 +78,7 @@ export async function listTrackingDevices(supabase: ServerSupabase): Promise<Tra
     supabase
       .from("tracker_assignments")
       .select(
-        "id, device_id, issued_at, booking:booking_id (id, reference, customer:customer_id (display_name))",
+        "id, device_id, issued_at, booking:booking_id (id, reference, customer:customer_id (display_name, first_name, last_name, email))",
       )
       .is("returned_at", null) as unknown as Promise<Rows<HolderRow>>,
   ]);
@@ -81,8 +100,7 @@ export async function listTrackingDevices(supabase: ServerSupabase): Promise<Tra
               assignmentId: h.id,
               bookingId: booking.id,
               reference: booking.reference,
-              riderName:
-                one<{ display_name: string }>(booking.customer)?.display_name ?? "Unknown rider",
+              riderName: riderLabel(booking.customer),
               issuedAt: h.issued_at,
             }
           : null,
@@ -125,7 +143,7 @@ type HireRow = {
 };
 
 const HIRE_COLUMNS =
-  "id, booking_id, collect_on, return_on, days, status, cancel_reason, booking:booking_id (reference, needs_attention, customer:customer_id (display_name), revision:revision_id (name)), assignments:tracker_assignments (id, issued_at, returned_at, return_condition, device:device_id (label))";
+  "id, booking_id, collect_on, return_on, days, status, cancel_reason, booking:booking_id (reference, needs_attention, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)), assignments:tracker_assignments (id, issued_at, returned_at, return_condition, device:device_id (label))";
 
 function hireFromRow(r: HireRow): TrackerHire {
   const booking = one<{
@@ -148,7 +166,7 @@ function hireFromRow(r: HireRow): TrackerHire {
     reservationId: r.id,
     bookingId: r.booking_id,
     reference: booking?.reference ?? "",
-    riderName: one<{ display_name: string }>(booking?.customer)?.display_name ?? "Unknown rider",
+    riderName: riderLabel(booking?.customer),
     routeName: one<{ name: string }>(booking?.revision)?.name ?? "Unknown route",
     collectOn: r.collect_on,
     returnOn: r.return_on,

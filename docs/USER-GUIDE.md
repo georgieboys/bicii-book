@@ -1273,7 +1273,12 @@ trackers and handovers needs **Manage adventures**.
    positions come from: **Add feed** with the name of the server variable
    that holds the feed (the RUNBOOK says how to set it up). Each shows
    whether it is reading, when it last read and why it is failing.
-5. There is no deposit and nothing is charged for a late or lost tracker:
+5. **Live** lists rides in progress (the rider pressed Start Ride and not
+   yet Finish Ride): the tracker, the latest position and how old it is,
+   and a map. "Stale" only means no new position has arrived for 30
+   minutes; it is not proof of a stop or of trouble, and this is not an
+   emergency service.
+6. There is no deposit and nothing is charged for a late or lost tracker:
    settle it with the rider yourself. An admin can **Cancel hire** for a
    hire nobody collected (refund it in Stripe if it's owed).
 

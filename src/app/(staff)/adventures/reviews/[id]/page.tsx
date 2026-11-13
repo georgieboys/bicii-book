@@ -5,6 +5,7 @@ import { forbidden, notFound } from "next/navigation";
 import { ClaimReviewButton } from "@/components/domain/adventures/booking-sheets";
 import { ReviewDecisionForm } from "@/components/domain/adventures/review-form";
 import { TrackMap } from "@/components/domain/adventures/track-map";
+import { CorrectCaptureButton } from "@/components/domain/adventures/tracker-sheets";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -19,7 +20,7 @@ import {
   SUBMISSION_STATE_LABELS,
 } from "@/lib/adventures";
 import { requireStaff } from "@/lib/auth/session";
-import { formatDateTime, shopDateKey } from "@/lib/dates";
+import { formatDateTime, shopDateKey, toShopLocal } from "@/lib/dates";
 import { getReviewWorkspace, type ReviewWorkspace } from "@/lib/domain/adventure-bookings";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
@@ -28,7 +29,12 @@ export const metadata: Metadata = { title: "Ride review" };
 
 /** The figures the decision form starts from: the longest recording's. */
 function suggestions(w: ReviewWorkspace) {
-  const tracks = w.files.flatMap((f) => (f.track ? [f.track] : []));
+  const tracks: Array<{ distanceKm: string; finishedAt: string | null }> = [
+    ...w.files.flatMap((f) => (f.track ? [f.track] : [])),
+    ...(w.tracker && w.tracker.points > 1
+      ? [{ distanceKm: w.tracker.distanceKm, finishedAt: w.tracker.lastAt }]
+      : []),
+  ];
   if (tracks.length === 0) return { distance: null, day: null };
   const longest = tracks.reduce((a, b) => (Number(b.distanceKm) > Number(a.distanceKm) ? b : a));
   const finished = tracks
@@ -57,7 +63,21 @@ export default async function AdventureReviewPage({
 
   const activities = w.files.filter((f) => f.kind === "activity");
   const photos = w.files.filter((f) => f.kind === "checkpoint_photo");
-  const tracks = activities.flatMap((f) => (f.track ? [f.track] : []));
+  const fileTracks = activities.flatMap((f) => (f.track ? [f.track] : []));
+  // The hired tracker's track counts like a file's (D191).
+  const tracks = [
+    ...fileTracks,
+    ...(w.tracker && w.tracker.points > 1
+      ? [
+          {
+            startedAt: w.tracker.firstAt,
+            finishedAt: w.tracker.lastAt,
+            distanceKm: w.tracker.distanceKm,
+            outline: w.tracker.outline,
+          },
+        ]
+      : []),
+  ];
   const starts = tracks
     .map((t) => t.startedAt)
     .filter((t): t is string => t !== null)
@@ -134,6 +154,45 @@ export default async function AdventureReviewPage({
             </dl>
           </div>
         </Card>
+
+        {w.tracker ? (
+          <Card
+            title="Hired tracker"
+            actions={
+              <CorrectCaptureButton
+                attemptId={w.tracker.attemptId}
+                startedAt={
+                  w.tracker.captureStartedAt ? toShopLocal(w.tracker.captureStartedAt) : ""
+                }
+                finishedAt={
+                  w.tracker.captureFinishedAt ? toShopLocal(w.tracker.captureFinishedAt) : ""
+                }
+              />
+            }
+          >
+            <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
+              <dt className="text-dust-700">Ride window</dt>
+              <dd>
+                {w.tracker.captureStartedAt
+                  ? formatDateTime(w.tracker.captureStartedAt)
+                  : "Not started"}
+                {" to "}
+                {w.tracker.captureFinishedAt
+                  ? formatDateTime(w.tracker.captureFinishedAt)
+                  : "not finished"}
+              </dd>
+              <dt className="text-dust-700">Positions</dt>
+              <dd>
+                {w.tracker.points} · {formatDistance(w.tracker.distanceKm)} (point to point)
+              </dd>
+              <dt className="text-dust-700">First and last</dt>
+              <dd>
+                {w.tracker.firstAt ? formatDateTime(w.tracker.firstAt) : "None"}
+                {w.tracker.lastAt ? ` to ${formatDateTime(w.tracker.lastAt)}` : ""}
+              </dd>
+            </dl>
+          </Card>
+        ) : null}
 
         <Card title="Recordings">
           <ul aria-label="Recordings" className="flex flex-col gap-3 text-sm">

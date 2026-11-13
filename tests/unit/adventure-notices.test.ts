@@ -33,6 +33,8 @@ function notice(kind: AdventureNoticeKind, over: Partial<AdventureNotice> = {}):
     packItems: null,
     attentionReason: null,
     publicSiteUrl: "https://bicii.sg/",
+    departureStartsAt: null,
+    departureMeetingPoint: null,
     ...over,
   };
 }
@@ -123,6 +125,22 @@ describe("the emails (D183)", () => {
         public_site_url: null,
       }),
     ).toMatchObject({ claimToken: "t1", acceptedDistanceKm: "128.5", packItems: ["Pin"] });
+  });
+});
+
+describe("departure emails (D195)", () => {
+  it("joined and cancelled name the date and meeting point; a cancellation says the ticket stands", () => {
+    const at = {
+      departureStartsAt: "2026-11-21T23:00:00Z",
+      departureMeetingPoint: "294 River Valley",
+    };
+    const joined = adventureNoticeEmail(notice("departure_joined", at), null);
+    expect(joined.subject).toBe("You've joined a BICII 125 group ride");
+    expect(joined.text).toContain("Sun 22 Nov 2026, 7:00 am");
+    expect(joined.text).toContain("294 River Valley");
+    const cancelled = adventureNoticeEmail(notice("departure_cancelled", at), null);
+    expect(cancelled.subject).toBe("The BICII 125 group ride is cancelled");
+    expect(cancelled.text).toContain("Your ticket still stands");
   });
 });
 

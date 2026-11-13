@@ -7,7 +7,9 @@ const SECTIONS = [
   { href: "/adventures/bookings", label: "Bookings" },
   { href: "/adventures/reviews", label: "Reviews" },
   { href: "/adventures/packs", label: "Packs" },
+  { href: "/adventures/departures", label: "Departures" },
   { href: "/adventures/handovers", label: "Handovers" },
+  { href: "/adventures/live", label: "Live" },
   { href: "/adventures/trackers", label: "Trackers" },
 ] as const;
 

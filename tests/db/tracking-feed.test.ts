@@ -469,3 +469,79 @@ describe("the feed's lease, cursor and back-off (D190; T09)", () => {
     });
   });
 });
+
+describe("the hired tracker as evidence (D191)", () => {
+  it("a finished tracker ride can be sent without a file; the reviewer reads its track", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, days, devices } = await setup(tx, 1);
+      const f = await feed(tx);
+      const r = await rideWithTracker(tx, sale, days, devices[0]);
+      const dev = await providerId(tx, devices[0]);
+      await correct(tx, r.attempt, await at(tx, "-2 hours"), null);
+      await deliverMessages(tx, f, [
+        { id: "p1", device: dev, at: await at(tx, "-110 minutes"), lat: 1.3, lon: 103.8 },
+        { id: "p2", device: dev, at: await at(tx, "-60 minutes"), lat: 1.4, lon: 103.8 },
+      ]);
+      // Still open: Finish Ride first.
+      await actAs(tx, customerClaims(r.rider.authUserId));
+      await failsWith(
+        tx,
+        () => tx.query("select public.submit_my_adventure_evidence($1, '')", [r.bookingId]),
+        refused("adventure_ride_still_open"),
+      );
+      await tx.query("select public.finish_my_adventure_ride($1)", [r.bookingId]);
+      const sub = await scalar<string>(
+        tx,
+        "select id from public.submit_my_adventure_evidence($1, 'Tracker ride')",
+        [r.bookingId],
+      );
+      await tx.query("reset role");
+      expect(
+        (
+          await tx.query(
+            "select ride_started_at = $2::timestamptz as starts, state::text from public.adventure_attempts where id = $1",
+            [r.attempt, await at(tx, "-110 minutes")],
+          )
+        ).rows,
+      ).toEqual([{ starts: true, state: "finished" }]);
+
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      const summary = await tx.query(
+        "select points, distance_km::float as km from public.adventure_tracker_summary($1)",
+        [sub],
+      );
+      expect(summary.rows[0].points).toBe(2);
+      expect(summary.rows[0].km).toBeCloseTo(11.1, 0);
+      expect(
+        (await tx.query("select * from public.adventure_tracker_outline($1, 500)", [sub])).rows,
+      ).toHaveLength(2);
+      const passes = await tx.query(
+        "select count(*)::int as n from public.adventure_checkpoint_passes($1)",
+        [sub],
+      );
+      expect(passes.rows[0].n).toBeGreaterThan(0);
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      expect(
+        (await tx.query("select * from public.adventure_tracker_summary($1)", [sub])).rows,
+      ).toEqual([]);
+      expect(
+        (await tx.query("select * from public.adventure_tracker_outline($1, 500)", [sub])).rows,
+      ).toEqual([]);
+    });
+  });
+
+  it("without a file or enough tracker points the ride is still incomplete", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, days, devices } = await setup(tx, 1);
+      const r = await rideWithTracker(tx, sale, days, devices[0]);
+      await actAs(tx, customerClaims(r.rider.authUserId));
+      await tx.query("select public.start_my_adventure_ride($1)", [r.bookingId]);
+      await tx.query("select public.finish_my_adventure_ride($1)", [r.bookingId]);
+      await failsWith(
+        tx,
+        () => tx.query("select public.submit_my_adventure_evidence($1, '')", [r.bookingId]),
+        refused("adventure_evidence_incomplete"),
+      );
+    });
+  });
+});

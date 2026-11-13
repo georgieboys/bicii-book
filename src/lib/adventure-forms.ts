@@ -419,3 +419,72 @@ export const trackingFeedSchema = z.object({
     .nullish()
     .transform((v) => v === true || v === "on" || v === "true"),
 });
+
+/** "2026-11-14T07:30" as typed in a datetime-local field (shop time); blank is null. */
+const localDateTime = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((v) => (v ? v : null))
+  .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v), {
+    error: "Enter a date and time.",
+  });
+
+export const correctCaptureSchema = z
+  .object({
+    attemptId: z.guid({ error: "Unknown ride." }),
+    startedAt: localDateTime,
+    finishedAt: localDateTime,
+    reason: required(500, "reason"),
+  })
+  .superRefine((v, ctx) => {
+    if (v.startedAt === null)
+      ctx.addIssue({
+        code: "custom",
+        path: ["startedAt"],
+        message: "Enter when the ride started.",
+      });
+    if (v.startedAt && v.finishedAt && v.finishedAt < v.startedAt)
+      ctx.addIssue({
+        code: "custom",
+        path: ["finishedAt"],
+        message: "The finish must be after the start.",
+      });
+  });
+
+// ---------------------------------------------------------- departures ----
+// Phase D (D193-D195).
+
+const departureFields = {
+  startsAt: z
+    .string({ error: "Enter the start." })
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, { error: "Enter the start date and time." }),
+  expectedFinishAt: localDateTime,
+  meetingPoint: required(200, "meeting point"),
+  capacity: whole(
+    1,
+    200,
+    "Enter a whole number of places, like 12.",
+    "Allow from 1 to 200 places.",
+  ),
+  note: text(1000, "note for riders"),
+  staffNote: text(1000, "staff note"),
+};
+
+export const createDepartureSchema = z.object({
+  adventureId: z.guid({ error: "Choose a route." }),
+  kind: z.enum(["self_supported_group", "supported"], { error: "Choose the kind of ride." }),
+  ...departureFields,
+});
+
+export const updateDepartureSchema = z.object({
+  departureId: z.guid({ error: "Unknown departure." }),
+  expectedVersion: whole(1, 1_000_000, "Reload the page.", "Reload the page."),
+  ...departureFields,
+});
+
+export const cancelDepartureSchema = z.object({
+  departureId: z.guid({ error: "Unknown departure." }),
+  reason: required(500, "reason"),
+});

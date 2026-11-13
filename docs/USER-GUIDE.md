@@ -1222,7 +1222,11 @@ of the published terms riders accept). Until then nothing is sold.
 - **Reviews** lists the rides riders have sent, oldest first. Reviewing
   needs **Verify adventures**; nobody can review their own ride.
   1. Open the ride and press **Start review**, so others see you have it.
-  2. Look at the drawing (circle: start, square: finish, numbered circles:
+  2. A rider who hired a tracker shows a **Hired tracker** card: the ride
+     window (between their Start Ride and Finish Ride), positions and
+     distance. If they forgot Start or Finish, **Correct the ride window**
+     with the real times and a reason; the tracker's points are counted
+     again. Then look at the drawing (circle: start, square: finish, numbered circles:
      checkpoints at their review radius), the recorded distance and time
      against the route's, each checkpoint's nearest recorded point and its
      photo, and what the rider wrote. These figures are hints: you decide.
@@ -1245,6 +1249,17 @@ of the published terms riders accept). Until then nothing is sold.
   emails** (Settings → Shop hours and closures) get an email when a ride is
   sent for review and when a payment needs attention. Revoking a
   certificate emails nobody: tell the rider yourself.
+
+### Group ride dates
+
+Adventures → **Departures** lists the dates BICII publishes, with places
+taken. With **Manage adventures**, **Add date**: the route, Group ride, the
+start (and expected finish), meeting point, places, a note riders see and
+a staff note. Riders who bought the route's self-supported ticket join a
+date on bicii.sg; each still records and sends their own ride. Open a date
+for its manifest (who joined, their contact details, whether their name is
+shown publicly). **Change** keeps everyone on it; **Cancel date** needs a
+reason and emails every rider (their tickets stand).
 
 ### Tracker hire at the counter
 
@@ -1269,7 +1284,12 @@ trackers and handovers needs **Manage adventures**.
    positions come from: **Add feed** with the name of the server variable
    that holds the feed (the RUNBOOK says how to set it up). Each shows
    whether it is reading, when it last read and why it is failing.
-5. There is no deposit and nothing is charged for a late or lost tracker:
+5. **Live** lists rides in progress (the rider pressed Start Ride and not
+   yet Finish Ride): the tracker, the latest position and how old it is,
+   and a map. "Stale" only means no new position has arrived for 30
+   minutes; it is not proof of a stop or of trouble, and this is not an
+   emergency service.
+6. There is no deposit and nothing is charged for a late or lost tracker:
    settle it with the rider yourself. An admin can **Cancel hire** for a
    hire nobody collected (refund it in Stripe if it's owed).
 

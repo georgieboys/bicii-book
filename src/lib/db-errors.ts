@@ -113,6 +113,18 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   tracker_already_returned: "This tracker was already returned.",
   tracker_hire_not_cancellable: "This hire is finished, or its tracker is still out.",
   tracker_assignment_immutable: "Who held a tracker and when is kept as it was.",
+  departure_adventure_unpublished: "Publish the adventure before adding dates.",
+  departure_needs_offer: "Add the matching offer to the adventure first.",
+  departure_in_past: "Choose a start in the future.",
+  departure_changed: "Someone changed this departure since you opened it. Reload and try again.",
+  departure_not_scheduled: "This departure is cancelled or finished.",
+  departure_capacity_below_riders:
+    "More riders have joined than that. Raise the places, or ask riders to leave first.",
+  departure_unavailable: "That date is no longer open.",
+  departure_needs_ticket: "Joining a group ride needs a paid self-supported ticket for this route.",
+  departure_already_joined: "This rider has already joined a date.",
+  departure_full: "That date is full.",
+  adventure_ride_still_open: "Press Finish Ride before sending your ride.",
   adventure_tracker_not_issued: "Collect your tracker from the shop first.",
   adventure_ride_already_started: "Your ride has already started.",
   adventure_ride_not_started: "Start your ride first.",
@@ -556,6 +568,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
 
 /** 23505 unique violations by constraint name. */
 export const UNIQUE_ERRORS: Record<string, string> = {
+  adventure_departure_participants_one_open: "This rider has already joined a date.",
   tracking_feeds_config_key: "That feed is already set up.",
   tracking_devices_label_key: "Another tracker already has that label.",
   tracking_devices_provider_key: "That tracker is already registered.",
@@ -720,6 +733,9 @@ export const CHECK_ERRORS: Record<string, string> = {
   tracker_reservations_hold: "A held tracker needs the time its hold ends.",
   tracker_assignments_return: "A return needs who received it, when, and its condition.",
   tracker_assignments_order: "A tracker cannot come back before it went out.",
+  adventure_departures_finish: "The expected finish must be after the start.",
+  adventure_departures_cancelled: "A cancelled departure needs its reason.",
+  adventure_departure_participants_left: "A rider who left needs the reason and time.",
   tracking_feeds_lease: "A leased feed needs its lease token and time.",
   tracking_messages_position: "A position needs both latitude and longitude.",
   adventure_attempts_capture: "A ride window needs its start before its finish.",

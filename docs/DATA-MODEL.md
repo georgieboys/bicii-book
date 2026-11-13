@@ -4994,3 +4994,16 @@ Migrations `20261114001100_tracking_feed_enums.sql` (booking history `ride_start
 Attribution: `private.tracking_attempt_for(device, at)` is the attempt whose assignment held the device at `at` and whose window covers `at`; stored messages are attributed on insert, and `private.reattribute_attempt` recomputes an attempt's devices' messages when its window changes.
 
 RPCs: `save_tracking_feed(feed_id, provider, label, config_name, enabled)` (admin; a new feed starts a day back); `claim_tracking_feed()`, `store_tracking_messages(feed_id, lease_token, messages, complete, window_to, next_window_end)` (returns how many were new, or -1 for a lost lease) and `fail_tracking_feed(feed_id, lease_token, error)` (service role); `start_my_adventure_ride(booking_id)`, `finish_my_adventure_ride(booking_id)` and `my_adventure_ride(booking_id)` (the rider, with a tracker in hand); `correct_adventure_capture(attempt_id, started_at, finished_at, reason)` (verify or manage adventures).
+
+The tracker as evidence (D191, `20261114001300_tracker_evidence.sql`): `submit_my_adventure_evidence` accepts a finished tracker ride with at least two attributed positions and no file (`adventure_ride_still_open` before Finish Ride); the ride interval spans files and tracker. `adventure_tracker_outline(submission_id, max_points)` and `adventure_tracker_summary(submission_id)` (security invoker, evidence readers) give the reviewer the track and its figures; `adventure_checkpoint_passes` includes tracker points.
+
+### Departures (Phase D, D193-D195)
+
+Migrations `20261114001400_departure_enums.sql` (booking history `departure_joined`, `departure_left`, `departure_cancelled`; emails `departure_joined`, `departure_cancelled`) and `20261114001500_group_departures.sql`.
+
+| Table | Purpose and rules |
+|---|---|
+| `adventure_departures` | A date for a route: `kind` (`self_supported_group`; `supported` from Phase E), `starts_at`, `expected_finish_at` (after the start), `meeting_point`, `capacity` (1..200), `status` (`scheduled`, `cancelled` with `cancel_reason`, `completed`), `note` (public), `staff_note`, `version`. Staff read |
+| `adventure_departure_participants` | Joins: departure, booking, `show_name`, `joined_at`, `left_at` and `left_reason` (both or neither). One open participation per booking. Staff read |
+
+RPCs: `create_adventure_departure`, `update_adventure_departure` (expected version; places not below the riders joined), `cancel_adventure_departure` (reason; every rider leaves and is emailed) (manage_adventures); `join_adventure_departure(booking_id, departure_id, expected_version, show_name)` and `leave_adventure_departure(booking_id)` (the rider's own paid self-supported booking for that route); `my_adventure_departure(booking_id)`; `public_adventure_departures(adventure_slug)` (anyone: upcoming dates, places left, consenting riders as first name and initial). The adventure email type gains `departure_starts_at` and `departure_meeting_point`.

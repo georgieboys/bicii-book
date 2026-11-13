@@ -1,6 +1,7 @@
 import "server-only";
 
 import { unwrap } from "@/lib/db-errors";
+import { customerLabel } from "@/lib/people";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
 /**
@@ -19,6 +20,24 @@ function rows<T>(result: Rows<T>): T[] {
 function one<T>(value: unknown): T | null {
   if (Array.isArray(value)) return (value[0] as T) ?? null;
   return (value as T) ?? null;
+}
+
+/** An embedded customer's name as staff see it everywhere (display name, else first and last, else email). */
+function riderLabel(value: unknown): string {
+  const c = one<{
+    display_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  }>(value);
+  return c
+    ? customerLabel({
+        displayName: c.display_name,
+        firstName: c.first_name,
+        lastName: c.last_name,
+        email: c.email,
+      })
+    : "Unknown rider";
 }
 
 export type TrackerServiceState = "in_service" | "maintenance" | "lost" | "retired";
@@ -59,7 +78,7 @@ export async function listTrackingDevices(supabase: ServerSupabase): Promise<Tra
     supabase
       .from("tracker_assignments")
       .select(
-        "id, device_id, issued_at, booking:booking_id (id, reference, customer:customer_id (display_name))",
+        "id, device_id, issued_at, booking:booking_id (id, reference, customer:customer_id (display_name, first_name, last_name, email))",
       )
       .is("returned_at", null) as unknown as Promise<Rows<HolderRow>>,
   ]);
@@ -81,8 +100,7 @@ export async function listTrackingDevices(supabase: ServerSupabase): Promise<Tra
               assignmentId: h.id,
               bookingId: booking.id,
               reference: booking.reference,
-              riderName:
-                one<{ display_name: string }>(booking.customer)?.display_name ?? "Unknown rider",
+              riderName: riderLabel(booking.customer),
               issuedAt: h.issued_at,
             }
           : null,
@@ -125,7 +143,7 @@ type HireRow = {
 };
 
 const HIRE_COLUMNS =
-  "id, booking_id, collect_on, return_on, days, status, cancel_reason, booking:booking_id (reference, needs_attention, customer:customer_id (display_name), revision:revision_id (name)), assignments:tracker_assignments (id, issued_at, returned_at, return_condition, device:device_id (label))";
+  "id, booking_id, collect_on, return_on, days, status, cancel_reason, booking:booking_id (reference, needs_attention, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)), assignments:tracker_assignments (id, issued_at, returned_at, return_condition, device:device_id (label))";
 
 function hireFromRow(r: HireRow): TrackerHire {
   const booking = one<{
@@ -148,7 +166,7 @@ function hireFromRow(r: HireRow): TrackerHire {
     reservationId: r.id,
     bookingId: r.booking_id,
     reference: booking?.reference ?? "",
-    riderName: one<{ display_name: string }>(booking?.customer)?.display_name ?? "Unknown rider",
+    riderName: riderLabel(booking?.customer),
     routeName: one<{ name: string }>(booking?.revision)?.name ?? "Unknown route",
     collectOn: r.collect_on,
     returnOn: r.return_on,
@@ -362,6 +380,109 @@ export async function saveTrackingFeed(
       label: input.label,
       config_name: input.configName,
       enabled: input.enabled,
+    }),
+  );
+}
+
+/** D189: staff correct a ride window with a reason; points are attributed again. */
+export async function correctCapture(
+  supabase: ServerSupabase,
+  attemptId: string,
+  startedAt: string,
+  finishedAt: string | null,
+  reason: string,
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("correct_adventure_capture", {
+      attempt_id: attemptId,
+      started_at: startedAt,
+      finished_at: finishedAt as unknown as string,
+      reason,
+    }),
+  );
+}
+
+// ---------------------------------------------------------- live rides ----
+// D192: rides whose window is open, with their latest position and its age.
+
+export type LiveRide = {
+  attemptId: string;
+  bookingId: string;
+  reference: string;
+  riderName: string;
+  routeName: string;
+  startedAt: string;
+  deviceLabel: string | null;
+  positions: number;
+  latestAt: string | null;
+  latestReceivedAt: string | null;
+  /** Minutes since the latest position was recorded, when there is one. */
+  latestAgeMinutes: number | null;
+  /** Up to the last 300 points, oldest first, for the map. */
+  points: Array<{ lat: number; lon: number }>;
+};
+
+type LiveRow = {
+  id: string;
+  booking_id: string;
+  capture_started_at: string;
+  booking: unknown;
+  assignments: unknown;
+};
+
+export async function listLiveRides(supabase: ServerSupabase): Promise<LiveRide[]> {
+  const attempts = rows(
+    (await supabase
+      .from("adventure_attempts")
+      .select(
+        "id, booking_id, capture_started_at, booking:booking_id (reference, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)), assignments:tracker_assignments (returned_at, device:device_id (label))",
+      )
+      .not("capture_started_at", "is", null)
+      .is("capture_finished_at", null)
+      .order("capture_started_at")
+      .limit(50)) as unknown as Rows<LiveRow>,
+  );
+  return Promise.all(
+    attempts.map(async (a) => {
+      const booking = one<{ reference: string; customer: unknown; revision: unknown }>(a.booking);
+      const assignments = (
+        Array.isArray(a.assignments) ? a.assignments : a.assignments ? [a.assignments] : []
+      ) as Array<{
+        returned_at: string | null;
+        device: unknown;
+      }>;
+      const current = assignments.find((x) => x.returned_at === null) ?? null;
+      const recent = rows(
+        await supabase
+          .from("tracking_messages")
+          .select("recorded_at, received_at, latitude, longitude")
+          .eq("attempt_id", a.id)
+          .not("latitude", "is", null)
+          .order("recorded_at", { ascending: false })
+          .limit(300),
+      );
+      return {
+        attemptId: a.id,
+        bookingId: a.booking_id,
+        reference: booking?.reference ?? "",
+        riderName: riderLabel(booking?.customer),
+        routeName: one<{ name: string }>(booking?.revision)?.name ?? "Unknown route",
+        startedAt: a.capture_started_at,
+        deviceLabel: current ? (one<{ label: string }>(current.device)?.label ?? null) : null,
+        positions: recent.length,
+        latestAt: recent[0]?.recorded_at ?? null,
+        latestReceivedAt: recent[0]?.received_at ?? null,
+        latestAgeMinutes: recent[0]
+          ? Math.max(
+              0,
+              Math.round((Date.now() - new Date(recent[0].recorded_at).getTime()) / 60_000),
+            )
+          : null,
+        points: recent
+          .slice()
+          .reverse()
+          .map((p) => ({ lat: Number(p.latitude), lon: Number(p.longitude) })),
+      };
     }),
   );
 }

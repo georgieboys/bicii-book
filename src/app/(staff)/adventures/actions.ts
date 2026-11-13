@@ -2,7 +2,8 @@
 
 import { refresh } from "next/cache";
 
-import { staffAction } from "@/lib/actions";
+import { ActionError, staffAction } from "@/lib/actions";
+import { fromShopLocal } from "@/lib/dates";
 import {
   adventureCheckpointsSchema,
   adventureDraftSchema,
@@ -11,7 +12,11 @@ import {
   adventureOrderSchema,
   adventureSalesSchema,
   archiveAdventureSchema,
+  cancelDepartureSchema,
   cancelHireSchema,
+  createDepartureSchema,
+  updateDepartureSchema,
+  correctCaptureSchema,
   deviceStateSchema,
   issueTrackerSchema,
   registerDeviceSchema,
@@ -49,8 +54,10 @@ import {
   setAdventurePackStatus,
   setAdventureSales,
 } from "@/lib/domain/adventure-bookings";
+import { cancelDeparture, createDeparture, updateDeparture } from "@/lib/domain/departures";
 import {
   cancelTrackerHire,
+  correctCapture,
   issueTracker,
   registerTrackingDevice,
   replaceTracker,
@@ -322,6 +329,78 @@ export const saveTrackingFeedAction = staffAction(
   { name: "adventures.save_feed", admin: true },
   async (input, { supabase }) => {
     await saveTrackingFeed(supabase, input);
+    refresh();
+    return null;
+  },
+);
+
+export const correctCaptureAction = staffAction(
+  correctCaptureSchema,
+  { name: "adventures.correct_capture", permission: "verify_adventures" },
+  async ({ attemptId, startedAt, finishedAt, reason }, { supabase }) => {
+    const start = startedAt ? fromShopLocal(startedAt) : null;
+    const finish = finishedAt ? fromShopLocal(finishedAt) : null;
+    if (!start)
+      throw new ActionError("Enter when the ride started.", {
+        startedAt: ["Enter a real date and time."],
+      });
+    if (finishedAt && !finish)
+      throw new ActionError("Check the finish.", { finishedAt: ["Enter a real date and time."] });
+    await correctCapture(
+      supabase,
+      attemptId,
+      start.toISOString(),
+      finish ? finish.toISOString() : null,
+      reason,
+    );
+    refresh();
+    return null;
+  },
+);
+
+// ---------------------------------------------------------- departures ----
+// Phase D (D193-D195). Times are typed in shop time.
+
+function shopInstant(value: string | null, field: string): string | null {
+  if (value === null) return null;
+  const at = fromShopLocal(value);
+  if (!at) throw new ActionError("Check the dates.", { [field]: ["Enter a real date and time."] });
+  return at.toISOString();
+}
+
+export const createDepartureAction = staffAction(
+  createDepartureSchema,
+  { name: "adventures.create_departure", permission: "manage_adventures" },
+  async (input, { supabase }) => {
+    const result = await createDeparture(supabase, {
+      ...input,
+      startsAt: shopInstant(input.startsAt, "startsAt")!,
+      expectedFinishAt: shopInstant(input.expectedFinishAt, "expectedFinishAt"),
+    });
+    refresh();
+    return result;
+  },
+);
+
+export const updateDepartureAction = staffAction(
+  updateDepartureSchema,
+  { name: "adventures.update_departure", permission: "manage_adventures" },
+  async (input, { supabase }) => {
+    await updateDeparture(supabase, {
+      ...input,
+      startsAt: shopInstant(input.startsAt, "startsAt")!,
+      expectedFinishAt: shopInstant(input.expectedFinishAt, "expectedFinishAt"),
+    });
+    refresh();
+    return null;
+  },
+);
+
+export const cancelDepartureAction = staffAction(
+  cancelDepartureSchema,
+  { name: "adventures.cancel_departure", permission: "manage_adventures" },
+  async ({ departureId, reason }, { supabase }) => {
+    await cancelDeparture(supabase, departureId, reason);
     refresh();
     return null;
   },

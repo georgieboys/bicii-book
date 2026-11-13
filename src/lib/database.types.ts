@@ -430,6 +430,120 @@ export type Database = {
           },
         ];
       };
+      adventure_departure_participants: {
+        Row: {
+          booking_id: string;
+          departure_id: string;
+          id: string;
+          joined_at: string;
+          left_at: string | null;
+          left_reason: string | null;
+          show_name: boolean;
+        };
+        Insert: {
+          booking_id: string;
+          departure_id: string;
+          id?: string;
+          joined_at?: string;
+          left_at?: string | null;
+          left_reason?: string | null;
+          show_name?: boolean;
+        };
+        Update: {
+          booking_id?: string;
+          departure_id?: string;
+          id?: string;
+          joined_at?: string;
+          left_at?: string | null;
+          left_reason?: string | null;
+          show_name?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_departure_participants_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_bookings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_departure_participants_departure_id_fkey";
+            columns: ["departure_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_departures";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_departures: {
+        Row: {
+          adventure_id: string;
+          cancel_reason: string | null;
+          capacity: number;
+          created_at: string;
+          created_by: string | null;
+          expected_finish_at: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          meeting_point: string;
+          note: string;
+          staff_note: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["adventure_departure_status"];
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          adventure_id: string;
+          cancel_reason?: string | null;
+          capacity: number;
+          created_at?: string;
+          created_by?: string | null;
+          expected_finish_at?: string | null;
+          id?: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          meeting_point: string;
+          note?: string;
+          staff_note?: string;
+          starts_at: string;
+          status?: Database["public"]["Enums"]["adventure_departure_status"];
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          adventure_id?: string;
+          cancel_reason?: string | null;
+          capacity?: number;
+          created_at?: string;
+          created_by?: string | null;
+          expected_finish_at?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["adventure_participation"];
+          meeting_point?: string;
+          note?: string;
+          staff_note?: string;
+          starts_at?: string;
+          status?: Database["public"]["Enums"]["adventure_departure_status"];
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_departures_adventure_id_fkey";
+            columns: ["adventure_id"];
+            isOneToOne: false;
+            referencedRelation: "adventures";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_departures_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       adventure_events: {
         Row: {
           adventure_id: string;
@@ -7031,6 +7145,26 @@ export type Database = {
           max_days: number;
         }[];
       };
+      adventure_tracker_outline: {
+        Args: { max_points: number; submission_id: string };
+        Returns: {
+          latitude: number;
+          longitude: number;
+          recorded_at: string;
+        }[];
+      };
+      adventure_tracker_summary: {
+        Args: { submission_id: string };
+        Returns: {
+          attempt_id: string;
+          capture_finished_at: string;
+          capture_started_at: string;
+          distance_km: number;
+          first_at: string;
+          last_at: string;
+          points: number;
+        }[];
+      };
       answer_quote: { Args: { decisions: Json; name: string; token: string }; Returns: Json };
       appointment_daily: {
         Args: { from_day?: string; to_day?: string };
@@ -7167,6 +7301,32 @@ export type Database = {
           slot_end: string;
           slot_start: string;
         }[];
+      };
+      cancel_adventure_departure: {
+        Args: { departure_id: string; reason: string };
+        Returns: {
+          adventure_id: string;
+          cancel_reason: string | null;
+          capacity: number;
+          created_at: string;
+          created_by: string | null;
+          expected_finish_at: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          meeting_point: string;
+          note: string;
+          staff_note: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["adventure_departure_status"];
+          updated_at: string;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_departures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       cancel_appointment: {
         Args: { appointment_id: string; reason: string };
@@ -7536,6 +7696,41 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "adventure_revisions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_adventure_departure: {
+        Args: {
+          adventure_id: string;
+          capacity: number;
+          expected_finish_at: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          meeting_point: string;
+          note: string;
+          staff_note: string;
+          starts_at: string;
+        };
+        Returns: {
+          adventure_id: string;
+          cancel_reason: string | null;
+          capacity: number;
+          created_at: string;
+          created_by: string | null;
+          expected_finish_at: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          meeting_point: string;
+          note: string;
+          staff_note: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["adventure_departure_status"];
+          updated_at: string;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_departures";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -8089,10 +8284,34 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      join_adventure_departure: {
+        Args: {
+          booking_id: string;
+          departure_id: string;
+          expected_version: number;
+          show_name: boolean;
+        };
+        Returns: {
+          booking_id: string;
+          departure_id: string;
+          id: string;
+          joined_at: string;
+          left_at: string | null;
+          left_reason: string | null;
+          show_name: boolean;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_departure_participants";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       label_preview: {
         Args: { entity_id: string; kind: Database["public"]["Enums"]["label_kind"] };
         Returns: Json;
       };
+      leave_adventure_departure: { Args: { booking_id: string }; Returns: undefined };
       link_shopify_customer: {
         Args: { customer_id: string; reason: string; shopify_customer_id: string };
         Returns: Database["public"]["CompositeTypes"]["shopify_customer_link_result"];
@@ -8261,6 +8480,19 @@ export type Database = {
           status: Database["public"]["Enums"]["adventure_booking_status"];
           total: unknown;
           tshirt_size: string;
+        }[];
+      };
+      my_adventure_departure: {
+        Args: { booking_id: string };
+        Returns: {
+          departure_id: string;
+          expected_finish_at: string;
+          joined_at: string;
+          meeting_point: string;
+          note: string;
+          show_name: boolean;
+          starts_at: string;
+          status: Database["public"]["Enums"]["adventure_departure_status"];
         }[];
       };
       my_adventure_evidence: {
@@ -8634,6 +8866,21 @@ export type Database = {
           terrain: string;
           time_zone: string;
           when_to_start: string;
+        }[];
+      };
+      public_adventure_departures: {
+        Args: { adventure_slug: string };
+        Returns: {
+          capacity: number;
+          expected_finish_at: string;
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          meeting_point: string;
+          note: string;
+          riders: string[];
+          starts_at: string;
+          taken: number;
+          version: number;
         }[];
       };
       public_adventure_finishers: {
@@ -10605,6 +10852,41 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_adventure_departure: {
+        Args: {
+          capacity: number;
+          departure_id: string;
+          expected_finish_at: string;
+          expected_version: number;
+          meeting_point: string;
+          note: string;
+          staff_note: string;
+          starts_at: string;
+        };
+        Returns: {
+          adventure_id: string;
+          cancel_reason: string | null;
+          capacity: number;
+          created_at: string;
+          created_by: string | null;
+          expected_finish_at: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          meeting_point: string;
+          note: string;
+          staff_note: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["adventure_departure_status"];
+          updated_at: string;
+          version: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_departures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       update_adventure_draft: {
         Args: {
           checkpoint_order: Database["public"]["Enums"]["adventure_checkpoint_order"];
@@ -11022,10 +11304,14 @@ export type Database = {
         | "tracker_hire_cancelled"
         | "ride_started"
         | "ride_finished"
-        | "capture_corrected";
+        | "capture_corrected"
+        | "departure_joined"
+        | "departure_left"
+        | "departure_cancelled";
       adventure_booking_status: "pending_payment" | "confirmed" | "cancelled" | "expired";
       adventure_certificate_status: "active" | "revoked";
       adventure_checkpoint_order: "any" | "sequence";
+      adventure_departure_status: "scheduled" | "cancelled" | "completed";
       adventure_event_kind:
         "created" | "draft_started" | "published" | "archived" | "unarchived" | "order_changed";
       adventure_evidence_kind: "activity" | "checkpoint_photo";
@@ -11039,7 +11325,9 @@ export type Database = {
         | "not_certified"
         | "pack_ready"
         | "ride_submitted"
-        | "payment_attention";
+        | "payment_attention"
+        | "departure_joined"
+        | "departure_cancelled";
       adventure_pack_status: "awaiting_pack" | "ready" | "fulfilled" | "on_hold";
       adventure_participation: "self_supported" | "self_supported_group" | "supported";
       adventure_recording_method: "own_device" | "tracker_hire";
@@ -11287,6 +11575,8 @@ export type Database = {
         pack_items: string[] | null;
         attention_reason: string | null;
         public_site_url: string | null;
+        departure_starts_at: string | null;
+        departure_meeting_point: string | null;
       };
       appointment_check_in: {
         appointment_id: string | null;
@@ -12156,10 +12446,14 @@ export const Constants = {
         "ride_started",
         "ride_finished",
         "capture_corrected",
+        "departure_joined",
+        "departure_left",
+        "departure_cancelled",
       ],
       adventure_booking_status: ["pending_payment", "confirmed", "cancelled", "expired"],
       adventure_certificate_status: ["active", "revoked"],
       adventure_checkpoint_order: ["any", "sequence"],
+      adventure_departure_status: ["scheduled", "cancelled", "completed"],
       adventure_event_kind: [
         "created",
         "draft_started",
@@ -12186,6 +12480,8 @@ export const Constants = {
         "pack_ready",
         "ride_submitted",
         "payment_attention",
+        "departure_joined",
+        "departure_cancelled",
       ],
       adventure_pack_status: ["awaiting_pack", "ready", "fulfilled", "on_hold"],
       adventure_participation: ["self_supported", "self_supported_group", "supported"],

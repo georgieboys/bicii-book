@@ -12,6 +12,7 @@ import type {
   ReviewCheckKey,
 } from "@/lib/adventures";
 import { unwrap } from "@/lib/db-errors";
+import { customerLabel } from "@/lib/people";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
 /**
@@ -35,6 +36,24 @@ function one<T>(value: unknown): T | null {
   return (value as T) ?? null;
 }
 
+/** An embedded customer's name as staff see it everywhere (display name, else first and last, else email). */
+function riderLabel(value: unknown): string {
+  const c = one<{
+    display_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  }>(value);
+  return c
+    ? customerLabel({
+        displayName: c.display_name,
+        firstName: c.first_name,
+        lastName: c.last_name,
+        email: c.email,
+      })
+    : "Unknown rider";
+}
+
 type Named = { display_name: string } | null;
 
 // ------------------------------------------------------------ bookings ----
@@ -53,7 +72,7 @@ export type AdventureBookingListItem = {
 };
 
 const LIST_COLUMNS =
-  "id, reference, status, kind, total, needs_attention, created_at, confirmed_at, customer:customer_id (display_name), revision:revision_id (name)";
+  "id, reference, status, kind, total, needs_attention, created_at, confirmed_at, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)";
 
 type ListRow = {
   id: string;
@@ -74,7 +93,7 @@ function listItem(r: ListRow): AdventureBookingListItem {
     reference: r.reference,
     status: r.status,
     kind: r.kind,
-    customerName: one<{ display_name: string }>(r.customer)?.display_name ?? "Unknown rider",
+    customerName: riderLabel(r.customer),
     routeName: one<{ name: string }>(r.revision)?.name ?? "Unknown route",
     total: String(r.total),
     needsAttention: r.needs_attention,
@@ -332,7 +351,7 @@ export async function listReviewQueue(supabase: ServerSupabase): Promise<ReviewQ
     (await supabase
       .from("adventure_submissions")
       .select(
-        "id, version, state, submitted_at, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, customer:customer_id (display_name), revision:revision_id (name)))",
+        "id, version, state, submitted_at, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)))",
       )
       .in("state", ["submitted", "in_review"])
       .order("submitted_at")
@@ -350,8 +369,7 @@ export async function listReviewQueue(supabase: ServerSupabase): Promise<ReviewQ
       submissionId: s.id,
       bookingId: booking?.id ?? "",
       reference: booking?.reference ?? "",
-      customerName:
-        one<{ display_name: string }>(booking?.customer)?.display_name ?? "Unknown rider",
+      customerName: riderLabel(booking?.customer),
       routeName: one<{ name: string }>(booking?.revision)?.name ?? "Unknown route",
       version: s.version,
       state: s.state,
@@ -433,6 +451,17 @@ export type ReviewWorkspace = {
   files: EvidenceFile[];
   checkpoints: CheckpointPass[];
   history: PastReview[];
+  /** The hired tracker's track on this attempt (D191), when it has points or a window. */
+  tracker: {
+    attemptId: string;
+    points: number;
+    firstAt: string | null;
+    lastAt: string | null;
+    distanceKm: string;
+    captureStartedAt: string | null;
+    captureFinishedAt: string | null;
+    outline: Array<{ lat: number; lon: number }>;
+  } | null;
 };
 
 const EVIDENCE_BUCKET = "adventure-evidence";
@@ -446,7 +475,7 @@ export async function getReviewWorkspace(
     (await supabase
       .from("adventure_submissions")
       .select(
-        "id, attempt_id, version, state, submitted_at, rider_statement, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, attention_reason, customer:customer_id (display_name), revision:revision_id (name, revision_number, distance_km, min_elapsed_minutes, max_elapsed_minutes, checkpoint_order, rules)))",
+        "id, attempt_id, version, state, submitted_at, rider_statement, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, attention_reason, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name, revision_number, distance_km, min_elapsed_minutes, max_elapsed_minutes, checkpoint_order, rules)))",
       )
       .eq("id", submissionId)
       .maybeSingle()) as unknown as {
@@ -474,7 +503,7 @@ export async function getReviewWorkspace(
   }>(booking?.revision);
   if (!booking || !revision) return null;
 
-  const [files, passes, versions] = await Promise.all([
+  const [files, passes, versions, trackerSummary, trackerOutline] = await Promise.all([
     supabase
       .from("adventure_evidence_files")
       .select(
@@ -493,7 +522,13 @@ export async function getReviewWorkspace(
       )
       .eq("attempt_id", sub.attempt_id)
       .order("version", { ascending: false }),
+    supabase.rpc("adventure_tracker_summary", { submission_id: submissionId }),
+    supabase.rpc("adventure_tracker_outline", {
+      submission_id: submissionId,
+      max_points: OUTLINE_POINTS,
+    }),
   ]);
+  const ts = rows(trackerSummary)[0] ?? null;
 
   const evidence: EvidenceFile[] = await Promise.all(
     rows(files).map(async (f) => {
@@ -558,8 +593,7 @@ export async function getReviewWorkspace(
     booking: {
       id: booking.id,
       reference: booking.reference,
-      customerName:
-        one<{ display_name: string }>(booking.customer)?.display_name ?? "Unknown rider",
+      customerName: riderLabel(booking.customer),
       needsAttention: booking.needs_attention,
       attentionReason: booking.attention_reason,
     },
@@ -584,6 +618,22 @@ export async function getReviewWorkspace(
       nearestM: c.nearest_m === null ? null : Number(c.nearest_m),
       nearestAt: c.nearest_at,
     })),
+    tracker:
+      ts && (ts.points > 0 || ts.capture_started_at)
+        ? {
+            attemptId: ts.attempt_id,
+            points: ts.points,
+            firstAt: ts.first_at,
+            lastAt: ts.last_at,
+            distanceKm: String(ts.distance_km ?? 0),
+            captureStartedAt: ts.capture_started_at,
+            captureFinishedAt: ts.capture_finished_at,
+            outline: rows(trackerOutline).map((p) => ({
+              lat: Number(p.latitude),
+              lon: Number(p.longitude),
+            })),
+          }
+        : null,
     history: rows(versions).flatMap((v) =>
       (v.reviews ? [v.reviews].flat() : []).map((raw: unknown) => {
         const r = raw as {
@@ -678,7 +728,7 @@ export async function listAdventurePacks(
   let query = supabase
     .from("adventure_fulfilments")
     .select(
-      "id, booking_id, tshirt_size, items, status, note, ready_at, fulfilled_at, created_at, certificate:certificate_id (reference, status), booking:booking_id (reference, customer:customer_id (display_name), revision:revision_id (name))",
+      "id, booking_id, tshirt_size, items, status, note, ready_at, fulfilled_at, created_at, certificate:certificate_id (reference, status), booking:booking_id (reference, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name))",
     );
   if ("bookingId" in scope) query = query.eq("booking_id", scope.bookingId);
   else if (scope.open) query = query.neq("status", "fulfilled");
@@ -693,8 +743,7 @@ export async function listAdventurePacks(
       bookingId: p.booking_id,
       reference: booking?.reference ?? "",
       certificateReference: one<{ reference: string }>(p.certificate)?.reference ?? "",
-      customerName:
-        one<{ display_name: string }>(booking?.customer)?.display_name ?? "Unknown rider",
+      customerName: riderLabel(booking?.customer),
       routeName: one<{ name: string }>(booking?.revision)?.name ?? "Unknown route",
       tshirtSize: p.tshirt_size,
       items: p.items,

@@ -139,6 +139,14 @@ export const BOOKING_EVENT_LABELS: Record<AdventureBookingEventKind, string> = {
   ride_started: "Ride started",
   ride_finished: "Ride finished",
   capture_corrected: "Ride window corrected",
+  departure_joined: "Joined a group date",
+  departure_left: "Left a group date",
+  departure_cancelled: "Group date cancelled",
+};
+
+export const DEPARTURE_KIND_LABELS: Record<"self_supported_group" | "supported", string> = {
+  self_supported_group: "Group ride",
+  supported: "Supported ride",
 };
 
 export const SUBMISSION_STATE_LABELS: Record<AdventureSubmissionState, string> = {

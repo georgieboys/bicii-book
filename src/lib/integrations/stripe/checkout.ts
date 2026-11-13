@@ -5,7 +5,7 @@ import type { DepositState, IncompleteCheck, PaymentStatus } from "@/lib/payment
 
 import type { ServiceSupabase } from "../shopify/deps";
 import { CHECKOUT_HOST, REUSE_MARGIN_SECONDS, checkoutIdempotencyKey } from "./config";
-import { StripeError, type CheckoutSession, type CheckoutSessionInput } from "./gateway";
+import { StripeError, type CheckoutSession, type WorkshopCheckoutInput } from "./gateway";
 import type { StripeDeps } from "./deps";
 import {
   prepareBalanceCheckout,
@@ -355,7 +355,7 @@ type PayFlow<Row extends PreparedRow, Own> = {
   /** The customer page Stripe returns to: `${origin}${page}${token}?${marker}=returned|cancelled`. */
   page: PagePrefix;
   marker: "deposit" | "balance";
-  kind: CheckoutSessionInput["kind"];
+  kind: WorkshopCheckoutInput["kind"];
   prepare: (supabase: ServiceSupabase, token: string) => Promise<Row>;
   route: (row: Row) => Route<Own>;
   /** The quote a new session is for; null for a balance. */

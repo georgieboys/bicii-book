@@ -7,12 +7,12 @@
 import { describe, expect, it } from "vitest";
 
 import { createFakeStripeGateway } from "@/lib/integrations/stripe/fake-gateway";
-import { StripeError, type CheckoutSessionInput } from "@/lib/integrations/stripe/gateway";
+import { StripeError, type WorkshopCheckoutInput } from "@/lib/integrations/stripe/gateway";
 
 const PAYMENT = "11111111-2222-4333-8444-555555555555";
 /** Stripe's clock: the session below expires an hour after it. */
 const NOW_MS = 1_800_000_000_000;
-const INPUT: CheckoutSessionInput = {
+const INPUT: WorkshopCheckoutInput = {
   paymentId: PAYMENT,
   workOrderId: "66666666-7777-4888-9999-000000000000",
   quoteId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",

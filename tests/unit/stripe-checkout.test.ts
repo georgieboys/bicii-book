@@ -27,7 +27,7 @@ import { createFakeStripeGateway } from "@/lib/integrations/stripe/fake-gateway"
 import {
   StripeError,
   toCheckoutSession,
-  type CheckoutSessionInput,
+  type WorkshopCheckoutInput,
   type StripeGateway,
 } from "@/lib/integrations/stripe/gateway";
 import type { ServiceSupabase } from "@/lib/integrations/shopify/deps";
@@ -142,7 +142,7 @@ function makeDeps(
   return { deps, gateway, calls, lines, names: () => calls.map((c) => c.name) };
 }
 
-function input(paymentId: string, expiresAt = NOW_S + 3600): CheckoutSessionInput {
+function input(paymentId: string, expiresAt = NOW_S + 3600): WorkshopCheckoutInput {
   return {
     paymentId,
     workOrderId: JOB,

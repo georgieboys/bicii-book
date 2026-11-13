@@ -7,12 +7,12 @@
 import { describe, expect, it } from "vitest";
 
 import { checkoutSessionParams, formEncode } from "@/lib/integrations/stripe/form";
-import type { CheckoutSessionInput } from "@/lib/integrations/stripe/gateway";
+import type { WorkshopCheckoutInput } from "@/lib/integrations/stripe/gateway";
 
 /** Stripe's clock in these tests: the session below expires an hour later. */
 const NOW_S = 1_800_000_000;
 
-const INPUT: CheckoutSessionInput = {
+const INPUT: WorkshopCheckoutInput = {
   paymentId: "11111111-2222-4333-8444-555555555555",
   workOrderId: "66666666-7777-4888-9999-000000000000",
   quoteId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",

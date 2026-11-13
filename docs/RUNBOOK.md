@@ -1059,6 +1059,15 @@ job. No API role can run it and there is no cron.
 
 ## Stripe payments
 
+Adventure certifications (Adventures Phase B, D167) use the same Stripe
+account, webhook endpoint (`/api/stripe/webhooks`), signing secret and
+events: nothing changes in the Stripe Dashboard. Their Checkout Sessions
+carry `bicii_subject=adventure` and land in `adventure_payments`, never in
+a job's payments. The public site starts them through the Admin's
+`POST /api/adventures/checkout`, which needs `NEXT_PUBLIC_PUBLIC_SITE_URL`
+(the return pages). Nothing is sold until an admin turns adventure sales on
+with a terms version (`set_adventure_sales`).
+
 Customer payments through Stripe Checkout (Phase 14, D150–D159 in
 [ADR-025](decisions/ADR-025-stripe-payments.md)). Steps 1 and 2 (the
 database, the adapter, the webhook route, the quote page's deposit,

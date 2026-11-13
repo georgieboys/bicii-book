@@ -279,6 +279,14 @@ export function customerSignInUrl(env: PublicEnv = getPublicEnv()): string {
   return `${env.NEXT_PUBLIC_PUBLIC_SITE_URL}/sign-in`;
 }
 
+/**
+ * The public site's origin, for the pages Stripe returns adventure riders
+ * to (Adventures Phase B, D167). Never a QR base (as above).
+ */
+export function customerSiteUrl(env: PublicEnv = getPublicEnv()): string {
+  return env.NEXT_PUBLIC_PUBLIC_SITE_URL;
+}
+
 /** Test hook: forget memoised values so a test can change process.env. */
 export function resetEnvCache(): void {
   publicEnv = undefined;

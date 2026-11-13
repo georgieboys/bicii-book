@@ -30,7 +30,7 @@ import { createFakeStripeGateway } from "@/lib/integrations/stripe/fake-gateway"
 import {
   StripeError,
   toCheckoutSession,
-  type CheckoutSessionInput,
+  type WorkshopCheckoutInput,
   type StripeGateway,
 } from "@/lib/integrations/stripe/gateway";
 import type { ServiceSupabase } from "@/lib/integrations/shopify/deps";
@@ -192,7 +192,7 @@ function makeDeps(
   };
 }
 
-function input(paymentId: string, expiresAt = NOW_S + 3600): CheckoutSessionInput {
+function input(paymentId: string, expiresAt = NOW_S + 3600): WorkshopCheckoutInput {
   return {
     paymentId,
     workOrderId: JOB,
@@ -206,7 +206,7 @@ function input(paymentId: string, expiresAt = NOW_S + 3600): CheckoutSessionInpu
   };
 }
 
-function depositInput(paymentId: string, quoteId = QUOTE): CheckoutSessionInput {
+function depositInput(paymentId: string, quoteId = QUOTE): WorkshopCheckoutInput {
   return {
     ...input(paymentId),
     quoteId,
@@ -277,14 +277,14 @@ describe("startBalanceCheckout (D156h)", () => {
   });
 
   it("returns to this Admin's /pay page, built from the configured origin", async () => {
-    const seen: CheckoutSessionInput[] = [];
+    const seen: WorkshopCheckoutInput[] = [];
     const fake = fakeStripe();
     const gateway: StripeGateway = {
       ...fake,
       mode: fake.mode,
       livemode: fake.livemode,
       createCheckoutSession: async (i, key) => {
-        seen.push(i);
+        if (i.subject !== "adventure") seen.push(i);
         return fake.createCheckoutSession(i, key);
       },
     };

@@ -12,7 +12,9 @@ import { EVENT_ID, EVENT_TYPE, PAYMENT_INTENT_ID, SESSION_ID } from "./config";
  * in; nothing here computes an amount.
  */
 
-export type CheckoutSessionInput = {
+/** A workshop job's deposit or balance (Phase 14). `subject` may be left out. */
+export type WorkshopCheckoutInput = {
+  subject?: "workshop";
   paymentId: string;
   workOrderId: string;
   quoteId: string | null;
@@ -25,6 +27,28 @@ export type CheckoutSessionInput = {
   successUrl: string;
   cancelUrl: string;
 };
+
+/**
+ * An adventure booking's certification (Adventures Phase B, D167): its own
+ * payment table and metadata (bicii_subject=adventure), never a job.
+ */
+export type AdventureCheckoutInput = {
+  subject: "adventure";
+  /** adventure_payments.id, made by prepare_my_adventure_checkout. */
+  paymentId: string;
+  /** AV-000123 */
+  bookingReference: string;
+  /** The booking's first line, e.g. "BICII 125 certification". */
+  description: string;
+  /** From Postgres (prepare_my_adventure_checkout.amount_cents), never computed here. */
+  amountCents: number;
+  /** Epoch seconds, from Postgres. */
+  expiresAt: number;
+  successUrl: string;
+  cancelUrl: string;
+};
+
+export type CheckoutSessionInput = WorkshopCheckoutInput | AdventureCheckoutInput;
 
 export type CheckoutSession = {
   id: string;

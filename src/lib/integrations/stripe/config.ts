@@ -65,6 +65,10 @@ export const METADATA_KEYS = {
   job: "bicii_work_order_id",
   quote: "bicii_quote_id",
   kind: "bicii_kind",
+  // Adventures (D167): the dispatcher routes on bicii_subject.
+  subject: "bicii_subject",
+  adventurePayment: "bicii_adventure_payment_id",
+  booking: "bicii_booking_reference",
 } as const;
 
 /** Stripe ids, as record_stripe_event and record_stripe_read check them in SQL. */

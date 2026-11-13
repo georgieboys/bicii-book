@@ -4957,3 +4957,11 @@ Migrations `20261114000600_adventure_attention_enums.sql` (booking history `atte
 - `adventure_track_outline(track_id, max_points)` (security invoker, so the evidence RLS applies): a track's points thinned to at most `max_points` (capped at 1,000, PostgREST's row limit), first and last kept, for drawing.
 - `adventure_checkpoint_passes(submission_id)` (security invoker, evidence readers only): each checkpoint of the bought revision with the nearest recorded point across the version's parsed tracks, its distance in metres (haversine) and time. A hint for the reviewer.
 
+### Emails (Phase B, D183-D184)
+
+Migration `20261114000800_adventure_notices.sql`. A trigger on `adventure_booking_events` queues rows in `private.adventure_notices` (no API role reads it): to the rider's email for `confirmed` (ticket_paid), `changes_requested`, `certified`, `not_certified` and `pack_updated` to ready (pack_ready); to the booking alert recipients (`shop_settings.booking_alert_staff_ids` and `booking_alert_emails`, D163b) for `evidence_submitted` (ride_submitted) and `payment_attention`. One row per event, audience and recipient.
+
+Columns: `kind`, `audience`, `recipient`, `status` (pending, sent, failed), `attempts` (counted when a result is recorded, 5 at most), `claims` (15 at most), `next_attempt_at`, `claimed_until` and `claim_token` (both or neither), `last_error`, `sent_at`.
+
+Service role only: `claim_adventure_notices(max_count)` (1..20 due rows, each for 5 minutes under a new token, with what its email needs; gives up on rows claimed 15 times without a result); `finish_adventure_notice(notice_id, claim_token, result, error)` with result `sent` (also on a row given up meanwhile, if never sent), `failed` (attempt + 1, waits attempts × 5 minutes, the fifth is final) or `released` (no attempt, the claim is returned); a different token changes nothing and returns false.
+

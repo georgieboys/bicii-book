@@ -692,6 +692,8 @@ export const CHECK_ERRORS: Record<string, string> = {
     "A refund belongs to a workshop payment or an adventure payment, not both.",
   adventure_attempts_interval: "A ride cannot finish before it starts.",
   adventure_submissions_submitted_at: "A submitted version needs its submission time.",
+  adventure_notices_sent_at: "A sent email needs its sending time.",
+  adventure_notices_claim: "A claimed email needs its claim token and time.",
   adventure_submissions_claim: "A claimed review needs its reviewer and time.",
   adventure_reviews_approval: "An approval needs its accepted distance and completion date.",
   adventure_reviews_reason: "Tell the rider why.",

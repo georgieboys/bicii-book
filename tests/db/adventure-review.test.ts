@@ -12,15 +12,8 @@ import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { AUTH_USER } from "../fixtures/ids";
-import {
-  makeRider,
-  offerOn125,
-  openSales,
-  paidBooking,
-  type Rider,
-  type Sale,
-} from "./adventure-fixtures";
-import { customerClaims, putStorageObject } from "./customer-fixtures";
+import { makeRider, offerOn125, openSales, submitted, type Rider } from "./adventure-fixtures";
+import { customerClaims } from "./customer-fixtures";
 import {
   actAs,
   connect,
@@ -31,7 +24,6 @@ import {
   staffClaims,
   type Connection,
 } from "./harness";
-import { SERVICE } from "./payment-fixtures";
 import { failsWith } from "./workshop-fixtures";
 
 let conn: pg.Client;
@@ -49,54 +41,6 @@ const ALL_TRUE = {
   time_window: true,
   distance: true,
 };
-
-/** A paid booking whose rider has submitted a parsed, timed recording. Returns the submission id. */
-async function submitted(
-  tx: Connection,
-  rider: Rider,
-  sale: Sale,
-): Promise<{ bookingId: string; submissionId: string }> {
-  const bookingId = await paidBooking(tx, rider, sale);
-  await actAs(tx, customerClaims(rider.authUserId));
-  const { rows } = await tx.query<{ file_id: string; storage_path: string }>(
-    `select file_id, storage_path from public.prepare_my_adventure_upload($1, 'activity', null, 'ride.gpx', 'application/gpx+xml', 1000)`,
-    [bookingId],
-  );
-  await tx.query("reset role");
-  await putStorageObject(tx, "adventure-evidence", rows[0].storage_path, {
-    mimetype: "application/gpx+xml",
-    size: 1000,
-  });
-  await actAs(tx, customerClaims(rider.authUserId));
-  await tx.query("select public.finalise_my_adventure_upload($1)", [rows[0].file_id]);
-  await actAs(tx, SERVICE);
-  await tx.query("select public.claim_adventure_parse_jobs(10)");
-  await tx.query("select public.finish_adventure_parse($1, true, '', $2, 't', $3::jsonb)", [
-    rows[0].file_id,
-    "b".repeat(64),
-    JSON.stringify({
-      format: "gpx",
-      started_at: "2026-11-14T07:00:00Z",
-      finished_at: "2026-11-15T01:00:00Z",
-      distance_km: 131.2,
-      has_times: true,
-      points: [
-        ["2026-11-14T07:00:00Z", 1.3, 103.8],
-        ["2026-11-15T01:00:00Z", 1.31, 103.81],
-      ],
-    }),
-  ]);
-  await actAs(tx, customerClaims(rider.authUserId));
-  await tx.query("select public.submit_my_adventure_evidence($1, '')", [bookingId]);
-  await tx.query("reset role");
-  const submissionId = await scalar<string>(
-    tx,
-    `select s.id from public.adventure_submissions s join public.adventure_attempts t on t.id = s.attempt_id
-      where t.booking_id = $1 and s.state = 'submitted'`,
-    [bookingId],
-  );
-  return { bookingId, submissionId };
-}
 
 async function decide(
   tx: Connection,

@@ -748,6 +748,30 @@ Staff bookings send nothing.
    It goes out within a minute. Resend keeps each notice id as an
    idempotency key for 24 hours, so an email Resend had already accepted
    is not sent twice within that time.
+
+### Adventure emails
+
+The adventure-work cron (below, under Stripe payments) also sends the
+adventure emails (D183, D184): to riders, and to the same booking alert
+recipients. It needs `CRON_SECRET`, `RESEND_API_KEY` and `EMAIL_FROM`;
+without email the rows wait and are not claimed. `ADMIN_ORIGIN` puts the
+Admin's links in the shop alerts; the public site's address in shop
+settings puts the ride page's link in the riders' emails.
+
+```sql
+select n.kind, n.audience, n.status, n.attempts, n.claims, n.last_error,
+       n.created_at, n.sent_at
+from private.adventure_notices n
+order by n.created_at desc
+limit 20;
+```
+
+`pending` with attempts 0 and claims rising means sends are not finishing
+(Resend slow, or the function cut short); `failed` means five refused or
+failed sends, or 15 claims with no result. Put one back once the cause is
+fixed: `update private.adventure_notices set status = 'pending', attempts
+= 0, claims = 0, next_attempt_at = now(), last_error = null where id =
+'<notice id>' and status = 'failed';`.
 ## Indent items on jobs closed before the guard
 
 From `20261014000900_indent_settle_and_outside_purchase` (D149b, D149c) no

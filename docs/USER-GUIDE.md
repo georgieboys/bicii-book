@@ -1239,6 +1239,12 @@ of the published terms riders accept). Until then nothing is sold.
   hold** with a reason).
 - An admin can **Revoke** a certificate from its booking, with a reason.
   It comes off the finisher board; the certificate and its history stay.
+- Emails: the rider is emailed when their ticket is paid, when you ask for
+  changes, when the ride is certified or not (with your message to them),
+  and when you mark the pack ready to collect. The people on **Booking
+  emails** (Settings → Shop hours and closures) get an email when a ride is
+  sent for review and when a payment needs attention. Revoking a
+  certificate emails nobody: tell the rider yourself.
 
 ### Read reports
 

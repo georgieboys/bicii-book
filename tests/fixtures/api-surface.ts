@@ -545,6 +545,10 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   // The evidence parse worker (src/lib/integrations/adventures/)
   "public.claim_adventure_parse_jobs(integer)",
   "public.finish_adventure_parse(uuid, boolean, text, text, text, jsonb)",
+  // Adventures Phase B, emails (D183-D184): the adventure-work cron claims
+  // due emails under a claim token and records each result with it
+  "public.claim_adventure_notices(integer)",
+  "public.finish_adventure_notice(uuid, uuid, text, text)",
 ];
 
 /**

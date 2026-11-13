@@ -6,18 +6,25 @@ import { newRequestId } from "@/lib/request-id";
 import { createServiceClient } from "@/lib/supabase/service";
 
 import { bearerMatches } from "../shopify/cron";
+import { sendDueAdventureNotices } from "./notices";
 import { runAdventureParse, type ParseSummary, type ParseWorkerDeps } from "./parse-worker";
 
 /**
- * GET /api/cron/adventure-work (Adventures Phase B, D176): the Vercel cron
- * reads uploaded ride files. Fails closed (handoff §16): without
- * CRON_SECRET it answers 503; a missing or wrong bearer, 401. At most 3
- * files a run, nothing started after 40 seconds (maxDuration 60).
+ * GET /api/cron/adventure-work (Adventures Phase B, D176, D184): the Vercel
+ * cron reads uploaded ride files, then sends due adventure emails. Fails
+ * closed (handoff §16): without CRON_SECRET it answers 503; a missing or
+ * wrong bearer, 401. At most 3 files and 5 emails a run; nothing starts
+ * after 40 seconds (maxDuration 60), and emails not reached are released.
  */
+
+export type WorkSummary = {
+  files: ParseSummary;
+  emails: Awaited<ReturnType<typeof sendDueAdventureNotices>>;
+};
 
 export type WorkCronDeps = {
   secret: string | undefined;
-  run: (deadlineMs: number) => Promise<ParseSummary>;
+  run: (deadlineMs: number) => Promise<WorkSummary | ParseSummary>;
   now: () => number;
 };
 
@@ -25,14 +32,17 @@ function json(status: number, body: unknown): Response {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-function defaultRun(deadlineMs: number): Promise<ParseSummary> {
+async function defaultRun(deadlineMs: number): Promise<WorkSummary> {
   const correlationId = newRequestId();
+  const supabase = createServiceClient({ correlationId });
   const deps: ParseWorkerDeps = {
-    supabase: createServiceClient({ correlationId }),
+    supabase,
     log: child(correlationId, { integration: "adventure-work" }),
     now: Date.now,
   };
-  return runAdventureParse(deps, { max: 3, deadlineMs });
+  const files = await runAdventureParse(deps, { max: 3, deadlineMs });
+  const emails = await sendDueAdventureNotices(supabase, getServerEnv(), { max: 5, deadlineMs });
+  return { files, emails };
 }
 
 export async function handleAdventureWork(

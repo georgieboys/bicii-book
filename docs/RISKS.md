@@ -3333,3 +3333,28 @@ URLs, or customer data in this file.
   advisory.
 - Last checked: 2026-11-14.
 
+## R-100 — The booking emails' outbox can give up on an email it never tried, or record a delivered one as failed
+
+- Category: reliability.
+- Status and owner: open; code (a new migration for the booking emails).
+- Trigger: Resend slow or hanging while booking emails are queued.
+- Impact: `claim_appointment_notices` (D163) counts an attempt when it
+  claims a row, holds the claim for 2 minutes, and the sender claims 20 rows
+  in a 60-second function. When sends are slow, rows it never reached are
+  claimed again and run out of attempts without a real try, and are marked
+  failed; `finish_appointment_notice` accepts any run's result, and a
+  success arriving after the sweep leaves the row failed. Customers can miss
+  a confirmation, and nobody sees it (R-096).
+- Evidence and confidence: high, from reading the SQL and the sender; not
+  reproduced.
+- Workaround or containment: the adventure emails (D184) use the corrected
+  design: an attempt counts only when a result is recorded, claims last 5
+  minutes and carry a token, unsent rows are released, a late success is
+  recorded (`20261114000800_adventure_notices.sql`,
+  `tests/db/adventure-notices.test.ts`).
+- Next action: move the booking emails to the same design in a new
+  migration and sender change.
+- Revisit trigger: a booking email marked failed with "No result was
+  recorded".
+- Last checked: 2026-11-14.
+

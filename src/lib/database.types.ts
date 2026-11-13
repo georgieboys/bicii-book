@@ -6940,6 +6940,16 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      claim_adventure_notices: {
+        Args: { max_count?: number };
+        Returns: Database["public"]["CompositeTypes"]["adventure_notice"][];
+        SetofOptions: {
+          from: "*";
+          to: "adventure_notice";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       claim_adventure_parse_jobs: {
         Args: { max_jobs: number };
         Returns: {
@@ -7581,6 +7591,10 @@ export type Database = {
           unit_sale_price: number;
           yield_total: number;
         }[];
+      };
+      finish_adventure_notice: {
+        Args: { claim_token: string; error?: string; notice_id: string; result: string };
+        Returns: boolean;
       };
       finish_adventure_parse: {
         Args: {
@@ -10357,6 +10371,14 @@ export type Database = {
       adventure_file_state:
         "awaiting_upload" | "uploaded" | "parsing" | "parsed" | "failed" | "removed";
       adventure_finisher_name: "first_name_initial" | "full_name" | "hidden";
+      adventure_notice_kind:
+        | "ticket_paid"
+        | "changes_requested"
+        | "certified"
+        | "not_certified"
+        | "pack_ready"
+        | "ride_submitted"
+        | "payment_attention";
       adventure_pack_status: "awaiting_pack" | "ready" | "fulfilled" | "on_hold";
       adventure_participation: "self_supported" | "self_supported_group" | "supported";
       adventure_recording_method: "own_device" | "tracker_hire";
@@ -10579,6 +10601,27 @@ export type Database = {
         | "cancelled";
     };
     CompositeTypes: {
+      adventure_notice: {
+        id: string | null;
+        claim_token: string | null;
+        kind: Database["public"]["Enums"]["adventure_notice_kind"] | null;
+        audience: Database["public"]["Enums"]["appointment_notice_audience"] | null;
+        recipient: string | null;
+        attempts: number | null;
+        booking_id: string | null;
+        reference: string | null;
+        adventure_name: string | null;
+        adventure_slug: string | null;
+        rider_name: string | null;
+        rider_first_name: string | null;
+        message_to_rider: string | null;
+        certificate_reference: string | null;
+        completed_on: string | null;
+        accepted_distance_km: number | null;
+        pack_items: string[] | null;
+        attention_reason: string | null;
+        public_site_url: string | null;
+      };
       appointment_check_in: {
         appointment_id: string | null;
         appointment_status: Database["public"]["Enums"]["appointment_status"] | null;
@@ -11462,6 +11505,15 @@ export const Constants = {
         "removed",
       ],
       adventure_finisher_name: ["first_name_initial", "full_name", "hidden"],
+      adventure_notice_kind: [
+        "ticket_paid",
+        "changes_requested",
+        "certified",
+        "not_certified",
+        "pack_ready",
+        "ride_submitted",
+        "payment_attention",
+      ],
       adventure_pack_status: ["awaiting_pack", "ready", "fulfilled", "on_hold"],
       adventure_participation: ["self_supported", "self_supported_group", "supported"],
       adventure_recording_method: ["own_device", "tracker_hire"],

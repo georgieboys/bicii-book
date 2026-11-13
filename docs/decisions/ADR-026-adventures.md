@@ -82,6 +82,16 @@ behind it are security-invoker functions, so the evidence RLS decides who
 gets rows. A payment flag is cleared by an admin with a note, never by the
 review itself (D181, D182).
 
+## Amendment 2026-11-14: emails
+
+Adventure emails are queued by a trigger on the booking's history, so every
+email follows a recorded event and none is queued without one. They are
+sent by the adventure-work cron, not a cron of their own. The outbox counts
+an attempt only when a result is recorded, holds a claim longer than the
+function can run, records results only under the claim's token and records
+a late success, because the booking emails' outbox lacked these (R-100;
+D183, D184).
+
 ## Alternatives considered
 
 | Alternative | Why not |

@@ -91,6 +91,14 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "Your files are still being uploaded or read. Try again in a minute.",
   adventure_evidence_incomplete:
     "Add your ride's recording (a GPX or FIT file with times) before requesting certification.",
+  review_not_permitted: "You cannot review this ride. Ask another reviewer.",
+  submission_version_conflict: "This version has already been decided. Reload to see it.",
+  review_checklist_incomplete: "Tick every check before approving.",
+  review_approval_incomplete: "Enter the accepted distance and the completion date to approve.",
+  review_distance_short: "The accepted distance is shorter than the route.",
+  adventure_booking_attention: "This booking needs attention before it can be certified.",
+  adventure_certificate_immutable:
+    "Certificates are never deleted. Revoke it with a reason instead.",
   adventure_rules_incomplete:
     "A route with certification offers needs its nominal days and a maximum time.",
   staff_email_mismatch: "That email does not match the login it belongs to.",
@@ -684,6 +692,10 @@ export const CHECK_ERRORS: Record<string, string> = {
     "A refund belongs to a workshop payment or an adventure payment, not both.",
   adventure_attempts_interval: "A ride cannot finish before it starts.",
   adventure_submissions_submitted_at: "A submitted version needs its submission time.",
+  adventure_submissions_claim: "A claimed review needs its reviewer and time.",
+  adventure_reviews_approval: "An approval needs its accepted distance and completion date.",
+  adventure_reviews_reason: "Tell the rider why.",
+  adventure_certificates_revoked: "A revoked certificate needs its reason and time.",
   adventure_evidence_files_photo: "A photo needs its checkpoint; a ride file has none.",
   adventures_published_has_revision: "Publish a version before showing this adventure.",
   adventure_revisions_window_order: "The minimum time cannot be longer than the maximum.",

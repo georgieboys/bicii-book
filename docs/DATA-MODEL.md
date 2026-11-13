@@ -4933,3 +4933,19 @@ Access: attempts and submissions for any staff; files, tracks and points for sta
 
 RPCs (rider): `prepare_my_adventure_upload(booking_id, kind, checkpoint_position, original_name, content_type, declared_bytes)` (a paid booking of theirs; creates the attempt and draft; GPX or FIT, or a photo for a checkpoint of the bought revision; size and count limits); `finalise_my_adventure_upload(file_id)` (the object must exist; its size is Storage's); `remove_my_adventure_file(file_id)` (drafts only); `submit_my_adventure_evidence(booking_id, rider_statement)` (no file still uploading or being read, at least one parsed recording with times; freezes the version); `my_adventure_evidence(booking_id)`. Worker (service role): `claim_adventure_parse_jobs(max_jobs)` (SKIP LOCKED, 5-minute claims, failed after 3), `finish_adventure_parse(file_id, ok, error, sha256, parser_version, track)` (once; a late or duplicate result is ignored). The worker is `GET /api/cron/adventure-work` (every minute, `CRON_SECRET` required).
 
+### Review, certificates and packs (Phase B, D178-D180)
+
+Migrations `20261114000400_adventure_review_enums.sql` (booking history `review_started`, `changes_requested`, `certified`, `not_certified`, `certificate_revoked`, `pack_updated`) and `20261114000500_adventure_review.sql`.
+
+| Table | Purpose and rules |
+|---|---|
+| `adventure_submissions` (added) | `review_claimed_by`, `review_claimed_at` (both or neither) |
+| `adventure_reviews` | One decision per submitted version: `decision` (`approved`, `changes_requested`, `rejected`), reviewer, the checklist (`identity`, `coverage`, `checkpoints`, `chronology`, `time_window`, `distance`, all booleans), accepted distance and completion date (approvals), message to the rider (required unless approved), internal note. Append-only |
+| `adventure_certificates` | One per attempt: `reference` (`BC-000001`), booking, adventure, revision, rider, completion date, accepted distance, `status` (`active`, `revoked`; revoked needs reason and time). Never deleted; only revocation changes it |
+| `adventure_badge_awards` | One per certificate: the badge label frozen at issue. Append-only |
+| `adventure_fulfilments` | The finisher pack, one per certificate: T-shirt size from the booking, items, `status` (`awaiting_pack`, `ready`, `fulfilled`, `on_hold`), ready and fulfilled times, note |
+
+Access: reviews for staff who verify or manage adventures; certificates, badges and packs for staff. Riders read their own outcome through `my_adventure_outcome(booking_id)`.
+
+RPCs: `claim_adventure_review(submission_id)` and `decide_adventure_review(submission_id, decision, checklist, accepted_distance_km, completed_on, message_to_rider, internal_note)` (`verify_adventures`; locks the booking then the submission, refuses one's own ride `review_not_permitted`, a decided version `submission_version_conflict`; approval issues certificate, badge and pack together); `revoke_adventure_certificate(certificate_id, reason)` (admin); `set_adventure_pack_status(fulfilment_id, status, note)` (`manage_adventures`); `public_adventure_finishers(adventure_slug, max_rows)` (anyone; active certificates only, display name, completion date and badge).
+

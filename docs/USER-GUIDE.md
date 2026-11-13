@@ -1261,6 +1261,20 @@ for its manifest (who joined, their contact details, whether their name is
 shown publicly). **Change** keeps everyone on it; **Cancel date** needs a
 reason and emails every rider (their tickets stand).
 
+### Supported ride dates
+
+A supported date is added the same way, as **Supported ride** (the route
+needs a supported offer). Riders buy a place on it on bicii.sg once an
+admin turns on **Supported ride sales** (Settings → Adventure sales; only
+after insurance, the staffing ratio, the emergency procedure and the
+overrun terms are confirmed). A place includes a tracker for the day.
+On the date's page, **Add staff** as lead or facilitator. On the day, a
+facilitator on the date (with **Facilitate adventures**) presses **Check
+in** for each rider and **Add observation** for anything worth knowing
+(left the route, withdrew, finished, a note). Observations are kept as
+written and help the reviewer; they never certify anyone. A rider cannot
+leave a paid supported place online: staff change or refund it.
+
 ### Tracker hire at the counter
 
 Riders can hire a GPS tracker with a certified ride once an admin turns

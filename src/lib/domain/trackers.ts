@@ -224,7 +224,7 @@ export async function getBookingHire(
   return data[0] ? hireFromRow(data[0]) : null;
 }
 
-export type TrackerHireSettings = { enabled: boolean; maxDays: number };
+export type TrackerHireSettings = { enabled: boolean; maxDays: number; supportedSales: boolean };
 
 export async function getTrackerHireSettings(
   supabase: ServerSupabase,
@@ -232,11 +232,17 @@ export async function getTrackerHireSettings(
   const row = unwrap(
     await supabase
       .from("adventure_settings")
-      .select("tracker_hire_enabled, tracker_hire_max_days")
+      .select("tracker_hire_enabled, tracker_hire_max_days, supported_sales_enabled")
       .eq("id", 1)
       .maybeSingle(),
   );
-  return row ? { enabled: row.tracker_hire_enabled, maxDays: row.tracker_hire_max_days } : null;
+  return row
+    ? {
+        enabled: row.tracker_hire_enabled,
+        maxDays: row.tracker_hire_max_days,
+        supportedSales: row.supported_sales_enabled,
+      }
+    : null;
 }
 
 // ------------------------------------------------------------- changes ----
@@ -485,4 +491,8 @@ export async function listLiveRides(supabase: ServerSupabase): Promise<LiveRide[
       };
     }),
   );
+}
+
+export async function setSupportedSales(supabase: ServerSupabase, enabled: boolean): Promise<void> {
+  unwrap(await supabase.rpc("set_adventure_supported_sales", { enabled }));
 }

@@ -229,6 +229,19 @@ describe("POST /api/adventures/checkout", () => {
     expect(bad.riderCalls).toEqual([]);
   });
 
+  it("passes a supported departure to the database (D196)", async () => {
+    const h = harness();
+    const res = await handleAdventureCheckout(
+      post({ ...BODY, kind: "supported", departureId: "77777777-6666-4555-8444-333333333333" }),
+      h.deps,
+    );
+    expect(res.status).toBe(200);
+    expect(h.riderCalls[0].args).toMatchObject({
+      kind: "supported",
+      departure_id: "77777777-6666-4555-8444-333333333333",
+    });
+  });
+
   it("prepares as the rider, creates a session with the payment's key, records it and returns Stripe's URL", async () => {
     const h = harness();
     const res = await handleAdventureCheckout(post(), h.deps);

@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/dates";
 import { getAdventureSalesSettings } from "@/lib/domain/adventure-bookings";
 import { getTrackerHireSettings, listTrackingDevices } from "@/lib/domain/trackers";
 import { TrackerHireControl } from "@/components/domain/adventures/tracker-sheets";
+import { SupportedSalesControl } from "@/components/domain/adventures/departure-sheets";
 import { stripeConnection } from "@/lib/integrations/stripe/client";
 import { createClient } from "@/lib/supabase/server";
 
@@ -64,6 +65,8 @@ export default async function AdventureSalesSettingsPage() {
       {hire ? (
         <div className="mt-6">
           <Card title="Tracker hire">
+            <SupportedSalesControl enabled={hire.supportedSales} />
+            <div className="mt-4" />
             <TrackerHireControl
               enabled={hire.enabled}
               maxDays={hire.maxDays}

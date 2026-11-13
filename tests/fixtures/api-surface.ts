@@ -46,6 +46,8 @@ export const ANON_FUNCTIONS: readonly string[] = [
   // Adventures Phase D (D194): a route's upcoming group dates, places left
   // and consenting riders' first names and initials
   "public.public_adventure_departures(text)",
+  // Adventures Phase E (D196): whether supported rides are on sale
+  "public.adventure_supported_sales_state()",
 ];
 
 /**
@@ -301,7 +303,7 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // their own bookings (private.require_customer)
   "public.adventure_sales_state()",
   "public.set_adventure_sales(boolean, text)",
-  "public.prepare_my_adventure_checkout(uuid, text, adventure_participation, integer, text, adventure_finisher_name, text, adventure_recording_method, date, date)",
+  "public.prepare_my_adventure_checkout(uuid, text, adventure_participation, integer, text, adventure_finisher_name, text, adventure_recording_method, date, date, uuid)",
   "public.my_adventure_bookings()",
   "public.my_adventure_booking(uuid)",
   // Adventures Phase B, evidence (D175, D177): the rider's own draft only
@@ -346,6 +348,15 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.leave_adventure_departure(uuid)",
   "public.my_adventure_departure(uuid)",
   "public.public_adventure_departures(text)",
+  // Adventures Phase E (D196-D199): the supported switch is admin-only;
+  // staff assignment needs manage_adventures; check-ins and observations
+  // need facilitate_adventures on that departure, or manage_adventures
+  "public.set_adventure_supported_sales(boolean)",
+  "public.assign_departure_staff(uuid, uuid, departure_staff_role)",
+  "public.remove_departure_staff(uuid, uuid)",
+  "public.check_in_departure_rider(uuid, uuid)",
+  "public.record_departure_observation(uuid, uuid, departure_observation_kind, text)",
+  "public.adventure_supported_sales_state()",
   "public.adventure_tracker_summary(uuid)",
   // D181: clearing a booking's payment flag is admin-only (the function checks)
   "public.clear_adventure_booking_attention(uuid, text)",
@@ -550,6 +561,9 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   // Adventures Phase D (D193): departures and who joined, for staff
   "public.adventure_departure_participants": ["SELECT"],
   "public.adventure_departures": ["SELECT"],
+  // Adventures Phase E (D199): who works a departure and what they recorded
+  "public.adventure_departure_observations": ["SELECT"],
+  "public.adventure_departure_staff": ["SELECT"],
   "public.tracking_messages": ["SELECT"],
 };
 

@@ -265,8 +265,9 @@ describe("preparing a checkout (handoff P07, P08, C01, C02)", () => {
       );
       await failsWith(
         tx,
+        // Supported rides have their own switch, off here (Phase E, D196).
         () => prepare(tx, rider, sale, { kind: "supported" }),
-        refused("adventure_offer_unavailable"),
+        refused("adventure_supported_closed"),
       );
       await failsWith(
         tx,

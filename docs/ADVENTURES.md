@@ -66,7 +66,7 @@ terms it was sold at.
 | Phase | What | State |
 |---|---|---|
 | A | Catalogue: routes, revisions, checkpoints, offers, public reads; staff editor; public site from the database | Database and the staff screens (More → Adventures) built; the public site next |
-| B | Paid self-supported certification with the rider's own recording | Not started |
+| B | Paid self-supported certification with the rider's own recording | Bookings and payments in the database (sales off); the Stripe endpoint, evidence, review and screens next |
 | C | Tracker hire and SPOT tracking | Not started |
 | D | Group departures | Not started |
 | E | Supported departures | Not started |

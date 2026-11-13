@@ -3,6 +3,216 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      adventure_booking_events: {
+        Row: {
+          booking_id: string;
+          created_at: string;
+          detail: NonNullable<Json>;
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_booking_event_kind"];
+          payment_id: string | null;
+          staff_id: string | null;
+          stripe_event_id: string | null;
+        };
+        Insert: {
+          booking_id: string;
+          created_at?: string;
+          detail?: NonNullable<Json>;
+          id?: string;
+          kind: Database["public"]["Enums"]["adventure_booking_event_kind"];
+          payment_id?: string | null;
+          staff_id?: string | null;
+          stripe_event_id?: string | null;
+        };
+        Update: {
+          booking_id?: string;
+          created_at?: string;
+          detail?: NonNullable<Json>;
+          id?: string;
+          kind?: Database["public"]["Enums"]["adventure_booking_event_kind"];
+          payment_id?: string | null;
+          staff_id?: string | null;
+          stripe_event_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_booking_events_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_bookings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_booking_events_payment_id_fkey";
+            columns: ["payment_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_payments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_booking_events_staff_id_fkey";
+            columns: ["staff_id"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_booking_events_stripe_event_id_fkey";
+            columns: ["stripe_event_id"];
+            isOneToOne: false;
+            referencedRelation: "stripe_events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_booking_lines: {
+        Row: {
+          booking_id: string;
+          description: string;
+          id: string;
+          kind: string;
+          position: number;
+          quantity: number;
+          total: number | null;
+          unit_price: number;
+        };
+        Insert: {
+          booking_id: string;
+          description: string;
+          id?: string;
+          kind: string;
+          position: number;
+          quantity: number;
+          total?: never;
+          unit_price: number;
+        };
+        Update: {
+          booking_id?: string;
+          description?: string;
+          id?: string;
+          kind?: string;
+          position?: number;
+          quantity?: number;
+          total?: never;
+          unit_price?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_booking_lines_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_bookings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_bookings: {
+        Row: {
+          adventure_id: string;
+          attention_reason: string | null;
+          cancelled_at: string | null;
+          confirmed_at: string | null;
+          created_at: string;
+          currency: string;
+          customer_id: string;
+          expired_at: string | null;
+          finisher_name: Database["public"]["Enums"]["adventure_finisher_name"];
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          needs_attention: boolean;
+          offer_id: string;
+          recording_method: Database["public"]["Enums"]["adventure_recording_method"];
+          reference: string;
+          request_fingerprint: string;
+          request_id: string;
+          revision_id: string;
+          status: Database["public"]["Enums"]["adventure_booking_status"];
+          terms_version: string;
+          total: number;
+          tshirt_size: string;
+          updated_at: string;
+        };
+        Insert: {
+          adventure_id: string;
+          attention_reason?: string | null;
+          cancelled_at?: string | null;
+          confirmed_at?: string | null;
+          created_at?: string;
+          currency?: string;
+          customer_id: string;
+          expired_at?: string | null;
+          finisher_name?: Database["public"]["Enums"]["adventure_finisher_name"];
+          id?: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          needs_attention?: boolean;
+          offer_id: string;
+          recording_method?: Database["public"]["Enums"]["adventure_recording_method"];
+          reference: string;
+          request_fingerprint: string;
+          request_id: string;
+          revision_id: string;
+          status?: Database["public"]["Enums"]["adventure_booking_status"];
+          terms_version: string;
+          total: number;
+          tshirt_size: string;
+          updated_at?: string;
+        };
+        Update: {
+          adventure_id?: string;
+          attention_reason?: string | null;
+          cancelled_at?: string | null;
+          confirmed_at?: string | null;
+          created_at?: string;
+          currency?: string;
+          customer_id?: string;
+          expired_at?: string | null;
+          finisher_name?: Database["public"]["Enums"]["adventure_finisher_name"];
+          id?: string;
+          kind?: Database["public"]["Enums"]["adventure_participation"];
+          needs_attention?: boolean;
+          offer_id?: string;
+          recording_method?: Database["public"]["Enums"]["adventure_recording_method"];
+          reference?: string;
+          request_fingerprint?: string;
+          request_id?: string;
+          revision_id?: string;
+          status?: Database["public"]["Enums"]["adventure_booking_status"];
+          terms_version?: string;
+          total?: number;
+          tshirt_size?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_bookings_adventure_id_fkey";
+            columns: ["adventure_id"];
+            isOneToOne: false;
+            referencedRelation: "adventures";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_bookings_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_bookings_offer_id_fkey";
+            columns: ["offer_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_offers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_bookings_revision_id_fkey";
+            columns: ["revision_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_revisions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       adventure_checkpoints: {
         Row: {
           id: string;
@@ -140,6 +350,87 @@ export type Database = {
           },
         ];
       };
+      adventure_payments: {
+        Row: {
+          amount: number;
+          amount_cents: number | null;
+          amount_received: number | null;
+          booking_id: string;
+          checkout_completed_at: string | null;
+          created_at: string;
+          currency: string;
+          expired_at: string | null;
+          failed_at: string | null;
+          id: string;
+          last_event_id: string | null;
+          livemode: boolean | null;
+          paid_at: string | null;
+          refunded_amount: number;
+          status: Database["public"]["Enums"]["payment_status"];
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          stripe_session_expires_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          amount: number;
+          amount_cents?: never;
+          amount_received?: number | null;
+          booking_id: string;
+          checkout_completed_at?: string | null;
+          created_at?: string;
+          currency?: string;
+          expired_at?: string | null;
+          failed_at?: string | null;
+          id: string;
+          last_event_id?: string | null;
+          livemode?: boolean | null;
+          paid_at?: string | null;
+          refunded_amount?: number;
+          status?: Database["public"]["Enums"]["payment_status"];
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          stripe_session_expires_at: string;
+          updated_at?: string;
+        };
+        Update: {
+          amount?: number;
+          amount_cents?: never;
+          amount_received?: number | null;
+          booking_id?: string;
+          checkout_completed_at?: string | null;
+          created_at?: string;
+          currency?: string;
+          expired_at?: string | null;
+          failed_at?: string | null;
+          id?: string;
+          last_event_id?: string | null;
+          livemode?: boolean | null;
+          paid_at?: string | null;
+          refunded_amount?: number;
+          status?: Database["public"]["Enums"]["payment_status"];
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          stripe_session_expires_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_payments_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_bookings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_payments_last_event_id_fkey";
+            columns: ["last_event_id"];
+            isOneToOne: false;
+            referencedRelation: "stripe_events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       adventure_revisions: {
         Row: {
           adventure_id: string;
@@ -258,6 +549,41 @@ export type Database = {
           {
             foreignKeyName: "adventure_revisions_sealed_by_fkey";
             columns: ["sealed_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_settings: {
+        Row: {
+          checkout_minutes: number;
+          id: number;
+          sales_enabled: boolean;
+          terms_version: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          checkout_minutes?: number;
+          id?: number;
+          sales_enabled?: boolean;
+          terms_version?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          checkout_minutes?: number;
+          id?: number;
+          sales_enabled?: boolean;
+          terms_version?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_settings_updated_by_fkey";
+            columns: ["updated_by"];
             isOneToOne: false;
             referencedRelation: "staff";
             referencedColumns: ["id"];
@@ -2571,6 +2897,7 @@ export type Database = {
       };
       payment_refunds: {
         Row: {
+          adventure_payment_id: string | null;
           amount: number;
           created_at: string;
           currency: string;
@@ -2588,6 +2915,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          adventure_payment_id?: string | null;
           amount: number;
           created_at?: string;
           currency: string;
@@ -2605,6 +2933,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          adventure_payment_id?: string | null;
           amount?: number;
           created_at?: string;
           currency?: string;
@@ -2622,6 +2951,13 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "payment_refunds_adventure_payment_id_fkey";
+            columns: ["adventure_payment_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_payments";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "payment_refunds_last_event_id_fkey";
             columns: ["last_event_id"];
@@ -4460,6 +4796,7 @@ export type Database = {
       };
       stripe_events: {
         Row: {
+          adventure_payment_id: string | null;
           api_version: string | null;
           body_bytes: number | null;
           body_sha256: string | null;
@@ -4485,6 +4822,7 @@ export type Database = {
           work_order_id: string | null;
         };
         Insert: {
+          adventure_payment_id?: string | null;
           api_version?: string | null;
           body_bytes?: number | null;
           body_sha256?: string | null;
@@ -4510,6 +4848,7 @@ export type Database = {
           work_order_id?: string | null;
         };
         Update: {
+          adventure_payment_id?: string | null;
           api_version?: string | null;
           body_bytes?: number | null;
           body_sha256?: string | null;
@@ -4535,6 +4874,13 @@ export type Database = {
           work_order_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "stripe_events_adventure_payment_id_fkey";
+            columns: ["adventure_payment_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_payments";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "stripe_events_payment_fk";
             columns: ["payment_id"];
@@ -5829,6 +6175,13 @@ export type Database = {
           on_hand: number;
         }[];
       };
+      adventure_sales_state: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          sales_enabled: boolean;
+          terms_version: string;
+        }[];
+      };
       answer_quote: { Args: { decisions: Json; name: string; token: string }; Returns: Json };
       appointment_daily: {
         Args: { from_day?: string; to_day?: string };
@@ -6766,6 +7119,52 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      my_adventure_booking: {
+        Args: { booking_id: string };
+        Returns: {
+          adventure_name: string;
+          adventure_slug: string;
+          checking_payment: boolean;
+          checkpoints: Json;
+          confirmed_at: string;
+          created_at: string;
+          currency: string;
+          distance_km: number;
+          emergency_procedure: string;
+          finisher_name: Database["public"]["Enums"]["adventure_finisher_name"];
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          lines: Json;
+          max_elapsed_minutes: number;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          reference: string;
+          rider_instructions: string;
+          rules: string;
+          status: Database["public"]["Enums"]["adventure_booking_status"];
+          terms_version: string;
+          total: unknown;
+          tshirt_size: string;
+        }[];
+      };
+      my_adventure_bookings: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          adventure_name: string;
+          adventure_slug: string;
+          checking_payment: boolean;
+          confirmed_at: string;
+          created_at: string;
+          currency: string;
+          finisher_name: Database["public"]["Enums"]["adventure_finisher_name"];
+          id: string;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          reference: string;
+          status: Database["public"]["Enums"]["adventure_booking_status"];
+          total: unknown;
+          tshirt_size: string;
+        }[];
+      };
       my_appointments: {
         Args: { include_past?: boolean };
         Returns: Database["public"]["CompositeTypes"]["my_appointment"][];
@@ -6954,6 +7353,28 @@ export type Database = {
           quote_id: string;
           stripe_checkout_session_id: string;
           work_order_id: string;
+        }[];
+      };
+      prepare_my_adventure_checkout: {
+        Args: {
+          adventure_slug: string;
+          finisher_name: Database["public"]["Enums"]["adventure_finisher_name"];
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          request_id: string;
+          revision_number: number;
+          terms_version: string;
+          tshirt_size: string;
+        };
+        Returns: {
+          amount: unknown;
+          amount_cents: number;
+          booking_id: string;
+          currency: string;
+          description: string;
+          expires_at: string;
+          payment_id: string;
+          reference: string;
+          reused: boolean;
         }[];
       };
       process_shopify_event: {
@@ -7197,6 +7618,36 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "reclassify_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      record_adventure_checkout: {
+        Args: { payment_id: string; session: Json };
+        Returns: {
+          amount: number;
+          amount_cents: number | null;
+          amount_received: number | null;
+          booking_id: string;
+          checkout_completed_at: string | null;
+          created_at: string;
+          currency: string;
+          expired_at: string | null;
+          failed_at: string | null;
+          id: string;
+          last_event_id: string | null;
+          livemode: boolean | null;
+          paid_at: string | null;
+          refunded_amount: number;
+          status: Database["public"]["Enums"]["payment_status"];
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          stripe_session_expires_at: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_payments";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -8065,6 +8516,23 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "adventures";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_adventure_sales: {
+        Args: { sales_enabled: boolean; terms_version: string };
+        Returns: {
+          checkout_minutes: number;
+          id: number;
+          sales_enabled: boolean;
+          terms_version: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_settings";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -9092,10 +9560,22 @@ export type Database = {
       };
     };
     Enums: {
+      adventure_booking_event_kind:
+        | "created"
+        | "payment_started"
+        | "confirmed"
+        | "expired"
+        | "payment_failed"
+        | "payment_processing"
+        | "payment_attention"
+        | "refund_recorded";
+      adventure_booking_status: "pending_payment" | "confirmed" | "cancelled" | "expired";
       adventure_checkpoint_order: "any" | "sequence";
       adventure_event_kind:
         "created" | "draft_started" | "published" | "archived" | "unarchived" | "order_changed";
+      adventure_finisher_name: "first_name_initial" | "full_name" | "hidden";
       adventure_participation: "self_supported" | "self_supported_group" | "supported";
+      adventure_recording_method: "own_device" | "tracker_hire";
       adventure_status: "draft" | "published" | "archived";
       appointment_event_type:
         | "booked"
@@ -10154,6 +10634,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      adventure_booking_event_kind: [
+        "created",
+        "payment_started",
+        "confirmed",
+        "expired",
+        "payment_failed",
+        "payment_processing",
+        "payment_attention",
+        "refund_recorded",
+      ],
+      adventure_booking_status: ["pending_payment", "confirmed", "cancelled", "expired"],
       adventure_checkpoint_order: ["any", "sequence"],
       adventure_event_kind: [
         "created",
@@ -10163,7 +10654,9 @@ export const Constants = {
         "unarchived",
         "order_changed",
       ],
+      adventure_finisher_name: ["first_name_initial", "full_name", "hidden"],
       adventure_participation: ["self_supported", "self_supported_group", "supported"],
+      adventure_recording_method: ["own_device", "tracker_hire"],
       adventure_status: ["draft", "published", "archived"],
       appointment_event_type: [
         "booked",

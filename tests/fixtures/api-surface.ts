@@ -34,6 +34,9 @@ export const ANON_FUNCTIONS: readonly string[] = [
   // sealed revision and public columns only
   "public.public_adventure(text)",
   "public.public_adventures()",
+  // Adventures Phase B (D170): whether certified rides are on sale and
+  // which terms riders accept
+  "public.adventure_sales_state()",
 ];
 
 /**
@@ -284,6 +287,14 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.start_adventure_draft(uuid)",
   "public.suggested_adventure_price(adventure_participation, integer, integer)",
   "public.unarchive_adventure(uuid)",
+  // Adventures Phase B (D170, D172): the sales switch is admin-only (the
+  // function checks); a customer prepares their own checkout and reads only
+  // their own bookings (private.require_customer)
+  "public.adventure_sales_state()",
+  "public.set_adventure_sales(boolean, text)",
+  "public.prepare_my_adventure_checkout(uuid, text, adventure_participation, integer, text, adventure_finisher_name, text)",
+  "public.my_adventure_bookings()",
+  "public.my_adventure_booking(uuid)",
   "public.update_adventure_draft(uuid, integer, text, text, text, text, text, text, text, text, numeric, integer, text, integer, integer, adventure_checkpoint_order, text, text, text, text, text, text, boolean)",
 ];
 
@@ -444,6 +455,14 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.adventure_offers": ["SELECT"],
   "public.adventure_revisions": ["SELECT"],
   "public.adventures": ["SELECT"],
+  // Adventures Phase B (D167, D172): staff read bookings and payments (RLS
+  // is_staff); customers read none of them, only the my_adventure_* RPCs;
+  // every write is an RPC or a verified Stripe event
+  "public.adventure_booking_events": ["SELECT"],
+  "public.adventure_booking_lines": ["SELECT"],
+  "public.adventure_bookings": ["SELECT"],
+  "public.adventure_payments": ["SELECT"],
+  "public.adventure_settings": ["SELECT"],
 };
 
 /**
@@ -481,6 +500,9 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   // Booking emails (D163): the Admin's sender (src/lib/integrations/notifications/)
   "public.claim_appointment_notices(integer)",
   "public.finish_appointment_notice(uuid, boolean, text)",
+  // Adventures Phase B (D167): the Admin's checkout endpoint records the
+  // Checkout Session it created for an adventure payment
+  "public.record_adventure_checkout(uuid, jsonb)",
 ];
 
 /**

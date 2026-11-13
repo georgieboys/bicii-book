@@ -66,7 +66,7 @@ describe (planned; never exercised).
 | Environment | App | Database | Auth, Storage, integrations | Configuration source |
 |---|---|---|---|---|
 | Local devstack | http://localhost:3000 (`npm run dev`); E2E serves a production build on :3100 | `bicii_dev` on Postgres 16 at 127.0.0.1:5432 | Supabase Auth :9999, PostgREST :3001, Storage :5000 behind the gateway :54321; public local demo keys; no email; Shopify off, or the in-memory fake with `SHOPIFY_ADAPTER=fake` (E2E sets it); Stripe off, or the in-memory fake with `STRIPE_ADAPTER=fake`, or test keys with `stripe listen` | `npm run devstack:env` writes `.env.local`; shell variables for the scripts ([ENGINEERING.md](ENGINEERING.md#prerequisites-and-access)) |
-| CI (GitHub Actions) | `next build`; `next start` on :3100 for E2E | A `postgres:16` service container per job | The devstack with the local demo keys; no secrets; Stripe off or its fake, never a key | [`ci.yml`](../.github/workflows/ci.yml): `check`, `test (unit + db)`, `build` on pull requests (opened, synchronize, reopened), pushes to `main` and manual dispatch. [`e2e.yml`](../.github/workflows/e2e.yml): pull requests labelled `e2e`, nightly at 02:23 Singapore time, manual dispatch. [`migrate.yml`](../.github/workflows/migrate.yml): `db push` to the hosted project on manual dispatch and on pushes to `main` that change `supabase/migrations/` |
+| CI (GitHub Actions) | `next build`; `next start` on :3100 for E2E | A `postgres:16` service container per job | The devstack with the local demo keys; no secrets; Stripe off or its fake, never a key | [`ci.yml`](../.github/workflows/ci.yml): `check`, `test (unit + db)`, `build` on pull requests (opened, synchronize, reopened), pushes to `main` and manual dispatch. [`e2e.yml`](../.github/workflows/e2e.yml): pull requests labelled `e2e`, nightly at 02:23 Singapore time, manual dispatch. [`migrate.yml`](../.github/workflows/migrate.yml): `db push` to the hosted project after a green CI run for a push to `main`, and on manual dispatch from `main` |
 | Preview / staging | Vercel previews of the Admin (protected); no staging database, so a preview reads the production project with the anon key and cannot sign anyone in (the service-role key is Production only) | `bicii-staging` planned, not created | Planned; Stripe off (code-enforced in Preview, D157) | [RUNBOOK](RUNBOOK.md#hosted-supabase-projects-staging-and-production) |
 | Production | Vercel `bicii-book`'s production domain, deployed from `main` | The hosted Supabase project (live 2026-10-12) | Supabase Auth (email codes through Resend), Storage, PostgREST; Shopify off; Stripe on (variables set on 2026-10-14; the Admin's own domain serves since 2026-10-15 SGT); the deposit percent is 100% since 2026-10-15 SGT (the owner's setting; build default 50%, D151, D157), so every quote sent since asks the full price of its approved parts; one live deposit paid and refunded on a test job (2026-10-15); quote emails on | Vercel environment variables and the Supabase dashboard's Auth settings ([RUNBOOK](RUNBOOK.md#vercel-environment-setup)) |
 
@@ -433,10 +433,11 @@ Required checks before a release: `check`, `test (unit + db)` and `build`
 green, and `e2e` (label) green. Identifying the deployed commit: not
 applicable until a Vercel project exists.
 
-A merge to `main` that adds migrations triggers `migrate.yml`, and Vercel
-deploys the app at the same time: wait for `migrate.yml` to finish before
-relying on a new screen, and keep each app change tolerant of the previous
-schema for that window. Phase 14 step 1's migrations only add empty
+A merge to `main` runs CI; `migrate.yml` applies new migrations only after
+CI is green (about 4 minutes), while Vercel deploys the app as soon as its
+own build finishes: wait for `migrate.yml` before relying on a new screen,
+and keep each app change tolerant of the previous schema for that window
+(RUNBOOK "From GitHub Actions" describes gating Vercel on it). Phase 14 step 1's migrations only add empty
 tables, service-role RPCs and enum values, so the running app is
 unaffected; with no `STRIPE_*` variables the new webhook route answers 503.
 

@@ -35,4 +35,4 @@ Not run:
 - Migrations (file names), or none:
 - `tests/fixtures/api-surface.ts` and `src/lib/database.types.ts` updated, or not needed:
 - Environment variables (names only; `.env.example` updated), or none:
-- Hosted impact: nothing is deployed.
+- Hosted impact: merging deploys the Admin to production (Vercel) and, after CI is green, applies any new migration to the production database (`migrate.yml`). Say whether each migration is safe for the app version already running, or "none".

@@ -65,12 +65,12 @@ terms it was sold at.
 
 | Phase | What | State |
 |---|---|---|
-| A | Catalogue: routes, revisions, checkpoints, offers, public reads; staff editor; public site from the database | Database and the staff screens (More → Adventures) built; the public site next |
-| B | Paid self-supported certification with the rider's own recording | Bookings, payments, the checkout endpoint and evidence (uploads, file reading, submission) built (sales off); review, screens and the public site's journey next |
-| C | Tracker hire and SPOT tracking | Not started |
-| D | Group departures | Not started |
-| E | Supported departures | Not started |
-| F | Hardening, rider GPX export, live sharing, public rider profiles | Not started |
+| A | Catalogue: routes, revisions, checkpoints, offers, public reads; staff editor; public site from the database | Built and live (PRs #66–#67, BICII #38) |
+| B | Paid self-supported certification with the rider's own recording | Built: bookings, Stripe checkout, evidence, review, certificates, packs, emails (PRs #68–#73, BICII #43); sales off |
+| C | Tracker hire and SPOT tracking | Built against a fake feed (PRs #74–#77, BICII #45); hire off until trackers exist (D186) |
+| D | Group departures | Built (PR #77, BICII #45) |
+| E | Supported departures | Built (PR #78, BICII #45); supported sales off until insurance and staffing are confirmed |
+| F | Hardening, rider GPX export, live sharing, public rider profiles | Built (PRs #79–#80, BICII #45); live sharing and profiles off |
 
 Data: [DATA-MODEL §20](DATA-MODEL.md#20-adventures). Nothing is sold until
 Phase B ships behind its sales switch and the owner has written the

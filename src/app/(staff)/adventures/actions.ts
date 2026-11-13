@@ -20,6 +20,7 @@ import {
   observationSchema,
   removeDepartureStaffSchema,
   supportedSalesSchema,
+  publicSurfacesSchema,
   cancelHireSchema,
   createDepartureSchema,
   updateDepartureSchema,
@@ -82,6 +83,7 @@ import {
   setTrackerHire,
   saveTrackingFeed,
   setSupportedSales,
+  setPublicSurfaces,
   setTrackingDeviceState,
 } from "@/lib/domain/trackers";
 
@@ -476,6 +478,16 @@ export const setSupportedSalesAction = staffAction(
     await setSupportedSales(supabase, enabled);
     refresh();
     return { enabled };
+  },
+);
+
+export const setPublicSurfacesAction = staffAction(
+  publicSurfacesSchema,
+  { name: "adventures.set_public_surfaces", admin: true },
+  async ({ liveSharing, publicProfiles }, { supabase }) => {
+    await setPublicSurfaces(supabase, liveSharing, publicProfiles);
+    refresh();
+    return null;
   },
 );
 

@@ -10,6 +10,7 @@ import {
   recordObservationAction,
   removeDepartureStaffAction,
   setSupportedSalesAction,
+  setPublicSurfacesAction,
   updateDepartureAction,
 } from "@/app/(staff)/adventures/actions";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -392,6 +393,51 @@ export function SupportedSalesControl({ enabled }: { enabled: boolean }) {
           onClose={close}
         >
           {() => <Checkbox name="enabled" label="Sell supported rides" defaultChecked={enabled} />}
+        </FormSheet>
+      ) : null}
+    </div>
+  );
+}
+
+/** Admin: riders' live-share links and public profiles (D205, D206). */
+export function PublicSurfacesControl({
+  liveSharing,
+  publicProfiles,
+}: {
+  liveSharing: boolean;
+  publicProfiles: boolean;
+}) {
+  const { open, show, close } = useOpen();
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <p className="text-sm">
+        Live-share links {liveSharing ? "on" : "off"}; public rider profiles{" "}
+        {publicProfiles ? "on" : "off"}.
+      </p>
+      <Button variant="outline" size="sm" onClick={show}>
+        Change<span className="sr-only"> rider sharing</span>
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Rider sharing"
+          description="Live-share links let a rider send anyone a link to their open ride's positions. Public profiles let a rider show their certificates on bicii.sg. Riders opt in themselves; turning either off hides every link or profile at once."
+          submitLabel="Save"
+          pendingLabel="Saving…"
+          success="Saved"
+          action={act(setPublicSurfacesAction)}
+          hidden={{}}
+          onClose={close}
+        >
+          {() => (
+            <div className="flex flex-col gap-3">
+              <Checkbox name="liveSharing" label="Live-share links" defaultChecked={liveSharing} />
+              <Checkbox
+                name="publicProfiles"
+                label="Public rider profiles"
+                defaultChecked={publicProfiles}
+              />
+            </div>
+          )}
         </FormSheet>
       ) : null}
     </div>

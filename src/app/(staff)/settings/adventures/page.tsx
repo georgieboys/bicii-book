@@ -8,7 +8,10 @@ import { formatDateTime } from "@/lib/dates";
 import { getAdventureHealth, getAdventureSalesSettings } from "@/lib/domain/adventure-bookings";
 import { getTrackerHireSettings, listTrackingDevices } from "@/lib/domain/trackers";
 import { TrackerHireControl } from "@/components/domain/adventures/tracker-sheets";
-import { SupportedSalesControl } from "@/components/domain/adventures/departure-sheets";
+import {
+  PublicSurfacesControl,
+  SupportedSalesControl,
+} from "@/components/domain/adventures/departure-sheets";
 import { stripeConnection } from "@/lib/integrations/stripe/client";
 import { createClient } from "@/lib/supabase/server";
 
@@ -125,6 +128,14 @@ export default async function AdventureSalesSettingsPage() {
               inService={devices.filter((d) => d.serviceState === "in_service").length}
             />
           </Card>
+          <div className="mt-6">
+            <Card title="Rider sharing">
+              <PublicSurfacesControl
+                liveSharing={hire.liveSharing}
+                publicProfiles={hire.publicProfiles}
+              />
+            </Card>
+          </div>
         </div>
       ) : null}
     </>

@@ -1,7 +1,15 @@
 # Current state
 
-Updated: 2026-11-14 SGT (Adventures built, Phases 0–F, every switch
-off in production. Backend PRs #66–#80, all merged with green CI and
+Updated: 2026-11-14 SGT (Adventures built and checked against the
+handoff's acceptance tests, every switch off in production. Latest: PR #82
+(the §20.6 scenarios in `adventures-scenarios.spec.ts`; frozen tracker
+evidence, duplicate files, short-fleet flags and email retry, D208–D211;
+tickets never change hands, D207, the owner's decision; an opaque phone tab
+bar after an axe-core scan of the twelve Admin adventure screens found
+nothing else) and BICII #46 (a free visitor and buying while signed out),
+both green with e2e and merged; `20261114002000_evidence_integrity.sql`
+applied by `migrate.yml` on d19fb26 and checked read-only in production.
+What stays partial is R-103. Before that: Backend PRs #66–#80, all merged with green CI and
 label-run e2e, and their migrations applied by `migrate.yml` (the last,
 `20261114001900_rider_surfaces.sql`, on ea19235). Public site BICII #38,
 #43 and #45 merged and live on bicii.sg. Checked read-only in production:
@@ -75,7 +83,7 @@ request; the full e2e suite runs on the `e2e` label and nightly.
 | Payment links, counter payments | Yes (Phase 14 step 3) | CI, e2e with the fake Stripe | Production; none used yet (2026-10-24), no test-mode rehearsal |
 | Audit fixes | Yes (PRs #38, #43–#45) | CI and label-run e2e | Production |
 | Reclassify shop stock as consigned (D162) | Database, the admin-only Change owner, the item-id fix and a consigned product's cost as its amount owed (PRs #50–#53) | CI and full e2e green on PR #51; PR #52's unit test failed before it and passed after; `consigned-product-costs.test.ts` failed first and passes | Production since 2026-10-28 SGT (the owner's 25 products reclassified, checked read-only); the cost change since 2026-10-29 (`migrate.yml` run 22, Vercel's build of e201b34 READY; the products' costs checked read-only) |
-| Adventures (D164–D206) | Catalogue, bookings, review and pack screens in the Admin; checkout, evidence, review, certificates and emails in the database; the rider's journey on the public site (BICII #43) | DB tests (`adventure-*.test.ts`), unit tests, `adventures-review.spec.ts` against the local stack; checkout and webhook end to end against the local stack | Catalogue in production (9 routes); every adventure switch off (sales, tracker hire, supported sales, live sharing, public profiles) |
+| Adventures (D164–D211) | Catalogue, bookings, review and pack screens in the Admin; checkout, evidence, review, certificates and emails in the database; the rider's journey on the public site (BICII #43) | DB tests (`adventure-*.test.ts`), unit tests, `adventures-review.spec.ts` against the local stack; checkout and webhook end to end against the local stack | Catalogue in production (9 routes); every adventure switch off (sales, tracker hire, supported sales, live sharing, public profiles) |
 | Booking emails (D163) | Yes: Postgres outbox, minute cron, Settings → Booking emails | `appointment-notices.test.ts` (9), unit (11) and the settings e2e locally; CI not run yet | Not deployed |
 
 Commands and evidence: [ENGINEERING](docs/ENGINEERING.md#commands),

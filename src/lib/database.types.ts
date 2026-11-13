@@ -7,6 +7,8 @@ export type Database = {
         Row: {
           attempt_number: number;
           booking_id: string;
+          capture_finished_at: string | null;
+          capture_started_at: string | null;
           created_at: string;
           id: string;
           ride_finished_at: string | null;
@@ -17,6 +19,8 @@ export type Database = {
         Insert: {
           attempt_number?: number;
           booking_id: string;
+          capture_finished_at?: string | null;
+          capture_started_at?: string | null;
           created_at?: string;
           id?: string;
           ride_finished_at?: string | null;
@@ -27,6 +31,8 @@ export type Database = {
         Update: {
           attempt_number?: number;
           booking_id?: string;
+          capture_finished_at?: string | null;
+          capture_started_at?: string | null;
           created_at?: string;
           id?: string;
           ride_finished_at?: string | null;
@@ -5704,6 +5710,141 @@ export type Database = {
           },
         ];
       };
+      tracking_feeds: {
+        Row: {
+          config_name: string;
+          created_at: string;
+          created_by: string | null;
+          enabled: boolean;
+          failures: number;
+          id: string;
+          label: string;
+          last_error: string | null;
+          last_success_at: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          min_interval_seconds: number;
+          next_request_at: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          updated_at: string;
+          watermark_at: string;
+          window_end_at: string | null;
+        };
+        Insert: {
+          config_name: string;
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          failures?: number;
+          id?: string;
+          label: string;
+          last_error?: string | null;
+          last_success_at?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          min_interval_seconds?: number;
+          next_request_at?: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          updated_at?: string;
+          watermark_at?: string;
+          window_end_at?: string | null;
+        };
+        Update: {
+          config_name?: string;
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          failures?: number;
+          id?: string;
+          label?: string;
+          last_error?: string | null;
+          last_success_at?: string | null;
+          lease_token?: string | null;
+          lease_until?: string | null;
+          min_interval_seconds?: number;
+          next_request_at?: string;
+          provider?: Database["public"]["Enums"]["tracking_provider"];
+          updated_at?: string;
+          watermark_at?: string;
+          window_end_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracking_feeds_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tracking_messages: {
+        Row: {
+          attempt_id: string | null;
+          device_id: string | null;
+          feed_id: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["tracking_message_kind"];
+          latitude: number | null;
+          longitude: number | null;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id: string;
+          provider_message_id: string;
+          received_at: string;
+          recorded_at: string;
+        };
+        Insert: {
+          attempt_id?: string | null;
+          device_id?: string | null;
+          feed_id?: string | null;
+          id?: string;
+          kind: Database["public"]["Enums"]["tracking_message_kind"];
+          latitude?: number | null;
+          longitude?: number | null;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id: string;
+          provider_message_id: string;
+          received_at?: string;
+          recorded_at: string;
+        };
+        Update: {
+          attempt_id?: string | null;
+          device_id?: string | null;
+          feed_id?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["tracking_message_kind"];
+          latitude?: number | null;
+          longitude?: number | null;
+          provider?: Database["public"]["Enums"]["tracking_provider"];
+          provider_device_id?: string;
+          provider_message_id?: string;
+          received_at?: string;
+          recorded_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracking_messages_attempt_id_fkey";
+            columns: ["attempt_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_attempts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracking_messages_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "tracking_devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracking_messages_feed_id_fkey";
+            columns: ["feed_id"];
+            isOneToOne: false;
+            referencedRelation: "tracking_feeds";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       work_order_assignments: {
         Row: {
           assigned_at: string;
@@ -7251,6 +7392,17 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      claim_tracking_feed: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          config_name: string;
+          feed_id: string;
+          lease_token: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          watermark_at: string;
+          window_end_at: string;
+        }[];
+      };
       clear_adventure_booking_attention: {
         Args: { booking_id: string; note: string };
         Returns: {
@@ -7324,6 +7476,27 @@ export type Database = {
           unit_short_id: string;
           unit_status: Database["public"]["Enums"]["unit_status"];
         }[];
+      };
+      correct_adventure_capture: {
+        Args: { attempt_id: string; finished_at: string; reason: string; started_at: string };
+        Returns: {
+          attempt_number: number;
+          booking_id: string;
+          capture_finished_at: string | null;
+          capture_started_at: string | null;
+          created_at: string;
+          id: string;
+          ride_finished_at: string | null;
+          ride_started_at: string | null;
+          state: Database["public"]["Enums"]["adventure_attempt_state"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_attempts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       create_adventure: {
         Args: { distance_km: number; name: string; slug: string };
@@ -7742,6 +7915,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      fail_tracking_feed: {
+        Args: { error: string; feed_id: string; lease_token: string };
+        Returns: boolean;
+      };
       finalise_my_adventure_upload: {
         Args: { file_id: string };
         Returns: {
@@ -7827,6 +8004,27 @@ export type Database = {
       finish_appointment_notice: {
         Args: { error?: string; notice_id: string; ok: boolean };
         Returns: undefined;
+      };
+      finish_my_adventure_ride: {
+        Args: { booking_id: string };
+        Returns: {
+          attempt_number: number;
+          booking_id: string;
+          capture_finished_at: string | null;
+          capture_started_at: string | null;
+          created_at: string;
+          id: string;
+          ride_finished_at: string | null;
+          ride_started_at: string | null;
+          state: Database["public"]["Enums"]["adventure_attempt_state"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_attempts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       fit_part_bought_outside: {
         Args: {
@@ -8090,6 +8288,19 @@ export type Database = {
           pack_items: string[];
           pack_status: Database["public"]["Enums"]["adventure_pack_status"];
           tshirt_size: string;
+        }[];
+      };
+      my_adventure_ride: {
+        Args: { booking_id: string };
+        Returns: {
+          capture_finished_at: string;
+          capture_started_at: string;
+          first_at: string;
+          latest_at: string;
+          latest_latitude: number;
+          latest_longitude: number;
+          latest_received_at: string;
+          positions: number;
         }[];
       };
       my_adventure_tracker: {
@@ -9478,6 +9689,40 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      save_tracking_feed: {
+        Args: {
+          config_name: string;
+          enabled: boolean;
+          feed_id: string;
+          label: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+        };
+        Returns: {
+          config_name: string;
+          created_at: string;
+          created_by: string | null;
+          enabled: boolean;
+          failures: number;
+          id: string;
+          label: string;
+          last_error: string | null;
+          last_success_at: string | null;
+          lease_token: string | null;
+          lease_until: string | null;
+          min_interval_seconds: number;
+          next_request_at: string;
+          provider: Database["public"]["Enums"]["tracking_provider"];
+          updated_at: string;
+          watermark_at: string;
+          window_end_at: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "tracking_feeds";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       schedule_cult_commons_rate: {
         Args: { effective_from?: string; rate: unknown; rate_id: string };
         Returns: {
@@ -10123,6 +10368,27 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      start_my_adventure_ride: {
+        Args: { booking_id: string };
+        Returns: {
+          attempt_number: number;
+          booking_id: string;
+          capture_finished_at: string | null;
+          capture_started_at: string | null;
+          created_at: string;
+          id: string;
+          ride_finished_at: string | null;
+          ride_started_at: string | null;
+          state: Database["public"]["Enums"]["adventure_attempt_state"];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_attempts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       stock_adjustments_on: {
         Args: { on_day?: string };
         Returns: {
@@ -10142,6 +10408,17 @@ export type Database = {
           unit_short_id: string;
           value_at_cost: number;
         }[];
+      };
+      store_tracking_messages: {
+        Args: {
+          complete: boolean;
+          feed_id: string;
+          lease_token: string;
+          messages: Json;
+          next_window_end: string;
+          window_to: string;
+        };
+        Returns: number;
       };
       submit_my_adventure_evidence: {
         Args: { booking_id: string; rider_statement: string };
@@ -10742,7 +11019,10 @@ export type Database = {
         | "tracker_issued"
         | "tracker_replaced"
         | "tracker_returned"
-        | "tracker_hire_cancelled";
+        | "tracker_hire_cancelled"
+        | "ride_started"
+        | "ride_finished"
+        | "capture_corrected";
       adventure_booking_status: "pending_payment" | "confirmed" | "cancelled" | "expired";
       adventure_certificate_status: "active" | "revoked";
       adventure_checkpoint_order: "any" | "sequence";
@@ -10927,6 +11207,7 @@ export type Database = {
       tracker_reservation_status: "held" | "confirmed" | "completed" | "cancelled";
       tracker_return_condition: "good" | "needs_service" | "faulty" | "lost";
       tracker_service_state: "in_service" | "maintenance" | "lost" | "retired";
+      tracking_message_kind: "position" | "check_in" | "help" | "stop" | "other";
       tracking_provider: "spot" | "fake";
       tracking_type: "quantity" | "unique";
       unit_status:
@@ -11872,6 +12153,9 @@ export const Constants = {
         "tracker_replaced",
         "tracker_returned",
         "tracker_hire_cancelled",
+        "ride_started",
+        "ride_finished",
+        "capture_corrected",
       ],
       adventure_booking_status: ["pending_payment", "confirmed", "cancelled", "expired"],
       adventure_certificate_status: ["active", "revoked"],
@@ -12114,6 +12398,7 @@ export const Constants = {
       tracker_reservation_status: ["held", "confirmed", "completed", "cancelled"],
       tracker_return_condition: ["good", "needs_service", "faulty", "lost"],
       tracker_service_state: ["in_service", "maintenance", "lost", "retired"],
+      tracking_message_kind: ["position", "check_in", "help", "stop", "other"],
       tracking_provider: ["spot", "fake"],
       tracking_type: ["quantity", "unique"],
       unit_status: [

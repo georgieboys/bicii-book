@@ -8,6 +8,7 @@ import {
   registerTrackingDeviceAction,
   replaceTrackerAction,
   returnTrackerAction,
+  saveTrackingFeedAction,
   setTrackerHireAction,
   setTrackingDeviceStateAction,
 } from "@/app/(staff)/adventures/actions";
@@ -369,5 +370,82 @@ export function TrackerHireControl({
         </FormSheet>
       ) : null}
     </div>
+  );
+}
+
+/** Admin: add a feed, or change one's name and whether it is read. */
+export function TrackingFeedButton({
+  feed,
+}: {
+  feed?: { id: string; provider: string; label: string; configName: string; enabled: boolean };
+}) {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button variant={feed ? "outline" : undefined} size="sm" onClick={show}>
+        {feed ? (
+          <>
+            Change<span className="sr-only"> the feed {feed.label}</span>
+          </>
+        ) : (
+          "Add feed"
+        )}
+      </Button>
+      {open ? (
+        <FormSheet
+          title={feed ? `Feed ${feed.label}` : "Add a tracking feed"}
+          description="The feed's ID is never typed here. Set it in Vercel as the variable named below (and NAME_PASSWORD if the feed has one), then redeploy."
+          submitLabel="Save"
+          pendingLabel="Saving…"
+          success="Saved"
+          action={act(saveTrackingFeedAction)}
+          hidden={
+            feed ? { feedId: feed.id, provider: feed.provider, configName: feed.configName } : {}
+          }
+          onClose={close}
+        >
+          {(errors) => (
+            <>
+              <Field label="Name" error={errors?.label?.[0]} required>
+                <Input
+                  name="label"
+                  autoComplete="off"
+                  defaultValue={feed?.label}
+                  placeholder="Shop SPOT feed"
+                />
+              </Field>
+              {feed ? null : (
+                <>
+                  <Field label="Service" error={errors?.provider?.[0]} required>
+                    <Select name="provider" defaultValue="spot">
+                      <option value="spot">SPOT</option>
+                      <option value="fake">Test feed (fake trackers)</option>
+                    </Select>
+                  </Field>
+                  <Field
+                    label="Variable name"
+                    hint="Starts TRACKING_FEED_. For SPOT it holds the shared feed's ID; for the test feed, device IDs separated by commas."
+                    error={errors?.configName?.[0]}
+                    required
+                  >
+                    <Input
+                      name="configName"
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder="TRACKING_FEED_SHOP"
+                    />
+                  </Field>
+                </>
+              )}
+              <Checkbox
+                name="enabled"
+                label="Read this feed"
+                defaultChecked={feed?.enabled ?? false}
+              />
+            </>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
   );
 }

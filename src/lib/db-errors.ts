@@ -113,6 +113,11 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   tracker_already_returned: "This tracker was already returned.",
   tracker_hire_not_cancellable: "This hire is finished, or its tracker is still out.",
   tracker_assignment_immutable: "Who held a tracker and when is kept as it was.",
+  adventure_tracker_not_issued: "Collect your tracker from the shop first.",
+  adventure_ride_already_started: "Your ride has already started.",
+  adventure_ride_not_started: "Start your ride first.",
+  adventure_ride_already_finished: "Your ride has already finished.",
+  adventure_capture_invalid: "The start must be in the past and before the finish.",
   adventure_rules_incomplete:
     "A route with certification offers needs its nominal days and a maximum time.",
   staff_email_mismatch: "That email does not match the login it belongs to.",
@@ -551,6 +556,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
 
 /** 23505 unique violations by constraint name. */
 export const UNIQUE_ERRORS: Record<string, string> = {
+  tracking_feeds_config_key: "That feed is already set up.",
   tracking_devices_label_key: "Another tracker already has that label.",
   tracking_devices_provider_key: "That tracker is already registered.",
   tracker_assignments_device_open: "Someone has this tracker. Record its return first.",
@@ -714,6 +720,9 @@ export const CHECK_ERRORS: Record<string, string> = {
   tracker_reservations_hold: "A held tracker needs the time its hold ends.",
   tracker_assignments_return: "A return needs who received it, when, and its condition.",
   tracker_assignments_order: "A tracker cannot come back before it went out.",
+  tracking_feeds_lease: "A leased feed needs its lease token and time.",
+  tracking_messages_position: "A position needs both latitude and longitude.",
+  adventure_attempts_capture: "A ride window needs its start before its finish.",
   adventure_notices_sent_at: "A sent email needs its sending time.",
   adventure_notices_claim: "A claimed email needs its claim token and time.",
   adventure_submissions_claim: "A claimed review needs its reviewer and time.",

@@ -3378,3 +3378,27 @@ URLs, or customer data in this file.
   devices.
 - Last checked: 2026-11-14.
 
+## R-102 — The SPOT adapter has never read a real feed
+
+- Category: integration.
+- Status and owner: open; code, then the owner (a feed and a pilot ride).
+- Trigger: the first real SPOT feed.
+- Impact: the adapter follows SPOT's published feed format (field names,
+  message types, the "no messages" code, sentinel coordinates, 50 a page,
+  date filters) from the brief's research, not from a BICII feed. A
+  difference would fail the feed visibly (Trackers → Feeds shows the
+  error) or misread a field; it cannot certify anyone, because a reviewer
+  decides and the rider's own recording can be uploaded instead.
+- Evidence and confidence: medium; unit tests use synthetic SPOT-shaped
+  JSON (`tests/unit/tracking-providers.test.ts`); the database side and the
+  fake feed ran end to end on the local stack on 2026-11-14 (19 messages,
+  12 attributed inside the ride window, the second call within the rate
+  limit fetched nothing).
+- Workaround or containment: hire is off (D186); the fake feed exercises
+  everything but SPOT's wire format.
+- Next action: with the first real feed, save a response (no customer data
+  in the repository), compare it with the parser, and run the pilot ride
+  the plan names as Phase C's release check.
+- Revisit trigger: a feed error after adding the real feed.
+- Last checked: 2026-11-14.
+

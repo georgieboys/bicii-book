@@ -398,3 +398,24 @@ export const trackerHireSchema = z.object({
     .transform((v) => v === true || v === "on" || v === "true"),
   maxDays: whole(1, 30, "Enter a whole number of days, like 7.", "Allow from 1 to 30 days."),
 });
+
+export const trackingFeedSchema = z.object({
+  feedId: z
+    .string()
+    .nullish()
+    .transform((v) => (v ? v : null))
+    .refine((v) => v === null || /^[0-9a-f-]{36}$/i.test(v), { error: "Unknown feed." }),
+  provider: z.enum(["spot", "fake"], { error: "Choose the feed's service." }),
+  label: required(60, "name"),
+  configName: z
+    .string({ error: "Enter the variable's name." })
+    .trim()
+    .toUpperCase()
+    .regex(/^TRACKING_FEED_[A-Z0-9_]{1,40}$/, {
+      error: "Use a name that starts TRACKING_FEED_, like TRACKING_FEED_SHOP.",
+    }),
+  enabled: z
+    .union([z.string(), z.boolean()])
+    .nullish()
+    .transform((v) => v === true || v === "on" || v === "true"),
+});

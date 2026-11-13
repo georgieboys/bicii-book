@@ -1089,6 +1089,23 @@ needs `CRON_SECRET` (503 without it, 401 with a wrong bearer). A file that
 cannot be read shows the rider a plain reason; one whose run died is
 retried, and fails visibly after three attempts.
 
+Tracking feeds (D190): the same cron reads tracker positions. To add the
+shop's SPOT feed once trackers exist:
+
+1. In SPOT's account, create a shared feed covering the trackers and copy
+   its feed ID (and set a password if wanted).
+2. In the Admin's Vercel Production, add `TRACKING_FEED_SHOP` with the feed
+   ID (and `TRACKING_FEED_SHOP_PASSWORD` if it has one), then redeploy.
+3. Adventures → Trackers → **Feeds** → **Add feed** (admin): SPOT, the
+   variable name `TRACKING_FEED_SHOP`, **Read this feed** ticked.
+4. Within a few minutes the feed shows "Reading" and a last read time;
+   "Failing" shows the reason (an unset variable, a wrong ID, SPOT
+   unavailable). Requests are at least 150 seconds apart per feed.
+
+Positions belong to a ride only between the rider's Start Ride and Finish
+Ride while they hold the tracker; a missed Start is corrected by verifying
+staff with a reason (`correct_adventure_capture`).
+
 Adventure certifications (Adventures Phase B, D167) use the same Stripe
 account, webhook endpoint (`/api/stripe/webhooks`), signing secret and
 events: nothing changes in the Stripe Dashboard. Their Checkout Sessions

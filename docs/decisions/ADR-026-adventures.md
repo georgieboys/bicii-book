@@ -103,6 +103,17 @@ chose no deposit and hire switched off until real devices and a feed
 exist (D185, D186); custody records are append-only like other history
 (D187, D188).
 
+## Amendment 2026-11-14: the tracking feed
+
+Points are owned by recorded time through the historical assignment and
+the ride window, so a device reused next week can never move an old ride's
+points, and a late delivery still lands where it was recorded. The feed
+worker shares the adventure-work cron; the database spaces requests and
+holds the cursor, so concurrent cron runs cannot exceed the provider's
+limit or skip a window. A feed's access is a server variable named by an
+admin, restricted to `TRACKING_FEED_*`, so no other secret can be pointed
+at a provider (D189, D190).
+
 ## Alternatives considered
 
 | Alternative | Why not |

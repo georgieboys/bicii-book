@@ -307,3 +307,61 @@ export async function setTrackerHire(
 ): Promise<void> {
   unwrap(await supabase.rpc("set_adventure_tracker_hire", { enabled, max_days: maxDays }));
 }
+
+// --------------------------------------------------------------- feeds ----
+// D190: feeds the worker reads. Their access is in TRACKING_FEED_* server
+// variables; only the variable's name is stored.
+
+export type TrackingFeed = {
+  id: string;
+  provider: "spot" | "fake";
+  label: string;
+  configName: string;
+  enabled: boolean;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  failures: number;
+  watermarkAt: string;
+};
+
+export async function listTrackingFeeds(supabase: ServerSupabase): Promise<TrackingFeed[]> {
+  return rows(
+    await supabase
+      .from("tracking_feeds")
+      .select(
+        "id, provider, label, config_name, enabled, last_success_at, last_error, failures, watermark_at",
+      )
+      .order("label"),
+  ).map((f) => ({
+    id: f.id,
+    provider: f.provider,
+    label: f.label,
+    configName: f.config_name,
+    enabled: f.enabled,
+    lastSuccessAt: f.last_success_at,
+    lastError: f.last_error,
+    failures: f.failures,
+    watermarkAt: f.watermark_at,
+  }));
+}
+
+export async function saveTrackingFeed(
+  supabase: ServerSupabase,
+  input: {
+    feedId: string | null;
+    provider: "spot" | "fake";
+    label: string;
+    configName: string;
+    enabled: boolean;
+  },
+): Promise<void> {
+  unwrap(
+    await supabase.rpc("save_tracking_feed", {
+      feed_id: input.feedId as unknown as string,
+      provider: input.provider,
+      label: input.label,
+      config_name: input.configName,
+      enabled: input.enabled,
+    }),
+  );
+}

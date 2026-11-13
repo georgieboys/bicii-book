@@ -402,3 +402,28 @@ describe("tracker hire forms (D186-D188)", () => {
     expect(trackerHireSchema.safeParse({ maxDays: "31" }).success).toBe(false);
   });
 });
+
+describe("tracking feed form (D190)", () => {
+  it("only TRACKING_FEED_ variable names, upper-cased", async () => {
+    const { trackingFeedSchema } = await import("@/lib/adventure-forms");
+    expect(
+      trackingFeedSchema.parse({
+        provider: "spot",
+        label: "Shop feed",
+        configName: " tracking_feed_shop ",
+        enabled: "on",
+      }),
+    ).toEqual({
+      feedId: null,
+      provider: "spot",
+      label: "Shop feed",
+      configName: "TRACKING_FEED_SHOP",
+      enabled: true,
+    });
+    for (const name of ["SUPABASE_SERVICE_ROLE_KEY", "TRACKING_FEED_", "STRIPE_SECRET_KEY"]) {
+      expect(
+        trackingFeedSchema.safeParse({ provider: "spot", label: "x", configName: name }).success,
+      ).toBe(false);
+    }
+  });
+});

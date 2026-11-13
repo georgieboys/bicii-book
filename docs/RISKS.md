@@ -3310,3 +3310,26 @@ URLs, or customer data in this file.
 - Revisit trigger: the site's Adventures page reads the catalogue.
 - Last checked: 2026-11-13.
 
+## R-099 — Ride files are read by a third-party FIT library, not Garmin's SDK
+
+- Category: dependency choice.
+- Status and owner: accepted for now; owner (whether to accept Garmin's licence).
+- Trigger: a rider's FIT file that the library reads wrongly or not at all;
+  a vulnerability in the library.
+- Impact: `fit-file-parser` (MIT, pinned 6.2.3) decodes FIT files
+  (`src/lib/adventures/tracks.ts`). A misread file fails safely (the rider
+  sees "could not be read" and can upload a GPX export instead); it never
+  certifies anyone, because a reviewer decides. Garmin's own SDK would be
+  the most complete reader, but its licence is a binding agreement with
+  restrictions that BICII would accept.
+- Evidence and confidence: medium; unit tests decode a FIT file built with
+  the library's own encoder (`tests/unit/adventure-tracks.test.ts`), not
+  yet real Garmin, Wahoo or Hammerhead exports (handoff §21.3 "Files").
+- Workaround or containment: GPX is accepted too and read without any
+  library; the version is pinned and older than two weeks when chosen.
+- Next action: import representative real FIT files from the devices riders
+  use before sales open; the owner decides on Garmin's SDK licence.
+- Revisit trigger: a FIT file fails that Garmin Connect opens; a library
+  advisory.
+- Last checked: 2026-11-14.
+

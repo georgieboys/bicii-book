@@ -1059,6 +1059,12 @@ job. No API role can run it and there is no cron.
 
 ## Stripe payments
 
+Adventure ride files (D176) are read by the Vercel cron
+`/api/cron/adventure-work` every minute; like the integrations cron it
+needs `CRON_SECRET` (503 without it, 401 with a wrong bearer). A file that
+cannot be read shows the rider a plain reason; one whose run died is
+retried, and fails visibly after three attempts.
+
 Adventure certifications (Adventures Phase B, D167) use the same Stripe
 account, webhook endpoint (`/api/stripe/webhooks`), signing secret and
 events: nothing changes in the Stripe Dashboard. Their Checkout Sessions

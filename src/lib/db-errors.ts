@@ -637,6 +637,8 @@ export const UNIQUE_ERRORS: Record<string, string> = {
 
 /** 23514 check violations by constraint name. */
 export const CHECK_ERRORS: Record<string, string> = {
+  distance_km_not_nan: "Enter the distance as a number of kilometres.",
+  geo_degrees_not_nan: "Enter coordinates as decimal degrees.",
   adventures_published_has_revision: "Publish a version before showing this adventure.",
   adventure_revisions_window_order: "The minimum time cannot be longer than the maximum.",
   adventure_checkpoints_coordinates: "Enter both latitude and longitude, or neither.",

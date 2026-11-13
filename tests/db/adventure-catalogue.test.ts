@@ -64,15 +64,15 @@ async function createAdventure(
   tx: Connection,
   slug: string,
   km: number,
-): Promise<{ adventureId: string; revisionId: string; updatedAt: Date }> {
-  const { rows } = await tx.query<{ id: string; adventure_id: string; updated_at: Date }>(
-    "select id, adventure_id, updated_at from public.create_adventure($1, $2, $3)",
+): Promise<{ adventureId: string; revisionId: string; version: number }> {
+  const { rows } = await tx.query<{ id: string; adventure_id: string; version: number }>(
+    "select id, adventure_id, version from public.create_adventure($1, $2, $3)",
     [slug, `Test ${km}`, km],
   );
   return {
     adventureId: rows[0].adventure_id,
     revisionId: rows[0].id,
-    updatedAt: rows[0].updated_at,
+    version: rows[0].version,
   };
 }
 
@@ -80,7 +80,7 @@ async function createAdventure(
 async function saveDraft(
   tx: Connection,
   revisionId: string,
-  expectedUpdatedAt: Date,
+  expectedVersion: number,
   changes: Partial<{
     name: string;
     distance_km: number;
@@ -93,7 +93,7 @@ async function saveDraft(
     rider_instructions: string;
     emergency_procedure: string;
   }> = {},
-): Promise<Date> {
+): Promise<number> {
   const v = {
     name: "BICII 125 test",
     distance_km: 125,
@@ -107,9 +107,9 @@ async function saveDraft(
     emergency_procedure: "",
     ...changes,
   };
-  const { rows } = await tx.query<{ updated_at: Date }>(
-    `select updated_at from public.update_adventure_draft(
-       revision_id => $1, expected_updated_at => $2, name => $3, summary => 'A summary',
+  const { rows } = await tx.query<{ version: number }>(
+    `select version from public.update_adventure_draft(
+       revision_id => $1, expected_version => $2, name => $3, summary => 'A summary',
        description => 'A description', note => '', region => 'Singapore', terrain => 'Road',
        when_to_start => 'Around 3pm', start_finish => '294 River Valley',
        distance_km => $4, nominal_days => $5, time_zone => $6,
@@ -119,7 +119,7 @@ async function saveDraft(
        staff_notes => $11, is_planned => $12)`,
     [
       revisionId,
-      expectedUpdatedAt,
+      expectedVersion,
       v.name,
       v.distance_km,
       v.nominal_days,
@@ -132,7 +132,7 @@ async function saveDraft(
       v.is_planned,
     ],
   );
-  return rows[0].updated_at;
+  return rows[0].version;
 }
 
 async function setOffer(
@@ -264,8 +264,8 @@ describe("access", () => {
 describe("drafts and publishing", () => {
   it("a draft is invisible to the public until it is published", async () => {
     await asStaff(conn, STAFF.manager, async (tx) => {
-      const { revisionId, updatedAt } = await createAdventure(tx, "draft-test", 125);
-      await saveDraft(tx, revisionId, updatedAt, {
+      const { revisionId, version } = await createAdventure(tx, "draft-test", 125);
+      await saveDraft(tx, revisionId, version, {
         staff_notes: "Staff only",
         rider_instructions: "Buyers only",
       });
@@ -277,8 +277,8 @@ describe("drafts and publishing", () => {
 
   it("publishing seals the revision and shows only public columns", async () => {
     await asStaff(conn, STAFF.manager, async (tx) => {
-      const { revisionId, updatedAt } = await createAdventure(tx, "publish-test", 125);
-      await saveDraft(tx, revisionId, updatedAt, {
+      const { revisionId, version } = await createAdventure(tx, "publish-test", 125);
+      await saveDraft(tx, revisionId, version, {
         staff_notes: "Staff only",
         rider_instructions: "Buyers only",
         emergency_procedure: "Call the shop",
@@ -323,28 +323,30 @@ describe("drafts and publishing", () => {
 
   it("refuses a save from a stale screen", async () => {
     await asStaff(conn, STAFF.manager, async (tx) => {
-      const { revisionId, updatedAt } = await createAdventure(tx, "stale-test", 125);
-      // The editor opened the draft at an earlier updated_at than it has now.
+      const { revisionId, version } = await createAdventure(tx, "stale-test", 125);
+      // Another tab saved first: this editor still holds version 1.
+      const next = await saveDraft(tx, revisionId, version);
+      expect(next).toBe(version + 1);
       await failsWith(
         tx,
-        () => saveDraft(tx, revisionId, new Date(updatedAt.getTime() - 60_000)),
+        () => saveDraft(tx, revisionId, version),
         refused("adventure_draft_changed"),
       );
-      expect(await saveDraft(tx, revisionId, updatedAt)).toBeInstanceOf(Date);
+      expect(await saveDraft(tx, revisionId, next)).toBe(next + 1);
     });
   });
 
   it("refuses an unknown time zone", async () => {
     await asStaff(conn, STAFF.manager, async (tx) => {
-      const { revisionId, updatedAt } = await createAdventure(tx, "zone-test", 125);
+      const { revisionId, version } = await createAdventure(tx, "zone-test", 125);
       await failsWith(
         tx,
-        () => saveDraft(tx, revisionId, updatedAt, { time_zone: "Mars/Olympus" }),
+        () => saveDraft(tx, revisionId, version, { time_zone: "Mars/Olympus" }),
         refused("adventure_time_zone_invalid"),
       );
-      expect(
-        await saveDraft(tx, revisionId, updatedAt, { time_zone: "Asia/Bangkok" }),
-      ).toBeInstanceOf(Date);
+      expect(await saveDraft(tx, revisionId, version, { time_zone: "Asia/Bangkok" })).toBe(
+        version + 1,
+      );
     });
   });
 
@@ -380,7 +382,7 @@ describe("certification offers (D164, handoff P02)", () => {
         );
       }
       const planned = await createAdventure(tx, "planned-test", 250);
-      await saveDraft(tx, planned.revisionId, planned.updatedAt, {
+      await saveDraft(tx, planned.revisionId, planned.version, {
         distance_km: 250,
         is_planned: true,
       });
@@ -394,8 +396,8 @@ describe("certification offers (D164, handoff P02)", () => {
 
   it("publish needs nominal days and a maximum time, and still 125 km", async () => {
     await asStaff(conn, STAFF.manager, async (tx) => {
-      const { revisionId, updatedAt } = await createAdventure(tx, "rules-test", 125);
-      let at = await saveDraft(tx, revisionId, updatedAt, { max_elapsed_minutes: null });
+      const { revisionId, version } = await createAdventure(tx, "rules-test", 125);
+      let at = await saveDraft(tx, revisionId, version, { max_elapsed_minutes: null });
       await setOffer(tx, revisionId, "self_supported", 49);
       await failsWith(
         tx,
@@ -430,12 +432,8 @@ describe("certification offers (D164, handoff P02)", () => {
 describe("revisions (D166)", () => {
   it("a published revision cannot change; the next edit is a copied draft the public does not see", async () => {
     await asStaff(conn, STAFF.manager, async (tx) => {
-      const { adventureId, revisionId, updatedAt } = await createAdventure(
-        tx,
-        "revision-test",
-        125,
-      );
-      await saveDraft(tx, revisionId, updatedAt);
+      const { adventureId, revisionId, version } = await createAdventure(tx, "revision-test", 125);
+      await saveDraft(tx, revisionId, version);
       await tx.query("select public.set_adventure_checkpoints($1, $2::jsonb)", [
         revisionId,
         JSON.stringify([{ label: "Checkpoint A" }]),
@@ -446,7 +444,7 @@ describe("revisions (D166)", () => {
       // The sealed revision refuses every change, through the RPCs and directly.
       await failsWith(
         tx,
-        () => saveDraft(tx, revisionId, updatedAt),
+        () => saveDraft(tx, revisionId, version),
         refused("adventure_revision_sealed"),
       );
       await failsWith(
@@ -478,8 +476,8 @@ describe("revisions (D166)", () => {
 
       // A new draft copies content, checkpoints and offers; calling again returns it.
       await actAs(tx, { role: "authenticated", aud: "authenticated", sub: await managerAuth(tx) });
-      const draft = await tx.query<{ id: string; revision_number: number; updated_at: Date }>(
-        "select id, revision_number, updated_at from public.start_adventure_draft($1)",
+      const draft = await tx.query<{ id: string; revision_number: number; version: number }>(
+        "select id, revision_number, version from public.start_adventure_draft($1)",
         [adventureId],
       );
       expect(draft.rows[0].revision_number).toBe(2);

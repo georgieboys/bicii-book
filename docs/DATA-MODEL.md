@@ -4877,9 +4877,9 @@ writes them. Anonymous visitors and customers read only:
 
 RPCs (all require `manage_adventures`; the adventure row is locked before
 its draft): `create_adventure(slug, name, distance_km)`;
-`update_adventure_draft(revision_id, expected_updated_at, …)` (every
-field; refused as `adventure_draft_changed` when the draft changed since
-the editor opened it); `set_adventure_checkpoints(revision_id, jsonb)`
+`update_adventure_draft(revision_id, expected_version, …)` (every field;
+bumps `version`; refused as `adventure_draft_changed` when the draft's
+version moved since the editor opened it); `set_adventure_checkpoints(revision_id, jsonb)`
 (replaces the list); `set_adventure_offer` / `remove_adventure_offer`
 (refused under 125 km, `adventure_not_certifiable`, and on a planned
 route, `adventure_planned`); `start_adventure_draft(adventure_id)` (copies

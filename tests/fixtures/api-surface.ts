@@ -284,7 +284,7 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.start_adventure_draft(uuid)",
   "public.suggested_adventure_price(adventure_participation, integer, integer)",
   "public.unarchive_adventure(uuid)",
-  "public.update_adventure_draft(uuid, timestamp with time zone, text, text, text, text, text, text, text, text, numeric, integer, text, integer, integer, adventure_checkpoint_order, text, text, text, text, text, text, boolean)",
+  "public.update_adventure_draft(uuid, integer, text, text, text, text, text, text, text, text, numeric, integer, text, integer, integer, adventure_checkpoint_order, text, text, text, text, text, text, boolean)",
 ];
 
 /**

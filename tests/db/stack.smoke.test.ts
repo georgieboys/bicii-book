@@ -100,7 +100,8 @@ describe.skipIf(!reachable)("devstack through the gateway", () => {
     const { data, error } = await supabase.rpc("my_staff_profile").single();
     expect(error).toBeNull();
     expect(data).toMatchObject({ id: STAFF.admin, role: "admin", active: true });
-    expect(data?.permissions).toHaveLength(7);
+    // The seven from SPEC §4.2 and the three adventure permissions (D169).
+    expect(data?.permissions).toHaveLength(10);
     await supabase.auth.signOut();
   });
 

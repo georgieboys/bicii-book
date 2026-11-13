@@ -37,6 +37,16 @@ create type public.adventure_event_kind as enum (
   'created', 'draft_started', 'published', 'archived', 'unarchived', 'order_changed'
 );
 
+-- Numeric columns use NaN-proof domains (tests/db/meta.test.ts "money").
+create domain public.distance_km as numeric(7, 1)
+  constraint distance_km_not_nan check (value <> 'NaN'::numeric);
+comment on domain public.distance_km is
+  'A distance in kilometres, one decimal. Never NaN; tables add their own range checks.';
+create domain public.geo_degrees as numeric(9, 6)
+  constraint geo_degrees_not_nan check (value <> 'NaN'::numeric);
+comment on domain public.geo_degrees is
+  'A latitude or longitude in decimal degrees, six decimals (about 0.1 m). Never NaN; tables add their own range checks.';
+
 comment on type public.adventure_participation is
   'D164: the three certified ways to ride. Free riding ("free and easy") is not an offer: it needs no purchase.';
 
@@ -116,7 +126,7 @@ create table public.adventure_revisions (
   terrain text not null default '' check (pg_catalog.char_length(terrain) <= 80),
   when_to_start text not null default '' check (pg_catalog.char_length(when_to_start) <= 120),
   start_finish text not null default '' check (pg_catalog.char_length(start_finish) <= 300),
-  distance_km numeric(7, 1) not null check (distance_km > 0 and distance_km <= 10000),
+  distance_km public.distance_km not null check (distance_km > 0 and distance_km <= 10000),
   -- D165: the published duration certification prices are based on.
   nominal_days integer null check (nominal_days between 1 and 60),
   time_zone text not null default 'Asia/Singapore' check (pg_catalog.char_length(time_zone) <= 64),
@@ -137,6 +147,8 @@ create table public.adventure_revisions (
   -- A route still being planned: shown as coming, never offered for sale.
   is_planned boolean not null default false,
   change_summary text null check (pg_catalog.char_length(change_summary) <= 500),
+  -- Bumped by every update_adventure_draft: a save from a stale editor is refused.
+  version integer not null default 1 check (version >= 1),
   sealed_at timestamptz null,
   sealed_by uuid null references public.staff (id) on delete restrict,
   created_at timestamptz not null default pg_catalog.now(),
@@ -163,8 +175,8 @@ create table public.adventure_checkpoints (
   position integer not null check (position between 1 and 100),
   label text not null check (pg_catalog.btrim(label) <> '' and pg_catalog.char_length(label) <= 80),
   instructions text not null default '' check (pg_catalog.char_length(instructions) <= 1000),
-  latitude numeric(9, 6) null check (latitude between -90 and 90),
-  longitude numeric(9, 6) null check (longitude between -180 and 180),
+  latitude public.geo_degrees null check (latitude between -90 and 90),
+  longitude public.geo_degrees null check (longitude between -180 and 180),
   -- A review aid, not proof (handoff §5.1).
   review_radius_m integer null check (review_radius_m between 10 and 50000),
   mandatory boolean not null default true,
@@ -405,12 +417,12 @@ begin
 end;
 $$;
 
--- Replaces every field of a draft. expected_updated_at is the draft's
--- updated_at when the editor opened it: a save from a stale screen is
--- refused instead of silently reverting someone else's change.
+-- Replaces every field of a draft. expected_version is the draft's version
+-- when the editor opened it: a save from a stale screen is refused instead
+-- of silently reverting someone else's change.
 create function public.update_adventure_draft(
   revision_id uuid,
-  expected_updated_at timestamptz,
+  expected_version integer,
   name text,
   summary text,
   description text,
@@ -443,7 +455,7 @@ declare
   actor uuid := private.require_permission('manage_adventures');
   rev public.adventure_revisions := private.lock_adventure_draft(update_adventure_draft.revision_id);
 begin
-  if rev.updated_at is distinct from update_adventure_draft.expected_updated_at then
+  if rev.version is distinct from update_adventure_draft.expected_version then
     raise exception using
       errcode = 'P0001',
       message = 'adventure_draft_changed',
@@ -477,7 +489,8 @@ begin
       rider_instructions = coalesce(pg_catalog.btrim(update_adventure_draft.rider_instructions), ''),
       emergency_procedure = coalesce(pg_catalog.btrim(update_adventure_draft.emergency_procedure), ''),
       staff_notes = coalesce(pg_catalog.btrim(update_adventure_draft.staff_notes), ''),
-      is_planned = coalesce(update_adventure_draft.is_planned, false)
+      is_planned = coalesce(update_adventure_draft.is_planned, false),
+      version = r.version + 1
   where r.id = rev.id
   returning r.* into rev;
   return rev;
@@ -974,7 +987,7 @@ $$;
 -- ---------------------------------------------------------------------------
 revoke all on function public.create_adventure(text, text, numeric) from public, anon, authenticated, service_role;
 revoke all on function public.update_adventure_draft(
-  uuid, timestamptz, text, text, text, text, text, text, text, text, numeric, integer, text,
+  uuid, integer, text, text, text, text, text, text, text, text, numeric, integer, text,
   integer, integer, public.adventure_checkpoint_order, text, text, text, text, text, text, boolean
 ) from public, anon, authenticated, service_role;
 revoke all on function public.set_adventure_checkpoints(uuid, jsonb) from public, anon, authenticated, service_role;
@@ -994,7 +1007,7 @@ revoke all on function public.public_adventure(text) from public, anon, authenti
 
 grant execute on function public.create_adventure(text, text, numeric) to authenticated;
 grant execute on function public.update_adventure_draft(
-  uuid, timestamptz, text, text, text, text, text, text, text, text, numeric, integer, text,
+  uuid, integer, text, text, text, text, text, text, text, text, numeric, integer, text,
   integer, integer, public.adventure_checkpoint_order, text, text, text, text, text, text, boolean
 ) to authenticated;
 grant execute on function public.set_adventure_checkpoints(uuid, jsonb) to authenticated;

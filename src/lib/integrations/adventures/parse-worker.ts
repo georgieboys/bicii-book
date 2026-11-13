@@ -28,7 +28,9 @@ export async function runAdventureParse(
   options: { max: number; deadlineMs: number },
 ): Promise<ParseSummary> {
   const summary: ParseSummary = { claimed: 0, parsed: 0, failed: 0, errored: 0 };
-  const { data: jobs, error } = await deps.supabase.rpc("claim_adventure_parse_jobs", { max_jobs: options.max });
+  const { data: jobs, error } = await deps.supabase.rpc("claim_adventure_parse_jobs", {
+    max_jobs: options.max,
+  });
   if (error) throw error;
   summary.claimed = jobs?.length ?? 0;
 
@@ -40,7 +42,8 @@ export async function runAdventureParse(
       if (download.error || !download.data) throw download.error ?? new Error("no data");
       const bytes = new Uint8Array(await download.data.arrayBuffer());
       const sha256 = sha256Hex(bytes);
-      let result: { ok: true; track: Awaited<ReturnType<typeof readTrack>> } | { ok: false; message: string };
+      let result:
+        { ok: true; track: Awaited<ReturnType<typeof readTrack>> } | { ok: false; message: string };
       try {
         result = { ok: true, track: await readTrack(job.storage_path, bytes) };
       } catch (err) {

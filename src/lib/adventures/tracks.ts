@@ -49,11 +49,15 @@ export function sha256Hex(bytes: Uint8Array): string {
 const EARTH_RADIUS_KM = 6371.0088;
 
 /** Great-circle distance in kilometres between two points (haversine). */
-export function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+export function haversineKm(
+  a: { lat: number; lon: number },
+  b: { lat: number; lon: number },
+): number {
   const rad = (d: number) => (d * Math.PI) / 180;
   const dLat = rad(b.lat - a.lat);
   const dLon = rad(b.lon - a.lon);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
@@ -96,7 +100,9 @@ const TIME = /<time>\s*([^<\s]+)\s*<\/time>/;
 /** A GPX file's track points; refuses DTDs, entities and route-only files. */
 export function parseGpx(text: string): ParsedTrack {
   if (/<!DOCTYPE/i.test(text) || /<!ENTITY/i.test(text)) {
-    throw new TrackError("This GPX file contains declarations BICII does not read. Export it again.");
+    throw new TrackError(
+      "This GPX file contains declarations BICII does not read. Export it again.",
+    );
   }
   if (!/<gpx\b/i.test(text)) throw new TrackError("This is not a GPX file.");
   const points: TrackPoint[] = [];
@@ -112,7 +118,9 @@ export function parseGpx(text: string): ParsedTrack {
   }
   if (points.length === 0) {
     if (/<rtept\b/i.test(text)) {
-      throw new TrackError("This is a planned route, not a recorded ride. Upload the recording of your ride.");
+      throw new TrackError(
+        "This is a planned route, not a recorded ride. Upload the recording of your ride.",
+      );
     }
     throw new TrackError("This GPX file has no recorded track in it.");
   }
@@ -126,10 +134,15 @@ export async function parseFit(bytes: Uint8Array): Promise<ParsedTrack> {
   const parser = new FitParser({ force: true, mode: "list" });
   let parsed: { records?: FitRecord[] };
   try {
-    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const buffer = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
     parsed = (await parser.parseAsync(buffer)) as { records?: FitRecord[] };
   } catch {
-    throw new TrackError("This FIT file could not be read. Export it again from your device or app.");
+    throw new TrackError(
+      "This FIT file could not be read. Export it again from your device or app.",
+    );
   }
   const points: TrackPoint[] = [];
   for (const r of parsed.records ?? []) {

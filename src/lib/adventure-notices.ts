@@ -26,7 +26,9 @@ export type AdventureNoticeKind =
   | "not_certified"
   | "pack_ready"
   | "ride_submitted"
-  | "payment_attention";
+  | "payment_attention"
+  | "departure_joined"
+  | "departure_cancelled";
 
 export type AdventureNotice = {
   id: string;
@@ -46,6 +48,8 @@ export type AdventureNotice = {
   packItems: string[] | null;
   attentionReason: string | null;
   publicSiteUrl: string | null;
+  departureStartsAt: string | null;
+  departureMeetingPoint: string | null;
 };
 
 export type AdventureNoticeRow = {
@@ -66,6 +70,8 @@ export type AdventureNoticeRow = {
   pack_items: string[] | null;
   attention_reason: string | null;
   public_site_url: string | null;
+  departure_starts_at?: string | null;
+  departure_meeting_point?: string | null;
 };
 
 export function adventureNoticeFromRow(row: AdventureNoticeRow): AdventureNotice {
@@ -87,6 +93,8 @@ export function adventureNoticeFromRow(row: AdventureNoticeRow): AdventureNotice
     packItems: row.pack_items,
     attentionReason: row.attention_reason,
     publicSiteUrl: row.public_site_url,
+    departureStartsAt: row.departure_starts_at ?? null,
+    departureMeetingPoint: row.departure_meeting_point ?? null,
   };
 }
 
@@ -116,6 +124,26 @@ function dayLabel(day: string): string {
     year: "numeric",
     timeZone: "Asia/Singapore",
   }).format(new Date(`${day}T12:00:00+08:00`));
+}
+
+/** "Sat 21 Nov 2026, 7:00 am" in Singapore. */
+function whenLabel(iso: string): string {
+  const at = new Date(iso);
+  const day = new Intl.DateTimeFormat("en-SG", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Singapore",
+  })
+    .format(at)
+    .replace(",", "");
+  const time = new Intl.DateTimeFormat("en-SG", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Singapore",
+  }).format(at);
+  return `${day}, ${time}`;
 }
 
 /** Paragraphs to text and HTML; a link becomes a button in HTML and a line in text. */
@@ -191,6 +219,26 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
           "Come by during opening hours.",
         ],
         { href: page(n.publicSiteUrl, "/contact"), label: "Opening hours" },
+      );
+    case "departure_joined":
+      return compose(
+        `You've joined a ${route} group ride`,
+        [
+          hello,
+          `You're on the ${route} group ride${n.departureStartsAt ? ` on ${whenLabel(n.departureStartsAt)}` : ""}${n.departureMeetingPoint ? `, meeting at ${n.departureMeetingPoint}` : ""}.`,
+          "It's a peer group: riders support each other, and each of you records and sends your own ride. You can leave the date from your ride's page.",
+        ],
+        { href: ride, label: "Open your ride" },
+      );
+    case "departure_cancelled":
+      return compose(
+        `The ${route} group ride is cancelled`,
+        [
+          hello,
+          `The ${route} group ride${n.departureStartsAt ? ` on ${whenLabel(n.departureStartsAt)}` : ""} is cancelled. We're sorry for the change.`,
+          "Your ticket still stands: ride on your own, or join another date from your ride's page.",
+        ],
+        { href: ride, label: "Open your ride" },
       );
     default:
       return compose(`Your ${route} ride`, [hello], { href: ride, label: "Open your ride" });

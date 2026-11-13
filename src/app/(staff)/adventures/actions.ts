@@ -12,7 +12,10 @@ import {
   adventureOrderSchema,
   adventureSalesSchema,
   archiveAdventureSchema,
+  cancelDepartureSchema,
   cancelHireSchema,
+  createDepartureSchema,
+  updateDepartureSchema,
   correctCaptureSchema,
   deviceStateSchema,
   issueTrackerSchema,
@@ -51,6 +54,7 @@ import {
   setAdventurePackStatus,
   setAdventureSales,
 } from "@/lib/domain/adventure-bookings";
+import { cancelDeparture, createDeparture, updateDeparture } from "@/lib/domain/departures";
 import {
   cancelTrackerHire,
   correctCapture,
@@ -349,6 +353,54 @@ export const correctCaptureAction = staffAction(
       finish ? finish.toISOString() : null,
       reason,
     );
+    refresh();
+    return null;
+  },
+);
+
+// ---------------------------------------------------------- departures ----
+// Phase D (D193-D195). Times are typed in shop time.
+
+function shopInstant(value: string | null, field: string): string | null {
+  if (value === null) return null;
+  const at = fromShopLocal(value);
+  if (!at) throw new ActionError("Check the dates.", { [field]: ["Enter a real date and time."] });
+  return at.toISOString();
+}
+
+export const createDepartureAction = staffAction(
+  createDepartureSchema,
+  { name: "adventures.create_departure", permission: "manage_adventures" },
+  async (input, { supabase }) => {
+    const result = await createDeparture(supabase, {
+      ...input,
+      startsAt: shopInstant(input.startsAt, "startsAt")!,
+      expectedFinishAt: shopInstant(input.expectedFinishAt, "expectedFinishAt"),
+    });
+    refresh();
+    return result;
+  },
+);
+
+export const updateDepartureAction = staffAction(
+  updateDepartureSchema,
+  { name: "adventures.update_departure", permission: "manage_adventures" },
+  async (input, { supabase }) => {
+    await updateDeparture(supabase, {
+      ...input,
+      startsAt: shopInstant(input.startsAt, "startsAt")!,
+      expectedFinishAt: shopInstant(input.expectedFinishAt, "expectedFinishAt"),
+    });
+    refresh();
+    return null;
+  },
+);
+
+export const cancelDepartureAction = staffAction(
+  cancelDepartureSchema,
+  { name: "adventures.cancel_departure", permission: "manage_adventures" },
+  async ({ departureId, reason }, { supabase }) => {
+    await cancelDeparture(supabase, departureId, reason);
     refresh();
     return null;
   },

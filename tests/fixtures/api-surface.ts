@@ -43,6 +43,9 @@ export const ANON_FUNCTIONS: readonly string[] = [
   // Adventures Phase C (D187): whether hire is on and a tracker is free on
   // some days (a hint; checkout decides again)
   "public.adventure_tracker_hire_state(date, date)",
+  // Adventures Phase D (D194): a route's upcoming group dates, places left
+  // and consenting riders' first names and initials
+  "public.public_adventure_departures(text)",
 ];
 
 /**
@@ -334,6 +337,15 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.my_adventure_ride(uuid)",
   // D191: the reviewer reads the hired tracker's track (evidence RLS)
   "public.adventure_tracker_outline(uuid, integer)",
+  // Adventures Phase D (D193-D195): dates need manage_adventures; a rider
+  // joins and leaves with their own ticket (the functions check)
+  "public.create_adventure_departure(uuid, adventure_participation, timestamp with time zone, timestamp with time zone, text, integer, text, text)",
+  "public.update_adventure_departure(uuid, integer, timestamp with time zone, timestamp with time zone, text, integer, text, text)",
+  "public.cancel_adventure_departure(uuid, text)",
+  "public.join_adventure_departure(uuid, uuid, integer, boolean)",
+  "public.leave_adventure_departure(uuid)",
+  "public.my_adventure_departure(uuid)",
+  "public.public_adventure_departures(text)",
   "public.adventure_tracker_summary(uuid)",
   // D181: clearing a booking's payment flag is admin-only (the function checks)
   "public.clear_adventure_booking_attention(uuid, text)",
@@ -535,6 +547,9 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   // Adventures Phase C (D190): feed health for staff; positions for staff
   // who verify or manage adventures
   "public.tracking_feeds": ["SELECT"],
+  // Adventures Phase D (D193): departures and who joined, for staff
+  "public.adventure_departure_participants": ["SELECT"],
+  "public.adventure_departures": ["SELECT"],
   "public.tracking_messages": ["SELECT"],
 };
 

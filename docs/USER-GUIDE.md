@@ -1250,6 +1250,17 @@ of the published terms riders accept). Until then nothing is sold.
   sent for review and when a payment needs attention. Revoking a
   certificate emails nobody: tell the rider yourself.
 
+### Group ride dates
+
+Adventures → **Departures** lists the dates BICII publishes, with places
+taken. With **Manage adventures**, **Add date**: the route, Group ride, the
+start (and expected finish), meeting point, places, a note riders see and
+a staff note. Riders who bought the route's self-supported ticket join a
+date on bicii.sg; each still records and sends their own ride. Open a date
+for its manifest (who joined, their contact details, whether their name is
+shown publicly). **Change** keeps everyone on it; **Cancel date** needs a
+reason and emails every rider (their tickets stand).
+
 ### Tracker hire at the counter
 
 Riders can hire a GPS tracker with a certified ride once an admin turns

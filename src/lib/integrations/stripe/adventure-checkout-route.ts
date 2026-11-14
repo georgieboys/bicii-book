@@ -117,15 +117,21 @@ export async function handleAdventureCheckout(
   const userId = await deps.verify(token);
   if (!userId) return json(401, { error: "sign_in_required" });
 
-  // Rate limit per rider (the shared attempt counter, service role).
-  if (stripe.supabase) {
-    const { data, error } = await stripe.supabase.rpc("note_sign_in_attempt", {
-      buckets: [`adventure-checkout:user:${userId}`],
-      window_seconds: WINDOW_SECONDS,
-    });
-    if (!error && data?.some((row) => row.hit_count > LIMIT)) {
-      return json(429, { error: "too_many", message: "Too many attempts. Wait a few minutes." });
-    }
+  // Rate limit per rider (the shared attempt counter, service role). It
+  // fails closed: no counter, no checkout (audit A-36).
+  if (!stripe.supabase) {
+    return json(503, { error: "unavailable", message: "Payments are not available right now." });
+  }
+  const limit = await stripe.supabase.rpc("note_sign_in_attempt", {
+    buckets: [`adventure-checkout:user:${userId}`],
+    window_seconds: WINDOW_SECONDS,
+  });
+  if (limit.error) {
+    log.error({ code: limit.error.code }, "checkout rate limit unavailable");
+    return json(503, { error: "unavailable", message: "Payments are not available right now." });
+  }
+  if (limit.data?.some((row) => row.hit_count > LIMIT)) {
+    return json(429, { error: "too_many", message: "Too many attempts. Wait a few minutes." });
   }
 
   const siteUrl = deps.siteUrl();

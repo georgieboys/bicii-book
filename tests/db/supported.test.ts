@@ -293,3 +293,132 @@ async function makeRiderAs(tx: Connection): Promise<Rider> {
   await tx.query("reset role");
   return makeRider(tx);
 }
+
+describe("the included tracker follows its date (audit A-39, D221)", () => {
+  async function hireDays(tx: Connection, bookingId: string) {
+    await tx.query("reset role");
+    const { rows } = await tx.query(
+      "select collect_on::text, return_on::text from public.tracker_reservations where booking_id = $1",
+      [bookingId],
+    );
+    return rows[0] as { collect_on: string; return_on: string };
+  }
+  async function version(tx: Connection, departureId: string) {
+    await tx.query("reset role");
+    return scalar<number>(tx, "select version from public.adventure_departures where id = $1", [
+      departureId,
+    ]);
+  }
+
+  it("moving a supported date re-dates the riders' hires and emails them; a past start is refused", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, revision } = await supportedSetup(tx, 2);
+      const d = await supportedDate(tx, sale.adventureId);
+      const rider = await makeRiderAs(tx);
+      await tx.query("reset role");
+      await tx.query("update public.customers set email = 'moved@example.test' where id = $1", [
+        rider.customerId,
+      ]);
+      const p = await buySeat(tx, rider, revision, d);
+      await pay(tx, p);
+      const before = await hireDays(tx, p.booking_id);
+      const v = await version(tx, d);
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await failsWith(
+        tx,
+        () =>
+          tx.query(
+            `select public.update_adventure_departure($1, $2, now() - interval '1 hour', null, '294 River Valley', 2, '', '')`,
+            [d, v],
+          ),
+        refused("departure_in_past"),
+      );
+      await tx.query(
+        `select public.update_adventure_departure($1, $2, now() + interval '17 days', now() + interval '17 days 12 hours',
+           '294 River Valley', 2, 'Van leaves at 6', '')`,
+        [d, v],
+      );
+      const after = await hireDays(tx, p.booking_id);
+      expect(after).not.toEqual(before);
+      const expected = await tx.query(
+        `select (d.starts_at at time zone 'Asia/Singapore')::date::text as collect_on,
+                ((d.expected_finish_at at time zone 'Asia/Singapore')::date + 1)::text as return_on
+           from public.adventure_departures d where d.id = $1`,
+        [d],
+      );
+      expect(after).toEqual(expected.rows[0]);
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from private.adventure_notices where booking_id = $1 and kind = 'departure_changed'",
+          [p.booking_id],
+        ),
+      ).toBe(1);
+    });
+  });
+
+  it("refuses to move a supported date when the fleet can't cover the new days", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, revision } = await supportedSetup(tx, 1);
+      const d = await supportedDate(tx, sale.adventureId);
+      const p = await buySeat(tx, await makeRiderAs(tx), revision, d);
+      await pay(tx, p);
+      const v = await version(tx, d);
+      // The only tracker leaves service: nothing can cover new days.
+      await tx.query("reset role");
+      await tx.query(
+        "update public.tracking_devices set service_state = 'retired' where service_state = 'in_service'",
+      );
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await failsWith(
+        tx,
+        () =>
+          tx.query(
+            `select public.update_adventure_departure($1, $2, now() + interval '17 days', null, '294 River Valley', 2, '', '')`,
+            [d, v],
+          ),
+        refused("adventure_trackers_unavailable"),
+      );
+    });
+  });
+
+  it("moving a seat keeps the offer's supported days when the date has no expected finish", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale } = await supportedSetup(tx, 2);
+      // A three-day supported offer.
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      const draft = await tx.query<{ id: string; revision_number: number }>(
+        "select id, revision_number from public.start_adventure_draft($1)",
+        [sale.adventureId],
+      );
+      await tx.query(
+        "select public.set_adventure_offer($1, 'supported', 349, null, 3, 'Three days')",
+        [draft.rows[0].id],
+      );
+      await tx.query("select public.publish_adventure_revision($1, null)", [draft.rows[0].id]);
+      const make = async (offset: string) =>
+        scalar<string>(
+          tx,
+          `select id from public.create_adventure_departure($1, 'supported', now() + $2::interval, null,
+             '294 River Valley', 2, '', '')`,
+          [sale.adventureId, offset],
+        );
+      const first = await make("10 days");
+      const second = await make("14 days");
+      const p = await buySeat(tx, await makeRiderAs(tx), draft.rows[0].revision_number, first);
+      await pay(tx, p);
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await tx.query("select public.move_adventure_seat($1, $2, 'Rider asked')", [
+        p.booking_id,
+        second,
+      ]);
+      const after = await hireDays(tx, p.booking_id);
+      const expected = await scalar<string>(
+        tx,
+        "select ((starts_at at time zone 'Asia/Singapore')::date + 4)::text from public.adventure_departures where id = $1",
+        [second],
+      );
+      expect(after.return_on).toBe(expected);
+    });
+  });
+});

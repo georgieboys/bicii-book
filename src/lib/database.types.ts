@@ -6237,6 +6237,7 @@ export type Database = {
           updated_at: string;
           watermark_at: string;
           window_end_at: string | null;
+          window_top_at: string | null;
         };
         Insert: {
           config_name: string;
@@ -6256,6 +6257,7 @@ export type Database = {
           updated_at?: string;
           watermark_at?: string;
           window_end_at?: string | null;
+          window_top_at?: string | null;
         };
         Update: {
           config_name?: string;
@@ -6275,6 +6277,7 @@ export type Database = {
           updated_at?: string;
           watermark_at?: string;
           window_end_at?: string | null;
+          window_top_at?: string | null;
         };
         Relationships: [
           {
@@ -10584,6 +10587,7 @@ export type Database = {
           updated_at: string;
           watermark_at: string;
           window_end_at: string | null;
+          window_top_at: string | null;
         };
         SetofOptions: {
           from: "*";
@@ -12043,7 +12047,8 @@ export type Database = {
         | "seat_moved"
         | "board_name_changed"
         | "late_fee_recorded"
-        | "late_fee_settled";
+        | "late_fee_settled"
+        | "departure_changed";
       adventure_booking_status: "pending_payment" | "confirmed" | "cancelled" | "expired";
       adventure_certificate_status: "active" | "revoked";
       adventure_checkpoint_order: "any" | "sequence";
@@ -12066,7 +12071,8 @@ export type Database = {
         | "departure_cancelled"
         | "cancellation_requested"
         | "booking_cancelled"
-        | "tracker_late_fee";
+        | "tracker_late_fee"
+        | "departure_changed";
       adventure_pack_status: "awaiting_pack" | "ready" | "fulfilled" | "on_hold";
       adventure_participation: "self_supported" | "self_supported_group" | "supported";
       adventure_recording_method: "own_device" | "tracker_hire";
@@ -13198,6 +13204,7 @@ export const Constants = {
         "board_name_changed",
         "late_fee_recorded",
         "late_fee_settled",
+        "departure_changed",
       ],
       adventure_booking_status: ["pending_payment", "confirmed", "cancelled", "expired"],
       adventure_certificate_status: ["active", "revoked"],
@@ -13234,6 +13241,7 @@ export const Constants = {
         "cancellation_requested",
         "booking_cancelled",
         "tracker_late_fee",
+        "departure_changed",
       ],
       adventure_pack_status: ["awaiting_pack", "ready", "fulfilled", "on_hold"],
       adventure_participation: ["self_supported", "self_supported_group", "supported"],

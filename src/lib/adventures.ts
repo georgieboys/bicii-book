@@ -148,6 +148,7 @@ export const BOOKING_EVENT_LABELS: Record<AdventureBookingEventKind, string> = {
   board_name_changed: "Board name changed",
   late_fee_recorded: "Tracker late fee",
   late_fee_settled: "Late fee settled",
+  departure_changed: "Date changed",
 };
 
 export const DEPARTURE_KIND_LABELS: Record<"self_supported_group" | "supported", string> = {

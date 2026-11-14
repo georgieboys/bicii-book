@@ -1,7 +1,13 @@
 # Current state
 
-Updated: 2026-11-14 SGT (the owner's sales terms, D212-D219, on branch
-`feat/adventure-rider-terms`, then BICII's checkout signing step).
+Updated: 2026-11-14 SGT (the five high findings of the 2026-11-14 audit
+fixed on branch `fix/audit-high`, D220-D222: a cancelled booking is never
+reviewed or certified; one open checkout per rider per route, the newer
+replacing the older; a supported date's trackers follow the date and its
+riders are emailed; GPX read in linear time and the cron's steps isolated;
+the tracker feed's watermark no longer stalls after a backlog. Verified
+locally: unit 1,836, database 914, the 20 adventure e2e runs. Before that:
+the owner's sales terms, D212-D219, PR #84, then BICII #47).
 Riders sign a waiver before paying (typed full name, emergency contact,
 five declarations; sealed versions an admin publishes; the first is
 `docs/adventures/waiver-2026-11-14.md`, which needs a lawyer's review,
@@ -16,9 +22,19 @@ the 20 adventure e2e runs (phone and tablet, with the new
 `adventures-terms.spec.ts`). Before that: Adventures built and checked
 against the handoff's acceptance tests, every switch off in production
 (PR #82, #83; BICII #45, #46; what stays partial is R-103).
-Next, before any sale: the lawyer's review of the waiver, the 125 km
-checkpoints and its 24-hour time in the route editor, then an admin
-switches sales on ([RUNBOOK](docs/RUNBOOK.md#switching-certified-ride-sales-on)).
+**Production data changed outside a PR (2026-11-14, at the owner's
+request):** BICII 125 revisions 3 and 4 were published in production by
+calling the route editor's RPCs (`start_adventure_draft`,
+`update_adventure_draft`, `set_adventure_offer`,
+`publish_adventure_revision`) through SQL with the owner's admin claims:
+maximum time 1,440 minutes (24 h, D216), 1 nominal day, and a
+self-supported offer at S$49 with tracker hire at S$20 a day and the
+inclusions sentence. Revision 4 is current and has no checkpoints. A
+database built from migrations has none of this. Do not republish BICII
+125 without starting from revision 4. Sales are still off.
+Next, before any sale: the fixes from the 2026-11-14 audit, the lawyer's
+review of the waiver, the 125 km checkpoints, then an admin switches sales on
+([RUNBOOK](docs/RUNBOOK.md#switching-certified-ride-sales-on)).
 Earlier: Adventures Phase A,
 D164–D171; earlier the same day, PRs #61–#65:
 Shopify connected and publishing to the Online Store, migrations only after

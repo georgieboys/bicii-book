@@ -1274,6 +1274,12 @@ published waiver riders sign). Until then nothing is sold.
   the shop, an admin presses **Settle** on the booking's **Tracker late
   fees** card (or waives it with a reason).
 - **T-shirts** are S to XXL, and every pack is collected from the shop.
+- **A cancelled booking's ride is never reviewed** (D222): it leaves
+  Reviews, and claiming or deciding it is refused.
+- **One open checkout per route per rider** (D220): if a rider starts
+  paying again (say their card failed), the newer checkout replaces the
+  older one, whose seat or tracker is released. If they still pay the old
+  page, the money is kept and the booking is flagged for an admin.
 - **Tickets are personal** (D207): a ticket can't be given to someone
   else. If a rider can't ride, they ask to cancel; the new rider buys
   their own.
@@ -1287,7 +1293,8 @@ published waiver riders sign). Until then nothing is sold.
   in Health as a booking needing attention.
 - **Health** (admins, Settings → Adventure sales) counts rides waiting for
   review, flagged bookings, cancellation requests, waiting and failed
-  emails, files waiting or failed, overdue trackers and failing feeds.
+  emails, ride recordings waiting or failed, overdue trackers, feeds more
+  than an hour behind (positions not being collected) and failing feeds.
   **Retry failed emails** puts failed adventure emails back in the queue.
 - Emails: the rider is emailed when their ticket is paid, when you ask for
   changes, when the ride is certified or not (with your message to them),
@@ -1304,8 +1311,12 @@ start (and expected finish), meeting point, places, a note riders see and
 a staff note. Riders who bought the route's self-supported ticket join a
 date on bicii.sg; each still records and sends their own ride. Open a date
 for its manifest (who joined, their contact details, whether their name is
-shown publicly). **Change** keeps everyone on it; **Cancel date** needs a
-reason and emails every rider (their tickets stand).
+shown publicly). **Change** keeps everyone on it and emails them if the time or
+meeting point changed; a date can't be moved into the past. On a supported
+date, changing the time moves every rider's included tracker to the new
+days, or is refused if the trackers can't cover them (or one is already
+out). **Cancel date** needs a reason and emails every rider (their tickets
+stand).
 
 ### Supported ride dates
 

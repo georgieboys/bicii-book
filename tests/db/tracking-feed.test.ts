@@ -418,6 +418,60 @@ describe("the feed's lease, cursor and back-off (D190; T09)", () => {
     });
   });
 
+  it("after paging back through a full window, the watermark moves to the window's top (audit A-38)", async () => {
+    await inTransaction(conn, async (tx) => {
+      await setup(tx, 1);
+      const f = await feed(tx);
+      await tx.query("reset role");
+      await tx.query(
+        "update public.tracking_feeds set watermark_at = now() - interval '6 hours' where id = $1",
+        [f],
+      );
+      const due = () =>
+        tx.query(
+          "update public.tracking_feeds set next_request_at = now() - interval '1 second' where id = $1",
+          [f],
+        );
+      // First page is full: the window's top is now - 3 hours; page back from there.
+      let c = await claim(tx);
+      await tx.query(
+        "select public.store_tracking_messages($1, $2, '[]'::jsonb, false, now() - interval '3 hours', now() - interval '4 hours')",
+        [f, c!.lease_token],
+      );
+      // The second page is full too: its own end is lower, the top is kept.
+      await tx.query("reset role");
+      await due();
+      c = await claim(tx);
+      await tx.query(
+        "select public.store_tracking_messages($1, $2, '[]'::jsonb, false, now() - interval '4 hours', now() - interval '5 hours')",
+        [f, c!.lease_token],
+      );
+      // The oldest part completes, below the watermark's overlap.
+      await tx.query("reset role");
+      await due();
+      c = await claim(tx);
+      await tx.query(
+        "select public.store_tracking_messages($1, $2, '[]'::jsonb, true, now() - interval '5 hours', null)",
+        [f, c!.lease_token],
+      );
+      await tx.query("reset role");
+      expect(
+        (
+          await tx.query(
+            `select watermark_at = now() - interval '3 hours' as at_top, window_top_at is null as cleared,
+                    window_end_at is null as no_cursor
+               from public.tracking_feeds where id = $1`,
+            [f],
+          )
+        ).rows,
+      ).toEqual([{ at_top: true, cleared: true, no_cursor: true }]);
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      expect(
+        Number(await scalar<string>(tx, "select public.adventure_health() ->> 'feeds_behind'")),
+      ).toBeGreaterThanOrEqual(1);
+    });
+  });
+
   it("a failure is recorded without detail beyond the reason and backs off", async () => {
     await inTransaction(conn, async (tx) => {
       await setup(tx, 1);

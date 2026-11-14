@@ -106,6 +106,56 @@ function fitFile(points: Array<{ at: Date; lat: number; lon: number }>): Uint8Ar
   return encoder.close();
 }
 
+describe("GPX reading time (audit A-37)", () => {
+  it("reads hostile files with unclosed point tags in linear time", () => {
+    for (const hostile of [
+      "<gpx>" + "<trkpt>".repeat(300_000),
+      "<gpx>" + "<trkpt ".repeat(300_000),
+      "<gpx>" + '<trkpt lat="1" lon="2">'.repeat(150_000),
+      "<gpx>" + "<trkpt lat=".repeat(200_000),
+    ]) {
+      const started = Date.now();
+      try {
+        parseGpx(hostile);
+      } catch (err) {
+        expect(err).toBeInstanceOf(TrackError);
+      }
+      expect(Date.now() - started).toBeLessThan(1000);
+    }
+  });
+
+  it("still reads points whose tags are split, self-closing, or missing their close", () => {
+    const track = parseGpx(
+      gpx(
+        '<trk><trkseg><trkpt\n lat="1.30" lon="103.80">\n<time>2026-11-14T22:00:00Z</time></trkpt>' +
+          '<trkpt lat="1.31" lon="103.81"/>' +
+          '<trkpt lat="1.32" lon="103.82"><time>2026-11-14T22:10:00Z</time>' +
+          '<trkpt lat="1.33" lon="103.83"><time>2026-11-14T22:15:00Z</time></trkpt></trkseg></trk>',
+      ),
+    );
+    expect(track.points).toEqual([
+      { lat: 1.3, lon: 103.8, time: "2026-11-14T22:00:00.000Z" },
+      { lat: 1.31, lon: 103.81, time: null },
+      { lat: 1.32, lon: 103.82, time: "2026-11-14T22:10:00.000Z" },
+      { lat: 1.33, lon: 103.83, time: "2026-11-14T22:15:00.000Z" },
+    ]);
+  });
+
+  it("ignores a <trkpts> lookalike and a point with an oversized body", () => {
+    const track = parseGpx(
+      gpx(
+        '<trkpts lat="9" lon="9"/>' +
+          `<trkpt lat="1.30" lon="103.80"><time>2026-11-14T22:00:00Z</time>${" ".repeat(5000)}</trkpt>` +
+          '<trkpt lat="1.31" lon="103.81"/>',
+      ),
+    );
+    expect(track.points).toEqual([
+      { lat: 1.3, lon: 103.8, time: null },
+      { lat: 1.31, lon: 103.81, time: null },
+    ]);
+  });
+});
+
 describe("FIT (E01, E04)", () => {
   it("reads positioned records with their times", async () => {
     const bytes = fitFile([
@@ -221,5 +271,57 @@ describe("GET /api/cron/adventure-work (A11)", () => {
     });
     expect(ok.status).toBe(200);
     expect(run).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("adventure-work steps (audit A-44)", () => {
+  it("runs every step even when one fails, and logs the failure", async () => {
+    const { runWorkSteps } = await import("@/lib/integrations/adventures/work-cron");
+    const ran: string[] = [];
+    const errors: unknown[] = [];
+    const summary = await runWorkSteps(
+      {
+        emails: async () => {
+          ran.push("emails");
+          throw Object.assign(new Error("claim failed"), { code: "PGRST202" });
+        },
+        feeds: async () => {
+          ran.push("feeds");
+          return { feeds: 1, stored: 2, failed: 0 };
+        },
+        files: async () => {
+          ran.push("files");
+          throw new Error("parse failed");
+        },
+        purge: async () => {
+          ran.push("purge");
+          return 3;
+        },
+      },
+      { error: (obj: unknown) => errors.push(obj) } as never,
+    );
+    expect(ran).toEqual(["emails", "feeds", "files", "purge"]);
+    expect(summary.failed).toEqual(["emails", "files"]);
+    expect(summary.feeds).toEqual({ feeds: 1, stored: 2, failed: 0 });
+    expect(summary.purged).toBe(3);
+    expect(errors).toEqual([
+      { step: "emails", error: "Error", code: "PGRST202" },
+      { step: "files", error: "Error", code: null },
+    ]);
+  });
+
+  it("answers 500 when a step failed, after trying them all", async () => {
+    const { handleAdventureWork } = await import("@/lib/integrations/adventures/work-cron");
+    const res = await handleAdventureWork(
+      new Request("https://admin.example/api/cron/adventure-work", {
+        headers: { authorization: "Bearer s3cret" },
+      }),
+      {
+        secret: "s3cret",
+        now: () => 0,
+        run: async () => ({ files: null, emails: null, feeds: null, purged: 0, failed: ["files"] }),
+      },
+    );
+    expect(res.status).toBe(500);
   });
 });

@@ -373,6 +373,44 @@ describe("the review workspace's reads (D182)", () => {
   });
 });
 
+describe("a cancelled booking (audit A-35)", () => {
+  it("its ride can't be claimed or decided, isn't counted as waiting, and never reaches the board", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const rider = await makeRider(tx);
+      const { bookingId, submissionId } = await submitted(tx, rider, sale);
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      const waiting = () =>
+        scalar<string>(tx, "select public.adventure_health() ->> 'reviews_waiting'").then(Number);
+      const before = await waiting();
+      await tx.query("select public.cancel_adventure_booking($1, 'Borrowed recording')", [
+        bookingId,
+      ]);
+      expect(await waiting()).toBe(before - 1);
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await failsWith(
+        tx,
+        () => tx.query("select public.claim_adventure_review($1)", [submissionId]),
+        refused("review_booking_cancelled"),
+      );
+      await failsWith(
+        tx,
+        () => decide(tx, submissionId, "approved", { on: "2026-11-15" }),
+        refused("review_booking_cancelled"),
+      );
+      await tx.query("reset role");
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.adventure_certificates where booking_id = $1",
+          [bookingId],
+        ),
+      ).toBe(0);
+    });
+  });
+});
+
 describe("finisher board and revocation (E12, E13)", () => {
   it("lists active certificates by completion date with the chosen name, and nothing else", async () => {
     await inTransaction(conn, async (tx) => {

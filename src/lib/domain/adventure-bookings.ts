@@ -355,9 +355,11 @@ export async function listReviewQueue(supabase: ServerSupabase): Promise<ReviewQ
     (await supabase
       .from("adventure_submissions")
       .select(
-        "id, version, state, submitted_at, claimer:review_claimed_by (display_name), attempt:attempt_id (booking:booking_id (id, reference, needs_attention, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)))",
+        "id, version, state, submitted_at, claimer:review_claimed_by (display_name), attempt:attempt_id!inner (booking:booking_id!inner (id, reference, status, needs_attention, customer:customer_id (display_name, first_name, last_name, email), revision:revision_id (name)))",
       )
       .in("state", ["submitted", "in_review"])
+      // A cancelled booking's ride is never reviewed (audit A-35).
+      .eq("attempt.booking.status", "confirmed")
       .order("submitted_at")
       .limit(200)) as unknown as Rows<QueueRow>,
   );

@@ -93,9 +93,53 @@ export function summarise(format: "gpx" | "fit", points: TrackPoint[]): ParsedTr
   };
 }
 
-const TRKPT = /<trkpt\b([^>]*?)(?:\/>|>([\s\S]*?)<\/trkpt>)/g;
 const ATTR = (name: string) => new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`);
 const TIME = /<time>\s*([^<\s]+)\s*<\/time>/;
+/** A point's opening tag and its body are small; anything longer is not a point. */
+const MAX_TAG = 1024;
+const MAX_BODY = 4096;
+
+/**
+ * The next position of `needle` at or after `from`, remembered so a search
+ * never rescans text it has already passed: every needle's searches cover
+ * disjoint stretches, so a whole file is read in linear time however it is
+ * built (a regex with lazy scans was quadratic on unclosed tags).
+ */
+class Finder {
+  private found = new Map<string, number>();
+  constructor(private readonly text: string) {}
+  next(needle: string, from: number): number {
+    const known = this.found.get(needle);
+    if (known !== undefined && (known >= from || known === Infinity)) return known;
+    const at = this.text.indexOf(needle, from);
+    const result = at < 0 ? Infinity : at;
+    this.found.set(needle, result);
+    return result;
+  }
+}
+
+/** The track points of a GPX file: each `<trkpt …>` tag's attributes and body. */
+function* gpxTrackPoints(text: string): Generator<{ attrs: string; body: string }> {
+  const find = new Finder(text);
+  let start = find.next("<trkpt", 0);
+  while (start !== Infinity) {
+    const following = find.next("<trkpt", start + 6);
+    const boundary = text.charAt(start + 6);
+    const tagEnd = find.next(">", start + 6);
+    if (/[\s/>]/.test(boundary) && tagEnd !== Infinity && tagEnd - start <= MAX_TAG) {
+      const selfClosing = text.charAt(tagEnd - 1) === "/";
+      const attrs = text.slice(start + 6, selfClosing ? tagEnd - 1 : tagEnd);
+      let body = "";
+      if (!selfClosing) {
+        const close = find.next("</trkpt>", tagEnd + 1);
+        const end = Math.min(close, following, text.length);
+        if (end - tagEnd - 1 <= MAX_BODY) body = text.slice(tagEnd + 1, end);
+      }
+      yield { attrs, body };
+    }
+    start = following;
+  }
+}
 
 /** A GPX file's track points; refuses DTDs, entities and route-only files. */
 export function parseGpx(text: string): ParsedTrack {
@@ -106,13 +150,14 @@ export function parseGpx(text: string): ParsedTrack {
   }
   if (!/<gpx\b/i.test(text)) throw new TrackError("This is not a GPX file.");
   const points: TrackPoint[] = [];
-  for (const match of text.matchAll(TRKPT)) {
+  const latAttr = ATTR("lat");
+  const lonAttr = ATTR("lon");
+  for (const { attrs, body } of gpxTrackPoints(text)) {
     if (points.length > MAX_POINTS) break;
-    const attrs = match[1] ?? "";
-    const lat = Number(ATTR("lat").exec(attrs)?.[1]);
-    const lon = Number(ATTR("lon").exec(attrs)?.[1]);
+    const lat = Number(latAttr.exec(attrs)?.[1]);
+    const lon = Number(lonAttr.exec(attrs)?.[1]);
     if (!validPoint(lat, lon)) continue;
-    const raw = TIME.exec(match[2] ?? "")?.[1] ?? null;
+    const raw = TIME.exec(body)?.[1] ?? null;
     const at = raw ? new Date(raw) : null;
     points.push({ time: at && !Number.isNaN(at.getTime()) ? at.toISOString() : null, lat, lon });
   }

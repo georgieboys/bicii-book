@@ -224,6 +224,43 @@ describe("sales switch (D170)", () => {
   });
 });
 
+describe("unpaid checkouts are capped (audit A-36, D220)", () => {
+  it("a new checkout replaces the rider's older open one on the route; a retry reuses it", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const rider = await makeRider(tx);
+      const first = randomUUID();
+      const a = await prepare(tx, rider, sale, { requestId: first });
+      // The same request again is the same booking.
+      expect((await prepare(tx, rider, sale, { requestId: first })).booking_id).toBe(a.booking_id);
+      const b = await prepare(tx, rider, sale);
+      expect(b.booking_id).not.toBe(a.booking_id);
+      await tx.query("reset role");
+      const { rows } = await tx.query(
+        `select b.status::text as booking, p.status::text as payment,
+                (select count(*)::int from public.adventure_bookings x
+                  where x.customer_id = b.customer_id and x.status = 'pending_payment') as open
+           from public.adventure_bookings b join public.adventure_payments p on p.booking_id = b.id
+          where b.id = $1`,
+        [a.booking_id],
+      );
+      expect(rows).toEqual([{ booking: "expired", payment: "pending", open: 1 }]);
+      // Paying the replaced page later is kept and flagged, never confirmed.
+      await deliver(tx, "checkout.session.completed", session(a, `cs_test_${tag()}`));
+      await tx.query("reset role");
+      expect(
+        (
+          await tx.query(
+            "select status::text, needs_attention from public.adventure_bookings where id = $1",
+            [a.booking_id],
+          )
+        ).rows,
+      ).toEqual([{ status: "expired", needs_attention: true }]);
+    });
+  });
+});
+
 describe("preparing a checkout (handoff P07, P08, C01, C02)", () => {
   it("freezes the offer's price into the booking, a line and one pending payment", async () => {
     await inTransaction(conn, async (tx) => {
@@ -411,7 +448,7 @@ describe("Stripe (handoff C03-C07, C11-C14)", () => {
       expect(await bookingStatus(tx, short.booking_id)).toBe("pending_payment");
       expect(await attention(tx, short.booking_id)).toMatch(/amount/);
 
-      const usd = await prepare(tx, rider, sale);
+      const usd = await prepare(tx, await makeRider(tx), sale);
       expect(
         (
           await deliver(
@@ -423,7 +460,7 @@ describe("Stripe (handoff C03-C07, C11-C14)", () => {
       ).toBe("paid_amount_mismatch");
       expect(await bookingStatus(tx, usd.booking_id)).toBe("pending_payment");
 
-      const mode = await prepare(tx, rider, sale);
+      const mode = await prepare(tx, await makeRider(tx), sale);
       const s3 = `cs_test_${tag()}`;
       await record(tx, mode, s3, false);
       expect(

@@ -31,7 +31,8 @@ export type AdventureNoticeKind =
   | "departure_cancelled"
   | "cancellation_requested"
   | "booking_cancelled"
-  | "tracker_late_fee";
+  | "tracker_late_fee"
+  | "departure_changed";
 
 export type AdventureNotice = {
   id: string;
@@ -234,6 +235,16 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
           hello,
           `You're on the ${route} group ride${n.departureStartsAt ? ` on ${whenLabel(n.departureStartsAt)}` : ""}${n.departureMeetingPoint ? `, meeting at ${n.departureMeetingPoint}` : ""}.`,
           "It's a peer group: riders support each other, and each of you records and sends your own ride. You can leave the date from your ride's page.",
+        ],
+        { href: ride, label: "Open your ride" },
+      );
+    case "departure_changed":
+      return compose(
+        `Your ${route} ride date has changed`,
+        [
+          hello,
+          `Your ${route} ride is now${n.departureStartsAt ? ` on ${whenLabel(n.departureStartsAt)}` : " on a new date"}${n.departureMeetingPoint ? `, meeting at ${n.departureMeetingPoint}` : ""}.`,
+          "Your ticket stands. If the new date doesn't work for you, message the shop.",
         ],
         { href: ride, label: "Open your ride" },
       );

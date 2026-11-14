@@ -294,7 +294,13 @@ begin
   set waiver_version = excluded.waiver_version, waiver_sha256 = excluded.waiver_sha256,
       signed_name = excluded.signed_name, emergency_contact_name = excluded.emergency_contact_name,
       emergency_contact_phone = excluded.emergency_contact_phone, signed_at = pg_catalog.now()
+  where s.booking_id is null
   returning s.* into sig;
+  if not found then
+    -- A concurrent retry linked it to its booking meanwhile: the same signature.
+    select x.* into sig from public.adventure_waiver_signatures x
+    where x.customer_id = me and x.request_id = sign_my_adventure_waiver.request_id;
+  end if;
   return query select sig.id, sig.waiver_version, sig.signed_at;
 end;
 $$;

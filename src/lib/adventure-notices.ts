@@ -30,7 +30,8 @@ export type AdventureNoticeKind =
   | "departure_joined"
   | "departure_cancelled"
   | "cancellation_requested"
-  | "booking_cancelled";
+  | "booking_cancelled"
+  | "tracker_late_fee";
 
 export type AdventureNotice = {
   id: string;
@@ -253,9 +254,20 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
           hello,
           `Your ${route} booking (${n.reference}) is cancelled.`,
           n.eventNote ? `From BICII:\n${n.eventNote}` : null,
-          "Any refund owed is made to the card you paid with. Questions? Message the shop.",
+          "If a refund is owed under the terms you signed, it's made to the card you paid with. Questions? Message the shop.",
         ],
         null,
+      );
+    case "tracker_late_fee":
+      return compose(
+        `A late fee for your ${route} tracker`,
+        [
+          hello,
+          "Thanks for bringing the tracker back.",
+          n.eventNote,
+          "As in the terms you signed, a tracker gets a grace day after its return day, then costs a fee for each further day. Pay it at the shop; message us if anything looks wrong.",
+        ],
+        { href: ride, label: "Open your ride" },
       );
     default:
       return compose(`Your ${route} ride`, [hello], { href: ride, label: "Open your ride" });

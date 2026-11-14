@@ -1,35 +1,24 @@
 # Current state
 
-Updated: 2026-11-14 SGT (Adventures built and checked against the
-handoff's acceptance tests, every switch off in production. Latest: PR #82
-(the §20.6 scenarios in `adventures-scenarios.spec.ts`; frozen tracker
-evidence, duplicate files, short-fleet flags and email retry, D208–D211;
-tickets never change hands, D207, the owner's decision; an opaque phone tab
-bar after an axe-core scan of the twelve Admin adventure screens found
-nothing else) and BICII #46 (a free visitor and buying while signed out),
-both green with e2e and merged; `20261114002000_evidence_integrity.sql`
-applied by `migrate.yml` on d19fb26 and checked read-only in production.
-What stays partial is R-103. Before that: Backend PRs #66–#80, all merged with green CI and
-label-run e2e, and their migrations applied by `migrate.yml` (the last,
-`20261114001900_rider_surfaces.sql`, on ea19235). Public site BICII #38,
-#43 and #45 merged and live on bicii.sg. Checked read-only in production:
-the new functions are present and `sales_enabled`, `tracker_hire_enabled`,
-`supported_sales_enabled`, `live_sharing_enabled` and
-`public_profiles_enabled` are off. Phases: catalogue and sales (A, B);
-tracker hire, the tracking feed against a fake provider, ride evidence and
-Live rides (C, D185–D192); group dates (D, D193–D195); supported dates (E,
-D196–D199); cancelling, moving seats, retention and health (F,
-D200–D203); GPX export, live-share links and public profiles (F,
-D204–D206). axe-core (WCAG A/AA) found no violations on the public route,
-`/track` and `/riders` pages. Not done: a Playwright scenario for share
-links and profiles (their switches are off everywhere), and the live SPOT
-adapter against a real feed (no trackers yet, D186).
-Next, the owner's decisions before any switch goes on: the sales terms
-version, the 125 km rules, T-shirt sizes, the default board name, the
-group offer's role (D193), the cost of a late or lost tracker (D185), and,
-before supported sales, insurance, the staffing ratio, the emergency
-procedure and overrun terms
-([ADVENTURES-PLAN](docs/ADVENTURES-PLAN.md) §6, [PLAN §6](docs/PLAN.md)).
+Updated: 2026-11-14 SGT (the owner's sales terms, D212-D219, on branch
+`feat/adventure-rider-terms`, then BICII's checkout signing step).
+Riders sign a waiver before paying (typed full name, emergency contact,
+five declarations; sealed versions an admin publishes; the first is
+`docs/adventures/waiver-2026-11-14.md`, which needs a lawyer's review,
+R-104); refundable until the ride is sent for review (D212); a tracker's
+grace day, then 20 a day, recorded and settled at the shop (D213, R-105);
+no retries, the pack a gift (D214); 125 km: 24 hours, no e-bikes (D216);
+T-shirts S to XXL, collected from the shop (D217); the board name is the
+rider's choice or none (D218); the owner's confirmations for flags, group
+rides, sharing and supported rides (D219). Verified locally: `npm run
+check`, unit 1,830, database 908 (7 new in `tests/db/rider-terms.test.ts`),
+the 20 adventure e2e runs (phone and tablet, with the new
+`adventures-terms.spec.ts`). Before that: Adventures built and checked
+against the handoff's acceptance tests, every switch off in production
+(PR #82, #83; BICII #45, #46; what stays partial is R-103).
+Next, before any sale: the lawyer's review of the waiver, the 125 km
+checkpoints and its 24-hour time in the route editor, then an admin
+switches sales on ([RUNBOOK](docs/RUNBOOK.md#switching-certified-ride-sales-on)).
 Earlier: Adventures Phase A,
 D164–D171; earlier the same day, PRs #61–#65:
 Shopify connected and publishing to the Online Store, migrations only after

@@ -60,11 +60,26 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   adventure_planned: 'A planned route cannot be sold. Untick "Still being planned" first.',
   adventure_archived: "Unarchive this adventure before publishing it.",
   // Adventures, Phase B (D167, D170, D172): buying a certification.
-  adventure_terms_required:
-    "Publish the sales terms (cancellation, refunds, retries) and give their version before selling.",
+  adventure_terms_required: "Choose the published waiver riders sign before selling.",
   adventure_sales_closed: "Certified rides are not on sale yet.",
   adventure_terms_changed: "The terms have changed. Read them again and confirm.",
-  adventure_size_invalid: "Choose a T-shirt size.",
+  adventure_size_invalid: "Choose a T-shirt size from S to XXL.",
+  // The owner's sales terms (D212-D218): waivers, signing, board names, late fees.
+  adventure_waiver_version: "Give the version as letters, numbers, dots or dashes, like 2026-12.",
+  adventure_waiver_text: "Give the waiver a title and its full text (200 to 40,000 characters).",
+  adventure_waiver_exists: "That version is already published. Give the new text a new version.",
+  adventure_waiver_unknown: "No waiver is published with that version. Publish it first.",
+  adventure_waiver_sealed: "A published waiver never changes. Publish a new version instead.",
+  adventure_waiver_signed: "A signed waiver for a booking never changes.",
+  adventure_waiver_unsigned: "Sign the waiver before paying.",
+  adventure_waiver_incomplete: "Tick every box to sign the waiver.",
+  adventure_waiver_name: "Type your full name, first and last, to sign.",
+  adventure_emergency_contact: "Give your emergency contact's name and phone number.",
+  adventure_board_name_invalid:
+    "Use 2 to 40 letters, numbers or spaces for your board name, with no links or emails.",
+  adventure_not_refundable:
+    "Your ride has been sent for review, so the ticket can no longer be cancelled or refunded.",
+  late_fee_settled: "This late fee is already settled.",
   adventure_unavailable: "This adventure is not on sale.",
   adventure_quote_changed: "This adventure's details or price changed. Check them and try again.",
   adventure_offer_unavailable: "That way to ride is not on sale for this adventure.",
@@ -736,6 +751,11 @@ export const CHECK_ERRORS: Record<string, string> = {
   adventure_settings_sales_need_terms: "Give the terms version before turning sales on.",
   adventure_bookings_confirmed_at: "A confirmed booking needs its confirmation time.",
   adventure_bookings_attention: "Say why this booking needs attention.",
+  adventure_bookings_tshirt_size_check: "Choose a T-shirt size from S to XXL.",
+  adventure_bookings_board_name: "Choose a board name, or leave the board.",
+  adventure_waivers_hash: "The waiver's text and its fingerprint don't match.",
+  tracker_late_fees_amount: "A late fee is the day rate times the days late.",
+  tracker_late_fees_settled: "Record who settled the late fee, and when.",
   adventure_payments_paid_at: "A paid payment needs its payment time.",
   payment_refunds_one_subject:
     "A refund belongs to a workshop payment or an adventure payment, not both.",

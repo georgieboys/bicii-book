@@ -17,7 +17,14 @@ import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { AUTH_USER } from "../fixtures/ids";
-import { offerOn125, openSales, makeRider, paidBooking, type Rider } from "./adventure-fixtures";
+import {
+  offerOn125,
+  openSales,
+  makeRider,
+  paidBooking,
+  signWaiver,
+  type Rider,
+} from "./adventure-fixtures";
 import { customerClaims, putStorageObject } from "./customer-fixtures";
 import { actAs, connect, inTransaction, scalar, staffClaims, type Connection } from "./harness";
 import { SERVICE } from "./payment-fixtures";
@@ -152,8 +159,8 @@ describe("uploads (E05)", () => {
       // An unpaid booking takes no evidence.
       await actAs(tx, customerClaims(other.authUserId));
       const { rows } = await tx.query<{ booking_id: string }>(
-        `select booking_id from public.prepare_my_adventure_checkout(gen_random_uuid(), 'bicii-125', 'self_supported', $1, 'S', 'hidden', '2026-11-test')`,
-        [sale.revisionNumber],
+        `select booking_id from public.prepare_my_adventure_checkout($2, 'bicii-125', 'self_supported', $1, 'S', 'hidden', '2026-11-test')`,
+        [sale.revisionNumber, await signWaiver(tx)],
       );
       await failsWith(
         tx,

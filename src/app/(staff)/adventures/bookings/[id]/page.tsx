@@ -5,9 +5,11 @@ import { notFound } from "next/navigation";
 import {
   CancelBookingButton,
   ClearAttentionButton,
+  HideBoardNameButton,
   MoveSeatButton,
   PackStatusButtons,
   RevokeCertificateButton,
+  SettleLateFeeButton,
 } from "@/components/domain/adventures/booking-sheets";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -28,6 +30,7 @@ import {
 import { requireStaff } from "@/lib/auth/session";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { getAdventureBooking } from "@/lib/domain/adventure-bookings";
+import { getBookingTerms } from "@/lib/domain/adventure-terms";
 import { getBookingHire } from "@/lib/domain/trackers";
 import { getBookingDate } from "@/lib/domain/departures";
 import { formatMoney } from "@/lib/money";
@@ -58,10 +61,11 @@ export default async function AdventureBookingPage({
   const { id } = await params;
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
-  const [booking, hire, date] = await Promise.all([
+  const [booking, hire, date, terms] = await Promise.all([
     getAdventureBooking(supabase, id),
     getBookingHire(supabase, id),
     getBookingDate(supabase, id),
+    getBookingTerms(supabase, id),
   ]);
   if (!booking) notFound();
   const admin = staff.role === "admin";
@@ -124,9 +128,20 @@ export default async function AdventureBookingPage({
             <dt className="text-dust-700">T-shirt</dt>
             <dd>{booking.tshirtSize ?? "None"}</dd>
             <dt className="text-dust-700">Name on the board</dt>
-            <dd>{FINISHER_NAME_LABELS[booking.finisherName]}</dd>
-            <dt className="text-dust-700">Terms accepted</dt>
-            <dd>Version {booking.termsVersion}</dd>
+            <dd className="flex flex-wrap items-center gap-2">
+              {booking.boardName ?? FINISHER_NAME_LABELS.hidden}
+              {booking.boardName && canManageAdventures(staff) ? (
+                <HideBoardNameButton bookingId={booking.id} />
+              ) : null}
+            </dd>
+            <dt className="text-dust-700">Refunds</dt>
+            <dd>
+              {terms.sentForReviewAt
+                ? `None: the ride was sent for review ${formatDateTime(terms.sentForReviewAt)}`
+                : terms.refundable
+                  ? "Refundable until the ride is sent for review"
+                  : "Not paid"}
+            </dd>
           </dl>
           <ul aria-label="Booking lines" className="mt-4 flex flex-col gap-1 text-sm">
             {booking.lines.map((l) => (
@@ -144,6 +159,56 @@ export default async function AdventureBookingPage({
             </li>
           </ul>
         </Card>
+
+        <Card title="Waiver">
+          {terms.signature ? (
+            <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
+              <dt className="text-dust-700">Signed as</dt>
+              <dd>
+                {terms.signature.signedName} · {formatDateTime(terms.signature.signedAt)}
+              </dd>
+              <dt className="text-dust-700">Version</dt>
+              <dd>{terms.signature.waiverVersion}</dd>
+              <dt className="text-dust-700">Emergency contact</dt>
+              <dd>
+                {terms.signature.emergencyContactName} ·{" "}
+                <a
+                  href={`tel:${terms.signature.emergencyContactPhone.replace(/[^+0-9]/g, "")}`}
+                  className="underline"
+                >
+                  {terms.signature.emergencyContactPhone}
+                </a>
+              </dd>
+            </dl>
+          ) : (
+            <p className="text-sm text-dust-700">
+              {booking.termsVersion
+                ? `Terms version ${booking.termsVersion}, accepted before signed waivers.`
+                : "No waiver signed."}
+            </p>
+          )}
+        </Card>
+
+        {terms.lateFees.length > 0 ? (
+          <Card title="Tracker late fees">
+            <ul aria-label="Tracker late fees" className="flex flex-col gap-2 text-sm">
+              {terms.lateFees.map((f) => (
+                <li key={f.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    {formatMoney(f.amount)} · {f.daysLate} {f.daysLate === 1 ? "day" : "days"} late,
+                    back {formatDate(f.returnedOn)}
+                    {f.status === "owed"
+                      ? " · owed"
+                      : ` · ${f.status === "paid" ? "paid" : "waived"}${f.settleNote ? `: ${f.settleNote}` : ""}`}
+                  </span>
+                  {f.status === "owed" && admin ? (
+                    <SettleLateFeeButton feeId={f.id} amount={formatMoney(f.amount)} />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
 
         <Card title="Payments">
           {booking.payments.length === 0 ? (

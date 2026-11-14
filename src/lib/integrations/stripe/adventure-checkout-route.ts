@@ -36,7 +36,9 @@ export const checkoutBodySchema = z.object({
   kind: z.enum(PARTICIPATIONS as [string, ...string[]]),
   revisionNumber: z.number().int().min(1).max(100_000),
   tshirtSize: z.string().trim().min(1).max(10),
-  finisherName: z.enum(["first_name_initial", "full_name", "hidden"]),
+  finisherName: z.enum(["first_name_initial", "full_name", "hidden", "preferred_name"]),
+  // D218: the finisher board name, or "" for not on the board.
+  boardName: z.string().trim().max(40).optional(),
   termsVersion: z.string().trim().min(1).max(40),
   // Tracker hire (Phase C, D187): both days, or neither (own device).
   hire: z

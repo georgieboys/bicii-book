@@ -4,10 +4,16 @@
  * verified Stripe event, and a hire's reservation. Each helper acts as the
  * role it needs.
  */
-import { randomUUID } from "node:crypto";
 
 import { AUTH_USER } from "../fixtures/ids";
-import { offerOn125, openSales, TERMS, type Rider, type Sale } from "./adventure-fixtures";
+import {
+  offerOn125,
+  openSales,
+  signWaiver,
+  TERMS,
+  type Rider,
+  type Sale,
+} from "./adventure-fixtures";
 import { customerClaims } from "./customer-fixtures";
 import { actAs, scalar, staffClaims, type Connection } from "./harness";
 import { deliver, tag } from "./payment-fixtures";
@@ -65,7 +71,7 @@ export async function checkout(
        $1, 'bicii-125', 'self_supported', $2, 'M', 'first_name_initial', $3,
        recording_method => $4, hire_collect_on => $5::date, hire_return_on => $6::date)`,
     [
-      randomUUID(),
+      await signWaiver(tx),
       sale.revisionNumber,
       TERMS,
       collect ? "tracker_hire" : "own_device",

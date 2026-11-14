@@ -38,7 +38,12 @@ export type AdventureCheckoutRequest = {
   kind: AdventureParticipation;
   revisionNumber: number;
   tshirtSize: string;
-  finisherName: "first_name_initial" | "full_name" | "hidden";
+  finisherName: "first_name_initial" | "full_name" | "hidden" | "preferred_name";
+  /**
+   * The finisher board name the rider chose (D218): a name, or "" for not
+   * on the board. Absent: unchanged (off the board until they choose).
+   */
+  boardName?: string;
   termsVersion: string;
   /** Tracker hire days (D187); absent: the rider's own device. */
   hire?: { collectOn: string; returnOn: string };
@@ -150,6 +155,15 @@ export async function startAdventureCheckout(
     return UNAVAILABLE;
   }
   const log = deps.log.child({ bookingId: prepared.booking_id, paymentId: prepared.payment_id });
+
+  // The board name is the rider's (D218), set as the rider before paying.
+  if (request.boardName !== undefined) {
+    const named = await rider.rpc("set_my_board_name", {
+      booking_id: prepared.booking_id,
+      board_name: request.boardName,
+    });
+    if (named.error) return refused(named.error);
+  }
 
   try {
     // 2. A session already recorded for this payment: reuse it while open.

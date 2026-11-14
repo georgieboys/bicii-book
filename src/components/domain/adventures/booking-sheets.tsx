@@ -7,7 +7,10 @@ import {
   claimAdventureReviewAction,
   moveSeatAction,
   clearAdventureAttentionAction,
+  hideBoardNameAction,
+  publishWaiverAction,
   revokeAdventureCertificateAction,
+  settleLateFeeAction,
   setAdventurePackStatusAction,
   setAdventureSalesAction,
 } from "@/app/(staff)/adventures/actions";
@@ -267,20 +270,22 @@ export function ClaimReviewButton({ submissionId }: { submissionId: string }) {
   );
 }
 
-/** Admin: switch certified ride sales on or off, with the terms version (D170). */
+/** Admin: switch certified ride sales on or off, with the waiver riders sign (D170, D215). */
 export function AdventureSalesControl({
   salesEnabled,
   termsVersion,
+  waiverVersions,
 }: {
   salesEnabled: boolean;
   termsVersion: string;
+  waiverVersions: string[];
 }) {
   const { open, show, close } = useOpen();
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <p className="text-sm">
         {salesEnabled
-          ? `On sale. Riders accept terms version ${termsVersion}.`
+          ? `On sale. Riders sign waiver version ${termsVersion}.`
           : "Not on sale. Riders cannot buy a certified ride."}
       </p>
       <Button variant="outline" size="sm" onClick={show}>
@@ -289,7 +294,7 @@ export function AdventureSalesControl({
       {open ? (
         <FormSheet
           title="Certified ride sales"
-          description="When on, riders can buy a self-supported certification on bicii.sg. Publish the terms (cancellation, refunds, retries) first and give their version."
+          description="When on, riders can buy a certified ride on bicii.sg. Each rider signs the waiver you choose before paying."
           submitLabel="Save"
           pendingLabel="Saving…"
           success="Saved"
@@ -305,17 +310,137 @@ export function AdventureSalesControl({
                 defaultChecked={salesEnabled}
               />
               <Field
-                label="Terms version"
-                hint="The version of the published terms, like 2026-12. Every booking keeps the version its rider accepted."
+                label="Waiver riders sign"
+                hint="A published waiver version. Every booking keeps the version its rider signed."
                 error={errors?.termsVersion?.[0]}
               >
-                <Input name="termsVersion" autoComplete="off" defaultValue={termsVersion} />
+                <Select name="termsVersion" defaultValue={termsVersion || waiverVersions[0] || ""}>
+                  {waiverVersions.length === 0 ? (
+                    <option value="">No waiver published</option>
+                  ) : null}
+                  {waiverVersions.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </Select>
               </Field>
             </>
           )}
         </FormSheet>
       ) : null}
     </div>
+  );
+}
+
+/** Admin: publish a new waiver version (D215). Published text never changes. */
+export function PublishWaiverButton() {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={show}>
+        Publish a new version
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Publish a waiver version"
+          description="Once published, this text can never be edited. Riders sign it only after you choose it for sales."
+          submitLabel="Publish"
+          pendingLabel="Publishing…"
+          success="Waiver published"
+          action={publishWaiverAction as unknown as FormAction}
+          hidden={{}}
+          onClose={close}
+        >
+          {(errors) => (
+            <>
+              <Field label="Version" hint="Like 2026-12." error={errors?.version?.[0]}>
+                <Input name="version" autoComplete="off" />
+              </Field>
+              <Field label="Title" error={errors?.title?.[0]}>
+                <Input name="title" defaultValue="BICII rider terms, release and waiver" />
+              </Field>
+              <Field label="Full text" error={errors?.body?.[0]}>
+                <Textarea name="body" rows={14} />
+              </Field>
+            </>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
+  );
+}
+
+/** manage_adventures: take a rider's chosen name off the finisher board (D218). */
+export function HideBoardNameButton({ bookingId }: { bookingId: string }) {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={show}>
+        Take off the board
+      </Button>
+      {open ? (
+        <FormSheet
+          title="Take this name off the board?"
+          description="The rider is shown nowhere on the board. They can choose another name from their ride page."
+          submitLabel="Take it off"
+          pendingLabel="Saving…"
+          danger
+          success="Name taken off the board"
+          action={hideBoardNameAction as unknown as FormAction}
+          hidden={{ bookingId }}
+          onClose={close}
+        >
+          {(errors) => (
+            <Field label="Reason" error={errors?.reason?.[0]}>
+              <Textarea name="reason" rows={3} />
+            </Field>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
+  );
+}
+
+/** Admin: settle a tracker late fee, paid at the shop or waived (D213). */
+export function SettleLateFeeButton({ feeId, amount }: { feeId: string; amount: string }) {
+  const { open, show, close } = useOpen();
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={show}>
+        Settle<span className="sr-only"> the {amount} late fee</span>
+      </Button>
+      {open ? (
+        <FormSheet
+          title={`Settle the ${amount} late fee`}
+          description="Record that the rider paid it at the shop, or waive it with a reason."
+          submitLabel="Save"
+          pendingLabel="Saving…"
+          success="Late fee settled"
+          action={settleLateFeeAction as unknown as FormAction}
+          hidden={{ feeId }}
+          onClose={close}
+        >
+          {(errors) => (
+            <>
+              <Field label="Outcome" error={errors?.outcome?.[0]}>
+                <Select name="outcome" defaultValue="paid">
+                  <option value="paid">Paid at the shop</option>
+                  <option value="waived">Waived</option>
+                </Select>
+              </Field>
+              <Field
+                label="Note"
+                hint="How it was paid, or why it is waived."
+                error={errors?.note?.[0]}
+              >
+                <Textarea name="note" rows={3} />
+              </Field>
+            </>
+          )}
+        </FormSheet>
+      ) : null}
+    </>
   );
 }
 

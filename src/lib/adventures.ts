@@ -145,6 +145,9 @@ export const BOOKING_EVENT_LABELS: Record<AdventureBookingEventKind, string> = {
   cancellation_requested: "Rider asked to cancel",
   booking_cancelled: "Booking cancelled",
   seat_moved: "Moved to another date",
+  board_name_changed: "Board name changed",
+  late_fee_recorded: "Tracker late fee",
+  late_fee_settled: "Late fee settled",
 };
 
 export const DEPARTURE_KIND_LABELS: Record<"self_supported_group" | "supported", string> = {
@@ -186,7 +189,8 @@ export const PACK_STATUS_LABELS: Record<AdventurePackStatus, string> = {
 export const FINISHER_NAME_LABELS: Record<AdventureFinisherName, string> = {
   first_name_initial: "First name and initial",
   full_name: "Full name",
-  hidden: "Hidden (A BICII rider)",
+  hidden: "Not on the board",
+  preferred_name: "Their chosen name",
 };
 
 /** The review checklist, in the order the workspace asks it (D178). */

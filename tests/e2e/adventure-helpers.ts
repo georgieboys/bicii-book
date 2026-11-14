@@ -87,6 +87,11 @@ export async function paidBooking(
       await q("select public.publish_adventure_revision($1, null)", [draft.id]);
     }
     await actAs(q, "authenticated", AUTH_USER.admin);
+    await q(
+      `select public.publish_adventure_waiver($1, 'E2E waiver', repeat('Test terms for riders. ', 20))
+        where not exists (select 1 from public.adventure_waivers w where w.version = $1)`,
+      [TERMS],
+    );
     await q("select public.set_adventure_sales(true, $1)", [TERMS]);
     if (options.hire) await q("select public.set_adventure_tracker_hire(true, 7)");
 
@@ -116,12 +121,13 @@ export async function paidBooking(
         ).map((d) => d.day)
       : [null, null];
     await actAs(q, "authenticated", authUserId);
+    const requestId = await signWaiver(q);
     const [checkout] = await q<{ booking_id: string; payment_id: string; amount_cents: string }>(
       `select booking_id, payment_id, amount_cents::text from public.prepare_my_adventure_checkout(
          $1, 'bicii-125', 'self_supported', $2, 'M', 'first_name_initial', $3,
          recording_method => $4, hire_collect_on => $5::date, hire_return_on => $6::date)`,
       [
-        randomUUID(),
+        requestId,
         revision.revision_number,
         TERMS,
         options.hire ? "tracker_hire" : "own_device",
@@ -341,13 +347,24 @@ export async function prepareCheckout(
        join public.adventure_revisions r on r.id = a.current_revision_id where a.slug = 'bicii-125'`,
   );
   await actAs(q, "authenticated", authUserId);
+  const requestId = await signWaiver(q);
   const [c] = await q<{ booking_id: string; payment_id: string; amount_cents: string }>(
     `select booking_id, payment_id, amount_cents::text from public.prepare_my_adventure_checkout(
        $1, 'bicii-125', $2, $3, 'M', 'first_name_initial', $4, departure_id => $5)`,
-    [randomUUID(), kind, revision.revision_number, TERMS, departureId],
+    [requestId, kind, revision.revision_number, TERMS, departureId],
   );
   await q("reset role");
   return { bookingId: c.booking_id, paymentId: c.payment_id, amountCents: Number(c.amount_cents) };
+}
+
+/** As the rider `q` acts as: the waiver signed for a new checkout request (D215). */
+async function signWaiver(q: Query): Promise<string> {
+  const requestId = randomUUID();
+  await q(
+    `select public.sign_my_adventure_waiver($1, $2, 'Test Rider', 'Test Contact', '+65 6000 0000', true, true, true, true, true)`,
+    [requestId, TERMS],
+  );
+  return requestId;
 }
 
 /** Stripe's event for this payment, signed with the test secret, to the real webhook route. */

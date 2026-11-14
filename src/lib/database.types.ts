@@ -196,6 +196,7 @@ export type Database = {
         Row: {
           adventure_id: string;
           attention_reason: string | null;
+          board_name: string | null;
           cancelled_at: string | null;
           confirmed_at: string | null;
           created_at: string;
@@ -221,6 +222,7 @@ export type Database = {
         Insert: {
           adventure_id: string;
           attention_reason?: string | null;
+          board_name?: string | null;
           cancelled_at?: string | null;
           confirmed_at?: string | null;
           created_at?: string;
@@ -246,6 +248,7 @@ export type Database = {
         Update: {
           adventure_id?: string;
           attention_reason?: string | null;
+          board_name?: string | null;
           cancelled_at?: string | null;
           confirmed_at?: string | null;
           created_at?: string;
@@ -1231,8 +1234,10 @@ export type Database = {
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
+          tracker_grace_days: number;
           tracker_hire_enabled: boolean;
           tracker_hire_max_days: number;
+          tracker_late_fee_per_day: number;
           updated_at: string;
           updated_by: string | null;
         };
@@ -1244,8 +1249,10 @@ export type Database = {
           sales_enabled?: boolean;
           supported_sales_enabled?: boolean;
           terms_version?: string | null;
+          tracker_grace_days?: number;
           tracker_hire_enabled?: boolean;
           tracker_hire_max_days?: number;
+          tracker_late_fee_per_day?: number;
           updated_at?: string;
           updated_by?: string | null;
         };
@@ -1257,12 +1264,21 @@ export type Database = {
           sales_enabled?: boolean;
           supported_sales_enabled?: boolean;
           terms_version?: string | null;
+          tracker_grace_days?: number;
           tracker_hire_enabled?: boolean;
           tracker_hire_max_days?: number;
+          tracker_late_fee_per_day?: number;
           updated_at?: string;
           updated_by?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "adventure_settings_terms_waiver";
+            columns: ["terms_version"];
+            isOneToOne: false;
+            referencedRelation: "adventure_waivers";
+            referencedColumns: ["version"];
+          },
           {
             foreignKeyName: "adventure_settings_updated_by_fkey";
             columns: ["updated_by"];
@@ -1398,6 +1414,117 @@ export type Database = {
             columns: ["file_id"];
             isOneToOne: true;
             referencedRelation: "adventure_evidence_files";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      adventure_waiver_signatures: {
+        Row: {
+          accepts_risk: boolean;
+          accepts_terms: boolean;
+          booking_id: string | null;
+          customer_id: string;
+          electronic_signature: boolean;
+          emergency_contact_name: string;
+          emergency_contact_phone: string;
+          id: string;
+          no_ebike: boolean;
+          of_age: boolean;
+          request_id: string;
+          signed_at: string;
+          signed_name: string;
+          waiver_sha256: string;
+          waiver_version: string;
+        };
+        Insert: {
+          accepts_risk: boolean;
+          accepts_terms: boolean;
+          booking_id?: string | null;
+          customer_id: string;
+          electronic_signature: boolean;
+          emergency_contact_name: string;
+          emergency_contact_phone: string;
+          id?: string;
+          no_ebike: boolean;
+          of_age: boolean;
+          request_id: string;
+          signed_at?: string;
+          signed_name: string;
+          waiver_sha256: string;
+          waiver_version: string;
+        };
+        Update: {
+          accepts_risk?: boolean;
+          accepts_terms?: boolean;
+          booking_id?: string | null;
+          customer_id?: string;
+          electronic_signature?: boolean;
+          emergency_contact_name?: string;
+          emergency_contact_phone?: string;
+          id?: string;
+          no_ebike?: boolean;
+          of_age?: boolean;
+          request_id?: string;
+          signed_at?: string;
+          signed_name?: string;
+          waiver_sha256?: string;
+          waiver_version?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_waiver_signatures_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: true;
+            referencedRelation: "adventure_bookings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_waiver_signatures_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_waiver_signatures_waiver_version_fkey";
+            columns: ["waiver_version"];
+            isOneToOne: false;
+            referencedRelation: "adventure_waivers";
+            referencedColumns: ["version"];
+          },
+        ];
+      };
+      adventure_waivers: {
+        Row: {
+          body: string;
+          body_sha256: string;
+          published_at: string;
+          published_by: string | null;
+          title: string;
+          version: string;
+        };
+        Insert: {
+          body: string;
+          body_sha256: string;
+          published_at?: string;
+          published_by?: string | null;
+          title: string;
+          version: string;
+        };
+        Update: {
+          body?: string;
+          body_sha256?: string;
+          published_at?: string;
+          published_by?: string | null;
+          title?: string;
+          version?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "adventure_waivers_published_by_fkey";
+            columns: ["published_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
             referencedColumns: ["id"];
           },
         ];
@@ -5927,6 +6054,76 @@ export type Database = {
           },
         ];
       };
+      tracker_late_fees: {
+        Row: {
+          amount: number;
+          assignment_id: string;
+          booking_id: string;
+          created_at: string;
+          days_late: number;
+          free_until: string;
+          id: string;
+          per_day: number;
+          returned_on: string;
+          settle_note: string;
+          settled_at: string | null;
+          settled_by: string | null;
+          status: Database["public"]["Enums"]["tracker_late_fee_status"];
+        };
+        Insert: {
+          amount: number;
+          assignment_id: string;
+          booking_id: string;
+          created_at?: string;
+          days_late: number;
+          free_until: string;
+          id?: string;
+          per_day: number;
+          returned_on: string;
+          settle_note?: string;
+          settled_at?: string | null;
+          settled_by?: string | null;
+          status?: Database["public"]["Enums"]["tracker_late_fee_status"];
+        };
+        Update: {
+          amount?: number;
+          assignment_id?: string;
+          booking_id?: string;
+          created_at?: string;
+          days_late?: number;
+          free_until?: string;
+          id?: string;
+          per_day?: number;
+          returned_on?: string;
+          settle_note?: string;
+          settled_at?: string | null;
+          settled_by?: string | null;
+          status?: Database["public"]["Enums"]["tracker_late_fee_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracker_late_fees_assignment_id_fkey";
+            columns: ["assignment_id"];
+            isOneToOne: true;
+            referencedRelation: "tracker_assignments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracker_late_fees_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "adventure_bookings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tracker_late_fees_settled_by_fkey";
+            columns: ["settled_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tracker_reservations: {
         Row: {
           booking_id: string;
@@ -7304,6 +7501,13 @@ export type Database = {
           on_hand: number;
         }[];
       };
+      adventure_booking_refund_state: {
+        Args: { booking_id: string };
+        Returns: {
+          refundable: boolean;
+          sent_for_review_at: string;
+        }[];
+      };
       adventure_checkpoint_passes: {
         Args: { submission_id: string };
         Returns: {
@@ -7371,6 +7575,16 @@ export type Database = {
           last_at: string;
           late_points: number;
           points: number;
+        }[];
+      };
+      adventure_waiver: {
+        Args: { version?: string };
+        Returns: {
+          body: string;
+          body_sha256: string;
+          published_at: string;
+          title: string;
+          version: string;
         }[];
       };
       answer_quote: { Args: { decisions: Json; name: string; token: string }; Returns: Json };
@@ -7535,6 +7749,7 @@ export type Database = {
         Returns: {
           adventure_id: string;
           attention_reason: string | null;
+          board_name: string | null;
           cancelled_at: string | null;
           confirmed_at: string | null;
           created_at: string;
@@ -7851,6 +8066,7 @@ export type Database = {
         Returns: {
           adventure_id: string;
           attention_reason: string | null;
+          board_name: string | null;
           cancelled_at: string | null;
           confirmed_at: string | null;
           created_at: string;
@@ -8543,6 +8759,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      hide_adventure_board_name: {
+        Args: { booking_id: string; reason: string };
+        Returns: undefined;
+      };
       indent_reservations: {
         Args: { product_id: string };
         Returns: {
@@ -8855,6 +9075,18 @@ export type Database = {
           latitude: number;
           longitude: number;
           recorded_at: string;
+        }[];
+      };
+      my_adventure_terms: {
+        Args: { booking_id: string };
+        Returns: {
+          board_name: string;
+          late_fees_owed: unknown;
+          refundable: boolean;
+          sent_for_review_at: string;
+          signed_at: string;
+          signed_name: string;
+          waiver_version: string;
         }[];
       };
       my_adventure_tracker: {
@@ -9306,6 +9538,23 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "adventure_revisions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      publish_adventure_waiver: {
+        Args: { body: string; title: string; version: string };
+        Returns: {
+          body: string;
+          body_sha256: string;
+          published_at: string;
+          published_by: string | null;
+          title: string;
+          version: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "adventure_waivers";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -10488,8 +10737,10 @@ export type Database = {
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
+          tracker_grace_days: number;
           tracker_hire_enabled: boolean;
           tracker_hire_max_days: number;
+          tracker_late_fee_per_day: number;
           updated_at: string;
           updated_by: string | null;
         };
@@ -10510,8 +10761,10 @@ export type Database = {
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
+          tracker_grace_days: number;
           tracker_hire_enabled: boolean;
           tracker_hire_max_days: number;
+          tracker_late_fee_per_day: number;
           updated_at: string;
           updated_by: string | null;
         };
@@ -10532,8 +10785,10 @@ export type Database = {
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
+          tracker_grace_days: number;
           tracker_hire_enabled: boolean;
           tracker_hire_max_days: number;
+          tracker_late_fee_per_day: number;
           updated_at: string;
           updated_by: string | null;
         };
@@ -10554,8 +10809,10 @@ export type Database = {
           sales_enabled: boolean;
           supported_sales_enabled: boolean;
           terms_version: string | null;
+          tracker_grace_days: number;
           tracker_hire_enabled: boolean;
           tracker_hire_max_days: number;
+          tracker_late_fee_per_day: number;
           updated_at: string;
           updated_by: string | null;
         };
@@ -10681,6 +10938,7 @@ export type Database = {
         };
       };
       set_indent_deposit_percent: { Args: { p_percent: number }; Returns: number };
+      set_my_board_name: { Args: { board_name: string; booking_id: string }; Returns: undefined };
       set_my_rider_profile: { Args: { shown: boolean }; Returns: string };
       set_print_job_status: {
         Args: {
@@ -10929,6 +11187,53 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      settle_tracker_late_fee: {
+        Args: {
+          fee_id: string;
+          note: string;
+          outcome: Database["public"]["Enums"]["tracker_late_fee_status"];
+        };
+        Returns: {
+          amount: number;
+          assignment_id: string;
+          booking_id: string;
+          created_at: string;
+          days_late: number;
+          free_until: string;
+          id: string;
+          per_day: number;
+          returned_on: string;
+          settle_note: string;
+          settled_at: string | null;
+          settled_by: string | null;
+          status: Database["public"]["Enums"]["tracker_late_fee_status"];
+        };
+        SetofOptions: {
+          from: "*";
+          to: "tracker_late_fees";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      sign_my_adventure_waiver: {
+        Args: {
+          accepts_risk: boolean;
+          accepts_terms: boolean;
+          electronic_signature: boolean;
+          emergency_contact_name: string;
+          emergency_contact_phone: string;
+          no_ebike: boolean;
+          of_age: boolean;
+          request_id: string;
+          signed_name: string;
+          terms_version: string;
+        };
+        Returns: {
+          signature_id: string;
+          signed_at: string;
+          waiver_version: string;
+        }[];
       };
       split_unit_from_stock: {
         Args: {
@@ -11194,6 +11499,7 @@ export type Database = {
           yield_total: number;
         }[];
       };
+      tracker_late_fee_if_returned_today: { Args: { return_on: string }; Returns: unknown };
       transfer_bike_ownership: {
         Args: { bike_id: string; reason: string; to_customer_id: string };
         Returns: {
@@ -11734,7 +12040,10 @@ export type Database = {
         | "departure_cancelled"
         | "cancellation_requested"
         | "booking_cancelled"
-        | "seat_moved";
+        | "seat_moved"
+        | "board_name_changed"
+        | "late_fee_recorded"
+        | "late_fee_settled";
       adventure_booking_status: "pending_payment" | "confirmed" | "cancelled" | "expired";
       adventure_certificate_status: "active" | "revoked";
       adventure_checkpoint_order: "any" | "sequence";
@@ -11744,7 +12053,7 @@ export type Database = {
       adventure_evidence_kind: "activity" | "checkpoint_photo";
       adventure_file_state:
         "awaiting_upload" | "uploaded" | "parsing" | "parsed" | "failed" | "removed";
-      adventure_finisher_name: "first_name_initial" | "full_name" | "hidden";
+      adventure_finisher_name: "first_name_initial" | "full_name" | "hidden" | "preferred_name";
       adventure_notice_kind:
         | "ticket_paid"
         | "changes_requested"
@@ -11756,7 +12065,8 @@ export type Database = {
         | "departure_joined"
         | "departure_cancelled"
         | "cancellation_requested"
-        | "booking_cancelled";
+        | "booking_cancelled"
+        | "tracker_late_fee";
       adventure_pack_status: "awaiting_pack" | "ready" | "fulfilled" | "on_hold";
       adventure_participation: "self_supported" | "self_supported_group" | "supported";
       adventure_recording_method: "own_device" | "tracker_hire";
@@ -11923,6 +12233,7 @@ export type Database = {
         | "event_shape_invalid"
         | "livemode_mismatch"
         | "not_recorded";
+      tracker_late_fee_status: "owed" | "paid" | "waived";
       tracker_reservation_status: "held" | "confirmed" | "completed" | "cancelled";
       tracker_return_condition: "good" | "needs_service" | "faulty" | "lost";
       tracker_service_state: "in_service" | "maintenance" | "lost" | "retired";
@@ -12884,6 +13195,9 @@ export const Constants = {
         "cancellation_requested",
         "booking_cancelled",
         "seat_moved",
+        "board_name_changed",
+        "late_fee_recorded",
+        "late_fee_settled",
       ],
       adventure_booking_status: ["pending_payment", "confirmed", "cancelled", "expired"],
       adventure_certificate_status: ["active", "revoked"],
@@ -12906,7 +13220,7 @@ export const Constants = {
         "failed",
         "removed",
       ],
-      adventure_finisher_name: ["first_name_initial", "full_name", "hidden"],
+      adventure_finisher_name: ["first_name_initial", "full_name", "hidden", "preferred_name"],
       adventure_notice_kind: [
         "ticket_paid",
         "changes_requested",
@@ -12919,6 +13233,7 @@ export const Constants = {
         "departure_cancelled",
         "cancellation_requested",
         "booking_cancelled",
+        "tracker_late_fee",
       ],
       adventure_pack_status: ["awaiting_pack", "ready", "fulfilled", "on_hold"],
       adventure_participation: ["self_supported", "self_supported_group", "supported"],
@@ -13130,6 +13445,7 @@ export const Constants = {
         "livemode_mismatch",
         "not_recorded",
       ],
+      tracker_late_fee_status: ["owed", "paid", "waived"],
       tracker_reservation_status: ["held", "confirmed", "completed", "cancelled"],
       tracker_return_condition: ["good", "needs_service", "faulty", "lost"],
       tracker_service_state: ["in_service", "maintenance", "lost", "retired"],

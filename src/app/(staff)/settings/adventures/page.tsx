@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 
-import { AdventureSalesControl } from "@/components/domain/adventures/booking-sheets";
+import {
+  AdventureSalesControl,
+  PublishWaiverButton,
+} from "@/components/domain/adventures/booking-sheets";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/dates";
 import { getAdventureHealth, getAdventureSalesSettings } from "@/lib/domain/adventure-bookings";
+import { listWaivers } from "@/lib/domain/adventure-terms";
 import { getTrackerHireSettings, listTrackingDevices } from "@/lib/domain/trackers";
 import { TrackerHireControl } from "@/components/domain/adventures/tracker-sheets";
 import {
@@ -19,18 +23,19 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Adventure sales" };
 
 /**
- * Settings → Adventure sales (admins only; D170, D174): whether riders can
- * buy certified rides on bicii.sg and which terms version they accept, and
- * how long a checkout stays open. Off until the owner publishes the terms.
+ * Settings → Adventure sales (admins only; D170, D174, D215): whether riders
+ * can buy certified rides on bicii.sg, the waiver they sign before paying,
+ * and how long a checkout stays open.
  */
 export default async function AdventureSalesSettingsPage() {
   await requireAdmin();
   const supabase = await createClient();
-  const [settings, hire, devices, health] = await Promise.all([
+  const [settings, hire, devices, health, waivers] = await Promise.all([
     getAdventureSalesSettings(supabase),
     getTrackerHireSettings(supabase),
     listTrackingDevices(supabase),
     getAdventureHealth(supabase),
+    listWaivers(supabase),
   ]);
   const n = (key: string) => Number(health[key] ?? 0);
   const at = (key: string) =>
@@ -95,6 +100,7 @@ export default async function AdventureSalesSettingsPage() {
             <AdventureSalesControl
               salesEnabled={settings.salesEnabled}
               termsVersion={settings.termsVersion}
+              waiverVersions={waivers.map((w) => w.version)}
             />
             <p className="text-sm text-dust-700">
               A checkout stays open {settings.checkoutMinutes} minutes. Changed{" "}
@@ -106,6 +112,29 @@ export default async function AdventureSalesSettingsPage() {
           <p className="text-sm text-dust-700">The adventure settings are missing.</p>
         )}
       </Card>
+      <div className="mt-6">
+        <Card title="Waiver" actions={<PublishWaiverButton />}>
+          <p className="text-sm text-dust-700">
+            Every rider types their full name to sign the chosen version before paying, with an
+            emergency contact. A published version never changes.
+          </p>
+          {waivers.length === 0 ? (
+            <p className="mt-3 text-sm">No waiver is published yet.</p>
+          ) : (
+            <ul aria-label="Published waivers" className="mt-3 flex flex-col gap-1 text-sm">
+              {waivers.map((w) => (
+                <li key={w.version} className="flex flex-wrap justify-between gap-2">
+                  <span>
+                    <strong>{w.version}</strong> · {w.title}
+                    {settings?.termsVersion === w.version ? " · riders sign this one" : ""}
+                  </span>
+                  <span className="text-dust-700">{formatDateTime(w.publishedAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
       <div className="mt-6">
         <Card title="Health">
           <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">

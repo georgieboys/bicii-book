@@ -5,13 +5,12 @@
  * confirmed together, the separate sales switch, staff on a departure, and
  * facilitators' check-ins and observations.
  */
-import { randomUUID } from "node:crypto";
 
 import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { AUTH_USER, STAFF } from "../fixtures/ids";
-import { makeRider, TERMS, type Rider } from "./adventure-fixtures";
+import { makeRider, signWaiver, TERMS, type Rider } from "./adventure-fixtures";
 import { customerClaims } from "./customer-fixtures";
 import { actAs, connect, inTransaction, scalar, staffClaims, type Connection } from "./harness";
 import { pay, setup } from "./tracker-fixtures";
@@ -65,7 +64,7 @@ async function buySeat(
   const { rows } = await tx.query<Prepared>(
     `select booking_id, payment_id, amount::text, amount_cents::text from public.prepare_my_adventure_checkout(
        $1, 'bicii-125', 'supported', $2, 'M', 'first_name_initial', $3, departure_id => $4)`,
-    [randomUUID(), revision, TERMS, departureId],
+    [await signWaiver(tx), revision, TERMS, departureId],
   );
   return rows[0];
 }

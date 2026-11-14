@@ -114,6 +114,23 @@ limit or skip a window. A feed's access is a server variable named by an
 admin, restricted to `TRACKING_FEED_*`, so no other secret can be pointed
 at a provider (D189, D190).
 
+## Amendment 2026-11-14: the owner's sales terms
+
+The owner set the terms (D212-D219). The waiver is data, not code: an
+admin publishes sealed versions, the sales terms version must be one, and
+a booking cannot be inserted without its rider's signature for that very
+checkout request under that version. The check is a trigger on
+`adventure_bookings`, so no path into a booking can skip it, and the
+checkout function did not change. A signature records a typed full name,
+an emergency contact, five declarations and the SHA-256 of the text
+signed, and is immutable once linked. Typed-name signing was chosen over a
+drawn signature: Singapore's Electronic Transactions Act generally
+recognises an electronic signature, a drawn one adds no identity, and the text's hash
+proves what was signed. Refundability is derived (no ride sent for
+review), not stored, so it can't drift. Late fees are recorded rows with
+their arithmetic in a check constraint, collected at the counter, not
+charged to a card: BICII keeps no saved cards (D185).
+
 ## Alternatives considered
 
 | Alternative | Why not |

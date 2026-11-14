@@ -242,6 +242,28 @@ describe("POST /api/adventures/checkout", () => {
     });
   });
 
+  it("sets the board name the rider chose, as the rider, after preparing (D218)", async () => {
+    const h = harness();
+    const res = await handleAdventureCheckout(
+      post({ ...BODY, finisherName: "hidden", boardName: " Captain Cadence " }),
+      h.deps,
+    );
+    expect(res.status).toBe(200);
+    expect(h.riderCalls.map((c) => c.name)).toEqual([
+      "prepare_my_adventure_checkout",
+      "set_my_board_name",
+    ]);
+    expect(h.riderCalls[1].args).toEqual({
+      booking_id: h.prepared.booking_id,
+      board_name: "Captain Cadence",
+    });
+    const long = harness();
+    expect(
+      (await handleAdventureCheckout(post({ ...BODY, boardName: "x".repeat(41) }), long.deps))
+        .status,
+    ).toBe(400);
+  });
+
   it("prepares as the rider, creates a session with the payment's key, records it and returns Stripe's URL", async () => {
     const h = harness();
     const res = await handleAdventureCheckout(post(), h.deps);

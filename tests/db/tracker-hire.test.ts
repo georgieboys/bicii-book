@@ -368,7 +368,15 @@ describe("issue, replace and return (D188; C11)", () => {
           "select detail ->> 'note' from public.adventure_booking_events where booking_id = $1 and kind = 'tracker_returned'",
           [next.bookingId],
         ),
-      ).toMatch(/after its return day/);
+      ).toMatch(/^Lost: settle its cost/);
+      // A day after its return day is inside the grace (D213): no late fee.
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.tracker_late_fees where booking_id = $1",
+          [next.bookingId],
+        ),
+      ).toBe(0);
       const latecomer = await makeRider(tx);
       await failsWith(
         tx,

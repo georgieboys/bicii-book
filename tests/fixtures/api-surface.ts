@@ -54,6 +54,8 @@ export const ANON_FUNCTIONS: readonly string[] = [
   "public.adventure_public_surfaces()",
   "public.public_shared_ride(text)",
   "public.public_rider_profile(uuid)",
+  // D215: the waiver a rider reads before signing
+  "public.adventure_waiver(text)",
 ];
 
 /**
@@ -380,6 +382,17 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.adventure_public_surfaces()",
   "public.public_shared_ride(text)",
   "public.public_rider_profile(uuid)",
+  // The owner's sales terms (D212-D218): waivers, signing, the board name,
+  // late fees and the rider's view of their terms
+  "public.adventure_waiver(text)",
+  "public.publish_adventure_waiver(text, text, text)",
+  "public.sign_my_adventure_waiver(uuid, text, text, text, text, boolean, boolean, boolean, boolean, boolean)",
+  "public.set_my_board_name(uuid, text)",
+  "public.hide_adventure_board_name(uuid, text)",
+  "public.tracker_late_fee_if_returned_today(date)",
+  "public.settle_tracker_late_fee(uuid, tracker_late_fee_status, text)",
+  "public.my_adventure_terms(uuid)",
+  "public.adventure_booking_refund_state(uuid)",
   "public.assign_departure_staff(uuid, uuid, departure_staff_role)",
   "public.remove_departure_staff(uuid, uuid)",
   "public.check_in_departure_rider(uuid, uuid)",
@@ -596,6 +609,10 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   // Adventures Phase F (D205, D206): staff see that links and profiles exist
   "public.adventure_ride_shares": ["SELECT"],
   "public.adventure_rider_profiles": ["SELECT"],
+  // The owner's sales terms (D213, D215): staff see waivers, signatures and late fees
+  "public.adventure_waivers": ["SELECT"],
+  "public.adventure_waiver_signatures": ["SELECT"],
+  "public.tracker_late_fees": ["SELECT"],
 };
 
 /**

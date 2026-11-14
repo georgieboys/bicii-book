@@ -52,7 +52,33 @@ export async function offerOn125(tx: Connection, price = 49): Promise<Sale> {
 
 export async function openSales(tx: Connection): Promise<void> {
   await actAs(tx, staffClaims(AUTH_USER.admin));
+  await publishWaiver(tx, TERMS);
   await tx.query("select public.set_adventure_sales(true, $1)", [TERMS]);
+}
+
+/** As an admin: a test waiver published under `version`, unless it already is (D215). */
+export async function publishWaiver(tx: Connection, version: string): Promise<void> {
+  await tx.query(
+    `select public.publish_adventure_waiver($1, 'Test waiver', repeat('Test terms for riders. ', 20))
+      where not exists (select 1 from public.adventure_waivers w where w.version = $1)`,
+    [version],
+  );
+}
+
+/**
+ * As the customer `tx` acts as: the waiver signed for a new (or the given)
+ * checkout request under `terms` (D215). Returns the request id.
+ */
+export async function signWaiver(
+  tx: Connection,
+  requestId: string = randomUUID(),
+  terms = TERMS,
+): Promise<string> {
+  await tx.query(
+    `select public.sign_my_adventure_waiver($1, $2, 'Test Rider', 'Test Contact', '+65 6000 0000', true, true, true, true, true)`,
+    [requestId, terms],
+  );
+  return requestId;
 }
 
 export async function makeRider(tx: Connection): Promise<Rider> {
@@ -68,7 +94,7 @@ export async function paidBooking(tx: Connection, rider: Rider, sale: Sale): Pro
   const { rows } = await tx.query<{ booking_id: string; payment_id: string; amount_cents: string }>(
     `select booking_id, payment_id, amount_cents::text
        from public.prepare_my_adventure_checkout($1, 'bicii-125', 'self_supported', $2, 'M', 'first_name_initial', $3)`,
-    [randomUUID(), sale.revisionNumber, TERMS],
+    [await signWaiver(tx), sale.revisionNumber, TERMS],
   );
   const p = rows[0];
   await deliver(tx, "checkout.session.completed", {

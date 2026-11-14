@@ -3363,17 +3363,19 @@ URLs, or customer data in this file.
 - Category: business.
 - Status and owner: accepted by the owner on 2026-11-14 (D185); owner.
 - Trigger: a rider loses a tracker or keeps it past its return day.
-- Impact: hire takes no deposit and the database charges nothing. A lost
-  device leaves the fleet (`lost`) and its cost falls on the shop unless
-  staff settle with the rider; a late one blocks later hires until it is
-  back.
+- Impact: hire takes no deposit. Since D213 a late return records a fee
+  (a grace day, then 20 a day) that the rider pays at the shop (R-105). A
+  lost device leaves the fleet (`lost`) and its cost falls on the shop
+  unless staff settle with the rider; a late one blocks later hires until
+  it is back.
 - Evidence and confidence: high; `return_adventure_tracker` records the
-  condition and a "returned after its return day" note
-  (`tests/db/tracker-hire.test.ts`).
+  condition and any late fee (`tests/db/tracker-hire.test.ts`,
+  `tests/db/rider-terms.test.ts`).
 - Workaround or containment: hire stays off until the owner turns it on
-  (D186); the terms riders accept should say what a lost tracker costs.
-- Next action: the owner writes the hire terms (late and loss) before
-  switching hire on.
+  (D186); the waiver riders sign (clause 4) says a lost or damaged tracker
+  is settled with BICII.
+- Next action: none for late returns; for losses, a replacement price in
+  the terms if losses happen.
 - Revisit trigger: the first lost tracker, or more than a handful of
   devices.
 - Last checked: 2026-11-14.
@@ -3432,3 +3434,42 @@ URLs, or customer data in this file.
   using SPOT's saved response (R-102).
 - Revisit trigger: any of the triggers above.
 - Last checked: 2026-11-14.
+
+## R-104 — The rider waiver has not been reviewed by a lawyer
+
+- Category: legal.
+- Status and owner: open; the owner.
+- Trigger: before the first paid sale.
+- Impact: the waiver (`docs/adventures/waiver-2026-11-14.md`, D215) was
+  drafted without legal advice. Singapore law limits what a release can
+  exclude: under the Unfair Contract Terms Act, liability for death or
+  personal injury caused by negligence cannot be excluded, and other
+  exclusions must be reasonable. A clause a court won't enforce protects
+  nothing. The text says so (clause 7.4), but its wording, the business's
+  legal name and the lost-tracker clause need a lawyer's review.
+- Evidence and confidence: high that review is needed; the text is a
+  reasonable starting point, not advice.
+- Workaround or containment: sales stay off. A reviewed text is published
+  as a new version (Settings → Adventure sales → Waiver) and chosen for
+  sales; every booking keeps the version its rider signed.
+- Next action: the owner has the text reviewed and publishes the result.
+- Revisit trigger: any change to rides, trackers or supported dates.
+- Last checked: 2026-11-14.
+
+## R-105 — Tracker late fees and lost trackers are collected by hand
+
+- Category: money.
+- Status and owner: open; the owner.
+- Trigger: a tracker back after its grace day, or lost.
+- Impact: BICII records the late fee (D213) and emails the rider, but
+  can't charge it: there is no saved card, and riders pay at the shop. A
+  rider who never comes back owes it with no way to collect online. A lost
+  tracker's cost is settled by hand, with no amount in the system.
+- Evidence and confidence: high; by design (D185, D213).
+- Workaround or containment: owed fees show on the booking and in the
+  rider's emails; an admin records each one paid or waived.
+- Next action: if fees go unpaid, add a Stripe payment link for the fee
+  (the balance-link pattern, D156).
+- Revisit trigger: the first unpaid late fee.
+- Last checked: 2026-11-14.
+

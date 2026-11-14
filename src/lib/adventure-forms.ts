@@ -340,7 +340,7 @@ export const adventureSalesSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["termsVersion"],
-        message: "Give the version of the published terms riders accept.",
+        message: "Choose the published waiver riders sign.",
       });
   });
 
@@ -544,6 +544,36 @@ export const cancelBookingSchema = z.object({
   bookingId: z.guid({ error: "Unknown booking." }),
   reason: required(500, "reason"),
 });
+
+// ----------------------------------- the owner's sales terms (D212-D218) ----
+
+export const publishWaiverSchema = z.object({
+  version: required(40, "version").pipe(
+    z
+      .string()
+      .regex(/^[A-Za-z0-9._-]+$/, { error: "Use letters, numbers, dots or dashes, like 2026-12." }),
+  ),
+  title: required(120, "title"),
+  body: required(40000, "waiver text").pipe(
+    z.string().min(200, { error: "Paste the waiver's full text (at least 200 characters)." }),
+  ),
+});
+
+export const hideBoardNameSchema = z.object({
+  bookingId: z.guid({ error: "Unknown booking." }),
+  reason: required(500, "reason"),
+});
+
+export const settleLateFeeSchema = z
+  .object({
+    feeId: z.guid({ error: "Unknown late fee." }),
+    outcome: z.enum(["paid", "waived"], { error: "Choose paid or waived." }),
+    note: text(500, "note"),
+  })
+  .superRefine((v, ctx) => {
+    if (v.outcome === "waived" && v.note === "")
+      ctx.addIssue({ code: "custom", path: ["note"], message: "Say why the fee is waived." });
+  });
 
 export const moveSeatSchema = z.object({
   bookingId: z.guid({ error: "Unknown booking." }),

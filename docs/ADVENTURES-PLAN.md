@@ -176,16 +176,21 @@ Needed before Phase 0/A starts:
    real checkpoints and rules. Recommended: yes.
 
 Needed before the first paid sale (they gate selling, not building):
-4. Cancellation and refund terms; whether a failed ride may be retried and at what price.
+4. Cancellation and refund terms; whether a failed ride may be retried and at what price. Answered 2026-11-14: refundable until the ride is sent for review, never after; no retries, the price is for judging and the pack is a gift (D212, D214). Riders sign a waiver before paying (D215).
 5. The 125 km rules: maximum time (the handoff's benchmark is 24 h), mandatory checkpoints and
-   what each photo must show, allowed bikes (e-bikes?).
-6. T-shirt sizes offered; pack collection only, or also delivery.
-7. Finisher board identity: default to first name + initial, opt-in to full name?
+   what each photo must show, allowed bikes (e-bikes?). Answered 2026-11-14: 24 hours, no e-bikes;
+   the owner adds the checkpoints (D216).
+6. T-shirt sizes offered; pack collection only, or also delivery. Answered 2026-11-14: S to XXL,
+   collected from the shop only (D217).
+7. Finisher board identity: default to first name + initial, opt-in to full name? Answered
+   2026-11-14: a name the rider chooses, or not on the board (D218).
 
 Needed before tracker hire / supported rides:
-8. Tracker deposit (amount or none), late-return and loss terms. Answered 2026-11-14: no deposit; staff settle late and lost trackers by hand (D185).
+8. Tracker deposit (amount or none), late-return and loss terms. Answered 2026-11-14: no deposit; staff settle late and lost trackers by hand (D185). Then: 20 per 24 hours, a day's grace, then 20 a day late (D213).
 9. A SPOT feed set up on the shop's account, and how many devices. Answered 2026-11-14: none yet; build against a fake feed, hire off until devices exist (D186).
-10. Supported rides: insurance policy, facilitator ratio, emergency procedure, overrun terms.
+10. Supported rides: insurance policy, facilitator ratio, emergency procedure, overrun terms. Answered
+    2026-11-14: treat insurance as settled; facilitators per trip; emergencies and overruns handled
+    offline (D219).
 
 ## 7. Size and order of work (estimate)
 Phase 0 about a day plus owner clicks; A about 3 PRs; B is the largest (about 8 to 10 PRs across

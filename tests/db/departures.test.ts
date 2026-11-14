@@ -13,6 +13,7 @@ import {
   offerOn125,
   openSales,
   paidBooking,
+  signWaiver,
   type Rider,
   type Sale,
 } from "./adventure-fixtures";
@@ -192,8 +193,8 @@ describe("joining with a ticket (C08, S08, S09)", () => {
       const unpaid = await makeRider(tx);
       await actAs(tx, customerClaims(unpaid.authUserId));
       const { rows } = await tx.query<{ booking_id: string }>(
-        `select booking_id from public.prepare_my_adventure_checkout(gen_random_uuid(), 'bicii-125', 'self_supported', $1, 'M', 'first_name_initial', '2026-11-test')`,
-        [sale.revisionNumber],
+        `select booking_id from public.prepare_my_adventure_checkout($2, 'bicii-125', 'self_supported', $1, 'M', 'first_name_initial', '2026-11-test')`,
+        [sale.revisionNumber, await signWaiver(tx)],
       );
       await failsWith(
         tx,

@@ -1210,8 +1210,8 @@ public list without deleting anything.
 
 Adventures has four lists along the top: **Routes**, **Bookings**,
 **Reviews** and **Packs**. Riders buy certified rides on bicii.sg once an
-admin switches sales on (Settings → **Adventure sales**, with the version
-of the published terms riders accept). Until then nothing is sold.
+admin switches sales on (Settings → **Adventure sales**, choosing the
+published waiver riders sign). Until then nothing is sold.
 
 - **Bookings** shows paid bookings by default; **Needs attention** shows
   bookings whose payment looked wrong (paid twice, paid after the checkout
@@ -1233,8 +1233,8 @@ of the published terms riders accept). Until then nothing is sold.
   3. Choose **Approve and certify**, tick every check, confirm the accepted
      distance and the day the ride finished, and press **Certify this
      ride**. The certificate (BC- number), badge and finisher pack are
-     issued at once, and the rider's name goes on the route's finisher
-     board in the form they chose.
+     issued at once, and the rider goes on the route's finisher board under
+     the name they chose (or not at all, if they chose none).
   4. Or choose **Ask the rider for changes** or **Do not certify** and
      write the message the rider will read. After a change request the
      rider sends a new version, which comes back to this list.
@@ -1243,9 +1243,13 @@ of the published terms riders accept). Until then nothing is sold.
   hold** with a reason).
 - An admin can **Revoke** a certificate from its booking, with a reason.
   It comes off the finisher board; the certificate and its history stay.
+- **Refunds** (D212): a ticket is refundable until the rider sends their
+  ride for review, and never after, whatever the result. A booking's page
+  says which. There are no retries: a ride not certified needs a new
+  ticket (D214).
 - **Cancelling** (admins): a booking's page has **Cancel booking** (with a
   reason the rider is emailed). Its date and tracker hire are released;
-  refund the payment in Stripe yourself. A certified booking, or one whose
+  refund the payment in Stripe yourself if it is still refundable. A certified booking, or one whose
   tracker is still out, can't be cancelled. A rider can ask to cancel from
   bicii.sg; the booking-email people get it, and nothing changes until you
   decide. **Move to another date** (Manage adventures) moves a rider on a
@@ -1254,6 +1258,22 @@ of the published terms riders accept). Until then nothing is sold.
   and public rider profiles, both off. Riders opt in themselves on
   bicii.sg; switching either off hides every link or profile at once.
   Riders can always download their tracker's GPX from their ride page.
+- **The waiver** (D215): every rider signs before paying, by typing their
+  full name, with an emergency contact. A booking's **Waiver** card shows
+  who signed, when, the version and the emergency contact (staff who run
+  or judge rides). Settings → Adventure sales → **Waiver** lists the
+  published versions; **Publish a new version** adds one (it can never be
+  edited afterwards), and **Certified rides → Change** chooses the one
+  riders sign.
+- **Finisher board names** (D218): a rider chooses the name shown on the
+  board, or not to be on it. With **Manage adventures**, **Take off the
+  board** removes an unsuitable name, with a reason.
+- **Tracker late fees** (D213): hire is 20 per 24 hours. A tracker gets a
+  grace day after its return day; after that it costs 20 a day. Taking a
+  late tracker back records the fee and emails the rider. When they pay at
+  the shop, an admin presses **Settle** on the booking's **Tracker late
+  fees** card (or waives it with a reason).
+- **T-shirts** are S to XXL, and every pack is collected from the shop.
 - **Tickets are personal** (D207): a ticket can't be given to someone
   else. If a rider can't ride, they ask to cancel; the new rider buys
   their own.
@@ -1291,9 +1311,9 @@ reason and emails every rider (their tickets stand).
 
 A supported date is added the same way, as **Supported ride** (the route
 needs a supported offer). Riders buy a place on it on bicii.sg once an
-admin turns on **Supported ride sales** (Settings → Adventure sales; only
-after insurance, the staffing ratio, the emergency procedure and the
-overrun terms are confirmed). A place includes a tracker for the day.
+admin turns on **Supported ride sales** (Settings → Adventure sales; the
+owner has confirmed insurance and assigns facilitators per trip, and
+emergencies and overruns are handled offline, D219). A place includes a tracker for the day.
 On the date's page, **Add staff** as lead or facilitator. On the day, a
 facilitator on the date (with **Facilitate adventures**) presses **Check
 in** for each rider and **Add observation** for anything worth knowing

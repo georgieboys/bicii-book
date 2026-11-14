@@ -13,6 +13,9 @@ import {
   adventureSalesSchema,
   archiveAdventureSchema,
   cancelBookingSchema,
+  hideBoardNameSchema,
+  publishWaiverSchema,
+  settleLateFeeSchema,
   cancelDepartureSchema,
   moveSeatSchema,
   checkInSchema,
@@ -65,6 +68,7 @@ import {
   retryFailedAdventureNotices,
   setAdventureSales,
 } from "@/lib/domain/adventure-bookings";
+import { hideBoardName, publishWaiver, settleLateFee } from "@/lib/domain/adventure-terms";
 import {
   assignDepartureStaff,
   cancelDeparture,
@@ -520,6 +524,38 @@ export const moveSeatAction = staffAction(
   { name: "adventures.move_seat", permission: "manage_adventures" },
   async ({ bookingId, departureId, reason }, { supabase }) => {
     await moveSeat(supabase, bookingId, departureId, reason);
+    refresh();
+    return null;
+  },
+);
+
+// ----------------------------------- the owner's sales terms (D212-D218) ----
+
+export const publishWaiverAction = staffAction(
+  publishWaiverSchema,
+  { name: "adventures.publish_waiver", admin: true },
+  async ({ version, title, body }, { supabase }) => {
+    await publishWaiver(supabase, version, title, body);
+    refresh();
+    return { version };
+  },
+);
+
+export const hideBoardNameAction = staffAction(
+  hideBoardNameSchema,
+  { name: "adventures.hide_board_name", permission: "manage_adventures" },
+  async ({ bookingId, reason }, { supabase }) => {
+    await hideBoardName(supabase, bookingId, reason);
+    refresh();
+    return null;
+  },
+);
+
+export const settleLateFeeAction = staffAction(
+  settleLateFeeSchema,
+  { name: "adventures.settle_late_fee", admin: true },
+  async ({ feeId, outcome, note }, { supabase }) => {
+    await settleLateFee(supabase, feeId, outcome, note);
     refresh();
     return null;
   },

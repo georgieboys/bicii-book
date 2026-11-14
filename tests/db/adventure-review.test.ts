@@ -6,13 +6,19 @@
  * Rolled-back transactions; the two-reviewer race commits on this file's
  * own clone.
  */
-import { randomUUID } from "node:crypto";
 
 import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { AUTH_USER } from "../fixtures/ids";
-import { makeRider, offerOn125, openSales, submitted, type Rider } from "./adventure-fixtures";
+import {
+  makeRider,
+  offerOn125,
+  openSales,
+  signWaiver,
+  submitted,
+  type Rider,
+} from "./adventure-fixtures";
 import { customerClaims } from "./customer-fixtures";
 import {
   actAs,
@@ -380,6 +386,14 @@ describe("finisher board and revocation (E12, E13)", () => {
       const sb = await submitted(tx, b, sale);
       await decide(tx, sa.submissionId, "approved", { on: "2026-11-15" });
       await decide(tx, sb.submissionId, "approved", { on: "2026-11-20" });
+      // D218: on the board only under a chosen name; a rider who chose none isn't listed.
+      const c = await makeRider(tx);
+      const sc = await submitted(tx, c, sale);
+      await decide(tx, sc.submissionId, "approved", { on: "2026-11-18" });
+      await actAs(tx, customerClaims(a.authUserId));
+      await tx.query("select public.set_my_board_name($1, 'Aisha T.')", [sa.bookingId]);
+      await actAs(tx, customerClaims(b.authUserId));
+      await tx.query("select public.set_my_board_name($1, '  Ben   L. ')", [sb.bookingId]);
 
       await actAs(tx, { role: "anon" });
       const board = await tx.query(
@@ -456,7 +470,7 @@ describe("finisher board and revocation (E12, E13)", () => {
       await actAs(tx, customerClaims(rider.authUserId));
       const { rows } = await tx.query<{ booking_id: string; payment_id: string }>(
         `select booking_id, payment_id from public.prepare_my_adventure_checkout($1, 'bicii-125', 'self_supported', $2, 'L', 'hidden', '2026-11-test')`,
-        [randomUUID(), sale.revisionNumber],
+        [await signWaiver(tx), sale.revisionNumber],
       );
       expect(rows).toHaveLength(1);
       await tx.query("reset role");

@@ -749,6 +749,27 @@ Staff bookings send nothing.
    idempotency key for 24 hours, so an email Resend had already accepted
    is not sent twice within that time.
 
+### Switching certified ride sales on
+
+Before the first sale (D212-D219): the waiver reviewed by a lawyer
+([R-104](RISKS.md#r-104--the-rider-waiver-has-not-been-reviewed-by-a-lawyer)),
+and the 125 km route's current version with its checkpoints, a maximum
+time of 24 hours (1,440 minutes) and "No e-bikes" in its rules (Adventures
+→ Routes → BICII 125 → edit, then publish). Then, as an admin:
+
+1. Settings → Adventure sales → **Waiver**: **Publish a new version** with
+   the reviewed text (or keep `2026-11-14`). A published version never
+   changes.
+2. **Certified rides → Change**: tick **Sell certified rides**, choose the
+   waiver, **Save**. The site shows that waiver and riders sign it before
+   paying.
+3. Optional switches on the same page: **Tracker hire** (once real
+   trackers are in service, D186), **Supported ride sales** (D219) and
+   **Rider sharing** (live-share links and public profiles).
+
+Switching sales off stops new purchases only; paid bookings, reviews and
+fees carry on.
+
 ### Adventure emails
 
 The adventure-work cron (below, under Stripe payments) also sends the

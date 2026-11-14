@@ -129,6 +129,8 @@ export type AdventureBookingDetail = AdventureBookingListItem & {
   distanceKm: string;
   tshirtSize: string | null;
   finisherName: AdventureFinisherName;
+  /** D218: the name on the finisher board, or null (not on it). */
+  boardName: string | null;
   termsVersion: string;
   attentionReason: string | null;
   lines: Array<{ id: string; description: string; quantity: number; total: Money }>;
@@ -192,7 +194,7 @@ export async function getAdventureBooking(
     (await supabase
       .from("adventure_bookings")
       .select(
-        `${LIST_COLUMNS}, customer_id, adventure_id, tshirt_size, finisher_name, terms_version, attention_reason, revision_full:revision_id (revision_number, distance_km)`,
+        `${LIST_COLUMNS}, customer_id, adventure_id, tshirt_size, finisher_name, board_name, terms_version, attention_reason, revision_full:revision_id (revision_number, distance_km)`,
       )
       .eq("id", id)
       .maybeSingle()) as unknown as {
@@ -202,6 +204,7 @@ export async function getAdventureBooking(
             adventure_id: string;
             tshirt_size: string | null;
             finisher_name: AdventureFinisherName;
+            board_name: string | null;
             terms_version: string;
             attention_reason: string | null;
             revision_full: unknown;
@@ -256,6 +259,7 @@ export async function getAdventureBooking(
     distanceKm: String(revision?.distance_km ?? "0"),
     tshirtSize: booking.tshirt_size,
     finisherName: booking.finisher_name,
+    boardName: booking.board_name,
     termsVersion: booking.terms_version,
     attentionReason: booking.attention_reason,
     lines: rows(lines).map((l) => ({

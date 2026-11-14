@@ -163,6 +163,20 @@ describe("cancellation emails (D200, D201)", () => {
   });
 });
 
+describe("the tracker late fee email (D213)", () => {
+  it("tells the rider the fee and where to pay it", () => {
+    const fee = adventureNoticeEmail(
+      notice("tracker_late_fee", {
+        eventNote: "The late fee is $40.00 ($20.00 a day), payable at the shop.",
+      }),
+      null,
+    );
+    expect(fee.subject).toBe("A late fee for your BICII 125 tracker");
+    expect(fee.text).toContain("The late fee is $40.00");
+    expect(fee.text).toContain("Pay it at the shop");
+  });
+});
+
 describe("the sending loop (D184; R-100)", () => {
   function deps(
     clock: { t: number },

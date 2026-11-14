@@ -34,6 +34,7 @@ import {
   staffClaims,
   type Connection,
 } from "./harness";
+import { publishWaiver, signWaiver } from "./adventure-fixtures";
 import { deliver, SERVICE, tag } from "./payment-fixtures";
 import { failsWith, makeCustomer } from "./workshop-fixtures";
 
@@ -93,6 +94,7 @@ async function offerOn125(tx: Connection, price = 49): Promise<Sale> {
 
 async function openSales(tx: Connection): Promise<void> {
   await actAs(tx, staffClaims(AUTH_USER.admin));
+  await publishWaiver(tx, TERMS);
   await tx.query("select public.set_adventure_sales(true, $1)", [TERMS]);
 }
 
@@ -116,11 +118,16 @@ async function prepare(
   }> = {},
 ): Promise<Prepared> {
   await actAs(tx, customerClaims(rider.authUserId));
+  // The rider signs first (D215), whenever there is a waiver to sign.
+  const requestId = o.requestId ?? randomUUID();
+  if (await scalar<boolean>(tx, "select sales_enabled from public.adventure_sales_state()")) {
+    await signWaiver(tx, requestId);
+  }
   const { rows } = await tx.query<Prepared>(
     `select booking_id, reference, payment_id, amount::text, amount_cents::text, currency, reused
        from public.prepare_my_adventure_checkout($1, 'bicii-125', $2, $3, $4, 'first_name_initial', $5)`,
     [
-      o.requestId ?? randomUUID(),
+      requestId,
       o.kind ?? "self_supported",
       o.revision ?? sale.revisionNumber,
       o.size ?? "M",

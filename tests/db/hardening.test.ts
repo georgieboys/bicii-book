@@ -275,6 +275,7 @@ describe("retention and health (D203)", () => {
           "emails_oldest_pending",
           "emails_pending",
           "feed_last_read",
+          "feeds_behind",
           "feeds_enabled",
           "feeds_failing",
           "files_failed_7d",

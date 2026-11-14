@@ -3331,6 +3331,7 @@ URLs, or customer data in this file.
   use before sales open; the owner decides on Garmin's SDK licence.
 - Revisit trigger: a FIT file fails that Garmin Connect opens; a library
   advisory.
+- 2026-11-14 (audit): GPX reading is now linear in the file's size whatever its shape, and each step of the adventure-work cron runs and is logged independently, so one rider's file can no longer hold up emails or the tracker feed (`tests/unit/adventure-tracks.test.ts`). The FIT library's resource use on hostile input is still unmeasured.
 - Last checked: 2026-11-14.
 
 ## R-100 — The booking emails' outbox can give up on an email it never tried, or record a delivered one as failed
@@ -3402,6 +3403,7 @@ URLs, or customer data in this file.
   in the repository), compare it with the parser, and run the pilot ride
   the plan names as Phase C's release check.
 - Revisit trigger: a feed error after adding the real feed.
+- 2026-11-14 (audit): paging back through a full window now moves the watermark to the window's top, so a backlog cannot stall the feed, and Health shows feeds more than an hour behind (`tests/db/tracking-feed.test.ts`). Still untested against a real SPOT feed.
 - Last checked: 2026-11-14.
 
 ## R-103 — Some of the handoff's acceptance checks are proven only in part

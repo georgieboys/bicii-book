@@ -80,6 +80,10 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   adventure_not_refundable:
     "Your ride has been sent for review, so the ticket can no longer be cancelled or refunded.",
   late_fee_settled: "This late fee is already settled.",
+  // Fixes from the 2026-11-14 audit (D220, D221).
+  review_booking_cancelled: "This booking is cancelled, so its ride cannot be reviewed.",
+  adventure_too_many_open:
+    "You have several payment pages open. Finish paying there, or try again in about half an hour.",
   adventure_unavailable: "This adventure is not on sale.",
   adventure_quote_changed: "This adventure's details or price changed. Check them and try again.",
   adventure_offer_unavailable: "That way to ride is not on sale for this adventure.",

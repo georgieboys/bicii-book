@@ -163,6 +163,21 @@ describe("cancellation emails (D200, D201)", () => {
   });
 });
 
+describe("the date changed email (D221)", () => {
+  it("gives the new time and meeting point", () => {
+    const mail = adventureNoticeEmail(
+      notice("departure_changed", {
+        departureStartsAt: "2026-11-21T23:00:00Z",
+        departureMeetingPoint: "294 River Valley",
+      }),
+      null,
+    );
+    expect(mail.subject).toBe("Your BICII 125 ride date has changed");
+    expect(mail.text).toContain("Sun 22 Nov 2026, 7:00 am");
+    expect(mail.text).toContain("meeting at 294 River Valley");
+  });
+});
+
 describe("the tracker late fee email (D213)", () => {
   it("tells the rider the fee and where to pay it", () => {
     const fee = adventureNoticeEmail(

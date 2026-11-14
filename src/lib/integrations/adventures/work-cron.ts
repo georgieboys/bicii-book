@@ -12,17 +12,20 @@ import { runAdventureParse, type ParseSummary, type ParseWorkerDeps } from "./pa
 
 /**
  * GET /api/cron/adventure-work (Adventures Phase B, D176, D184): the Vercel
- * cron reads uploaded ride files, sends due adventure emails, then reads
- * due tracking feeds (D190). Fails closed (handoff §16): without CRON_SECRET it answers 503; a missing or
+ * cron sends due adventure emails, reads due tracking feeds (D190), reads
+ * uploaded ride files, then purges old unattributed positions; each step
+ * runs even when another fails. Fails closed (handoff §16): without CRON_SECRET it answers 503; a missing or
  * wrong bearer, 401. At most 3 files and 5 emails a run; nothing starts
  * after 40 seconds (maxDuration 60), and emails not reached are released.
  */
 
 export type WorkSummary = {
-  files: ParseSummary;
-  emails: Awaited<ReturnType<typeof sendDueAdventureNotices>>;
-  feeds: FeedSummary;
+  files: ParseSummary | null;
+  emails: Awaited<ReturnType<typeof sendDueAdventureNotices>> | null;
+  feeds: FeedSummary | null;
   purged?: number | null;
+  /** The steps that failed this run (each step runs whatever the others do). */
+  failed?: string[];
 };
 
 export type WorkCronDeps = {
@@ -35,24 +38,71 @@ function json(status: number, body: unknown): Response {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+/** The four steps of a run; each is tried even when another fails. */
+export type WorkSteps = {
+  emails: () => Promise<WorkSummary["emails"]>;
+  feeds: () => Promise<WorkSummary["feeds"]>;
+  files: () => Promise<WorkSummary["files"]>;
+  purge: () => Promise<number | null>;
+};
+
+/**
+ * Runs the steps in order: emails and feeds first (riders waiting on a
+ * message, live positions), then file reading (the slowest, and the one a
+ * rider's file can make slow), then the purge. A failing step is logged
+ * with its error name and code and the others still run (audit A-44).
+ */
+export async function runWorkSteps(
+  steps: WorkSteps,
+  log: Pick<ReturnType<typeof child>, "error">,
+): Promise<WorkSummary> {
+  const summary: WorkSummary = { files: null, emails: null, feeds: null, purged: null, failed: [] };
+  const attempt = async <K extends keyof WorkSteps>(
+    name: K,
+    apply: (v: Awaited<ReturnType<WorkSteps[K]>>) => void,
+  ) => {
+    try {
+      apply((await steps[name]()) as Awaited<ReturnType<WorkSteps[K]>>);
+    } catch (err) {
+      summary.failed!.push(name);
+      const e = err as { name?: string; code?: string; message?: string };
+      log.error(
+        { step: name, error: e?.name ?? "Error", code: e?.code ?? null },
+        "adventure-work step failed",
+      );
+    }
+  };
+  await attempt("emails", (v) => (summary.emails = v));
+  await attempt("feeds", (v) => (summary.feeds = v));
+  await attempt("files", (v) => (summary.files = v));
+  await attempt("purge", (v) => (summary.purged = v));
+  return summary;
+}
+
 async function defaultRun(deadlineMs: number): Promise<WorkSummary> {
   const correlationId = newRequestId();
   const supabase = createServiceClient({ correlationId });
-  const deps: ParseWorkerDeps = {
-    supabase,
-    log: child(correlationId, { integration: "adventure-work" }),
-    now: Date.now,
-  };
-  const files = await runAdventureParse(deps, { max: 3, deadlineMs });
-  const emails = await sendDueAdventureNotices(supabase, getServerEnv(), { max: 5, deadlineMs });
-  // Feed access lives in TRACKING_FEED_* variables, read by name (D190).
-  const feeds = await runTrackingFeeds(
-    { supabase, env: process.env, log: deps.log, now: Date.now },
-    { maxFeeds: 2, deadlineMs },
+  const log = child(correlationId, { integration: "adventure-work" });
+  const deps: ParseWorkerDeps = { supabase, log, now: Date.now };
+  return runWorkSteps(
+    {
+      emails: () => sendDueAdventureNotices(supabase, getServerEnv(), { max: 5, deadlineMs }),
+      // Feed access lives in TRACKING_FEED_* variables, read by name (D190).
+      feeds: () =>
+        runTrackingFeeds(
+          { supabase, env: process.env, log, now: Date.now },
+          { maxFeeds: 2, deadlineMs },
+        ),
+      files: () => runAdventureParse(deps, { max: 3, deadlineMs }),
+      // Tracker messages that belong to no ride go after 30 days (D203).
+      purge: async () => {
+        const purge = await supabase.rpc("purge_unattributed_tracking", { max_rows: 1000 });
+        if (purge.error) throw Object.assign(new Error("purge failed"), { code: purge.error.code });
+        return Number(purge.data ?? 0);
+      },
+    },
+    log,
   );
-  // Tracker messages that belong to no ride go after 30 days (D203).
-  const purge = await supabase.rpc("purge_unattributed_tracking", { max_rows: 1000 });
-  return { files, emails, feeds, purged: purge.error ? null : Number(purge.data ?? 0) };
 }
 
 export async function handleAdventureWork(
@@ -68,8 +118,15 @@ export async function handleAdventureWork(
   }
   try {
     const summary = await run(now() + 40_000);
-    return json(200, summary);
-  } catch {
+    // Every step was tried; a failed one still makes the run show as failed.
+    const failed = (summary as WorkSummary).failed;
+    return json(failed && failed.length > 0 ? 500 : 200, summary);
+  } catch (err) {
+    const e = err as { name?: string; code?: string };
+    child(newRequestId(), { integration: "adventure-work" }).error(
+      { error: e?.name ?? "Error", code: e?.code ?? null },
+      "adventure-work run failed",
+    );
     return json(500, { error: "failed" });
   }
 }

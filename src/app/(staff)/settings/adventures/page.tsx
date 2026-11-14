@@ -70,6 +70,11 @@ export default async function AdventureSalesSettingsPage() {
       bad: n("trackers_overdue") > 0,
     },
     {
+      label: "Feeds more than an hour behind",
+      value: String(n("feeds_behind")),
+      bad: n("feeds_behind") > 0,
+    },
+    {
       label: "Feeds failing",
       value: `${n("feeds_failing")} of ${n("feeds_enabled")}${at("feed_last_read") ? `, last read ${at("feed_last_read")}` : ""}`,
       bad: n("feeds_failing") > 0,

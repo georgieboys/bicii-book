@@ -104,6 +104,7 @@ function harness(
     record?: { error: { code: string; message: string } | null };
     verify?: string | null;
     hits?: number;
+    limitError?: boolean;
     stripeOff?: boolean;
   } = {},
 ) {
@@ -131,6 +132,7 @@ function harness(
     rpc: async (name: string, args: Record<string, unknown>) => {
       serviceCalls.push({ name, args });
       if (name === "note_sign_in_attempt") {
+        if (o.limitError) return { data: null, error: { code: "57014", message: "timeout" } };
         return { data: [{ bucket_key: "k", hit_count: o.hits ?? 1 }], error: null };
       }
       return { data: {}, error: o.record?.error ?? null };
@@ -331,6 +333,10 @@ describe("POST /api/adventures/checkout", () => {
     const busy = harness({ hits: 21 });
     expect((await handleAdventureCheckout(post(), busy.deps)).status).toBe(429);
     expect(busy.riderCalls).toEqual([]);
+    // The limiter failing closes checkout rather than skipping the limit (audit A-36).
+    const broken = harness({ limitError: true });
+    expect((await handleAdventureCheckout(post(), broken.deps)).status).toBe(503);
+    expect(broken.riderCalls).toEqual([]);
     const off = harness({ stripeOff: true });
     expect((await handleAdventureCheckout(post(), off.deps)).status).toBe(503);
   });

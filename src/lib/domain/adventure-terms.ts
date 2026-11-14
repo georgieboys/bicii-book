@@ -125,3 +125,8 @@ export async function settleLateFee(
 ): Promise<void> {
   unwrap(await supabase.rpc("settle_tracker_late_fee", { fee_id: feeId, outcome, note }));
 }
+
+/** Admin: let a rider whose board name was taken down choose another (D229). */
+export async function unlockBoardName(supabase: ServerSupabase, bookingId: string): Promise<void> {
+  unwrap(await supabase.rpc("unlock_adventure_board_name", { booking_id: bookingId }));
+}

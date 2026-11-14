@@ -22,7 +22,13 @@ import {
 } from "@/lib/adventures";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDate, formatDateTime, shopToday } from "@/lib/dates";
-import { listHandovers, listTrackingDevices, type TrackerHire } from "@/lib/domain/trackers";
+import {
+  lateFeesIfReturnedToday,
+  listHandovers,
+  listTrackingDevices,
+  type TrackerHire,
+} from "@/lib/domain/trackers";
+import { formatMoney } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Tracker handovers" };
@@ -50,6 +56,10 @@ export default async function HandoversPage() {
   const today = shopToday();
   const toCollect = open.filter((h) => !h.assignment || h.assignment.returnedAt);
   const out = open.filter((h) => h.assignment && !h.assignment.returnedAt);
+  const fees = await lateFeesIfReturnedToday(
+    supabase,
+    out.filter((h) => h.returnOn < today).map((h) => h.returnOn),
+  );
 
   const row = (h: TrackerHire, actions: React.ReactNode, extra?: React.ReactNode) => (
     <li key={h.reservationId} className="flex flex-col gap-3 px-4 py-3 sm:px-5">
@@ -124,16 +134,24 @@ export default async function HandoversPage() {
             <RowList label="Out with riders" className="-mx-4 sm:-mx-5">
               {out.map((h) => {
                 const late = h.returnOn < today;
+                const fee = late ? (fees[h.returnOn] ?? "0.00") : "0.00";
+                const owes = Number(fee) > 0;
                 return row(
                   h,
                   manage && h.assignment ? (
                     <>
-                      <ReturnTrackerButton assignmentId={h.assignment.id} late={late} />
+                      <ReturnTrackerButton
+                        assignmentId={h.assignment.id}
+                        late={late}
+                        feeToday={owes ? formatMoney(fee) : null}
+                      />
                       <ReplaceTrackerButton assignmentId={h.assignment.id} devices={free} />
                     </>
                   ) : null,
-                  late ? (
-                    <Badge tone="danger">Overdue</Badge>
+                  owes ? (
+                    <Badge tone="danger">Overdue: {formatMoney(fee)} if back today</Badge>
+                  ) : late ? (
+                    <Badge tone="info">Grace day</Badge>
                   ) : h.returnOn === today ? (
                     <Badge tone="info">Due today</Badge>
                   ) : null,

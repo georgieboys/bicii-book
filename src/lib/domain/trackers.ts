@@ -520,3 +520,22 @@ export async function setPublicSurfaces(
 export async function setSupportedSales(supabase: ServerSupabase, enabled: boolean): Promise<void> {
   unwrap(await supabase.rpc("set_adventure_supported_sales", { enabled }));
 }
+
+/**
+ * The late fee each return day would owe if the tracker came back today
+ * (tracker_late_fee_if_returned_today; D213, audit A-52), as fixed-point
+ * strings keyed by the return day. Postgres does the arithmetic.
+ */
+export async function lateFeesIfReturnedToday(
+  supabase: ServerSupabase,
+  returnDays: string[],
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const day of [...new Set(returnDays)]) {
+    const { data, error } = await supabase.rpc("tracker_late_fee_if_returned_today", {
+      return_on: day,
+    });
+    out[day] = error || data === null ? "0.00" : String(data);
+  }
+  return out;
+}

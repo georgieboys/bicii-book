@@ -393,6 +393,9 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.settle_tracker_late_fee(uuid, tracker_late_fee_status, text)",
   "public.my_adventure_terms(uuid)",
   "public.adventure_booking_refund_state(uuid)",
+  // Audit fixes (D228, D229): read a failed file again; unlock a board name
+  "public.requeue_adventure_file(uuid)",
+  "public.unlock_adventure_board_name(uuid)",
   "public.assign_departure_staff(uuid, uuid, departure_staff_role)",
   "public.remove_departure_staff(uuid, uuid)",
   "public.check_in_departure_rider(uuid, uuid)",
@@ -670,6 +673,10 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   // Audit fixes (D225): payments whose webhook never came, read back from Stripe
   "public.record_adventure_stripe_read(uuid, jsonb, text)",
   "public.stale_adventure_payments(integer)",
+  // Audit fixes (D228, D230): file reading released, unused objects deleted
+  "public.release_adventure_parse(uuid)",
+  "public.adventure_evidence_objects_to_delete(integer)",
+  "public.mark_adventure_objects_deleted(uuid[])",
 ];
 
 /**

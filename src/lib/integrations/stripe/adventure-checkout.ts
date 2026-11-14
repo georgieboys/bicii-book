@@ -253,16 +253,18 @@ export async function startAdventureCheckout(
 }
 
 /**
- * The finisher board name rule (D218, and the audit's A-49), as Postgres
- * applies it: empty (off the board), or 2 to 40 characters with no links,
- * emails, markup, control, invisible or direction characters.
+ * The finisher board name rule (D218, D229), as Postgres applies it: empty
+ * (off the board), or after NFKC and collapsing spaces 2 to 40 characters,
+ * with no links, emails, markup, control, invisible or direction characters,
+ * and not posing as the shop.
  */
 export function validBoardName(name: string): boolean {
-  const clean = name.trim().replace(/\s+/g, " ");
+  const clean = name.normalize("NFKC").trim().replace(/\s+/g, " ");
   if (clean === "") return true;
   if (clean.length < 2 || clean.length > 40) return false;
   if (/[<>@]/.test(clean) || /(https?:|www\.|:\/\/)/i.test(clean)) return false;
-  if (/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/.test(clean))
+  if (/[\u0000-\u001f\u007f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/.test(clean))
     return false;
+  if (/(bicii|official|staff|admin)/i.test(clean)) return false;
   return true;
 }

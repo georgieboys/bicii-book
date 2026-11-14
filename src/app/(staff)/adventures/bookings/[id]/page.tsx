@@ -10,6 +10,7 @@ import {
   PackStatusButtons,
   RevokeCertificateButton,
   SettleLateFeeButton,
+  UnlockBoardNameButton,
 } from "@/components/domain/adventures/booking-sheets";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -130,9 +131,15 @@ export default async function AdventureBookingPage({
             <dd>{booking.tshirtSize ?? "None"}</dd>
             <dt className="text-dust-700">Name on the board</dt>
             <dd className="flex flex-wrap items-center gap-2">
-              {booking.boardName ?? FINISHER_NAME_LABELS.hidden}
+              {booking.boardName ??
+                (booking.boardNameLockedAt
+                  ? `Taken down ${formatDateTime(booking.boardNameLockedAt)}; locked`
+                  : FINISHER_NAME_LABELS.hidden)}
               {booking.boardName && canManageAdventures(staff) ? (
                 <HideBoardNameButton bookingId={booking.id} />
+              ) : null}
+              {booking.boardNameLockedAt && admin ? (
+                <UnlockBoardNameButton bookingId={booking.id} />
               ) : null}
             </dd>
             <dt className="text-dust-700">Refunds</dt>

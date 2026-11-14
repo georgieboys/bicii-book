@@ -770,6 +770,15 @@ time of 24 hours (1,440 minutes) and "No e-bikes" in its rules (Adventures
 Switching sales off stops new purchases only; paid bookings, reviews and
 fees carry on.
 
+### A ride file that could not be read
+
+The file reader gives an attempt back whenever the trouble is not the
+file's own (Storage, the database, a slow download), so a "could not be
+read" is normally a real export problem: ask the rider to export the ride
+again and upload it. If you believe a file failed for another reason, staff
+who verify or manage adventures can have it read again while the rider's
+version is not yet sent (`requeue_adventure_file`, D228).
+
 ### Adventure emails
 
 The adventure-work cron (below, under Stripe payments) also sends the

@@ -267,7 +267,15 @@ describe("POST /api/adventures/checkout", () => {
   });
 
   it("refuses a board name the database would refuse before anything is held (audit A-59)", async () => {
-    for (const bad of ["j@ne", "see www.x.sg", "A\u200bB", "x"]) {
+    for (const bad of [
+      "j@ne",
+      "see www.x.sg",
+      "A\u200bB",
+      "x",
+      "BICII Official",
+      "ｂｉｃｉｉ fan",
+      "Staff",
+    ]) {
       const h = harness();
       const res = await handleAdventureCheckout(post({ ...BODY, boardName: bad }), h.deps);
       expect(res.status).toBe(409);

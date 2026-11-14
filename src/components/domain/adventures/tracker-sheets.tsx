@@ -238,9 +238,12 @@ export function ReplaceTrackerButton({
 export function ReturnTrackerButton({
   assignmentId,
   late,
+  feeToday = null,
 }: {
   assignmentId: string;
   late: boolean;
+  /** The late fee taking it back today records, formatted, or null (D213). */
+  feeToday?: string | null;
 }) {
   const { open, show, close } = useOpen();
   return (
@@ -252,9 +255,11 @@ export function ReturnTrackerButton({
         <FormSheet
           title="Take the tracker back"
           description={
-            late
-              ? "It's back after its return day. Settle that with the rider yourself: nothing is charged."
-              : undefined
+            feeToday
+              ? `It's back after its return day and the grace day. Saving records a late fee of ${feeToday}; the rider is emailed and pays it at the shop. An admin can waive it on the booking.`
+              : late
+                ? "It's back after its return day but within the grace day: no fee."
+                : undefined
           }
           submitLabel="Save"
           pendingLabel="Saving…"

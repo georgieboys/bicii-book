@@ -1265,9 +1265,17 @@ published waiver riders sign). Until then nothing is sold.
   published versions; **Publish a new version** adds one (it can never be
   edited afterwards), and **Certified rides → Change** chooses the one
   riders sign.
-- **Finisher board names** (D218): a rider chooses the name shown on the
-  board, or not to be on it. With **Manage adventures**, **Take off the
-  board** removes an unsuitable name, with a reason.
+- **Finisher board names** (D218, D229): a rider chooses the name shown on
+  the board, or not to be on it. Names can't contain BICII, Official, Staff
+  or Admin, or hidden characters. With **Manage adventures**, **Take off the
+  board** removes an unsuitable name, with a reason; the rider then can't set
+  another until an admin presses **Let them choose again**.
+- **Taking a tracker back** shows the late fee it will record, if any, before
+  you save (a tracker inside its grace day shows "Grace day" and costs
+  nothing).
+- **Checkpoints** have an optional **Review radius (metres)**: how near a
+  recorded point must pass to count. With it, the review page says whether
+  each checkpoint was passed within its radius.
 - **Tracker returns**: recording a return closes the ride window if the
   rider forgot Finish Ride (D226). A ride window can't be corrected once the
   ride has a decision (D227). A hired tracker isn't offered to the next

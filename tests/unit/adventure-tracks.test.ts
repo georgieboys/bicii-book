@@ -190,33 +190,47 @@ describe("the parse worker", () => {
     jobs: Array<{ file_id: string; storage_path: string }>,
   ) {
     const finished: Array<Record<string, unknown>> = [];
+    const released: string[] = [];
+    const queue = [...jobs];
     const supabase = {
       rpc: async (name: string, args: Record<string, unknown>) => {
-        if (name === "claim_adventure_parse_jobs")
+        if (name === "claim_adventure_parse_jobs") {
+          // One file per claim (D228).
+          const next = queue.shift();
           return {
-            data: jobs.map((j) => ({ ...j, original_name: j.storage_path, attempts: 1 })),
+            data: next ? [{ ...next, original_name: next.storage_path, attempts: 1 }] : [],
             error: null,
           };
+        }
+        if (name === "release_adventure_parse") {
+          released.push(args.file_id as string);
+          return { data: null, error: null };
+        }
         finished.push(args);
         return { data: null, error: null };
       },
       storage: {
         from: () => ({
-          download: async (path: string) =>
-            path in files
-              ? { data: new Blob([files[path]]), error: null }
-              : { data: null, error: new Error("missing") },
+          download: (path: string) =>
+            path === "b/slow.gpx"
+              ? new Promise(() => {})
+              : Promise.resolve(
+                  path in files
+                    ? { data: new Blob([files[path]]), error: null }
+                    : { data: null, error: new Error("missing") },
+                ),
         }),
       },
     };
     return {
       deps: { supabase: supabase as never, log: pino({ level: "silent" }), now: () => 0 },
       finished,
+      released,
     };
   }
 
-  it("records a track, a rider-safe failure, and leaves a broken download for a retry", async () => {
-    const { deps, finished } = worker(
+  it("records a track, a rider-safe failure, and gives a broken download's attempt back", async () => {
+    const { deps, finished, released } = worker(
       { "b/1.gpx": TRACK, "b/2.gpx": gpx('<rte><rtept lat="1" lon="1"/></rte>') },
       [
         { file_id: "f1", storage_path: "b/1.gpx" },
@@ -236,6 +250,20 @@ describe("the parse worker", () => {
     expect(finished[1]).toMatchObject({ file_id: "f2", ok: false });
     expect(finished[1].error).toMatch(/planned route/);
     expect(finished).toHaveLength(2);
+    expect(released).toEqual(["f3"]);
+  });
+
+  it("gives back the attempt of a download that hangs (audit A-43)", async () => {
+    const { deps, released } = worker({}, [{ file_id: "f9", storage_path: "b/slow.gpx" }]);
+    expect(await runAdventureParse(deps, { max: 3, deadlineMs: 1, downloadTimeoutMs: 20 })).toEqual(
+      {
+        claimed: 1,
+        parsed: 0,
+        failed: 0,
+        errored: 1,
+      },
+    );
+    expect(released).toEqual(["f9"]);
   });
 });
 

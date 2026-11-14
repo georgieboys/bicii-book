@@ -12,6 +12,7 @@ import {
   adventureOrderSchema,
   adventureSalesSchema,
   archiveAdventureSchema,
+  bookingIdSchema,
   cancelBookingSchema,
   hideBoardNameSchema,
   publishWaiverSchema,
@@ -68,7 +69,12 @@ import {
   retryFailedAdventureNotices,
   setAdventureSales,
 } from "@/lib/domain/adventure-bookings";
-import { hideBoardName, publishWaiver, settleLateFee } from "@/lib/domain/adventure-terms";
+import {
+  hideBoardName,
+  publishWaiver,
+  settleLateFee,
+  unlockBoardName,
+} from "@/lib/domain/adventure-terms";
 import { expireAdventureCheckouts } from "@/lib/integrations/stripe/adventure-payments";
 import { defaultStripeDeps } from "@/lib/integrations/stripe/deps";
 import { newRequestId } from "@/lib/request-id";
@@ -561,6 +567,16 @@ export const settleLateFeeAction = staffAction(
   { name: "adventures.settle_late_fee", admin: true },
   async ({ feeId, outcome, note }, { supabase }) => {
     await settleLateFee(supabase, feeId, outcome, note);
+    refresh();
+    return null;
+  },
+);
+
+export const unlockBoardNameAction = staffAction(
+  bookingIdSchema,
+  { name: "adventures.unlock_board_name", admin: true },
+  async ({ bookingId }, { supabase }) => {
+    await unlockBoardName(supabase, bookingId);
     refresh();
     return null;
   },

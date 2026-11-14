@@ -13,7 +13,12 @@ import {
 import { defaultStripeDeps } from "../stripe/deps";
 import { runTrackingFeeds, type FeedSummary } from "../tracking/feed-worker";
 import { sendDueAdventureNotices } from "./notices";
-import { runAdventureParse, type ParseSummary, type ParseWorkerDeps } from "./parse-worker";
+import {
+  EVIDENCE_BUCKET,
+  runAdventureParse,
+  type ParseSummary,
+  type ParseWorkerDeps,
+} from "./parse-worker";
 
 /**
  * GET /api/cron/adventure-work (Adventures Phase B, D176, D184): the Vercel
@@ -30,6 +35,8 @@ export type WorkSummary = {
   emails: Awaited<ReturnType<typeof sendDueAdventureNotices>> | null;
   feeds: FeedSummary | null;
   purged?: number | null;
+  /** Evidence objects deleted from Storage (removed or abandoned files, D230). */
+  objectsDeleted?: number | null;
   /** The steps that failed this run (each step runs whatever the others do). */
   failed?: string[];
 };
@@ -51,6 +58,7 @@ export type WorkSteps = {
   feeds: () => Promise<WorkSummary["feeds"]>;
   files: () => Promise<WorkSummary["files"]>;
   purge: () => Promise<number | null>;
+  objects?: () => Promise<number | null>;
 };
 
 /**
@@ -85,6 +93,7 @@ export async function runWorkSteps(
   await attempt("feeds", (v) => (summary.feeds = v));
   await attempt("files", (v) => (summary.files = v));
   await attempt("purge", (v) => (summary.purged = v));
+  if (steps.objects) await attempt("objects", (v) => (summary.objectsDeleted = v));
   return summary;
 }
 
@@ -111,6 +120,24 @@ async function defaultRun(deadlineMs: number): Promise<WorkSummary> {
         const purge = await supabase.rpc("purge_unattributed_tracking", { max_rows: 1000 });
         if (purge.error) throw Object.assign(new Error("purge failed"), { code: purge.error.code });
         return Number(purge.data ?? 0);
+      },
+      // Objects of removed or abandoned evidence files leave Storage (D230).
+      objects: async () => {
+        const due = await supabase.rpc("adventure_evidence_objects_to_delete", { max_rows: 50 });
+        if (due.error) throw Object.assign(new Error("objects failed"), { code: due.error.code });
+        const rows = due.data ?? [];
+        if (rows.length === 0) return 0;
+        const removed = await supabase.storage
+          .from(EVIDENCE_BUCKET)
+          .remove(rows.map((r) => r.storage_path));
+        if (removed.error)
+          throw Object.assign(new Error("storage remove failed"), { code: "storage" });
+        const marked = await supabase.rpc("mark_adventure_objects_deleted", {
+          file_ids: rows.map((r) => r.file_id),
+        });
+        if (marked.error)
+          throw Object.assign(new Error("mark failed"), { code: marked.error.code });
+        return rows.length;
       },
     },
     log,

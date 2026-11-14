@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useState, useTransition, type ReactNode } from "react";
+import { useActionState, useEffect, useId, useState, useTransition, type ReactNode } from "react";
 
 import {
   cancelAdventureBookingAction,
@@ -11,6 +11,7 @@ import {
   publishWaiverAction,
   revokeAdventureCertificateAction,
   settleLateFeeAction,
+  unlockBoardNameAction,
   setAdventurePackStatusAction,
   setAdventureSalesAction,
 } from "@/app/(staff)/adventures/actions";
@@ -80,6 +81,24 @@ export function FormSheet({
   }, null);
   const formRef = useFocusFirstInvalid(state);
   const errors = state && !state.ok ? state.fieldErrors : undefined;
+  // React resets uncontrolled fields after every form action; after a
+  // refusal, put back what was typed (audit A-53; DESIGN.md "Forms").
+  const echoed = state && !state.ok ? state.values : undefined;
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form || !echoed) return;
+    for (const [name, value] of Object.entries(echoed)) {
+      const field = form.elements.namedItem(name);
+      if (
+        field instanceof HTMLTextAreaElement ||
+        field instanceof HTMLSelectElement ||
+        (field instanceof HTMLInputElement &&
+          !["checkbox", "radio", "hidden", "file"].includes(field.type))
+      ) {
+        field.value = value;
+      }
+    }
+  }, [echoed, formRef]);
   return (
     <Sheet
       open
@@ -521,5 +540,31 @@ export function MoveSeatButton({
         </FormSheet>
       ) : null}
     </>
+  );
+}
+
+/** Admin: let a rider whose board name was taken down choose another (D229). */
+export function UnlockBoardNameButton({ bookingId }: { bookingId: string }) {
+  const { toast } = useToast();
+  const [pending, start] = useTransition();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      pending={pending}
+      pendingLabel="Unlocking…"
+      onClick={() =>
+        start(async () => {
+          const result = await callAction(() => unlockBoardNameAction({ bookingId }));
+          toast(
+            result.ok
+              ? { title: "The rider can choose a board name again", tone: "success" }
+              : { title: result.error, tone: "error" },
+          );
+        })
+      }
+    >
+      Let them choose again
+    </Button>
   );
 }

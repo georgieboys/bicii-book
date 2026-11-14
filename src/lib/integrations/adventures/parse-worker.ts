@@ -6,11 +6,12 @@ import { PARSER_VERSION, readTrack, sha256Hex, TrackError } from "@/lib/adventur
 import type { ServiceSupabase } from "@/lib/integrations/shopify/deps";
 
 /**
- * The evidence parse worker (Adventures Phase B, D176): claims uploaded
- * activity files (claim_adventure_parse_jobs, SKIP LOCKED, a 5-minute
- * claim, 3 attempts), downloads each from the private bucket, reads it and
- * records the track or a rider-safe error (finish_adventure_parse). One
- * bad file never stops the others; nothing starts after the deadline.
+ * The evidence parse worker (Adventures Phase B, D176; D228): claims
+ * uploaded activity files one at a time (claim_adventure_parse_jobs, SKIP
+ * LOCKED, a 5-minute claim, 3 attempts), downloads each from the private
+ * bucket, reads it and records the track or a rider-safe error
+ * (finish_adventure_parse). One bad file never stops the others; nothing
+ * starts after the deadline.
  */
 
 export const EVIDENCE_BUCKET = "adventure-evidence";
@@ -23,22 +24,54 @@ export type ParseWorkerDeps = {
 
 export type ParseSummary = { claimed: number; parsed: number; failed: number; errored: number };
 
+/** How long a ride file's download may take before the attempt is given back. */
+export const DOWNLOAD_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(Object.assign(new Error("timed out"), { name: "TimeoutError" })),
+      ms,
+    );
+    work.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+/**
+ * Claims one file at a time (D228) and starts it at once. A file that can't
+ * be read is recorded as failed; trouble that is not the file's (Storage,
+ * the database, the download timing out) gives the attempt back
+ * (release_adventure_parse), so only a file that really fails uses up its
+ * three tries. A run that dies mid-file leaves that file's attempt counted.
+ */
 export async function runAdventureParse(
   deps: ParseWorkerDeps,
-  options: { max: number; deadlineMs: number },
+  options: { max: number; deadlineMs: number; downloadTimeoutMs?: number },
 ): Promise<ParseSummary> {
   const summary: ParseSummary = { claimed: 0, parsed: 0, failed: 0, errored: 0 };
-  const { data: jobs, error } = await deps.supabase.rpc("claim_adventure_parse_jobs", {
-    max_jobs: options.max,
-  });
-  if (error) throw error;
-  summary.claimed = jobs?.length ?? 0;
-
-  for (const job of jobs ?? []) {
-    if (deps.now() > options.deadlineMs) break; // left claimed; reclaimed after 5 minutes
+  for (let i = 0; i < options.max && deps.now() <= options.deadlineMs; i++) {
+    const { data: jobs, error } = await deps.supabase.rpc("claim_adventure_parse_jobs", {
+      max_jobs: 1,
+    });
+    if (error) throw error;
+    const job = jobs?.[0];
+    if (!job) break;
+    summary.claimed += 1;
     const log = deps.log.child({ fileId: job.file_id });
     try {
-      const download = await deps.supabase.storage.from(EVIDENCE_BUCKET).download(job.storage_path);
+      const download = await withTimeout(
+        deps.supabase.storage.from(EVIDENCE_BUCKET).download(job.storage_path),
+        options.downloadTimeoutMs ?? DOWNLOAD_TIMEOUT_MS,
+      );
       if (download.error || !download.data) throw download.error ?? new Error("no data");
       const bytes = new Uint8Array(await download.data.arrayBuffer());
       const sha256 = sha256Hex(bytes);
@@ -72,9 +105,12 @@ export async function runAdventureParse(
       else summary.failed += 1;
       log.info({ outcome: result.ok ? "parsed" : "unreadable" }, "adventure file parsed");
     } catch (err) {
-      // Left 'parsing': reclaimed after its claim lapses, failed after 3 tries.
+      // Not the file's fault: give the attempt back for the next run.
       summary.errored += 1;
       log.error({ error: err instanceof Error ? err.name : "unknown" }, "adventure parse failed");
+      const released = await deps.supabase.rpc("release_adventure_parse", { file_id: job.file_id });
+      if (released.error)
+        log.error({ code: released.error.code }, "adventure parse release failed");
     }
   }
   return summary;

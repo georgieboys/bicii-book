@@ -371,6 +371,128 @@ describe("parsing and submitting (E01, E06)", () => {
   });
 });
 
+describe("limits and file reading (audit A-43, A-45, A-56)", () => {
+  it("finalise refuses an object larger than declared, and a photo that is not an image", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { rider, bookingId } = await paid(tx);
+      const big = await allocate(tx, rider, bookingId, { bytes: 1000 });
+      await tx.query("reset role");
+      await putStorageObject(tx, "adventure-evidence", big.storage_path, {
+        mimetype: "application/gpx+xml",
+        size: 5_000_000,
+      });
+      await actAs(tx, customerClaims(rider.authUserId));
+      await failsWith(
+        tx,
+        () => tx.query("select public.finalise_my_adventure_upload($1)", [big.file_id]),
+        refused("adventure_file_too_large"),
+      );
+      const photo = await allocate(tx, rider, bookingId, {
+        kind: "checkpoint_photo",
+        checkpoint: 1,
+        name: "cp1.jpg",
+      });
+      await tx.query("reset role");
+      await putStorageObject(tx, "adventure-evidence", photo.storage_path, {
+        mimetype: "text/xml",
+      });
+      await actAs(tx, customerClaims(rider.authUserId));
+      await failsWith(
+        tx,
+        () => tx.query("select public.finalise_my_adventure_upload($1)", [photo.file_id]),
+        refused("adventure_file_type"),
+      );
+    });
+  });
+
+  it("an upload abandoned for 15 minutes no longer blocks sending; removed objects are queued for deletion", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { rider, bookingId } = await paid(tx);
+      const good = await allocate(tx, rider, bookingId);
+      await upload(tx, rider, good);
+      const stale = await allocate(tx, rider, bookingId, { name: "dropped.gpx" });
+      await tx.query("reset role");
+      await tx.query(
+        "update public.adventure_evidence_files set created_at = now() - interval '20 minutes' where id = $1",
+        [stale.file_id],
+      );
+      await parse(tx, good.file_id);
+      await actAs(tx, customerClaims(rider.authUserId));
+      await tx.query("select public.submit_my_adventure_evidence($1, '')", [bookingId]);
+      await tx.query("reset role");
+      expect(
+        await scalar<string>(
+          tx,
+          "select state::text from public.adventure_evidence_files where id = $1",
+          [stale.file_id],
+        ),
+      ).toBe("removed");
+      await actAs(tx, SERVICE);
+      const due = await tx.query(
+        "select file_id from public.adventure_evidence_objects_to_delete(50)",
+      );
+      expect(due.rows.map((r: { file_id: string }) => r.file_id)).toContain(stale.file_id);
+      expect(due.rows.map((r: { file_id: string }) => r.file_id)).not.toContain(good.file_id);
+      expect(
+        await scalar<number>(tx, "select public.mark_adventure_objects_deleted($1::uuid[])", [
+          [stale.file_id],
+        ]),
+      ).toBe(1);
+    });
+  });
+
+  it("gives back an attempt the worker couldn't start, and staff can re-read a failed one", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { rider, bookingId } = await paid(tx);
+      const a = await allocate(tx, rider, bookingId, { name: "a.gpx" });
+      await upload(tx, rider, a);
+      const b = await allocate(tx, rider, bookingId, { name: "b.gpx" });
+      await upload(tx, rider, b);
+      await tx.query("reset role");
+      await tx.query(
+        "update public.adventure_evidence_files set state = 'parsed' where state = 'uploaded' and id not in ($1, $2)",
+        [a.file_id, b.file_id],
+      );
+      await actAs(tx, SERVICE);
+      const claimed = await tx.query(
+        "select file_id, attempts from public.claim_adventure_parse_jobs(1)",
+      );
+      expect(claimed.rows).toHaveLength(1);
+      const id = claimed.rows[0].file_id as string;
+      await tx.query("select public.release_adventure_parse($1)", [id]);
+      await tx.query("reset role");
+      expect(
+        (
+          await tx.query(
+            "select state::text, parse_attempts from public.adventure_evidence_files where id = $1",
+            [id],
+          )
+        ).rows,
+      ).toEqual([{ state: "uploaded", parse_attempts: 0 }]);
+      // A file that failed to read, in a version not yet sent: staff re-read it.
+      await tx.query(
+        "update public.adventure_evidence_files set state = 'failed', parse_error = 'x', parse_attempts = 3 where id = $1",
+        [id],
+      );
+      await actAs(tx, customerClaims(rider.authUserId));
+      await failsWith(tx, () => tx.query("select public.requeue_adventure_file($1)", [id]), {
+        code: "42501",
+      });
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await tx.query("select public.requeue_adventure_file($1)", [id]);
+      await tx.query("reset role");
+      expect(
+        (
+          await tx.query(
+            "select state::text, parse_attempts from public.adventure_evidence_files where id = $1",
+            [id],
+          )
+        ).rows,
+      ).toEqual([{ state: "uploaded", parse_attempts: 0 }]);
+    });
+  });
+});
+
 describe("access (A03, A04)", () => {
   it("riders see only their own evidence; only verifying staff read files and tracks", async () => {
     await inTransaction(conn, async (tx) => {

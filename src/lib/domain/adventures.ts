@@ -412,6 +412,7 @@ export async function setAdventureCheckpoints(
         instructions: c.instructions,
         latitude: c.latitude,
         longitude: c.longitude,
+        review_radius_m: c.reviewRadiusM,
         mandatory: c.mandatory,
         photo_required: c.photoRequired,
       })),

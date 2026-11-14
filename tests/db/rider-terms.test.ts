@@ -341,6 +341,77 @@ describe("the finisher board name (D218)", () => {
   });
 });
 
+describe("board names, the owner's rules (audit A-49, D229)", () => {
+  it("refuses invisible, direction and shop words, also in full-width; a taken-down name stays locked", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const rider = await makeRider(tx);
+      const bookingId = await paidBooking(tx, rider, sale);
+      await actAs(tx, customerClaims(rider.authUserId));
+      for (const bad of [
+        "A\u200bB",
+        "Ali\u202eecs",
+        "BICII Official",
+        "ｂｉｃｉｉ fan",
+        "Shop Staff",
+        "admin",
+      ]) {
+        await failsWith(
+          tx,
+          () => tx.query("select public.set_my_board_name($1, $2)", [bookingId, bad]),
+          refused("adventure_board_name_invalid"),
+        );
+      }
+      await tx.query("select public.set_my_board_name($1, 'Rude Name')", [bookingId]);
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await tx.query("select public.hide_adventure_board_name($1, 'Not suitable')", [bookingId]);
+      await actAs(tx, customerClaims(rider.authUserId));
+      await failsWith(
+        tx,
+        () => tx.query("select public.set_my_board_name($1, 'Back Again')", [bookingId]),
+        refused("adventure_board_name_locked"),
+      );
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await failsWith(
+        tx,
+        () => tx.query("select public.unlock_adventure_board_name($1)", [bookingId]),
+        {
+          code: "42501",
+        },
+      );
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      await tx.query("select public.unlock_adventure_board_name($1)", [bookingId]);
+      await actAs(tx, customerClaims(rider.authUserId));
+      await tx.query("select public.set_my_board_name($1, 'Kind Name')", [bookingId]);
+    });
+  });
+});
+
+describe("no floods (audit A-50, D231)", () => {
+  it("a repeated cancellation request within a day records nothing new", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const rider = await makeRider(tx);
+      const bookingId = await paidBooking(tx, rider, sale);
+      await actAs(tx, customerClaims(rider.authUserId));
+      await tx.query("select public.request_my_adventure_cancellation($1, 'Injured')", [bookingId]);
+      await tx.query("select public.request_my_adventure_cancellation($1, 'Injured again')", [
+        bookingId,
+      ]);
+      await tx.query("reset role");
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.adventure_booking_events where booking_id = $1 and kind = 'cancellation_requested'",
+          [bookingId],
+        ),
+      ).toBe(1);
+    });
+  });
+});
+
 describe("refunds (D212)", () => {
   it("can be asked for until the ride is sent for review, and never after", async () => {
     await inTransaction(conn, async (tx) => {

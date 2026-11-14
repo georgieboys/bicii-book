@@ -258,6 +258,7 @@ type EditableCheckpoint = {
   instructions: string;
   latitude: string;
   longitude: string;
+  reviewRadiusM: string;
   mandatory: boolean;
   photoRequired: boolean;
 };
@@ -269,6 +270,7 @@ const toEditable = (c: AdventureCheckpoint): EditableCheckpoint => ({
   instructions: c.instructions,
   latitude: c.latitude ?? "",
   longitude: c.longitude ?? "",
+  reviewRadiusM: c.reviewRadiusM === null ? "" : String(c.reviewRadiusM),
   mandatory: c.mandatory,
   photoRequired: c.photoRequired,
 });
@@ -308,6 +310,7 @@ export function CheckpointsEditor({
           instructions: c.instructions,
           latitude: c.latitude.trim() === "" ? null : c.latitude.trim(),
           longitude: c.longitude.trim() === "" ? null : c.longitude.trim(),
+          reviewRadiusM: c.reviewRadiusM.trim() === "" ? null : c.reviewRadiusM.trim(),
           mandatory: c.mandatory,
           photoRequired: c.photoRequired,
         })),
@@ -401,6 +404,16 @@ export function CheckpointsEditor({
                     />
                   </Field>
                 </div>
+                <Field
+                  label="Review radius (metres)"
+                  hint="How near a recorded point must pass to count, like 300. Optional; needs the coordinates."
+                >
+                  <Input
+                    inputMode="numeric"
+                    value={c.reviewRadiusM}
+                    onChange={(e) => update(c.key, { reviewRadiusM: e.target.value })}
+                  />
+                </Field>
                 <Checkbox
                   label="Must be visited"
                   checked={c.mandatory}
@@ -428,6 +441,7 @@ export function CheckpointsEditor({
                   instructions: "",
                   latitude: "",
                   longitude: "",
+                  reviewRadiusM: "",
                   mandatory: true,
                   photoRequired: true,
                 },

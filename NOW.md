@@ -1,7 +1,14 @@
 # Current state
 
-Updated: 2026-11-14 SGT (the audit's medium findings on bookings fixed on
-branch `fix/audit-medium-bookings`, D223-D227: cancelling a supported date
+Updated: 2026-11-14 SGT (the audit's medium findings on evidence, names
+and Admin screens on branch `fix/audit-medium-evidence`, D228-D231: file
+reading gives back attempts that weren't the file's fault; evidence limits
+hold on what arrives and unused objects leave Storage; board names refuse
+hidden characters and shop words and stay locked after a take-down (the
+owner's choice); no floods of repeat requests; the review radius in the
+checkpoint editor; the hand-back sheet shows the late fee; sheets keep what
+was typed after a refusal. Before that, PR #86, bookings and money,
+D223-D227: cancelling a supported date
 releases trackers, flags and tells riders, and they can be moved; stale
 payments are read back from Stripe and cancelling expires the Stripe page;
 trackers stay out of the pool through the grace day (the owner's choice);

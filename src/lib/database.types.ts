@@ -197,6 +197,8 @@ export type Database = {
           adventure_id: string;
           attention_reason: string | null;
           board_name: string | null;
+          board_name_locked_at: string | null;
+          board_name_locked_by: string | null;
           cancelled_at: string | null;
           confirmed_at: string | null;
           created_at: string;
@@ -223,6 +225,8 @@ export type Database = {
           adventure_id: string;
           attention_reason?: string | null;
           board_name?: string | null;
+          board_name_locked_at?: string | null;
+          board_name_locked_by?: string | null;
           cancelled_at?: string | null;
           confirmed_at?: string | null;
           created_at?: string;
@@ -249,6 +253,8 @@ export type Database = {
           adventure_id?: string;
           attention_reason?: string | null;
           board_name?: string | null;
+          board_name_locked_at?: string | null;
+          board_name_locked_by?: string | null;
           cancelled_at?: string | null;
           confirmed_at?: string | null;
           created_at?: string;
@@ -277,6 +283,13 @@ export type Database = {
             columns: ["adventure_id"];
             isOneToOne: false;
             referencedRelation: "adventures";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "adventure_bookings_board_name_locked_by_fkey";
+            columns: ["board_name_locked_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
             referencedColumns: ["id"];
           },
           {
@@ -722,6 +735,7 @@ export type Database = {
           declared_bytes: number;
           id: string;
           kind: Database["public"]["Enums"]["adventure_evidence_kind"];
+          object_deleted_at: string | null;
           original_name: string;
           parse_attempts: number;
           parse_error: string | null;
@@ -743,6 +757,7 @@ export type Database = {
           declared_bytes: number;
           id?: string;
           kind: Database["public"]["Enums"]["adventure_evidence_kind"];
+          object_deleted_at?: string | null;
           original_name: string;
           parse_attempts?: number;
           parse_error?: string | null;
@@ -764,6 +779,7 @@ export type Database = {
           declared_bytes?: number;
           id?: string;
           kind?: Database["public"]["Enums"]["adventure_evidence_kind"];
+          object_deleted_at?: string | null;
           original_name?: string;
           parse_attempts?: number;
           parse_error?: string | null;
@@ -7525,6 +7541,13 @@ export type Database = {
           review_radius_m: number;
         }[];
       };
+      adventure_evidence_objects_to_delete: {
+        Args: { max_rows: number };
+        Returns: {
+          file_id: string;
+          storage_path: string;
+        }[];
+      };
       adventure_health: { Args: Record<PropertyKey, never>; Returns: Json };
       adventure_public_surfaces: {
         Args: Record<PropertyKey, never>;
@@ -7753,6 +7776,8 @@ export type Database = {
           adventure_id: string;
           attention_reason: string | null;
           board_name: string | null;
+          board_name_locked_at: string | null;
+          board_name_locked_by: string | null;
           cancelled_at: string | null;
           confirmed_at: string | null;
           created_at: string;
@@ -8070,6 +8095,8 @@ export type Database = {
           adventure_id: string;
           attention_reason: string | null;
           board_name: string | null;
+          board_name_locked_at: string | null;
+          board_name_locked_by: string | null;
           cancelled_at: string | null;
           confirmed_at: string | null;
           created_at: string;
@@ -8633,6 +8660,7 @@ export type Database = {
           declared_bytes: number;
           id: string;
           kind: Database["public"]["Enums"]["adventure_evidence_kind"];
+          object_deleted_at: string | null;
           original_name: string;
           parse_attempts: number;
           parse_error: string | null;
@@ -8914,6 +8942,7 @@ export type Database = {
           yield_total: number;
         }[];
       };
+      mark_adventure_objects_deleted: { Args: { file_ids: string[] }; Returns: number };
       mark_appointment_status: {
         Args: {
           appointment_id: string;
@@ -9943,6 +9972,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      release_adventure_parse: { Args: { file_id: string }; Returns: undefined };
       remove_adventure_offer: {
         Args: { kind: Database["public"]["Enums"]["adventure_participation"]; revision_id: string };
         Returns: undefined;
@@ -10314,6 +10344,7 @@ export type Database = {
         Returns: undefined;
       };
       request_product_sync: { Args: { product_id: string }; Returns: string };
+      requeue_adventure_file: { Args: { file_id: string }; Returns: undefined };
       restock_unit: {
         Args: { location_id?: string; reason?: string; sale_line_id: string; unit_id: string };
         Returns: Database["public"]["CompositeTypes"]["unit_status_result"];
@@ -11602,6 +11633,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      unlock_adventure_board_name: { Args: { booking_id: string }; Returns: undefined };
       update_adventure_departure: {
         Args: {
           capacity: number;

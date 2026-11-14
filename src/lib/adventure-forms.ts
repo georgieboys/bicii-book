@@ -153,6 +153,14 @@ export const checkpointSchema = z
     instructions: text(1000, "instructions"),
     latitude: coordinate(-90, 90, "latitude"),
     longitude: coordinate(-180, 180, "longitude"),
+    // How near a recorded point must pass, in metres (audit A-51); optional.
+    reviewRadiusM: z
+      .union([z.number(), z.string(), z.null()])
+      .optional()
+      .transform((v) => (v === null || v === undefined || v === "" ? null : Number(v)))
+      .refine((v) => v === null || (Number.isInteger(v) && v >= 10 && v <= 50_000), {
+        error: "Enter the review radius in whole metres, 10 to 50,000.",
+      }),
     mandatory: z.boolean().default(true),
     photoRequired: z.boolean().default(true),
   })
@@ -557,6 +565,10 @@ export const publishWaiverSchema = z.object({
   body: required(40000, "waiver text").pipe(
     z.string().min(200, { error: "Paste the waiver's full text (at least 200 characters)." }),
   ),
+});
+
+export const bookingIdSchema = z.object({
+  bookingId: z.guid({ error: "Unknown booking." }),
 });
 
 export const hideBoardNameSchema = z.object({

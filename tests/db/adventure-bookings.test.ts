@@ -261,6 +261,67 @@ describe("unpaid checkouts are capped (audit A-36, D220)", () => {
   });
 });
 
+describe("payments outside the checkout (audit A-41, A-42)", () => {
+  it("a payment on a cancelled booking is flagged as that, never confirmed", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const p = await prepare(tx, await makeRider(tx), sale);
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      await tx.query("select public.cancel_adventure_booking($1, 'Rider asked')", [p.booking_id]);
+      await deliver(tx, "checkout.session.completed", session(p, `cs_test_${tag()}`));
+      await tx.query("reset role");
+      expect(
+        (
+          await tx.query(
+            "select status::text, attention_reason from public.adventure_bookings where id = $1",
+            [p.booking_id],
+          )
+        ).rows,
+      ).toEqual([
+        { status: "cancelled", attention_reason: "Paid after the booking was cancelled." },
+      ]);
+    });
+  });
+
+  it("a session read back from Stripe applies like a webhook; another session's read does not", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const p = await prepare(tx, await makeRider(tx), sale);
+      const sid = `cs_test_${tag()}`;
+      await record(tx, p, sid);
+      // The webhook never came; the page expired over an hour ago.
+      await tx.query("reset role");
+      await tx.query(
+        "update public.adventure_payments set stripe_session_expires_at = now() - interval '2 hours' where id = $1",
+        [p.payment_id],
+      );
+      await actAs(tx, SERVICE);
+      const stale = await tx.query("select * from public.stale_adventure_payments(5)");
+      expect(stale.rows).toContainEqual({ payment_id: p.payment_id, session_id: sid });
+      const wrong = await tx.query(
+        "select outcome from public.record_adventure_stripe_read($1, $2::jsonb, 'test')",
+        [p.payment_id, JSON.stringify(session(p, `cs_test_${tag()}`))],
+      );
+      expect(wrong.rows).toEqual([{ outcome: "read_mismatch" }]);
+      const read = await tx.query(
+        "select outcome, payment_status::text from public.record_adventure_stripe_read($1, $2::jsonb, 'test')",
+        [p.payment_id, JSON.stringify(session(p, sid))],
+      );
+      expect(read.rows).toEqual([{ outcome: "payment_paid", payment_status: "paid" }]);
+      await tx.query("reset role");
+      expect(
+        await scalar<string>(
+          tx,
+          "select status::text from public.adventure_bookings where id = $1",
+          [p.booking_id],
+        ),
+      ).toBe("confirmed");
+    });
+  });
+});
+
 describe("preparing a checkout (handoff P07, P08, C01, C02)", () => {
   it("freezes the offer's price into the booking, a line and one pending payment", async () => {
     await inTransaction(conn, async (tx) => {

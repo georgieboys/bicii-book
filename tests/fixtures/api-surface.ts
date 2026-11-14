@@ -667,6 +667,9 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.fail_tracking_feed(uuid, uuid, text)",
   // D203: the cron deletes tracker messages that belong to no ride after 30 days
   "public.purge_unattributed_tracking(integer)",
+  // Audit fixes (D225): payments whose webhook never came, read back from Stripe
+  "public.record_adventure_stripe_read(uuid, jsonb, text)",
+  "public.stale_adventure_payments(integer)",
 ];
 
 /**

@@ -32,7 +32,8 @@ export type AdventureNoticeKind =
   | "cancellation_requested"
   | "booking_cancelled"
   | "tracker_late_fee"
-  | "departure_changed";
+  | "departure_changed"
+  | "supported_cancelled";
 
 export type AdventureNotice = {
   id: string;
@@ -235,6 +236,17 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
           hello,
           `You're on the ${route} group ride${n.departureStartsAt ? ` on ${whenLabel(n.departureStartsAt)}` : ""}${n.departureMeetingPoint ? `, meeting at ${n.departureMeetingPoint}` : ""}.`,
           "It's a peer group: riders support each other, and each of you records and sends your own ride. You can leave the date from your ride's page.",
+        ],
+        { href: ride, label: "Open your ride" },
+      );
+    case "supported_cancelled":
+      return compose(
+        `Your ${route} supported ride is cancelled`,
+        [
+          hello,
+          `The ${route} supported ride${n.departureStartsAt ? ` on ${whenLabel(n.departureStartsAt)}` : ""} is cancelled. We're sorry for the change.`,
+          n.eventNote ? `From BICII:\n${n.eventNote}` : null,
+          "We'll contact you to move you to another supported date or refund you, whichever you prefer.",
         ],
         { href: ride, label: "Open your ride" },
       );

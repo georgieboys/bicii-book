@@ -23,6 +23,7 @@ import {
   formatDistance,
   PACK_STATUS_LABELS,
   PARTICIPATION_LABELS,
+  refundLine,
   SUBMISSION_STATE_LABELS,
   HIRE_STATUS_LABELS,
   TRACKER_CONDITION_LABELS,
@@ -136,11 +137,7 @@ export default async function AdventureBookingPage({
             </dd>
             <dt className="text-dust-700">Refunds</dt>
             <dd>
-              {terms.sentForReviewAt
-                ? `None: the ride was sent for review ${formatDateTime(terms.sentForReviewAt)}`
-                : terms.refundable
-                  ? "Refundable until the ride is sent for review"
-                  : "Not paid"}
+              {refundLine(booking.status, booking.payments, terms.sentForReviewAt, formatDateTime)}
             </dd>
           </dl>
           <ul aria-label="Booking lines" className="mt-4 flex flex-col gap-1 text-sm">

@@ -9667,6 +9667,15 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      record_adventure_stripe_read: {
+        Args: { correlation_id: string; object: Json; payment_id: string };
+        Returns: {
+          event_id: string;
+          event_status: Database["public"]["Enums"]["stripe_event_status"];
+          outcome: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+        }[];
+      };
       record_attachment: {
         Args: {
           attachment_id: string;
@@ -11306,6 +11315,13 @@ export type Database = {
           title: string;
         }[];
       };
+      stale_adventure_payments: {
+        Args: { max_rows: number };
+        Returns: {
+          payment_id: string;
+          session_id: string;
+        }[];
+      };
       start_adventure_draft: {
         Args: { adventure_id: string };
         Returns: {
@@ -12072,7 +12088,8 @@ export type Database = {
         | "cancellation_requested"
         | "booking_cancelled"
         | "tracker_late_fee"
-        | "departure_changed";
+        | "departure_changed"
+        | "supported_cancelled";
       adventure_pack_status: "awaiting_pack" | "ready" | "fulfilled" | "on_hold";
       adventure_participation: "self_supported" | "self_supported_group" | "supported";
       adventure_recording_method: "own_device" | "tracker_hire";
@@ -13242,6 +13259,7 @@ export const Constants = {
         "booking_cancelled",
         "tracker_late_fee",
         "departure_changed",
+        "supported_cancelled",
       ],
       adventure_pack_status: ["awaiting_pack", "ready", "fulfilled", "on_hold"],
       adventure_participation: ["self_supported", "self_supported_group", "supported"],

@@ -70,6 +70,11 @@ export default async function AdventureSalesSettingsPage() {
       bad: n("trackers_overdue") > 0,
     },
     {
+      label: "Payments waiting on Stripe for over an hour",
+      value: String(n("payments_stale")),
+      bad: n("payments_stale") > 0,
+    },
+    {
       label: "Feeds more than an hour behind",
       value: String(n("feeds_behind")),
       bad: n("feeds_behind") > 0,

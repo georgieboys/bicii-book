@@ -6,6 +6,11 @@ import { newRequestId } from "@/lib/request-id";
 import { createServiceClient } from "@/lib/supabase/service";
 
 import { bearerMatches } from "../shopify/cron";
+import {
+  checkStaleAdventurePayments,
+  type StalePaymentSummary,
+} from "../stripe/adventure-payments";
+import { defaultStripeDeps } from "../stripe/deps";
 import { runTrackingFeeds, type FeedSummary } from "../tracking/feed-worker";
 import { sendDueAdventureNotices } from "./notices";
 import { runAdventureParse, type ParseSummary, type ParseWorkerDeps } from "./parse-worker";
@@ -20,6 +25,7 @@ import { runAdventureParse, type ParseSummary, type ParseWorkerDeps } from "./pa
  */
 
 export type WorkSummary = {
+  payments?: StalePaymentSummary | null;
   files: ParseSummary | null;
   emails: Awaited<ReturnType<typeof sendDueAdventureNotices>> | null;
   feeds: FeedSummary | null;
@@ -40,6 +46,7 @@ function json(status: number, body: unknown): Response {
 
 /** The four steps of a run; each is tried even when another fails. */
 export type WorkSteps = {
+  payments?: () => Promise<StalePaymentSummary | null>;
   emails: () => Promise<WorkSummary["emails"]>;
   feeds: () => Promise<WorkSummary["feeds"]>;
   files: () => Promise<WorkSummary["files"]>;
@@ -59,10 +66,11 @@ export async function runWorkSteps(
   const summary: WorkSummary = { files: null, emails: null, feeds: null, purged: null, failed: [] };
   const attempt = async <K extends keyof WorkSteps>(
     name: K,
-    apply: (v: Awaited<ReturnType<WorkSteps[K]>>) => void,
+    apply: (v: Awaited<ReturnType<NonNullable<WorkSteps[K]>>>) => void,
   ) => {
     try {
-      apply((await steps[name]()) as Awaited<ReturnType<WorkSteps[K]>>);
+      const step = steps[name] as NonNullable<WorkSteps[K]>;
+      apply((await step()) as Awaited<ReturnType<NonNullable<WorkSteps[K]>>>);
     } catch (err) {
       summary.failed!.push(name);
       const e = err as { name?: string; code?: string; message?: string };
@@ -72,6 +80,7 @@ export async function runWorkSteps(
       );
     }
   };
+  if (steps.payments) await attempt("payments", (v) => (summary.payments = v));
   await attempt("emails", (v) => (summary.emails = v));
   await attempt("feeds", (v) => (summary.feeds = v));
   await attempt("files", (v) => (summary.files = v));
@@ -86,6 +95,9 @@ async function defaultRun(deadlineMs: number): Promise<WorkSummary> {
   const deps: ParseWorkerDeps = { supabase, log, now: Date.now };
   return runWorkSteps(
     {
+      // Payments whose webhook never came are read back from Stripe (D225).
+      payments: () =>
+        checkStaleAdventurePayments(defaultStripeDeps(correlationId), { max: 3, deadlineMs }),
       emails: () => sendDueAdventureNotices(supabase, getServerEnv(), { max: 5, deadlineMs }),
       // Feed access lives in TRACKING_FEED_* variables, read by name (D190).
       feeds: () =>

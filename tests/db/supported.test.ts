@@ -422,3 +422,66 @@ describe("the included tracker follows its date (audit A-39, D221)", () => {
     });
   });
 });
+
+describe("cancelling a supported date (audit A-40, D223)", () => {
+  it("releases paid riders' trackers, flags them, tells them, and lets staff move them", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, revision } = await supportedSetup(tx, 2);
+      const d = await supportedDate(tx, sale.adventureId);
+      const later = await supportedDate(tx, sale.adventureId);
+      const rider = await makeRiderAs(tx);
+      await tx.query("reset role");
+      await tx.query("update public.customers set email = 'cancelled@example.test' where id = $1", [
+        rider.customerId,
+      ]);
+      const paid = await buySeat(tx, rider, revision, d);
+      await pay(tx, paid);
+      const held = await buySeat(tx, await makeRiderAs(tx), revision, d);
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await tx.query("select public.cancel_adventure_departure($1, 'Storm warning')", [d]);
+      await tx.query("reset role");
+      expect(
+        (
+          await tx.query(
+            `select b.needs_attention, r.status::text as tracker
+               from public.adventure_bookings b join public.tracker_reservations r on r.booking_id = b.id
+              where b.id = $1`,
+            [paid.booking_id],
+          )
+        ).rows,
+      ).toEqual([{ needs_attention: true, tracker: "cancelled" }]);
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from private.adventure_notices where booking_id = $1 and kind = 'supported_cancelled'",
+          [paid.booking_id],
+        ),
+      ).toBe(1);
+      // Staff move the paid rider to another date: a new hire is made.
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await tx.query("select public.move_adventure_seat($1, $2, 'Moved after the storm')", [
+        paid.booking_id,
+        later,
+      ]);
+      await tx.query("reset role");
+      expect(
+        await scalar<number>(
+          tx,
+          `select count(*)::int from public.tracker_reservations
+            where booking_id = $1 and status = 'confirmed'`,
+          [paid.booking_id],
+        ),
+      ).toBe(1);
+      // The rider whose page was still open pays for the dead date: flagged.
+      await pay(tx, held);
+      await tx.query("reset role");
+      expect(
+        await scalar<string>(
+          tx,
+          "select attention_reason from public.adventure_bookings where id = $1",
+          [held.booking_id],
+        ),
+      ).toMatch(/cancelled/);
+    });
+  });
+});

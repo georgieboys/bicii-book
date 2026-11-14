@@ -178,6 +178,18 @@ describe("the date changed email (D221)", () => {
   });
 });
 
+describe("the supported date cancelled email (D223)", () => {
+  it("promises a move or a refund, not that the ticket stands", () => {
+    const mail = adventureNoticeEmail(
+      notice("supported_cancelled", { eventNote: "Storm warning" }),
+      null,
+    );
+    expect(mail.subject).toBe("Your BICII 125 supported ride is cancelled");
+    expect(mail.text).toContain("move you to another supported date or refund you");
+    expect(mail.text).not.toContain("ticket still stands");
+  });
+});
+
 describe("the tracker late fee email (D213)", () => {
   it("tells the rider the fee and where to pay it", () => {
     const fee = adventureNoticeEmail(

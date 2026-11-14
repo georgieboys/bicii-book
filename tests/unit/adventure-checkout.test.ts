@@ -266,6 +266,15 @@ describe("POST /api/adventures/checkout", () => {
     ).toBe(400);
   });
 
+  it("refuses a board name the database would refuse before anything is held (audit A-59)", async () => {
+    for (const bad of ["j@ne", "see www.x.sg", "A\u200bB", "x"]) {
+      const h = harness();
+      const res = await handleAdventureCheckout(post({ ...BODY, boardName: bad }), h.deps);
+      expect(res.status).toBe(409);
+      expect(h.riderCalls).toEqual([]);
+    }
+  });
+
   it("prepares as the rider, creates a session with the payment's key, records it and returns Stripe's URL", async () => {
     const h = harness();
     const res = await handleAdventureCheckout(post(), h.deps);
@@ -339,5 +348,80 @@ describe("POST /api/adventures/checkout", () => {
     expect(broken.riderCalls).toEqual([]);
     const off = harness({ stripeOff: true });
     expect((await handleAdventureCheckout(post(), off.deps)).status).toBe(503);
+  });
+});
+
+describe("adventure payments outside the checkout (audit A-41, A-42)", () => {
+  function deps(
+    gateway: Record<string, unknown> | null,
+    rpc?: (name: string, args: unknown) => unknown,
+  ) {
+    return {
+      supabase: rpc ? ({ rpc: async (n: string, a: unknown) => rpc(n, a) } as never) : null,
+      gateway: gateway as never,
+      config: { state: "on" } as never,
+      log: { warn: () => {}, info: () => {}, error: () => {} } as never,
+      correlationId: "c-1",
+      now: () => 0,
+    };
+  }
+
+  it("expires each open Stripe page of a booking before it is cancelled", async () => {
+    const { expireAdventureCheckouts } =
+      await import("@/lib/integrations/stripe/adventure-payments");
+    const expired: string[] = [];
+    const staff = {
+      from: () => {
+        const b = {
+          select: () => b,
+          eq: () => b,
+          not: async () => ({
+            data: [{ id: "p-1", stripe_checkout_session_id: "cs_test_1" }],
+            error: null,
+          }),
+        };
+        return b;
+      },
+    };
+    const n = await expireAdventureCheckouts(
+      deps({ expireCheckoutSession: async (id: string) => expired.push(id) }),
+      staff as never,
+      "b-1",
+    );
+    expect(n).toBe(1);
+    expect(expired).toEqual(["cs_test_1"]);
+  });
+
+  it("reads stale sessions back from Stripe and records them", async () => {
+    const { checkStaleAdventurePayments } =
+      await import("@/lib/integrations/stripe/adventure-payments");
+    const calls: Array<[string, unknown]> = [];
+    const summary = await checkStaleAdventurePayments(
+      deps(
+        {
+          retrieveCheckoutSession: async (id: string) => ({
+            id,
+            raw: { id, object: "checkout.session" },
+          }),
+        },
+        (name, args) => {
+          calls.push([name, args]);
+          if (name === "stale_adventure_payments") {
+            return { data: [{ payment_id: "p-1", session_id: "cs_test_9" }], error: null };
+          }
+          return { data: [{ outcome: "payment_paid" }], error: null };
+        },
+      ),
+      { max: 3, deadlineMs: 1 },
+    );
+    expect(summary).toEqual({ checked: 1, failed: 0 });
+    expect(calls[1]).toEqual([
+      "record_adventure_stripe_read",
+      {
+        payment_id: "p-1",
+        object: { id: "cs_test_9", object: "checkout.session" },
+        correlation_id: "c-1",
+      },
+    ]);
   });
 });

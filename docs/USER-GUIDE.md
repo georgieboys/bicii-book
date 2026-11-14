@@ -1268,6 +1268,13 @@ published waiver riders sign). Until then nothing is sold.
 - **Finisher board names** (D218): a rider chooses the name shown on the
   board, or not to be on it. With **Manage adventures**, **Take off the
   board** removes an unsuitable name, with a reason.
+- **Tracker returns**: recording a return closes the ride window if the
+  rider forgot Finish Ride (D226). A ride window can't be corrected once the
+  ride has a decision (D227). A hired tracker isn't offered to the next
+  rider until its grace day is over (D224).
+- **Payments stuck waiting on Stripe** (D225): the system checks them with
+  Stripe by itself every minute; Health counts any still waiting after an
+  hour. Cancelling an unpaid booking closes its Stripe page first.
 - **Tracker late fees** (D213): hire is 20 per 24 hours. A tracker gets a
   grace day after its return day; after that it costs 20 a day. Taking a
   late tracker back records the fee and emails the rider. When they pay at
@@ -1293,7 +1300,8 @@ published waiver riders sign). Until then nothing is sold.
   in Health as a booking needing attention.
 - **Health** (admins, Settings → Adventure sales) counts rides waiting for
   review, flagged bookings, cancellation requests, waiting and failed
-  emails, ride recordings waiting or failed, overdue trackers, feeds more
+  emails, payments waiting on Stripe, ride recordings waiting or failed,
+  overdue trackers, feeds more
   than an hour behind (positions not being collected) and failing feeds.
   **Retry failed emails** puts failed adventure emails back in the queue.
 - Emails: the rider is emailed when their ticket is paid, when you ask for
@@ -1315,8 +1323,11 @@ shown publicly). **Change** keeps everyone on it and emails them if the time or
 meeting point changed; a date can't be moved into the past. On a supported
 date, changing the time moves every rider's included tracker to the new
 days, or is refused if the trackers can't cover them (or one is already
-out). **Cancel date** needs a reason and emails every rider (their tickets
-stand).
+out). **Cancel date** needs a reason and emails every rider. On a group
+date their tickets stand. On a supported date each paid rider's tracker is
+released, the booking is flagged, and the rider is told BICII will move or
+refund them: **Move to another date** on the booking (the tracker is booked
+again for the new date), or cancel and refund it.
 
 ### Supported ride dates
 

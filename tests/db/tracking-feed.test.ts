@@ -524,6 +524,72 @@ describe("the feed's lease, cursor and back-off (D190; T09)", () => {
   });
 });
 
+describe("ride windows after the tracker is back, or after a decision (audit A-46, A-48)", () => {
+  it("returning the tracker closes a window the rider forgot to finish, so the ride can be sent", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, days, devices } = await setup(tx, 1);
+      const f = await feed(tx);
+      const r = await rideWithTracker(tx, sale, days, devices[0]);
+      const dev = await providerId(tx, devices[0]);
+      await correct(tx, r.attempt, await at(tx, "-2 hours"), null);
+      await deliverMessages(tx, f, [
+        { id: "q1", device: dev, at: await at(tx, "-110 minutes"), lat: 1.3, lon: 103.8 },
+        { id: "q2", device: dev, at: await at(tx, "-60 minutes"), lat: 1.4, lon: 103.8 },
+      ]);
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await tx.query("select public.return_adventure_tracker($1, 'good', '')", [r.assignment]);
+      await tx.query("reset role");
+      expect(
+        await scalar<string>(
+          tx,
+          "select state::text from public.adventure_attempts where id = $1",
+          [r.attempt],
+        ),
+      ).toBe("finished");
+      await actAs(tx, customerClaims(r.rider.authUserId));
+      const sub = await scalar<string>(
+        tx,
+        "select id from public.submit_my_adventure_evidence($1, 'Tracker ride')",
+        [r.bookingId],
+      );
+      expect(sub).toBeTruthy();
+    });
+  });
+
+  it("a decided ride's window can't be corrected", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, days, devices } = await setup(tx, 1);
+      const f = await feed(tx);
+      const r = await rideWithTracker(tx, sale, days, devices[0]);
+      const dev = await providerId(tx, devices[0]);
+      await correct(tx, r.attempt, await at(tx, "-2 hours"), await at(tx, "-30 minutes"));
+      await deliverMessages(tx, f, [
+        { id: "d1", device: dev, at: await at(tx, "-110 minutes"), lat: 1.3, lon: 103.8 },
+        { id: "d2", device: dev, at: await at(tx, "-60 minutes"), lat: 1.4, lon: 103.8 },
+      ]);
+      await actAs(tx, customerClaims(r.rider.authUserId));
+      const sub = await scalar<string>(
+        tx,
+        "select id from public.submit_my_adventure_evidence($1, 'Tracker ride')",
+        [r.bookingId],
+      );
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await tx.query(
+        `select * from public.decide_adventure_review($1, 'changes_requested',
+           '{"identity":true,"coverage":true,"checkpoints":false,"chronology":true,"time_window":true,"distance":true}'::jsonb,
+           null, null, 'Send a photo of checkpoint 1', 'internal')`,
+        [sub],
+      );
+      const earlier = await at(tx, "-3 hours");
+      await failsWith(
+        tx,
+        () => correct(tx, r.attempt, earlier, null),
+        refused("adventure_capture_decided"),
+      );
+    });
+  });
+});
+
 describe("the hired tracker as evidence (D191)", () => {
   it("a finished tracker ride can be sent without a file; the reviewer reads its track", async () => {
     await inTransaction(conn, async (tx) => {

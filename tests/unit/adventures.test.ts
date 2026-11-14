@@ -427,3 +427,26 @@ describe("tracking feed form (D190)", () => {
     }
   });
 });
+
+describe("refundLine (audit A-54)", () => {
+  const at = (s: string) => `at ${s}`;
+  it("names a cancelled booking whose payment is still held", async () => {
+    const { refundLine } = await import("@/lib/adventures");
+    expect(refundLine("cancelled", [{ status: "paid" }], null, at)).toBe(
+      "Cancelled and refundable: refund the payment in Stripe",
+    );
+    expect(refundLine("cancelled", [{ status: "refunded" }], null, at)).toBe(
+      "Cancelled and refunded",
+    );
+    expect(refundLine("cancelled", [{ status: "expired" }], null, at)).toBe(
+      "Cancelled; nothing was paid",
+    );
+    expect(refundLine("cancelled", [{ status: "paid" }], "2026-11-14", at)).toMatch(
+      /no refund is owed/,
+    );
+    expect(refundLine("confirmed", [{ status: "paid" }], null, at)).toBe(
+      "Refundable until the ride is sent for review",
+    );
+    expect(refundLine("pending_payment", [], null, at)).toBe("Not paid");
+  });
+});

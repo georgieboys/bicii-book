@@ -69,6 +69,9 @@ import {
   setAdventureSales,
 } from "@/lib/domain/adventure-bookings";
 import { hideBoardName, publishWaiver, settleLateFee } from "@/lib/domain/adventure-terms";
+import { expireAdventureCheckouts } from "@/lib/integrations/stripe/adventure-payments";
+import { defaultStripeDeps } from "@/lib/integrations/stripe/deps";
+import { newRequestId } from "@/lib/request-id";
 import {
   assignDepartureStaff,
   cancelDeparture,
@@ -513,6 +516,8 @@ export const cancelAdventureBookingAction = staffAction(
   cancelBookingSchema,
   { name: "adventures.cancel_booking", admin: true },
   async ({ bookingId, reason }, { supabase }) => {
+    // An open Stripe page can't be paid once the booking is cancelled (A-42).
+    await expireAdventureCheckouts(defaultStripeDeps(newRequestId()), supabase, bookingId);
     await cancelAdventureBooking(supabase, bookingId, reason);
     refresh();
     return null;

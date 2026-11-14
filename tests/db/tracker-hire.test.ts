@@ -132,8 +132,14 @@ describe("hire at checkout (D186, D187)", () => {
         () => checkout(tx, other, sale, days[1], days[3]),
         refused("adventure_trackers_unavailable"),
       );
-      // Touching (A returns on days[2], B collects then): fine.
-      const b = await checkout(tx, other, sale, days[2], days[4]);
+      // Touching (A returns on days[2], B collects then) is refused too: A may
+      // keep the tracker through its grace day (D224). After that: fine.
+      await failsWith(
+        tx,
+        () => checkout(tx, other, sale, days[2], days[4]),
+        refused("adventure_trackers_unavailable"),
+      );
+      const b = await checkout(tx, other, sale, days[4], days[5]);
       expect((await reservation(tx, b.booking_id)).status).toBe("held");
       // A's hold lapses: its days are free again.
       await tx.query("reset role");
@@ -156,7 +162,7 @@ describe("hire at checkout (D186, D187)", () => {
         held: false,
       });
 
-      const q = await checkout(tx, await makeRider(tx), sale, days[2], days[3]);
+      const q = await checkout(tx, await makeRider(tx), sale, days[3], days[4]);
       await tx.query("reset role");
       await tx.query(
         "update public.adventure_bookings set status = 'expired', expired_at = now() where id = $1",

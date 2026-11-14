@@ -256,3 +256,28 @@ export const HIRE_STATUS_LABELS: Record<"held" | "confirmed" | "completed" | "ca
     completed: "Returned",
     cancelled: "Cancelled",
   };
+
+/**
+ * The booking page's refund line (D212; audit A-54). A cancelled booking
+ * whose payment is still held says so, so a refund owed is not forgotten.
+ */
+export function refundLine(
+  status: string,
+  payments: Array<{ status: string }>,
+  sentForReviewAt: string | null,
+  sentLabel: (at: string) => string,
+): string {
+  const held = payments.some((p) => p.status === "paid" || p.status === "partially_refunded");
+  const refunded = payments.some((p) => p.status === "refunded");
+  if (status === "cancelled") {
+    if (held) {
+      return sentForReviewAt
+        ? `Cancelled after the ride was sent for review (${sentLabel(sentForReviewAt)}): no refund is owed under the terms; the payment is still held`
+        : "Cancelled and refundable: refund the payment in Stripe";
+    }
+    return refunded ? "Cancelled and refunded" : "Cancelled; nothing was paid";
+  }
+  if (sentForReviewAt) return `None: the ride was sent for review ${sentLabel(sentForReviewAt)}`;
+  if (status === "confirmed") return "Refundable until the ride is sent for review";
+  return "Not paid";
+}

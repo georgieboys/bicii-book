@@ -82,6 +82,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   late_fee_settled: "This late fee is already settled.",
   // Fixes from the 2026-11-14 audit (D220, D221).
   review_booking_cancelled: "This booking is cancelled, so its ride cannot be reviewed.",
+  adventure_capture_decided: "This ride has a decision, so its ride window no longer changes.",
   adventure_too_many_open:
     "You have several payment pages open. Finish paying there, or try again in about half an hour.",
   adventure_unavailable: "This adventure is not on sale.",

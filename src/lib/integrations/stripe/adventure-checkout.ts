@@ -130,6 +130,12 @@ export async function startAdventureCheckout(
   const gateway = deps.gateway;
   const service = deps.supabase;
 
+  // The board name is refused before anything is held (A-59); Postgres
+  // checks it again when it is set.
+  if (request.boardName !== undefined && !validBoardName(request.boardName)) {
+    return refused({ code: "P0001", message: "adventure_board_name_invalid" });
+  }
+
   // 1. As the rider: Postgres decides everything.
   const { data, error } = await rider.rpc("prepare_my_adventure_checkout", {
     request_id: request.requestId,
@@ -244,4 +250,19 @@ export async function startAdventureCheckout(
     }
     return UNAVAILABLE;
   }
+}
+
+/**
+ * The finisher board name rule (D218, and the audit's A-49), as Postgres
+ * applies it: empty (off the board), or 2 to 40 characters with no links,
+ * emails, markup, control, invisible or direction characters.
+ */
+export function validBoardName(name: string): boolean {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (clean === "") return true;
+  if (clean.length < 2 || clean.length > 40) return false;
+  if (/[<>@]/.test(clean) || /(https?:|www\.|:\/\/)/i.test(clean)) return false;
+  if (/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/.test(clean))
+    return false;
+  return true;
 }

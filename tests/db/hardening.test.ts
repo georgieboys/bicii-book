@@ -280,6 +280,7 @@ describe("retention and health (D203)", () => {
           "feeds_failing",
           "files_failed_7d",
           "files_waiting",
+          "payments_stale",
           "reviews_oldest",
           "reviews_waiting",
           "trackers_overdue",

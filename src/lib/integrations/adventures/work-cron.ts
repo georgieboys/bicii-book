@@ -119,7 +119,11 @@ async function defaultRun(deadlineMs: number): Promise<WorkSummary> {
       purge: async () => {
         const purge = await supabase.rpc("purge_unattributed_tracking", { max_rows: 1000 });
         if (purge.error) throw Object.assign(new Error("purge failed"), { code: purge.error.code });
-        return Number(purge.data ?? 0);
+        // Waiver signatures never used for a booking go after 7 days (D236).
+        const unused = await supabase.rpc("purge_unused_waiver_signatures", { max_rows: 500 });
+        if (unused.error)
+          throw Object.assign(new Error("purge failed"), { code: unused.error.code });
+        return Number(purge.data ?? 0) + Number(unused.data ?? 0);
       },
       // Objects of removed or abandoned evidence files leave Storage (D230).
       objects: async () => {

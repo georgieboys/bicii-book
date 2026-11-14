@@ -1243,6 +1243,9 @@ published waiver riders sign). Until then nothing is sold.
   hold** with a reason).
 - An admin can **Revoke** a certificate from its booking, with a reason.
   It comes off the finisher board; the certificate and its history stay.
+- **A cancellation request** (D237) puts the booking in **Needs attention**
+  with the rider's reason. Cancel it (and refund in Stripe), or press
+  **Clear the flag** with a note saying how you answered.
 - **Refunds** (D212): a ticket is refundable until the rider sends their
   ride for review, and never after, whatever the result. A booking's page
   says which. There are no retries: a ride not certified needs a new
@@ -1283,6 +1286,10 @@ published waiver riders sign). Until then nothing is sold.
 - **Payments stuck waiting on Stripe** (D225): the system checks them with
   Stripe by itself every minute; Health counts any still waiting after an
   hour. Cancelling an unpaid booking closes its Stripe page first.
+- **The waiver riders sign** is version 2026-11-14.2 (D239). Late-fee days
+  are calendar days: days the shop is closed count.
+- Long lists (bookings, reviews, packs, Live rides) say when they show only
+  the first 200 (or 50).
 - **Tracker late fees** (D213): hire is 20 per 24 hours. A tracker gets a
   grace day after its return day; after that it costs 20 a day. Taking a
   late tracker back records the fee and emails the rider. When they pay at
@@ -1339,7 +1346,9 @@ again for the new date), or cancel and refund it.
 
 ### Supported ride dates
 
-A supported date is added the same way, as **Supported ride** (the route
+Only staff with **Facilitate adventures** (or **Manage adventures**) can be
+put on a date as lead or facilitator (D238). A supported date is added the
+same way, as **Supported ride** (the route
 needs a supported offer). Riders buy a place on it on bicii.sg once an
 admin turns on **Supported ride sales** (Settings → Adventure sales; the
 owner has confirmed insurance and assigns facilitators per trip, and

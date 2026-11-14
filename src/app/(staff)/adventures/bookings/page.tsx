@@ -1,3 +1,4 @@
+import { CappedNote } from "@/components/domain/adventures/capped-note";
 import type { Metadata } from "next";
 
 import { AdventuresSectionNav, PillLink } from "@/components/domain/adventures/section-nav";
@@ -41,6 +42,7 @@ export default async function AdventureBookingsPage({
   return (
     <>
       <PageHeader title="Adventures" description="Certified ride bookings." />
+      <CappedNote count={bookings.length} cap={200} what="bookings" />
       <AdventuresSectionNav current="/adventures/bookings" />
       <nav aria-label="Show bookings" className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (

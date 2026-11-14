@@ -36,6 +36,7 @@ function notice(kind: AdventureNoticeKind, over: Partial<AdventureNotice> = {}):
     departureStartsAt: null,
     departureMeetingPoint: null,
     eventNote: null,
+    boardName: null,
     ...over,
   };
 }
@@ -175,6 +176,16 @@ describe("the date changed email (D221)", () => {
     expect(mail.subject).toBe("Your BICII 125 ride date has changed");
     expect(mail.text).toContain("Sun 22 Nov 2026, 7:00 am");
     expect(mail.text).toContain("meeting at 294 River Valley");
+  });
+});
+
+describe("the certified email and the board (audit A-60)", () => {
+  it("names the board entry only when the rider chose a name", () => {
+    const named = adventureNoticeEmail(notice("certified", { boardName: "Captain Cadence" }), null);
+    expect(named.text).toContain("You're on the route's finisher board as Captain Cadence.");
+    const none = adventureNoticeEmail(notice("certified"), null);
+    expect(none.text).toContain("You chose not to appear on the finisher board");
+    expect(none.text).not.toContain("Your name is on");
   });
 });
 

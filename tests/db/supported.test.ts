@@ -485,3 +485,35 @@ describe("cancelling a supported date (audit A-40, D223)", () => {
     });
   });
 });
+
+describe("staff on a date (audit A-74, D238)", () => {
+  it("only staff who can facilitate are put on a date; removing them takes their access", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, revision } = await supportedSetup(tx, 2);
+      const d = await supportedDate(tx, sale.adventureId);
+      const p = await buySeat(tx, await makeRiderAs(tx), revision, d);
+      await pay(tx, p);
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await failsWith(
+        tx,
+        () =>
+          tx.query("select public.assign_departure_staff($1, $2, 'lead')", [d, STAFF.mechanic2]),
+        refused("departure_staff_not_permitted"),
+      );
+      await tx.query("reset role");
+      await tx.query(
+        "insert into public.staff_permissions (staff_id, permission) values ($1, 'facilitate_adventures')",
+        [STAFF.mechanic2],
+      );
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await tx.query("select public.assign_departure_staff($1, $2, 'lead')", [d, STAFF.mechanic2]);
+      await tx.query("select public.remove_departure_staff($1, $2)", [d, STAFF.mechanic2]);
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      await failsWith(
+        tx,
+        () => tx.query("select public.check_in_departure_rider($1, $2)", [d, p.booking_id]),
+        { code: "42501" },
+      );
+    });
+  });
+});

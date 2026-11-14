@@ -590,6 +590,50 @@ describe("ride windows after the tracker is back, or after a decision (audit A-4
   });
 });
 
+describe("devices registered late (audit A-67, D233)", () => {
+  it("links positions stored before the device was registered", async () => {
+    await inTransaction(conn, async (tx) => {
+      await setup(tx, 1);
+      const f = await feed(tx);
+      await deliverMessages(tx, f, [
+        {
+          id: "early-1",
+          device: "ESN-LATE-1",
+          at: await at(tx, "-30 minutes"),
+          lat: 1.3,
+          lon: 103.8,
+        },
+      ]);
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      const device = await scalar<string>(
+        tx,
+        "select id from public.register_tracking_device('Late', 'fake', 'ESN-LATE-1', 'Fake')",
+      );
+      await tx.query("reset role");
+      expect(
+        await scalar<string>(
+          tx,
+          "select device_id::text from public.tracking_messages where provider_message_id = 'early-1'",
+        ),
+      ).toBe(device);
+    });
+  });
+
+  it("a feed can't name a password variable as its access", async () => {
+    await inTransaction(conn, async (tx) => {
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      await failsWith(
+        tx,
+        () =>
+          tx.query(
+            "select public.save_tracking_feed(null, 'spot', 'x', 'TRACKING_FEED_A_PASSWORD', true)",
+          ),
+        { code: "23514" },
+      );
+    });
+  });
+});
+
 describe("the hired tracker as evidence (D191)", () => {
   it("a finished tracker ride can be sent without a file; the reviewer reads its track", async () => {
     await inTransaction(conn, async (tx) => {

@@ -105,9 +105,16 @@ function OffersCard({ revision, editable }: { revision: AdventureRevision; edita
                 </span>
                 {editable ? (
                   <span className="flex gap-2">
-                    {offer ? <RemoveOfferButton revisionId={revision.id} kind={kind} /> : null}
+                    {offer ? (
+                      <RemoveOfferButton
+                        revisionId={revision.id}
+                        version={revision.version}
+                        kind={kind}
+                      />
+                    ) : null}
                     <OfferButton
                       revisionId={revision.id}
+                      version={revision.version}
                       kind={kind}
                       offer={offer}
                       nominalDays={revision.nominalDays}
@@ -159,6 +166,7 @@ export default async function AdventurePage({ params }: PageProps<"/adventures/[
             {manage && adventure.draft && !archived ? (
               <PublishButton
                 revisionId={adventure.draft.id}
+                version={adventure.draft.version}
                 firstPublish={adventure.current === null}
               />
             ) : null}
@@ -200,8 +208,9 @@ export default async function AdventurePage({ params }: PageProps<"/adventures/[
               <>
                 <DraftForm draft={adventure.draft} />
                 <CheckpointsEditor
-                  key={adventure.draft.id}
+                  key={`${adventure.draft.id}:${adventure.draft.version}`}
                   revisionId={adventure.draft.id}
+                  version={adventure.draft.version}
                   checkpoints={adventure.draft.checkpoints}
                 />
               </>

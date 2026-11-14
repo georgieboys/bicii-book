@@ -126,8 +126,8 @@ export const saveAdventureDraftAction = staffAction(
 export const setAdventureCheckpointsAction = staffAction(
   adventureCheckpointsSchema,
   { name: "adventures.set_checkpoints", permission: "manage_adventures" },
-  async ({ revisionId, checkpoints }, { supabase }) => {
-    await setAdventureCheckpoints(supabase, revisionId, checkpoints);
+  async ({ revisionId, checkpoints, expectedVersion }, { supabase }) => {
+    await setAdventureCheckpoints(supabase, revisionId, checkpoints, expectedVersion);
     refresh();
     return null;
   },
@@ -149,8 +149,13 @@ export const setAdventureOfferAction = staffAction(
 export const removeAdventureOfferAction = staffAction(
   removeAdventureOfferSchema,
   { name: "adventures.remove_offer", permission: "manage_adventures" },
-  async ({ revisionId, kind }, { supabase }) => {
-    await removeAdventureOffer(supabase, revisionId, kind as AdventureParticipation);
+  async ({ revisionId, kind, expectedVersion }, { supabase }) => {
+    await removeAdventureOffer(
+      supabase,
+      revisionId,
+      kind as AdventureParticipation,
+      expectedVersion,
+    );
     refresh();
     return null;
   },
@@ -169,8 +174,8 @@ export const startAdventureDraftAction = staffAction(
 export const publishAdventureAction = staffAction(
   publishAdventureSchema,
   { name: "adventures.publish", permission: "manage_adventures" },
-  async ({ revisionId, changeSummary }, { supabase }) => {
-    await publishAdventureRevision(supabase, revisionId, changeSummary);
+  async ({ revisionId, changeSummary, expectedVersion }, { supabase }) => {
+    await publishAdventureRevision(supabase, revisionId, changeSummary, expectedVersion);
     refresh();
     return null;
   },
@@ -371,7 +376,8 @@ export const saveTrackingFeedAction = staffAction(
 
 export const correctCaptureAction = staffAction(
   correctCaptureSchema,
-  { name: "adventures.correct_capture", permission: "verify_adventures" },
+  // The RPC accepts verify or manage adventures, and checks it (audit A-74).
+  { name: "adventures.correct_capture" },
   async ({ attemptId, startedAt, finishedAt, reason }, { supabase }) => {
     const start = startedAt ? fromShopLocal(startedAt) : null;
     const finish = finishedAt ? fromShopLocal(finishedAt) : null;

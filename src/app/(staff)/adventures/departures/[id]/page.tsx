@@ -41,7 +41,12 @@ export default async function DeparturePage({ params }: { params: Promise<{ id: 
   const manage = canManageAdventures(staff) && d.status === "scheduled";
   const supported = d.kind === "supported";
   // Facilitators assigned to this date (or managers) work it; the RPCs decide.
-  const onIt = canManageAdventures(staff) || work.staff.some((x) => x.staffId === staff.staffId);
+  // Check-in and observations need Facilitate adventures and a place on the
+  // date, or Manage adventures (the RPCs' rule; audit A-74).
+  const onIt =
+    canManageAdventures(staff) ||
+    (staff.permissions.includes("facilitate_adventures") &&
+      work.staff.some((x) => x.staffId === staff.staffId));
   const riderName = new Map(riders.map((r) => [r.bookingId, r.name]));
 
   return (

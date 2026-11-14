@@ -399,6 +399,20 @@ describe("certification offers (D164, handoff P02)", () => {
       const { revisionId, version } = await createAdventure(tx, "rules-test", 125);
       let at = await saveDraft(tx, revisionId, version, { max_elapsed_minutes: null });
       await setOffer(tx, revisionId, "self_supported", 49);
+      // Changing an offer moves the draft's version on (audit A-75): an editor
+      // opened before it is refused, so read the version again.
+      await failsWith(
+        tx,
+        () => saveDraft(tx, revisionId, at, {}),
+        refused("adventure_draft_changed"),
+      );
+      at = Number(
+        (
+          await tx.query("select version from public.adventure_revisions where id = $1", [
+            revisionId,
+          ])
+        ).rows[0].version,
+      );
       await failsWith(
         tx,
         () => tx.query("select public.publish_adventure_revision($1, null)", [revisionId]),
@@ -425,6 +439,31 @@ describe("certification offers (D164, handoff P02)", () => {
         [revisionId],
       );
       expect(row.rows).toEqual([{ tracker_hire_price: null, supported_days: 1 }]);
+    });
+  });
+});
+
+describe("stale editors (audit A-75, D238)", () => {
+  it("checkpoints, offers and publishing at a stale version are refused", async () => {
+    await asStaff(conn, STAFF.manager, async (tx) => {
+      const { revisionId, version } = await createAdventure(tx, "stale-test", 125);
+      const v = await saveDraft(tx, revisionId, version);
+      await tx.query(
+        'select public.set_adventure_checkpoints($1, \'[{"label": "A"}]\'::jsonb, $2)',
+        [revisionId, v],
+      );
+      for (const sql of [
+        'select public.set_adventure_checkpoints($1, \'[{"label": "B"}]\'::jsonb, $2)',
+        "select public.set_adventure_offer($1, 'self_supported', 49, 20, null, '', $2)",
+        "select public.remove_adventure_offer($1, 'self_supported', $2)",
+        "select public.publish_adventure_revision($1, null, $2)",
+      ]) {
+        await failsWith(
+          tx,
+          () => tx.query(sql, [revisionId, v]),
+          refused("adventure_draft_changed"),
+        );
+      }
     });
   });
 });

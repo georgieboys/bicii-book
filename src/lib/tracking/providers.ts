@@ -23,7 +23,12 @@ export type TrackingMessage = {
   longitude: number | null;
 };
 
-export type FetchResult = { messages: TrackingMessage[]; pageSize: number };
+export type FetchResult = {
+  messages: TrackingMessage[];
+  pageSize: number;
+  /** How many messages the page held before unreadable ones were dropped (A-65). */
+  rawCount?: number;
+};
 
 export class ProviderError extends Error {
   constructor(message: string) {
@@ -65,8 +70,14 @@ export function nextCursor(
   result: FetchResult,
   window: { from: Date; to: Date },
 ): { complete: true; windowTo: Date } | { complete: false; windowTo: Date; nextWindowEnd: Date } {
-  if (result.messages.length < result.pageSize) return { complete: true, windowTo: window.to };
-  const oldest = Math.min(...result.messages.map((m) => Date.parse(m.recordedAt)));
+  // Completeness is judged on the page as sent: a dropped unreadable message
+  // must not make a full page look complete (audit A-65).
+  if ((result.rawCount ?? result.messages.length) < result.pageSize) {
+    return { complete: true, windowTo: window.to };
+  }
+  const oldest = result.messages.length
+    ? Math.min(...result.messages.map((m) => Date.parse(m.recordedAt)))
+    : window.to.getTime();
   // A page of messages all at one instant would never move: step past it.
   const end = oldest >= window.to.getTime() ? window.to.getTime() - 1000 : oldest + 1000;
   return {
@@ -139,13 +150,21 @@ function validCoordinate(lat: number, lon: number): boolean {
 
 /** SPOT's JSON into messages; "no messages" is an empty page, any other error throws. */
 export function parseSpotFeed(body: unknown): TrackingMessage[] {
+  return parseSpotPage(body).messages;
+}
+
+/** Plausible message times: from 2000 to a day ahead. */
+const EARLIEST_UNIX = 946_684_800;
+
+/** As parseSpotFeed, with how many messages the page held before unreadable ones were dropped. */
+export function parseSpotPage(body: unknown): { messages: TrackingMessage[]; rawCount: number } {
   const response = (body as { response?: Record<string, unknown> } | null)?.response;
   if (!response || typeof response !== "object")
     throw new ProviderError("Unexpected feed response.");
   const errors = response.errors as { error?: { code?: unknown } } | undefined;
   if (errors) {
     // E-0195: no displayable messages in the window.
-    if (errors.error?.code === "E-0195") return [];
+    if (errors.error?.code === "E-0195") return { messages: [], rawCount: 0 };
     throw new ProviderError(
       `Feed error ${typeof errors.error?.code === "string" ? errors.error.code : "unknown"}.`,
     );
@@ -157,11 +176,15 @@ export function parseSpotFeed(body: unknown): TrackingMessage[] {
     Array.isArray(container) ? container : container ? [container] : []
   ) as SpotMessage[];
   const out: TrackingMessage[] = [];
+  const latestUnix = Date.now() / 1000 + 86_400;
   for (const m of list) {
     const id = typeof m.id === "number" || typeof m.id === "string" ? String(m.id) : "";
     const device = typeof m.messengerId === "string" ? m.messengerId.trim() : "";
     const unix = Number(m.unixTime);
-    if (!id || !device || !Number.isFinite(unix) || unix <= 0) continue;
+    // An unreadable message is skipped, never allowed to fail the whole page
+    // (the database refuses ids over 120 and devices over 80 characters).
+    if (!id || id.length > 120 || !device || device.length > 80) continue;
+    if (!Number.isFinite(unix) || unix < EARLIEST_UNIX || unix > latestUnix) continue;
     const lat = Number(m.latitude);
     const lon = Number(m.longitude);
     const placed = validCoordinate(lat, lon);
@@ -174,7 +197,26 @@ export function parseSpotFeed(body: unknown): TrackingMessage[] {
       longitude: placed ? lon : null,
     });
   }
-  return out;
+  return { messages: out, rawCount: list.length };
+}
+
+/** A response body read up to a byte cap, so an endless body is never buffered whole. */
+async function readCapped(response: Response, cap: number): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel().catch(() => undefined);
+      throw new ProviderError("Feed response too large.");
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
 }
 
 /** One SPOT request, with a timeout and a response size cap. */
@@ -197,15 +239,15 @@ export async function fetchSpot(
   if (!response.ok) throw new ProviderError(`Provider answered ${response.status}.`);
   const declared = Number(response.headers.get("content-length") ?? "0");
   if (declared > MAX_RESPONSE_BYTES) throw new ProviderError("Feed response too large.");
-  const text = await response.text();
-  if (text.length > MAX_RESPONSE_BYTES) throw new ProviderError("Feed response too large.");
+  const text = await readCapped(response, MAX_RESPONSE_BYTES);
   let body: unknown;
   try {
     body = JSON.parse(text);
   } catch {
     throw new ProviderError("Feed response was not JSON.");
   }
-  return { messages: parseSpotFeed(body), pageSize: SPOT_PAGE_SIZE };
+  const page = parseSpotPage(body);
+  return { messages: page.messages, rawCount: page.rawCount, pageSize: SPOT_PAGE_SIZE };
 }
 
 // --------------------------------------------------------------- fake ----

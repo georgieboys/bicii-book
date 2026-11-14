@@ -179,11 +179,14 @@ export type OfferFields = {
 /** Add or change the draft's offer of one kind, with the formula's price as a hint (D165). */
 export function OfferButton({
   revisionId,
+  version,
   kind,
   offer,
   nominalDays,
 }: {
   revisionId: string;
+  /** The draft's version this page shows (audit A-75). */
+  version?: number;
   kind: AdventureParticipation;
   offer: OfferFields | null;
   nominalDays: number | null;
@@ -197,6 +200,7 @@ export function OfferButton({
       {open ? (
         <OfferSheet
           revisionId={revisionId}
+          version={version}
           kind={kind}
           offer={offer}
           nominalDays={nominalDays}
@@ -209,12 +213,14 @@ export function OfferButton({
 
 function OfferSheet({
   revisionId,
+  version,
   kind,
   offer,
   nominalDays,
   onOpenChange,
 }: {
   revisionId: string;
+  version?: number;
   kind: AdventureParticipation;
   offer: OfferFields | null;
   nominalDays: number | null;
@@ -266,6 +272,7 @@ function OfferSheet({
         noValidate
       >
         <input type="hidden" name="revisionId" value={revisionId} />
+        {version ? <input type="hidden" name="expectedVersion" value={version} /> : null}
         <input type="hidden" name="kind" value={kind} />
         <FormError state={state} />
         {kind === "supported" ? (
@@ -341,9 +348,11 @@ function OfferSheet({
 
 export function RemoveOfferButton({
   revisionId,
+  version,
   kind,
 }: {
   revisionId: string;
+  version?: number;
   kind: AdventureParticipation;
 }) {
   const { toast } = useToast();
@@ -356,7 +365,9 @@ export function RemoveOfferButton({
       pendingLabel="Removing…"
       onClick={() =>
         start(async () => {
-          const result = await callAction(() => removeAdventureOfferAction({ revisionId, kind }));
+          const result = await callAction(() =>
+            removeAdventureOfferAction({ revisionId, kind, expectedVersion: version }),
+          );
           toast(
             result.ok
               ? { title: `${PARTICIPATION_LABELS[kind]} offer removed`, tone: "success" }
@@ -375,9 +386,11 @@ export function RemoveOfferButton({
 /** Publish the draft: what the public sees changes now; the version is sealed. */
 export function PublishButton({
   revisionId,
+  version,
   firstPublish,
 }: {
   revisionId: string;
+  version?: number;
   firstPublish: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -387,7 +400,12 @@ export function PublishButton({
         Publish
       </Button>
       {open ? (
-        <PublishSheet revisionId={revisionId} firstPublish={firstPublish} onOpenChange={setOpen} />
+        <PublishSheet
+          revisionId={revisionId}
+          version={version}
+          firstPublish={firstPublish}
+          onOpenChange={setOpen}
+        />
       ) : null}
     </>
   );
@@ -395,10 +413,12 @@ export function PublishButton({
 
 function PublishSheet({
   revisionId,
+  version,
   firstPublish,
   onOpenChange,
 }: {
   revisionId: string;
+  version?: number;
   firstPublish: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -449,6 +469,7 @@ function PublishSheet({
         noValidate
       >
         <input type="hidden" name="revisionId" value={revisionId} />
+        {version ? <input type="hidden" name="expectedVersion" value={version} /> : null}
         <FormError state={state} />
         <p className="text-sm text-dust-700">
           {firstPublish

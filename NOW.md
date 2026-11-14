@@ -1,7 +1,14 @@
 # Current state
 
-Updated: 2026-11-14 SGT (the audit's medium findings on evidence, names
-and Admin screens on branch `fix/audit-medium-evidence`, D228-D231: file
+Updated: 2026-11-14 SGT (the audit's low findings on branch
+`fix/audit-low`, D232-D239: emails match their event and the rider's board
+choice; late-registered devices get their positions; lock order; unused
+signatures purged after 7 days; cancellation requests wait in Needs
+attention; only facilitators go on dates; stale catalogue editors refused;
+lists say when they're capped; waiver 2026-11-14.2 aligned and published,
+closed days counting toward late fees (the owner's decisions); stale docs
+corrected. Before that, PRs #86-#87 and BICII #48, the medium findings;
+PR #87, evidence, names and Admin screens, D228-D231: file
 reading gives back attempts that weren't the file's fault; evidence limits
 hold on what arrives and unused objects leave Storage; board names refuse
 hidden characters and shop words and stay locked after a take-down (the

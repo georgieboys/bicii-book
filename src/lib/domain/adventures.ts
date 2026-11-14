@@ -132,15 +132,27 @@ export async function listAdventures(supabase: ServerSupabase): Promise<Adventur
       .order("slug"),
   );
   if (adventures.length === 0) return [];
-  const revisions = rows(
-    await supabase
-      .from("adventure_revisions")
-      .select("id, adventure_id, revision_number, name, distance_km, is_planned, sealed_at")
-      .in(
-        "adventure_id",
-        adventures.map((a) => a.id),
-      ),
-  );
+  // Only each route's current version and its draft: reading every past
+  // version made the list (and the offers query's URL) grow without end (A-76).
+  const currentIds = adventures
+    .map((a) => a.current_revision_id)
+    .filter((id): id is string => !!id);
+  const columns = "id, adventure_id, revision_number, name, distance_km, is_planned, sealed_at";
+  const [current, drafts] = await Promise.all([
+    currentIds.length
+      ? supabase.from("adventure_revisions").select(columns).in("id", currentIds)
+      : Promise.resolve({ data: [], error: null }),
+    supabase.from("adventure_revisions").select(columns).is("sealed_at", null),
+  ]);
+  const revisions = [...rows(current as never), ...rows(drafts as never)] as Array<{
+    id: string;
+    adventure_id: string;
+    revision_number: number;
+    name: string;
+    distance_km: string | number;
+    is_planned: boolean;
+    sealed_at: string | null;
+  }>;
   const offers = rows(
     await supabase
       .from("adventure_offers")
@@ -403,10 +415,12 @@ export async function setAdventureCheckpoints(
   supabase: ServerSupabase,
   revisionId: string,
   checkpoints: CheckpointInput[],
+  expectedVersion?: number,
 ): Promise<void> {
   unwrap(
     await supabase.rpc("set_adventure_checkpoints", {
       revision_id: revisionId,
+      expected_version: expectedVersion,
       checkpoints: checkpoints.map((c) => ({
         label: c.label,
         instructions: c.instructions,
@@ -429,11 +443,13 @@ export async function setAdventureOffer(
     trackerHirePrice: Money | null;
     supportedDays: number | null;
     inclusions: string;
+    expectedVersion?: number;
   },
 ): Promise<void> {
   unwrap(
     await supabase.rpc("set_adventure_offer", {
       revision_id: input.revisionId,
+      expected_version: input.expectedVersion,
       kind: input.kind,
       price: arg<number>(input.price),
       tracker_hire_price: arg<number>(input.trackerHirePrice),
@@ -447,8 +463,15 @@ export async function removeAdventureOffer(
   supabase: ServerSupabase,
   revisionId: string,
   kind: AdventureParticipation,
+  expectedVersion?: number,
 ): Promise<void> {
-  unwrap(await supabase.rpc("remove_adventure_offer", { revision_id: revisionId, kind }));
+  unwrap(
+    await supabase.rpc("remove_adventure_offer", {
+      revision_id: revisionId,
+      kind,
+      expected_version: expectedVersion,
+    }),
+  );
 }
 
 /** The draft (started from the published revision if there is none). */
@@ -467,10 +490,12 @@ export async function publishAdventureRevision(
   supabase: ServerSupabase,
   revisionId: string,
   changeSummary: string,
+  expectedVersion?: number,
 ): Promise<void> {
   unwrap(
     await supabase.rpc("publish_adventure_revision", {
       revision_id: revisionId,
+      expected_version: expectedVersion,
       change_summary: changeSummary,
     }),
   );

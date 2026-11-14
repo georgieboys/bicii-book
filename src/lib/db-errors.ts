@@ -83,6 +83,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   // Fixes from the 2026-11-14 audit (D220, D221).
   review_booking_cancelled: "This booking is cancelled, so its ride cannot be reviewed.",
   adventure_capture_decided: "This ride has a decision, so its ride window no longer changes.",
+  departure_staff_not_permitted:
+    "Give them Facilitate adventures first (Settings, Staff), then put them on the date.",
   adventure_board_name_locked:
     "BICII took your board name down. Message the shop to choose another.",
   adventure_file_not_requeueable:
@@ -766,6 +768,7 @@ export const CHECK_ERRORS: Record<string, string> = {
     "Use 2 to 40 letters, numbers or spaces for your board name, with no links or emails, and not the shop's name.",
   adventure_waivers_hash: "The waiver's text and its fingerprint don't match.",
   tracker_late_fees_amount: "A late fee is the day rate times the days late.",
+  tracking_feeds_config_not_password: "Name the feed's main variable, not its password variable.",
   tracker_late_fees_settled: "Record who settled the late fee, and when.",
   adventure_payments_paid_at: "A paid payment needs its payment time.",
   payment_refunds_one_subject:

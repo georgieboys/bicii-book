@@ -50,6 +50,10 @@ async function fetchFor(
     });
   }
   if (provider === "fake") {
+    // The test feed makes up positions; never in production (audit A-68).
+    if (deps.env.VERCEL_ENV === "production") {
+      throw new ProviderError("The test feed is off in production.");
+    }
     return fakeFeed(
       value
         .split(",")

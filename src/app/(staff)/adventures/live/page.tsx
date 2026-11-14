@@ -1,3 +1,4 @@
+import { CappedNote } from "@/components/domain/adventures/capped-note";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -46,6 +47,7 @@ export default async function LiveRidesPage() {
   return (
     <>
       <PageHeader title="Adventures" description="Rides in progress with a hired tracker." />
+      <CappedNote count={rides.length} cap={50} what="rides" />
       <AdventuresSectionNav current="/adventures/live" />
       {rides.length === 0 ? (
         <EmptyState

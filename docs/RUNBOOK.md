@@ -798,10 +798,10 @@ limit 20;
 
 `pending` with attempts 0 and claims rising means sends are not finishing
 (Resend slow, or the function cut short); `failed` means five refused or
-failed sends, or 15 claims with no result. Put one back once the cause is
-fixed: `update private.adventure_notices set status = 'pending', attempts
-= 0, claims = 0, next_attempt_at = now(), last_error = null where id =
-'<notice id>' and status = 'failed';`.
+failed sends, or 15 claims with no result. Once the cause is fixed, an
+admin presses **Retry failed emails** (Settings → Adventure sales →
+Health), which puts back the failed emails of the last 14 days (D211,
+D232).
 ## Indent items on jobs closed before the guard
 
 From `20261014000900_indent_settle_and_outside_purchase` (D149b, D149c) no
@@ -1147,7 +1147,8 @@ carry `bicii_subject=adventure` and land in `adventure_payments`, never in
 a job's payments. The public site starts them through the Admin's
 `POST /api/adventures/checkout`, which needs `NEXT_PUBLIC_PUBLIC_SITE_URL`
 (the return pages). Nothing is sold until an admin turns adventure sales on
-with a terms version (`set_adventure_sales`).
+with the published waiver riders sign (`set_adventure_sales`; Settings →
+Adventure sales → Certified rides).
 
 Customer payments through Stripe Checkout (Phase 14, D150–D159 in
 [ADR-025](decisions/ADR-025-stripe-payments.md)). Steps 1 and 2 (the

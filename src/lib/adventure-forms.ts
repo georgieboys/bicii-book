@@ -173,6 +173,8 @@ export type CheckpointInput = z.output<typeof checkpointSchema>;
 
 export const adventureCheckpointsSchema = z.object({
   revisionId: z.guid({ error: "Open the draft again." }),
+  // The draft's version the editor opened (audit A-75); absent skips the check.
+  expectedVersion: z.coerce.number().int().min(1).optional(),
   checkpoints: z
     .string({ error: "Open the draft again." })
     .transform((v, ctx) => {
@@ -189,6 +191,7 @@ export const adventureCheckpointsSchema = z.object({
 export const adventureOfferSchema = z
   .object({
     revisionId: z.guid({ error: "Open the draft again." }),
+    expectedVersion: z.coerce.number().int().min(1).optional(),
     kind: z.enum(PARTICIPATIONS as [string, ...string[]], { error: "Choose the kind of offer." }),
     price: money("price").refine((v) => parseMoney(v)!.gt(0), {
       error: "Enter a price above 0.",
@@ -218,6 +221,7 @@ export const adventureOfferSchema = z
 
 export const removeAdventureOfferSchema = z.object({
   revisionId: z.guid({ error: "Open the draft again." }),
+  expectedVersion: z.coerce.number().int().min(1).optional(),
   kind: z.enum(PARTICIPATIONS as [string, ...string[]], { error: "Choose the kind of offer." }),
 });
 
@@ -227,6 +231,7 @@ export const adventureIdSchema = z.object({
 
 export const publishAdventureSchema = z.object({
   revisionId: z.guid({ error: "Open the draft again." }),
+  expectedVersion: z.coerce.number().int().min(1).optional(),
   changeSummary: text(500, "summary of changes"),
 });
 

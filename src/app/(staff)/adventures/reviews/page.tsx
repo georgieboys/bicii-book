@@ -1,3 +1,4 @@
+import { CappedNote } from "@/components/domain/adventures/capped-note";
 import type { Metadata } from "next";
 
 import { AdventuresSectionNav } from "@/components/domain/adventures/section-nav";
@@ -27,6 +28,7 @@ export default async function AdventureReviewsPage() {
   return (
     <>
       <PageHeader title="Adventures" description="Rides waiting for certification." />
+      <CappedNote count={queue.length} cap={200} what="rides" />
       <AdventuresSectionNav current="/adventures/reviews" />
       {!verify ? (
         <p className="mb-4 rounded-xl bg-waiting-soft px-3 py-2 text-sm text-waiting-deep">

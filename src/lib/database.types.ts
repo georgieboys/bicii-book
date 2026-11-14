@@ -9533,7 +9533,7 @@ export type Database = {
         }[];
       };
       publish_adventure_revision: {
-        Args: { change_summary: string; revision_id: string };
+        Args: { change_summary: string; expected_version?: number; revision_id: string };
         Returns: {
           adventure_id: string;
           change_summary: string | null;
@@ -9620,6 +9620,7 @@ export type Database = {
         };
       };
       purge_unattributed_tracking: { Args: { max_rows: number }; Returns: number };
+      purge_unused_waiver_signatures: { Args: { max_rows: number }; Returns: number };
       quote_by_token: { Args: { token: string }; Returns: Json };
       receive_purchase: {
         Args: {
@@ -9974,7 +9975,11 @@ export type Database = {
       };
       release_adventure_parse: { Args: { file_id: string }; Returns: undefined };
       remove_adventure_offer: {
-        Args: { kind: Database["public"]["Enums"]["adventure_participation"]; revision_id: string };
+        Args: {
+          expected_version?: number;
+          kind: Database["public"]["Enums"]["adventure_participation"];
+          revision_id: string;
+        };
         Returns: undefined;
       };
       remove_departure_staff: {
@@ -10680,7 +10685,7 @@ export type Database = {
         Returns: string;
       };
       set_adventure_checkpoints: {
-        Args: { checkpoints: Json; revision_id: string };
+        Args: { checkpoints: Json; expected_version?: number; revision_id: string };
         Returns: {
           id: string;
           instructions: string;
@@ -10702,6 +10707,7 @@ export type Database = {
       };
       set_adventure_offer: {
         Args: {
+          expected_version?: number;
           inclusions: string;
           kind: Database["public"]["Enums"]["adventure_participation"];
           price: number;
@@ -12375,6 +12381,7 @@ export type Database = {
         departure_starts_at: string | null;
         departure_meeting_point: string | null;
         event_note: string | null;
+        board_name: string | null;
       };
       appointment_check_in: {
         appointment_id: string | null;

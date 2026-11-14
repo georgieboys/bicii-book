@@ -3293,7 +3293,7 @@ URLs, or customer data in this file.
 ## R-098 — The public site's route list and the adventure catalogue can drift
 
 - Category: known gap (two sources of truth, temporary).
-- Status and owner: open; build agent.
+- Status and owner: open, narrowed (2026-11-14 audit); build agent.
 - Trigger: an admin edits or archives a route in the catalogue (Phase A)
   before the public site reads `public_adventures`.
 - Impact: the catalogue is seeded from the public site's static list
@@ -3305,8 +3305,7 @@ URLs, or customer data in this file.
   seed, and the site's `src/app/adventures/page.tsx` reading `content.ts`.
 - Workaround or containment: no adventure is sold in Phase A; the seed
   holds the same facts as the site.
-- Next action: switch the site's Adventures page to `public_adventures` /
-  `public_adventure` (Phase A, third slice) and delete the static list.
+- Next action: the site already reads `public_adventures`; what remains is the static fallback copy in the site's `content.ts`, which can drift from the catalogue. Remove it or mark it as a fallback only.
 - Revisit trigger: the site's Adventures page reads the catalogue.
 - Last checked: 2026-11-13.
 
@@ -3456,6 +3455,7 @@ URLs, or customer data in this file.
   sales; every booking keeps the version its rider signed.
 - Next action: the owner has the text reviewed and publishes the result.
 - Revisit trigger: any change to rides, trackers or supported dates.
+- 2026-11-14: version `2026-11-14.2`, aligned with how the system works, is published and chosen at the owner's request (D239); it still needs the same review.
 - Last checked: 2026-11-14.
 
 ## R-105 — Tracker late fees and lost trackers are collected by hand

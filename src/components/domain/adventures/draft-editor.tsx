@@ -281,9 +281,12 @@ const toEditable = (c: AdventureCheckpoint): EditableCheckpoint => ({
  */
 export function CheckpointsEditor({
   revisionId,
+  version,
   checkpoints,
 }: {
   revisionId: string;
+  /** The draft's version this list was loaded at (audit A-75). */
+  version?: number;
   checkpoints: AdventureCheckpoint[];
 }) {
   const { toast } = useToast();
@@ -316,7 +319,11 @@ export function CheckpointsEditor({
         })),
       );
       const result = await callAction(() =>
-        setAdventureCheckpointsAction({ revisionId, checkpoints: payload }),
+        setAdventureCheckpointsAction({
+          revisionId,
+          checkpoints: payload,
+          expectedVersion: version,
+        }),
       );
       if (result.ok) toast({ title: "Checkpoints saved", tone: "success" });
       else {

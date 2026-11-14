@@ -201,7 +201,43 @@ describe("SPOT", () => {
     const ok = await fetchSpot(FEED_ID, window, {
       fetchImpl: answer(JSON.stringify({ response: { errors: { error: { code: "E-0195" } } } })),
     });
-    expect(ok).toEqual({ messages: [], pageSize: 50 });
+    expect(ok).toEqual({ messages: [], rawCount: 0, pageSize: 50 });
+    // A body larger than the cap without a content-length is cut off, not buffered.
+    await expect(
+      fetchSpot(FEED_ID, window, { fetchImpl: answer("x".repeat(1_000_001)) }),
+    ).rejects.toThrow("too large");
+  });
+
+  it("skips unreadable messages but judges a page full as sent (audit A-65)", async () => {
+    const { parseSpotPage, nextCursor } = await import("@/lib/tracking/providers");
+    const good = (i: number) => ({
+      id: 1000 + i,
+      messengerId: "0-1234567",
+      unixTime: 1_794_640_000 + i * 60,
+      messageType: "TRACK",
+      latitude: 1.3,
+      longitude: 103.8,
+    });
+    const page = parseSpotPage({
+      response: {
+        feedMessageResponse: {
+          messages: {
+            message: [
+              ...Array.from({ length: 48 }, (_, i) => good(i)),
+              { ...good(48), id: "x".repeat(200) },
+              { ...good(49), unixTime: 1e20 },
+            ],
+          },
+        },
+      },
+    });
+    expect(page.messages).toHaveLength(48);
+    expect(page.rawCount).toBe(50);
+    const cursor = nextCursor(
+      { messages: page.messages, rawCount: page.rawCount, pageSize: 50 },
+      { from: new Date("2026-11-14T00:00:00Z"), to: new Date("2026-11-15T00:00:00Z") },
+    );
+    expect(cursor.complete).toBe(false);
   });
 });
 

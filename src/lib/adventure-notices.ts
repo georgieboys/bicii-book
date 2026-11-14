@@ -57,6 +57,8 @@ export type AdventureNotice = {
   departureMeetingPoint: string | null;
   /** The reason on the event (a cancellation's). */
   eventNote: string | null;
+  /** The rider's finisher board name, or null when they chose none (D218, A-60). */
+  boardName: string | null;
 };
 
 export type AdventureNoticeRow = {
@@ -80,6 +82,7 @@ export type AdventureNoticeRow = {
   departure_starts_at?: string | null;
   departure_meeting_point?: string | null;
   event_note?: string | null;
+  board_name?: string | null;
 };
 
 export function adventureNoticeFromRow(row: AdventureNoticeRow): AdventureNotice {
@@ -104,6 +107,7 @@ export function adventureNoticeFromRow(row: AdventureNoticeRow): AdventureNotice
     departureStartsAt: row.departure_starts_at ?? null,
     departureMeetingPoint: row.departure_meeting_point ?? null,
     eventNote: row.event_note ?? null,
+    boardName: row.board_name ?? null,
   };
 }
 
@@ -203,7 +207,9 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
           hello,
           `Congratulations: your ${route} ride is certified${n.completedOn ? `, completed on ${dayLabel(n.completedOn)}` : ""}.`,
           n.certificateReference ? `Your certificate is ${n.certificateReference}.` : null,
-          "Your name is on the route's finisher board, and we'll tell you when your finisher pack is ready.",
+          n.boardName
+            ? `You're on the route's finisher board as ${n.boardName}. We'll tell you when your finisher pack is ready.`
+            : "You chose not to appear on the finisher board; you can add a name from your ride's page. We'll tell you when your finisher pack is ready.",
           message,
         ],
         { href: ride, label: "See your certificate" },

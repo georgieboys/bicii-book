@@ -298,10 +298,11 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.create_adventure(text, text, numeric)",
   "public.public_adventure(text)",
   "public.public_adventures()",
-  "public.publish_adventure_revision(uuid, text)",
-  "public.remove_adventure_offer(uuid, adventure_participation)",
-  "public.set_adventure_checkpoints(uuid, jsonb)",
-  "public.set_adventure_offer(uuid, adventure_participation, numeric, numeric, integer, text)",
+  // Audit fixes (D238): each takes the draft's expected version
+  "public.publish_adventure_revision(uuid, text, integer)",
+  "public.remove_adventure_offer(uuid, adventure_participation, integer)",
+  "public.set_adventure_checkpoints(uuid, jsonb, integer)",
+  "public.set_adventure_offer(uuid, adventure_participation, numeric, numeric, integer, text, integer)",
   "public.set_adventure_order(uuid, integer)",
   "public.start_adventure_draft(uuid)",
   "public.suggested_adventure_price(adventure_participation, integer, integer)",
@@ -677,6 +678,8 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.release_adventure_parse(uuid)",
   "public.adventure_evidence_objects_to_delete(integer)",
   "public.mark_adventure_objects_deleted(uuid[])",
+  // Audit fixes (D236): unused waiver signatures purged by the cron
+  "public.purge_unused_waiver_signatures(integer)",
 ];
 
 /**

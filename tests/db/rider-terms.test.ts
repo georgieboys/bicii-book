@@ -27,6 +27,7 @@ import {
   offerOn125,
   openSales,
   paidBooking,
+  signWaiver,
   submitted,
   TERMS,
   type Rider,
@@ -35,6 +36,7 @@ import {
 import { customerClaims } from "./customer-fixtures";
 import { actAs, connect, inTransaction, scalar, staffClaims, type Connection } from "./harness";
 import { checkout, pay, reservation, setup } from "./tracker-fixtures";
+import { SERVICE } from "./payment-fixtures";
 import { failsWith } from "./workshop-fixtures";
 
 let conn: pg.Client;
@@ -66,6 +68,21 @@ describe("waivers (D215)", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].body).toBe(body);
       expect(rows[0].body_sha256).toBe(createHash("sha256").update(body, "utf8").digest("hex"));
+    });
+  });
+
+  it("publishes the aligned version unchanged from docs/adventures and chooses it (D239)", async () => {
+    const md = readFileSync("docs/adventures/waiver-2026-11-14.2.md", "utf8");
+    const body = md.split("\n---\n")[1].trim();
+    await inTransaction(conn, async (tx) => {
+      await actAs(tx, { role: "anon" });
+      const { rows } = await tx.query(
+        "select body, body_sha256 from public.adventure_waiver('2026-11-14.2')",
+      );
+      expect(rows[0].body).toBe(body);
+      expect(rows[0].body_sha256).toBe(createHash("sha256").update(body, "utf8").digest("hex"));
+      expect(body).toContain("Days the shop is closed count.");
+      expect(body).not.toMatch(/costs 20 dollars/);
     });
   });
 
@@ -408,6 +425,81 @@ describe("no floods (audit A-50, D231)", () => {
           [bookingId],
         ),
       ).toBe(1);
+    });
+  });
+});
+
+describe("unused signatures and waiting requests (audit A-71, A-73)", () => {
+  it("unused signatures go after 7 days, linked ones stay; a rider holds at most 20 unused", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const rider = await makeRider(tx);
+      const bookingId = await paidBooking(tx, rider, sale);
+      await actAs(tx, customerClaims(rider.authUserId));
+      const unused = await signWaiver(tx);
+      await tx.query("reset role");
+      await tx.query(
+        "update public.adventure_waiver_signatures set signed_at = now() - interval '8 days' where request_id = $1",
+        [unused],
+      );
+      await actAs(tx, SERVICE);
+      expect(
+        await scalar<number>(tx, "select public.purge_unused_waiver_signatures(100)"),
+      ).toBeGreaterThanOrEqual(1);
+      await tx.query("reset role");
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.adventure_waiver_signatures where request_id = $1",
+          [unused],
+        ),
+      ).toBe(0);
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.adventure_waiver_signatures where booking_id = $1",
+          [bookingId],
+        ),
+      ).toBe(1);
+      await actAs(tx, customerClaims(rider.authUserId));
+      for (let i = 0; i < 20; i++) await signWaiver(tx);
+      await failsWith(tx, () => signWaiver(tx), refused("adventure_too_many_open"));
+    });
+  });
+
+  it("a cancellation request waits in Needs attention and in Health until handled", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const rider = await makeRider(tx);
+      const bookingId = await paidBooking(tx, rider, sale);
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      const waiting = () =>
+        scalar<string>(
+          tx,
+          "select public.adventure_health() ->> 'cancellations_requested_30d'",
+        ).then(Number);
+      const before = await waiting();
+      await actAs(tx, customerClaims(rider.authUserId));
+      await tx.query("select public.request_my_adventure_cancellation($1, 'Knee injury')", [
+        bookingId,
+      ]);
+      await tx.query("reset role");
+      expect(
+        await scalar<string>(
+          tx,
+          "select attention_reason from public.adventure_bookings where id = $1",
+          [bookingId],
+        ),
+      ).toBe("Cancellation asked: Knee injury");
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      expect(await waiting()).toBe(before + 1);
+      await tx.query(
+        "select public.clear_adventure_booking_attention($1, 'Rider will ride next month')",
+        [bookingId],
+      );
+      expect(await waiting()).toBe(before);
     });
   });
 });

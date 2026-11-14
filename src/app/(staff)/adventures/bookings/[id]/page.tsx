@@ -186,9 +186,14 @@ export default async function AdventureBookingPage({
             </dl>
           ) : (
             <p className="text-sm text-dust-700">
-              {booking.termsVersion
-                ? `Terms version ${booking.termsVersion}, accepted before signed waivers.`
-                : "No waiver signed."}
+              {/* Hidden from staff without these permissions is not "absent" (A-72). */}
+              {!canManageAdventures(staff) &&
+              !verify &&
+              !staff.permissions.includes("facilitate_adventures")
+                ? "Signed waivers are visible to staff who manage, verify or facilitate adventures."
+                : booking.termsVersion
+                  ? `Terms version ${booking.termsVersion}, accepted before signed waivers.`
+                  : "No waiver signed."}
             </p>
           )}
         </Card>

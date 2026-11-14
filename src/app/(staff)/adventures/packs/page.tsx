@@ -1,3 +1,4 @@
+import { CappedNote } from "@/components/domain/adventures/capped-note";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -30,6 +31,7 @@ export default async function AdventurePacksPage({ searchParams }: PageProps<"/a
   return (
     <>
       <PageHeader title="Adventures" description="Finisher packs for certified riders." />
+      <CappedNote count={packs.length} cap={200} what="packs" />
       <AdventuresSectionNav current="/adventures/packs" />
       <nav aria-label="Show packs" className="mb-4 flex flex-wrap gap-2">
         <PillLink href="/adventures/packs" active={!collected}>

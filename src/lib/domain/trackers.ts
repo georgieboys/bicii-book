@@ -455,7 +455,8 @@ export async function listLiveRides(supabase: ServerSupabase): Promise<LiveRide[
       )
       .not("capture_started_at", "is", null)
       .is("capture_finished_at", null)
-      .order("capture_started_at")
+      // Newest first: a window someone forgot to close never hides a live ride (A-76).
+      .order("capture_started_at", { ascending: false })
       .limit(50)) as unknown as Rows<LiveRow>,
   );
   return Promise.all(

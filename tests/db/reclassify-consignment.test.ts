@@ -43,6 +43,7 @@ import {
   readAsOwner,
   transfer,
 } from "./inventory-fixtures";
+import { cancelPO, createPO, makeSupplier, setLine, submitPO } from "./purchasing-fixtures";
 import { failsWith, ownerMode } from "./workshop-fixtures";
 
 let conn: pg.Client;
@@ -332,6 +333,35 @@ describe.skipIf(!isolatedDatabase())("reclassify_as_consignment (D162)", () => {
         message: "product_has_trading_history",
       });
       expect((await productRow(tx, productId)).ownership_type).toBe("shop_owned");
+      await assertLedgerConsistent(tx);
+    });
+  });
+
+  it("accepts a product whose only purchase order was cancelled before anything arrived (D240)", async () => {
+    await inTx(async (tx) => {
+      const productId = await shopProduct(tx);
+      const consignorId = await consignor(tx);
+      await ownerMode(tx);
+      const supplierId = await makeSupplier(tx);
+      await actAs(tx, ADMIN);
+      const po = await createPO(tx, { supplierId });
+      await setLine(tx, { poId: po.id, productId, quantity: 4 });
+      await submitPO(tx, po.id);
+
+      // While the PO is open, it is a purchase: refused.
+      await failsWith(tx, () => reclassify(tx, { productId, consignorId, agreed: "6.64" }), {
+        code: "P0001",
+        message: "product_has_trading_history",
+      });
+
+      await cancelPO(tx, po.id, "The owner's own goods, consigned to the shop");
+      const result = await reclassify(tx, { productId, consignorId, agreed: "6.64" });
+      expect(result).toMatchObject({
+        product_id: productId,
+        consignment_item_id: null,
+        quantity: 0,
+      });
+      expect((await productRow(tx, productId)).ownership_type).toBe("consignment");
       await assertLedgerConsistent(tx);
     });
   });

@@ -1,6 +1,18 @@
 # Current state
 
-Updated: 2026-11-14 SGT (the audit's low findings on branch
+Updated: 2026-11-15 SGT (D240, branch `fix/reclassify-cancelled-po`: the
+owner said the 2026-11-14 shipment, entered as PO-000001 with 31 new
+products P-000111 to P-000141, is his own goods consigned to the shop, and
+that every product on the site is to be his consignment. A cancelled
+purchase order's line and a cancelled or declined indent request no longer
+block `reclassify_as_consignment`; after the merge PO-000001 is cancelled
+and every shop-owned product the rule allows is reclassified to the owner's
+consignor in production (no stock moves: none of them holds stock except
+the Soul seatpost). The FUKC T-shirt (sold, linked to Shopify) and the
+headset spacer (used on a job) have trading history and stay shop stock
+until the owner decides. Verified locally: `tests/db/reclassify-consignment.test.ts`
+12/12. Earlier, 2026-11-14 SGT (
+the audit's low findings on branch
 `fix/audit-low`, D232-D239: emails match their event and the rider's board
 choice; late-registered devices get their positions; lock order; unused
 signatures purged after 7 days; cancellation requests wait in Needs

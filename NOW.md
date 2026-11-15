@@ -1,7 +1,13 @@
 # Current state
 
-Updated: 2026-11-15 SGT (product groups, D241-D245, ADR-027, branch
-`feat/product-groups`, site branch `feat/product-groups` in BICII): one
+Updated: 2026-11-15 SGT (product groups, D241-D245, ADR-027, merged:
+bicii-book PR #91, BICII PR #51; migration `20261115000200` live in
+production). The same day, in production under the owner's admin claims,
+the shipment's colours were grouped: G-000001 Retro shock-absorbing saddle
+(P-000111 to P-000115), G-000002 Vintage hollow saddle (P-000116 to
+P-000119), G-000003 Jockey wheels 11T aluminium (pair) (P-000122 to
+P-000126), option Colour. All are drafts, so nothing is on Shopify yet: the
+first group published online is the first live group push. one
 style in several colours or sizes stays one BICII product per colour
 (stock, price, cost, labels, consignment unchanged) gathered in a product
 group (G-######, Inventory → Groups; a product joins from its Group card).

@@ -1,17 +1,22 @@
 # Current state
 
-Updated: 2026-11-15 SGT (D240, branch `fix/reclassify-cancelled-po`: the
-owner said the 2026-11-14 shipment, entered as PO-000001 with 31 new
-products P-000111 to P-000141, is his own goods consigned to the shop, and
-that every product on the site is to be his consignment. A cancelled
+Updated: 2026-11-15 SGT (D240, PR #89, merged and live: a cancelled
 purchase order's line and a cancelled or declined indent request no longer
-block `reclassify_as_consignment`; after the merge PO-000001 is cancelled
-and every shop-owned product the rule allows is reclassified to the owner's
-consignor in production (no stock moves: none of them holds stock except
-the Soul seatpost). The FUKC T-shirt (sold, linked to Shopify) and the
-headset spacer (used on a job) have trading history and stay shop stock
-until the owner decides. Verified locally: `tests/db/reclassify-consignment.test.ts`
-12/12. Earlier, 2026-11-14 SGT (
+block `reclassify_as_consignment`. The owner said the 2026-11-14 shipment
+(PO-000001, new products P-000111 to P-000141) is his own goods consigned
+to the shop and that every product on the site is his consignment. Done in
+production that day under the owner's admin claims: PO-000001 cancelled
+(its lines stay as the record of quantities and costs; take the goods in
+as consignment intake when they arrive); 113 shop products reclassified to
+the owner's consignor (only the Soul seatpost held stock, 1 unit); the two
+with trading history moved the D45 way: the headset spacer P-000003 (19)
+and the FUKC T-shirt P-000004 (8) counted out, archived with `-SHOP`
+SKUs, and taken in again as P-000142 and P-000143 with their SKUs, prices
+and costs as the amounts owed. P-000143 carries the T-shirt's photo (a
+Storage copy), is public at `fukc-t-shirt-p-000143` and synced to Shopify
+(`bicii-p-000143`, 8 at 35); P-000004's Shopify product is drafted at 0.
+Every live product is now consigned. Verified by read-only queries.
+Earlier, 2026-11-14 SGT (
 the audit's low findings on branch
 `fix/audit-low`, D232-D239: emails match their event and the rider's board
 choice; late-registered devices get their positions; lock order; unused

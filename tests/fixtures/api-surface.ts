@@ -462,6 +462,8 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.product_costs": ["SELECT"],
   "public.product_events": ["SELECT"],
   "public.products": ["INSERT", "SELECT", "UPDATE"],
+  // Product groups (D241)
+  "public.product_groups": ["INSERT", "SELECT", "UPDATE"],
   "public.selling_prices": ["SELECT"],
   "reporting.low_stock": ["SELECT"],
   "reporting.product_stock": ["SELECT"],
@@ -642,6 +644,9 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.process_shopify_order_paid(uuid)",
   "public.process_shopify_refund(uuid)",
   "public.product_sync_state(uuid)",
+  // Product groups (D243)
+  "public.product_group_sync_state(uuid)",
+  "public.record_product_group_push(uuid, uuid, text, text, jsonb)",
   "public.record_product_sync_result(uuid, uuid, text, text, text, text, text, integer, money_amount, text, text, text, text, boolean)",
   "public.record_shopify_webhook(text, text, text, text, text, timestamp with time zone, jsonb, jsonb, text, integer, boolean, integration_rejection_reason, text)",
   // Stripe payments (Phase 14, D150-D159)

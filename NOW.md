@@ -1,6 +1,19 @@
 # Current state
 
-Updated: 2026-11-15 SGT (D240, PR #89, merged and live: a cancelled
+Updated: 2026-11-15 SGT (product groups, D241-D245, ADR-027, branch
+`feat/product-groups`, site branch `feat/product-groups` in BICII): one
+style in several colours or sizes stays one BICII product per colour
+(stock, price, cost, labels, consignment unchanged) gathered in a product
+group (G-######, Inventory → Groups; a product joins from its Group card).
+Shopify shows each group as one product with a variant per member
+(`bicii-g-<n>`); the public item page lists the group's colours. A product
+already on Shopify alone keeps out of groups, and two batches of one
+colour can't share a group (R-120). Verified locally: database
+`tests/db/product-groups.test.ts` 6/6 (and `shopify-sync` with it), the
+Shopify unit tests 19/19 in `shopify-sync`, e2e `product-groups.spec.ts`
+and `inventory.spec.ts` on phone and iPad (10 passed), the site's item page
+by hand with a local group. Before that,
+2026-11-15 SGT (D240, PR #89, merged and live: a cancelled
 purchase order's line and a cancelled or declined indent request no longer
 block `reclassify_as_consignment`. The owner said the 2026-11-14 shipment
 (PO-000001, new products P-000111 to P-000141) is his own goods consigned

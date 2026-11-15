@@ -330,6 +330,13 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   shop_charge_unique_only: "A shop-borne charge goes on a unique item only.",
   shop_charge_unit_not_available:
     "That unit's cost is already fixed on a job or a sale. Change shop charges only while it is available.",
+  // Product groups (D241, D242)
+  product_group_short_id_immutable: "A group keeps its ID for life.",
+  product_group_has_members:
+    "Take the products out of this group, or archive them, before archiving it.",
+  product_group_archived: "That group is archived. Choose another group.",
+  product_group_shopify_linked:
+    "This product is already on Shopify, so its group can't change. Make a new product for the group instead.",
   product_ownership_immutable:
     "A product with stock history keeps its owner. Consigned stock lives on its own products.",
   line_consignment_mismatch:
@@ -605,6 +612,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
 
 /** 23505 unique violations by constraint name. */
 export const UNIQUE_ERRORS: Record<string, string> = {
+  products_group_option_value_key: "Another product in this group already has that option value.",
+  product_groups_short_id_key: "That group ID is taken. Save again.",
+  product_groups_shopify_product_id_key: "That Shopify product belongs to another group.",
   adventure_departure_participants_one_open: "This rider has already joined a date.",
   tracking_feeds_config_key: "That feed is already set up.",
   adventure_ride_shares_one_live: "This ride already has a share link. Make a new one instead.",
@@ -757,6 +767,16 @@ export const UNIQUE_ERRORS: Record<string, string> = {
 
 /** 23514 check violations by constraint name. */
 export const CHECK_ERRORS: Record<string, string> = {
+  products_group_option_pair:
+    "A product in a group needs an option value, and only a grouped product has one.",
+  products_option_value_length: "Keep the option value to 60 characters.",
+  product_groups_name_length: "Give the group a name of up to 200 characters.",
+  product_groups_description_length: "Keep the description under 10,000 characters.",
+  product_groups_brand_length: "Keep the brand to 200 characters.",
+  product_groups_option_name_length:
+    "Name the option in up to 40 characters, such as Colour or Size.",
+  product_groups_short_id_format: "That group ID isn't valid.",
+  product_groups_shopify_product_id_format: "That isn't a Shopify product ID.",
   distance_km_not_nan: "Enter the distance as a number of kilometres.",
   geo_degrees_not_nan: "Enter coordinates as decimal degrees.",
   adventure_settings_sales_need_terms: "Give the terms version before turning sales on.",

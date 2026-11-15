@@ -757,6 +757,24 @@ while an approved or ordered item is neither fitted nor cancelled:
 - If it fails: "Name the category." or a name already used by another
   active product category.
 
+### Group colours or sizes of one style
+
+- Before you start: Manage inventory. Each colour or size is its own
+  product, with its own stock, price and labels.
+- Steps: **Inventory** → **Groups** → **New group**: the name shoppers see,
+  the option (**Colour** to start with, or **Size**), a brand and a
+  description. Then open each product → **Group** → **Add to a group**,
+  choose the group and type its value, such as Black, and **Save**.
+- Success looks like: toast "Group saved"; the product's Group card says
+  "Colour: Black in <group>", and the group's page lists its products.
+  Online, published products of a group are one Shopify item with a choice
+  of colour, and the public page shows the other colours as links.
+- A product already on Shopify on its own keeps out of groups ("This
+  product is already on Shopify, so its group can't change."), and two
+  products in one group can't share a value. **Take out** removes a
+  product that is not on Shopify yet. A group is archived only once its
+  products are out of it or archived.
+
 ### Adjust stock or move it between locations
 
 - Before you start: Adjust stock needs the Adjust stock permission;

@@ -11,11 +11,12 @@ vi.mock("server-only", () => ({}));
 
 const { ShopifyError } = await import("@/lib/integrations/shopify/admin");
 const { createFakeShopifyAdmin } = await import("@/lib/integrations/shopify/fake-admin");
-const { buildDesiredState } = await import("@/lib/integrations/shopify/desired-state");
+const { buildDesiredState, buildGroupDesiredState } =
+  await import("@/lib/integrations/shopify/desired-state");
 const { runProductSync, SYNC_MESSAGES } = await import("@/lib/integrations/shopify/sync");
 
 import type { IntegrationDeps } from "@/lib/integrations/shopify/deps";
-import type { SyncState } from "@/lib/integrations/shopify/desired-state";
+import type { GroupSyncState, SyncState } from "@/lib/integrations/shopify/desired-state";
 
 const PRODUCT_ID = "d1000000-0000-4000-8000-000000000006";
 const LOCATION = "gid://shopify/Location/9300000001";
@@ -66,6 +67,7 @@ type Rpc = { name: string; args: Record<string, unknown> };
 function harness(
   s: SyncState | { error: { code: string; message: string } },
   recordError?: { code: string; message: string },
+  group: GroupSyncState | null = null,
 ) {
   const rpcs: Rpc[] = [];
   const fake = createFakeShopifyAdmin();
@@ -75,6 +77,8 @@ function harness(
       if (name === "product_sync_state") {
         return "error" in s ? { data: null, error: s.error } : { data: s, error: null };
       }
+      if (name === "product_group_sync_state") return { data: group, error: null };
+      if (name === "record_product_group_push") return { data: {}, error: null };
       if (name === "record_product_sync_result") {
         if (recordError && args.outcome === "pushed") return { data: null, error: recordError };
         return { data: {}, error: null };
@@ -405,6 +409,134 @@ describe("runProductSync", () => {
     await expect(runProductSync(job(), broken.deps)).resolves.toMatchObject({
       outcome: "failed",
       code: "shopify_sync_crashed",
+    });
+  });
+
+  describe("a member of a product group (D243)", () => {
+    const SIBLING = "d1000000-0000-4000-8000-000000000007";
+    const group = (o: Partial<GroupSyncState> = {}): GroupSyncState => ({
+      group_id: "a1000000-0000-4000-8000-000000000001",
+      short_id: "G-000001",
+      handle: "bicii-g-000001",
+      name: "Retro saddle",
+      description: "Shock-absorbing.",
+      brand: null,
+      option_name: "Colour",
+      shopify_product_id: null,
+      last_pushed_hash: null,
+      members: [
+        {
+          product_id: PRODUCT_ID,
+          short_id: "P-000032",
+          sku: "SST-011",
+          option_value: "Black",
+          price: 12,
+          variant_id: null,
+          inventory_item_id: null,
+          effective_online: true,
+          photo_paths: ["product/a.jpg"],
+        },
+        {
+          product_id: SIBLING,
+          short_id: "P-000033",
+          sku: "SST-012",
+          option_value: "Brown",
+          price: "14.00",
+          variant_id: null,
+          inventory_item_id: null,
+          effective_online: false,
+          photo_paths: [],
+        },
+      ],
+      ...o,
+    });
+
+    it("pushes the whole group as one product, records every variant and sets only its own stock", async () => {
+      const { fake, deps, rpcs, recorded } = harness(
+        state({ handle: "bicii-g-000001", sku: "SST-011" }),
+        undefined,
+        group(),
+      );
+      const result = await runProductSync(job(), deps);
+      expect(result.outcome).toBe("pushed");
+      expect(fake.calls.map((c) => c.kind)).toEqual([
+        "productSet",
+        "inventorySetQuantities",
+        "publish",
+      ]);
+      const [product] = [...fake.products.values()];
+      expect(product).toMatchObject({
+        handle: "bicii-g-000001",
+        title: "Retro saddle",
+        status: "ACTIVE",
+      });
+      expect(product.variantIds).toHaveLength(2);
+      const push = rpcs.find((r) => r.name === "record_product_group_push")!.args;
+      expect(push).toMatchObject({ group_id: group().group_id, product_id: PRODUCT_ID });
+      expect((push.variants as { product_id: string }[]).map((v) => v.product_id)).toEqual([
+        PRODUCT_ID,
+        SIBLING,
+      ]);
+      const own = (push.variants as { product_id: string; variant_id: string }[])[0];
+      expect(recorded()[0]).toMatchObject({
+        outcome: "pushed",
+        shopify_product_id: product.productId,
+        shopify_variant_id: own.variant_id,
+        pushed_quantity: 50,
+      });
+      // The sibling's variant exists at 0 until its own job sets it.
+      const sibling = fake.variants.get(product.variantIds[1])!;
+      expect(fake.quantities.get(sibling.inventoryItemId)).toBe(0);
+      expect(sibling.price).toBe("14.00");
+    });
+
+    it("skips productSet when the group was already pushed as it is", async () => {
+      const g = group();
+      const pushedHash = buildGroupDesiredState(PRODUCT_ID, g, {
+        publicStorageBase: BASE,
+        apiVersion: createFakeShopifyAdmin().apiVersion,
+        locationId: LOCATION,
+      }).groupHash;
+      const { fake, deps, rpcs } = harness(
+        state({
+          handle: "bicii-g-000001",
+          shopify_variant_id: "gid://shopify/ProductVariant/9500000001",
+          shopify_inventory_item_id: "gid://shopify/InventoryItem/9600000001",
+          shopify_product_id: "gid://shopify/Product/9400000001",
+          shopify_origin: "bicii",
+        }),
+        undefined,
+        {
+          ...g,
+          shopify_product_id: "gid://shopify/Product/9400000001",
+          last_pushed_hash: pushedHash,
+        },
+      );
+      fake.seedProduct(
+        {
+          productId: "gid://shopify/Product/9400000001",
+          variantId: "gid://shopify/ProductVariant/9500000001",
+          inventoryItemId: "gid://shopify/InventoryItem/9600000001",
+        },
+        0,
+        "bicii-g-000001",
+      );
+      fake.calls.length = 0;
+      const result = await runProductSync(job(), deps);
+      expect(result.outcome).toBe("pushed");
+      expect(fake.calls.map((c) => c.kind)).toEqual(["inventorySetQuantities", "publish"]);
+      expect(rpcs.some((r) => r.name === "record_product_group_push")).toBe(false);
+    });
+
+    it("records nothing to push for a member that is not a variant", async () => {
+      const g = group();
+      const { fake, deps, recorded } = harness(state({ product_id: PRODUCT_ID }), undefined, {
+        ...g,
+        members: g.members.slice(1),
+      });
+      expect((await runProductSync(job(), deps)).outcome).toBe("unchanged");
+      expect(fake.calls).toEqual([]);
+      expect(recorded()[0]).toMatchObject({ outcome: "unchanged" });
     });
   });
 });

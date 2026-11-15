@@ -26,3 +26,24 @@ export function fakeShopifyIds(handle: string): ShopifyIds {
     inventoryItemId: `gid://shopify/InventoryItem/${9_200_000_000 + n}`,
   };
 }
+
+/**
+ * A product group's fake Shopify ids (D243): Product 9400000000 + n for
+ * handle bicii-g-<n>, and per member SKU a variant 9500000000 + h and an
+ * inventory item 9600000000 + h, h from the SHA-256 of handle and SKU.
+ */
+export function fakeGroupProductId(handle: string): string {
+  return `gid://shopify/Product/${9_400_000_000 + handleNumber(handle)}`;
+}
+
+export function fakeGroupVariantIds(
+  handle: string,
+  sku: string,
+): { variantId: string; inventoryItemId: string } {
+  const hex = createHash("sha256").update(`${handle}|${sku}`).digest("hex").slice(0, 12);
+  const h = Number.parseInt(hex, 16) % 100_000_000;
+  return {
+    variantId: `gid://shopify/ProductVariant/${9_500_000_000 + h}`,
+    inventoryItemId: `gid://shopify/InventoryItem/${9_600_000_000 + h}`,
+  };
+}

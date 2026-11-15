@@ -4318,6 +4318,59 @@ export type Database = {
           },
         ];
       };
+      product_groups: {
+        Row: {
+          archived_at: string | null;
+          brand: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          last_pushed_hash: string | null;
+          name: string;
+          option_name: string;
+          shopify_product_id: string | null;
+          short_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          brand?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          last_pushed_hash?: string | null;
+          name: string;
+          option_name?: string;
+          shopify_product_id?: string | null;
+          short_id?: string;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          brand?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          last_pushed_hash?: string | null;
+          name?: string;
+          option_name?: string;
+          shopify_product_id?: string | null;
+          short_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "product_groups_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       products: {
         Row: {
           active: boolean;
@@ -4332,7 +4385,9 @@ export type Database = {
           description: string | null;
           id: string;
           name: string;
+          option_value: string | null;
           ownership_type: Database["public"]["Enums"]["ownership_type"];
+          product_group_id: string | null;
           public_slug: string | null;
           publication_status: Database["public"]["Enums"]["publication_status"];
           reorder_point: number | null;
@@ -4358,7 +4413,9 @@ export type Database = {
           description?: string | null;
           id?: string;
           name: string;
+          option_value?: string | null;
           ownership_type?: Database["public"]["Enums"]["ownership_type"];
+          product_group_id?: string | null;
           public_slug?: string | null;
           publication_status?: Database["public"]["Enums"]["publication_status"];
           reorder_point?: number | null;
@@ -4384,7 +4441,9 @@ export type Database = {
           description?: string | null;
           id?: string;
           name?: string;
+          option_value?: string | null;
           ownership_type?: Database["public"]["Enums"]["ownership_type"];
+          product_group_id?: string | null;
           public_slug?: string | null;
           publication_status?: Database["public"]["Enums"]["publication_status"];
           reorder_point?: number | null;
@@ -4410,6 +4469,13 @@ export type Database = {
             columns: ["created_by"];
             isOneToOne: false;
             referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "products_product_group_id_fkey";
+            columns: ["product_group_id"];
+            isOneToOne: false;
+            referencedRelation: "product_groups";
             referencedColumns: ["id"];
           },
         ];
@@ -9408,6 +9474,7 @@ export type Database = {
           sale_id: string;
         }[];
       };
+      product_group_sync_state: { Args: { product_id: string }; Returns: Json };
       product_sync_state: {
         Args: { product_id: string };
         Returns: Database["public"]["CompositeTypes"]["shopify_product_sync_state"];
@@ -9798,6 +9865,35 @@ export type Database = {
           payment_id: string;
           stripe_checkout_session_id: string;
         }[];
+      };
+      record_product_group_push: {
+        Args: {
+          group_id: string;
+          product_id: string;
+          pushed_hash: string;
+          shopify_product_id: string;
+          variants: Json;
+        };
+        Returns: {
+          archived_at: string | null;
+          brand: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          last_pushed_hash: string | null;
+          name: string;
+          option_name: string;
+          shopify_product_id: string | null;
+          short_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "product_groups";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       record_product_sync_result: {
         Args: {
@@ -12872,8 +12968,12 @@ export type Database = {
           condition: string | null;
           currency: string | null;
           description: string | null;
+          group_name: string | null;
+          group_short_id: string | null;
           kind: string | null;
           name: string | null;
+          option_name: string | null;
+          option_value: string | null;
           photos: Json | null;
           sale_price: number | null;
           short_id: string | null;

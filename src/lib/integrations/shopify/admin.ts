@@ -29,6 +29,36 @@ export type ShopifyProductInput = {
   imageUrls: string[];
 };
 
+/** One member of a product group as a Shopify variant (D243). */
+export type ShopifyGroupVariantInput = {
+  /** The member's SKU (else its short ID): how the returned variants are matched. */
+  sku: string;
+  /** The member's value of the group's one option ("Black"). */
+  optionValue: string;
+  /** Decimal string; null leaves Shopify's price as it is. */
+  price: string | null;
+  /** Known after the first push; productSet keeps a variant by its id. */
+  variantId: string | null;
+};
+
+/** A product group, pushed in full as ONE Shopify product with a variant per member (D243). */
+export type ShopifyGroupInput = {
+  /** bicii-g-<group short id lower-cased>. */
+  handle: string;
+  title: string;
+  descriptionHtml: string;
+  vendor: string;
+  status: ShopifyProductStatus;
+  optionName: string;
+  variants: ShopifyGroupVariantInput[];
+  imageUrls: string[];
+};
+
+export type ShopifyGroupIds = {
+  productId: string;
+  variants: { sku: string; variantId: string; inventoryItemId: string }[];
+};
+
 export type ShopifyIds = {
   productId: string;
   variantId: string;
@@ -59,6 +89,16 @@ export interface ShopifyAdmin {
     input: ShopifyProductInput,
     existing: { productId: string } | null,
   ): Promise<ShopifyIds>;
+  /**
+   * productSet for a product group (D243): create (by handle) or replace
+   * (by id) one product with an option and a variant per member. Variants
+   * not listed are removed by Shopify, so the input lists every member that
+   * was ever pushed.
+   */
+  upsertGroupProduct(
+    input: ShopifyGroupInput,
+    existing: { productId: string } | null,
+  ): Promise<ShopifyGroupIds>;
   /** productVariantsBulkUpdate with the price only (a Shopify-made product, D84). */
   updateVariantPrice(args: {
     productId: string;

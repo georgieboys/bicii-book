@@ -3475,3 +3475,24 @@ URLs, or customer data in this file.
 - Revisit trigger: the first unpaid late fee.
 - Last checked: 2026-11-14.
 
+## R-120 — A product group can't hold two batches of one colour, or a product already sold online alone
+
+- Category: catalogue.
+- Status and owner: open; the owner.
+- Trigger: a shop-bought batch arrives for a colour that is already a
+  consigned product in a group (D45 keeps them separate products), or a
+  product already on Shopify on its own should join a group.
+- Impact: option values are unique in a group (Shopify can't show two
+  "Black" variants), and a product with Shopify ids keeps its group
+  (D242), so the second batch or the already-listed product stays out of
+  the group, with its own page online.
+- Evidence and confidence: high; by design (ADR-027).
+- Workaround or containment: give the second batch a distinct value
+  ("Black, shop stock") or add it once the first sells through and is
+  archived under a renamed value; re-enter an already-listed product as a
+  new product to group it.
+- Next action: if this happens often, let a member leave its group by
+  moving its Shopify variant (a Shopify-side delete and re-create).
+- Revisit trigger: the first mixed-source colour or regroup request.
+- Last checked: 2026-11-15.
+

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { Database } from "@/lib/database.types";
 import { toDecimal } from "@/lib/money";
 
-import type { ShopifyProductInput } from "./admin";
+import type { ShopifyGroupInput, ShopifyProductInput } from "./admin";
 import { shopifyHandle } from "./ids";
 
 /**
@@ -150,4 +150,92 @@ export function buildDesiredState(state: SyncState, options: DesiredStateOptions
     .digest("hex");
 
   return { mode, input, price, quantity, hash, problems };
+}
+
+/** public.product_group_sync_state (jsonb): a member's group, or null (D243). */
+export type GroupSyncState = {
+  group_id: string;
+  short_id: string;
+  handle: string;
+  name: string;
+  description: string | null;
+  brand: string | null;
+  option_name: string;
+  shopify_product_id: string | null;
+  last_pushed_hash: string | null;
+  members: {
+    product_id: string;
+    short_id: string;
+    sku: string;
+    option_value: string;
+    price: number | string | null;
+    variant_id: string | null;
+    inventory_item_id: string | null;
+    effective_online: boolean;
+    photo_paths: string[];
+  }[];
+};
+
+export type GroupDesiredState = {
+  /** What productSet sends for the whole group. */
+  input: ShopifyGroupInput;
+  /** Covers the group input only: equal to the group's last pushed hash -> no productSet. */
+  groupHash: string;
+  /** Whether this member is one of the group's variants. */
+  included: boolean;
+};
+
+/**
+ * The group a member belongs to, as one Shopify product (D243): title,
+ * description and vendor from the group, one variant per member the
+ * database lists (pushed before, or published online with a price), the
+ * members' public photos, ACTIVE while any of them is effectively online.
+ * Pure.
+ */
+export function buildGroupDesiredState(
+  productId: string,
+  group: GroupSyncState,
+  options: DesiredStateOptions,
+): GroupDesiredState {
+  const input: ShopifyGroupInput = {
+    handle: group.handle,
+    title: group.name,
+    descriptionHtml: descriptionToHtml(group.description),
+    vendor: group.brand?.trim() ? group.brand.trim() : "BICII",
+    status: group.members.some((m) => m.effective_online) ? "ACTIVE" : "DRAFT",
+    optionName: group.option_name,
+    variants: group.members.map((m) => ({
+      sku: m.sku,
+      optionValue: m.option_value,
+      price: moneyText(m.price),
+      variantId: m.variant_id,
+    })),
+    imageUrls: group.members.flatMap((m) =>
+      m.photo_paths.map((p) => photoUrl(options.publicStorageBase, p)),
+    ),
+  };
+  const groupHash = createHash("sha256")
+    .update(canonicalJson({ input, apiVersion: options.apiVersion, salesChannel: "online_store" }))
+    .digest("hex");
+  return { input, groupHash, included: group.members.some((m) => m.product_id === productId) };
+}
+
+/** A grouped member's own hash: the group's plus its own price, quantity and location. */
+export function memberHash(
+  groupHash: string,
+  desired: Pick<DesiredState, "price" | "quantity">,
+  options: DesiredStateOptions,
+): string {
+  return createHash("sha256")
+    .update(
+      canonicalJson({
+        mode: "group",
+        groupHash,
+        price: desired.price,
+        quantity: desired.quantity,
+        locationId: options.locationId,
+        apiVersion: options.apiVersion,
+      }),
+    )
+    .digest("hex");
 }

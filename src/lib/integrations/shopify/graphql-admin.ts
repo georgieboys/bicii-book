@@ -5,6 +5,7 @@ import {
   ShopifyError,
   userErrorMessage,
   type ShopifyAdmin,
+  type ShopifyGroupIds,
   type ShopifyIds,
 } from "./admin";
 import { staticAccessToken, type AccessTokenSource } from "./access-token";
@@ -39,6 +40,31 @@ export const PRODUCT_SET_MUTATION = /* GraphQL */ `
         variants(first: 1) {
           nodes {
             id
+            inventoryItem {
+              id
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+/** productSet for a product group (D243): up to 100 variants come back with their SKUs. */
+export const GROUP_PRODUCT_SET_MUTATION = /* GraphQL */ `
+  mutation BiciiGroupProductSet($identifier: ProductSetIdentifiers, $input: ProductSetInput!) {
+    productSet(identifier: $identifier, input: $input, synchronous: true) {
+      product {
+        id
+        variants(first: 100) {
+          nodes {
+            id
+            sku
             inventoryItem {
               id
             }
@@ -307,6 +333,53 @@ export function createGraphqlShopifyAdmin({
         throw badResponse("productSet returned no product, variant or inventory item id");
       }
       return { productId, variantId, inventoryItemId };
+    },
+
+    async upsertGroupProduct(input, existing): Promise<ShopifyGroupIds> {
+      const variants = input.variants.map((v) => {
+        const variant: Obj = {
+          optionValues: [{ optionName: input.optionName, name: v.optionValue }],
+          inventoryItem: { tracked: true, sku: v.sku },
+        };
+        if (v.variantId) variant.id = v.variantId;
+        if (v.price !== null) variant.price = v.price;
+        return variant;
+      });
+      const data = await call(GROUP_PRODUCT_SET_MUTATION, {
+        identifier: existing ? { id: existing.productId } : { handle: input.handle },
+        input: {
+          handle: input.handle,
+          title: input.title,
+          descriptionHtml: input.descriptionHtml,
+          vendor: input.vendor,
+          status: input.status,
+          productOptions: [
+            {
+              name: input.optionName,
+              position: 1,
+              values: input.variants.map((v) => ({ name: v.optionValue })),
+            },
+          ],
+          variants,
+          files: input.imageUrls.map((url) => ({ originalSource: url, contentType: "IMAGE" })),
+        },
+      });
+      const payload = payloadOf(data, "productSet");
+      throwUserErrors(userErrorsOf(payload));
+      const product = payload.product;
+      if (!isObj(product)) throw badResponse("productSet returned no product");
+      const productId = str(product.id);
+      const nodes = isObj(product.variants) ? product.variants.nodes : null;
+      if (!productId || !Array.isArray(nodes)) throw badResponse("productSet returned no variants");
+      const out: ShopifyGroupIds["variants"] = [];
+      for (const node of nodes) {
+        if (!isObj(node)) continue;
+        const sku = str(node.sku);
+        const variantId = str(node.id);
+        const inventoryItemId = isObj(node.inventoryItem) ? str(node.inventoryItem.id) : null;
+        if (sku && variantId && inventoryItemId) out.push({ sku, variantId, inventoryItemId });
+      }
+      return { productId, variants: out };
     },
 
     async updateVariantPrice({ productId, variantId, price }) {

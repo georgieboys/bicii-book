@@ -1319,6 +1319,10 @@ describe.skipIf(!isolatedDatabase())("Buy online link (D84; Phase 11 consumes it
         "photos",
         "updated_at",
         "buy_online_url",
+        "group_short_id",
+        "group_name",
+        "option_name",
+        "option_value",
       ]);
       const { rows: all } = await tx.query("select * from reporting.public_items");
       expect(JSON.stringify(all)).not.toMatch(/gid:\/\/shopify|synced|pending|InventoryItem/);

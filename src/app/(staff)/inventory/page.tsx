@@ -87,6 +87,10 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
           <>
             {/* The primary action first (U1-7); the two read-only reports after it. */}
             {newButton}
+            {/* D241: styles sold as one item online, one product per colour or size. */}
+            <ButtonLink href="/products/groups" variant="outline">
+              Groups
+            </ButtonLink>
             <ButtonLink href="/inventory/movements" variant="outline">
               Movements
             </ButtonLink>

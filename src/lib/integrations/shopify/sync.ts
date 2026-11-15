@@ -7,7 +7,13 @@ import { mapDbError, type DbErrorLike } from "@/lib/db-errors";
 
 import { SHOPIFY_MESSAGES, ShopifyError, type ShopifyIds } from "./admin";
 import type { IntegrationDeps } from "./deps";
-import { buildDesiredState, type SyncState } from "./desired-state";
+import {
+  buildDesiredState,
+  buildGroupDesiredState,
+  memberHash,
+  type GroupSyncState,
+  type SyncState,
+} from "./desired-state";
 
 /**
  * One product sync (D81, D83, D84, D87; DATA-MODEL §13 "Outbound product
@@ -156,12 +162,31 @@ export async function runProductSync(job: SyncJob, deps: IntegrationDeps): Promi
     }
 
     const locationId = state.shopify_location_id ?? (await admin.primaryLocationId());
-    const desired = buildDesiredState(state, {
+    const options = {
       publicStorageBase: deps.publicStorageBase,
       apiVersion: admin.apiVersion,
       locationId,
-    });
+    };
+    const desired = buildDesiredState(state, options);
     mode = desired.mode;
+
+    // D243: a member of a product group is a variant of the group's product.
+    const groupRead = await supabase.rpc("product_group_sync_state", { product_id: productId });
+    if (groupRead.error) {
+      const mapped = mapDbError(groupRead.error);
+      log.warn(
+        { productId, jobId: job.id, code: groupRead.error.code, reason: mapped.reason },
+        "product_group_sync_state failed",
+      );
+      return done(await failed("shopify_sync_crashed", SYNC_MESSAGES.crashed, true));
+    }
+    const group = (groupRead.data ?? null) as GroupSyncState | null;
+    const grouped =
+      group && desired.mode === "full" ? buildGroupDesiredState(productId, group, options) : null;
+    if (grouped) {
+      mode = "group";
+      desired.hash = memberHash(grouped.groupHash, desired, options);
+    }
 
     // 3. A person must act (D81, D24).
     if (desired.problems.length > 0) {
@@ -191,7 +216,65 @@ export async function runProductSync(job: SyncJob, deps: IntegrationDeps): Promi
 
     // 6. Push.
     let ids: ShopifyIds;
-    if (desired.mode === "full") {
+    if (grouped && group) {
+      if (!grouped.included) {
+        // Never pushed and not published online: nothing of it is in Shopify.
+        return done(await record({ outcome: "unchanged" }));
+      }
+      const known =
+        group.shopify_product_id &&
+        group.last_pushed_hash === grouped.groupHash &&
+        state.shopify_variant_id &&
+        state.shopify_inventory_item_id;
+      if (known) {
+        ids = {
+          productId: group.shopify_product_id!,
+          variantId: state.shopify_variant_id!,
+          inventoryItemId: state.shopify_inventory_item_id!,
+        };
+      } else {
+        const pushed = await admin.upsertGroupProduct(
+          grouped.input,
+          group.shopify_product_id ? { productId: group.shopify_product_id } : null,
+        );
+        const variants = group.members.flatMap((m) => {
+          const v = pushed.variants.find((p) => p.sku === m.sku);
+          return v
+            ? [
+                {
+                  product_id: m.product_id,
+                  variant_id: v.variantId,
+                  inventory_item_id: v.inventoryItemId,
+                },
+              ]
+            : [];
+        });
+        const own = variants.find((v) => v.product_id === productId);
+        if (!own) {
+          return done(await failed("shopify_bad_response", SHOPIFY_MESSAGES.badResponse, true));
+        }
+        const stored = await supabase.rpc("record_product_group_push", {
+          group_id: group.group_id,
+          product_id: productId,
+          shopify_product_id: pushed.productId,
+          pushed_hash: grouped.groupHash,
+          variants,
+        } as unknown as Database["public"]["Functions"]["record_product_group_push"]["Args"]);
+        if (stored.error) {
+          const mapped = mapDbError(stored.error);
+          return done(
+            mapped.kind === "business"
+              ? await failed(mapped.reason ?? "shopify_ids_conflict", mapped.message, false)
+              : await failed("shopify_sync_crashed", SYNC_MESSAGES.crashed, true),
+          );
+        }
+        ids = {
+          productId: pushed.productId,
+          variantId: own.variant_id,
+          inventoryItemId: own.inventory_item_id,
+        };
+      }
+    } else if (desired.mode === "full") {
       ids = await admin.upsertProduct(
         desired.input!,
         state.shopify_product_id ? { productId: state.shopify_product_id } : null,
@@ -253,7 +336,11 @@ export async function runProductSync(job: SyncJob, deps: IntegrationDeps): Promi
     // 8. An ACTIVE BICII-made product goes on the Online Store sales
     // channel (productSet does not publish it; Shopify ignores a repeat).
     // After the price and stock, so a refusal here never holds those back.
-    if (desired.mode === "full" && desired.input?.status === "ACTIVE") {
+    if (
+      grouped
+        ? grouped.input.status === "ACTIVE"
+        : desired.mode === "full" && desired.input?.status === "ACTIVE"
+    ) {
       await admin.publishToOnlineStore(ids.productId);
     }
 

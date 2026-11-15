@@ -10,6 +10,7 @@ import { PhotoGrid } from "@/components/domain/photo-grid";
 import { ChangeOwnerButton } from "@/components/domain/change-owner-sheet";
 import { ConsignmentItemRow } from "@/components/domain/consignment-item-row";
 import { HeaderPrintLabel, LabelsCard } from "@/components/domain/labels-card";
+import { ProductGroupButton } from "@/components/domain/product-group-controls";
 import { EditProductButton } from "@/components/domain/product-sheet";
 import { PUBLIC_PREVIEW_ID } from "@/components/domain/public-preview";
 import { PublicationControls } from "@/components/domain/publication-card";
@@ -34,6 +35,7 @@ import { consignmentsForProduct } from "@/lib/domain/consignment";
 import { getIndentReservations } from "@/lib/domain/indent";
 import { getProduct, listLocations, listProductCategories } from "@/lib/domain/inventory";
 import { getLabelContext, resolvePrintPreset } from "@/lib/domain/labels";
+import { getProductGrouping, listProductGroups } from "@/lib/domain/product-groups";
 import { getProductOnline } from "@/lib/domain/shopify";
 import { shopifyConnection } from "@/lib/integrations/shopify/client";
 import { getProductPurchasing } from "@/lib/domain/purchasing";
@@ -97,7 +99,12 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
     resolvePrintPreset(supabase, "product", id, parsePrintParams(sp)),
   );
   const onlineQuery = getProductOnline(supabase, id);
-  for (const query of [labelsQuery, presetQuery, onlineQuery]) query.catch(() => {});
+  // D241: its product group, and the groups it could join.
+  const groupingQuery = getProductGrouping(supabase, id);
+  const groupsQuery = manage ? listProductGroups(supabase) : Promise.resolve([]);
+  for (const query of [labelsQuery, presetQuery, onlineQuery, groupingQuery, groupsQuery]) {
+    query.catch(() => {});
+  }
   const [product, locations, categories, purchasing] = await Promise.all([
     getProduct(supabase, id, { viewCosts }),
     listLocations(supabase),
@@ -110,7 +117,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
   // return to the consignor and transfers.
   const consigned = product.ownershipType === "consignment";
   const counted = product.trackingType === "quantity";
-  const [qr, consignments, labels, preset, online, reserved] = await Promise.all([
+  const [qr, consignments, labels, preset, online, reserved, grouping, groups] = await Promise.all([
     qrUrl(product.shortId),
     consigned ? consignmentsForProduct(supabase, product.id) : Promise.resolve([]),
     labelsQuery,
@@ -118,6 +125,8 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
     onlineQuery,
     // Phase 13 (D146): arrived indent parts waiting to be fitted on a job.
     counted && !consigned ? getIndentReservations(supabase, product.id) : Promise.resolve([]),
+    groupingQuery,
+    groupsQuery,
   ]);
 
   const archived = product.archivedAt !== null;
@@ -513,6 +522,51 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
         canManage={manage}
         fakeMode={shopifyConnection().mode === "fake"}
       />
+
+      <Card
+        title="Group"
+        actions={
+          manage && !archived ? (
+            <ProductGroupButton
+              productId={product.id}
+              current={
+                grouping.membership
+                  ? {
+                      groupId: grouping.membership.groupId,
+                      optionValue: grouping.membership.optionValue,
+                    }
+                  : null
+              }
+              groups={groups.map((g) => ({
+                id: g.id,
+                label: `${g.name} (${g.shortId})`,
+                optionName: g.optionName,
+              }))}
+              locked={grouping.onShopify && grouping.membership !== null}
+            />
+          ) : null
+        }
+      >
+        {grouping.membership ? (
+          <p className="text-dust-700">
+            {grouping.membership.optionName}:{" "}
+            <span className="font-medium text-ink">{grouping.membership.optionValue}</span> in{" "}
+            <Link
+              href={`/products/groups/${grouping.membership.groupId}`}
+              className="font-medium underline-offset-2 hover:underline"
+            >
+              {grouping.membership.name}
+            </Link>
+            . Online it is one choice of that item.
+          </p>
+        ) : (
+          <p className="text-sm text-dust-500">
+            {grouping.onShopify
+              ? "Not in a group. It is already on Shopify on its own, so it stays out of groups."
+              : "Not in a group. Put colours or sizes of one style in a group to sell them online as one item."}
+          </p>
+        )}
+      </Card>
 
       <Card title="Photos">
         <PhotoGrid

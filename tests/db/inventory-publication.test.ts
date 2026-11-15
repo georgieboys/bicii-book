@@ -84,6 +84,11 @@ const PUBLIC_COLUMNS = [
   // Phase 10 step 2 (D84): the Buy-online link, null unless published,
   // synced and available.
   "buy_online_url",
+  // D244: the product group a row is one choice of, and its option value.
+  "group_short_id",
+  "group_name",
+  "option_name",
+  "option_value",
 ];
 
 const shortIdOf = (tx: pg.Client, table: string, id: string) =>

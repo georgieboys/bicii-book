@@ -1862,6 +1862,42 @@ the same location, both carrying the source's default direct cost, and the
 unit's +1 `stock_adjustment`; both movements have request_id = the new
 unit id.
 
+### Product groups (D241-D245)
+
+Built out of phase on 2026-11-15 (`20261115000200_product_groups.sql`;
+[ADR-027](decisions/ADR-027-product-groups.md)).
+
+```
+product_groups
+  id uuid PK (client-supplied on create), short_id text unique (G-######, by trigger, immutable)
+  name text (trimmed, 1..200), description text null (≤ 10000), brand text null (≤ 200)
+  option_name text not null default 'Colour' (trimmed, 1..40)
+  shopify_product_id text null unique (gid Product)   -- set by record_product_group_push
+  last_pushed_hash text null                           -- the group input last pushed; not granted
+  created_by -> staff (by trigger), created_at, updated_at, archived_at
+  -- product_groups_enforce_rules: product_group_short_id_immutable,
+  --   product_group_has_members (archiving with a live member)
+
+products (added)
+  product_group_id uuid null -> product_groups
+  option_value text null (trimmed, 1..60)
+  check products_group_option_pair ((product_group_id is null) = (option_value is null))
+  unique index products_group_option_value_key (product_group_id, lower(option_value))
+  -- products_group_rules: a change of group on a product with Shopify ids,
+  --   or a join by one linked to a Shopify-made product ->
+  --   product_group_shopify_linked; an archived group -> product_group_archived
+  -- shopify_product_sync_group_rules: origin 'external' on a grouped product ->
+  --   product_group_shopify_linked
+```
+
+Grants: authenticated selects every group column but `last_pushed_hash`,
+inserts `id, name, description, brand, option_name`, updates `name,
+description, brand, option_name, archived_at` (RLS: is_staff reads,
+manage_inventory writes); products gain `product_group_id, option_value`
+in their select, insert and update grants. A change of a group's name,
+description, brand or option name queues every member's sync; a change of
+a member's group or option value queues that member.
+
 ## 7. Inventory movement ledger
 
 ```
@@ -3833,6 +3869,8 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `set_shopify_settings(online_location_id, storefront_url, accept_test_orders, reason)` → `shopify_settings` | A | Built (Phase 10 step 2, D83, D84, D89). 22004 without a location or `accept_test_orders`; the location must exist (P0002) and be active when it changes (`location_inactive`); storefront https or NULL (`shopify_settings_storefront_url_check`), trailing slashes trimmed; a reason is required when `accept_test_orders` changes (`reason_required`), optional otherwise; creates the row when absent; same values: unchanged, no audit. A new online location queues every published or pushed product. One `settings_changed {from, to}` audit row. |
 | `product_sync_state(product_id)` → `shopify_product_sync_state` (§13's fields) | service role only | Built (Phase 10 step 2, D81, D83, D84). The sync worker's input (§13). P0002 unknown product; `shopify_settings_missing`. Never a cost. |
 | `record_product_sync_result(product_id, job_id, outcome, shopify_product_id, shopify_variant_id, shopify_inventory_item_id, shopify_location_id, pushed_quantity, pushed_price, desired_hash, api_version, error_code, error_message, retriable)` → `shopify_product_sync` | service role only | Built (Phase 10 step 2, D83, D84, D87). Outcomes `pushed`, `unchanged`, `deferred`, `failed` (§13); 22023 for another; 22004 when a push lacks its ids or quantity or a failure its message; `shopify_ids_conflict`; lock order settings → product → sync row → job. |
+| `product_group_sync_state(product_id)` → jsonb | service_role | D243: the member's group, or NULL when it has none: handle `bicii-g-<n>`, name, description, brand, option name, the group's Shopify product and last pushed hash, and its variants in member order (created, then short ID): every member pushed before and every live member published online with an online price, each with its SKU (else short ID), option value, online price, variant and inventory item ids, whether it is effectively online and its public photo paths. P0002 unknown product. |
+| `record_product_group_push(group_id, product_id, shopify_product_id, pushed_hash, variants jsonb)` → `product_groups` | service_role | D243: after a group productSet, stores the group's Shopify product and hash, each member's variant ids (products, reason "Created in Shopify by the BICII sync") and inventory item, origin bicii and the group's handle on its sync row; different ids → `shopify_ids_conflict`. When the hash changed, queues every other member. 22004/22023 on a bad shape; P0002 unknown group. `record_product_sync_result` accepts a member pushing the group's Shopify product (D243) and stores the group's handle (D245). |
 | `private.shopify_online_price(product_id)` → money_amount; `private.enqueue_product_sync(product_id)` → uuid | no API role | Built (Phase 10 step 2): §13. |
 | `grant_permission(target_staff_id, permission)` / `revoke_permission(…)` | A, or P(manage_staff) on a mechanic within the D11 ceiling (D93: a non-admin's target must be a mechanic, never themselves; never `manage_staff`; only permissions they hold) | Exception rows (`granted_by` = caller); replay-safe (no row change, no event). `grant_permission` refuses a permission the target's role implies (P0001 `permission_implied_by_role`, D92) before inserting; revoking a row that does not exist returns null. One `permission_granted` / `permission_revoked` event; the revoke event keeps the removed row's `granted_by`/`granted_at`. |
 | `set_staff_active(target_staff_id, active, reason)` | A, or P(manage_staff) on a mechanic (D93) | Deactivating needs a reason (P0001 `reason_required`; `reason_too_long` over 500). Nobody deactivates themselves; only an admin changes an admin's or a manager's status (42501); the last active admin stays (55000). One `deactivated`/`reactivated` event with the reason; replaying the current state is a no-op. Deactivation also deletes the person's Supabase Auth sessions (trigger `staff_revoke_sessions`, D71). |

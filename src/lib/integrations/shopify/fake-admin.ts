@@ -5,11 +5,17 @@ import {
   ShopifyError,
   userErrorMessage,
   type ShopifyAdmin,
+  type ShopifyGroupIds,
   type ShopifyIds,
   type ShopifyProductInput,
 } from "./admin";
 import { SHOPIFY_API_VERSION } from "./config";
-import { FAKE_LOCATION_GID, fakeShopifyIds } from "./fake-ids";
+import {
+  FAKE_LOCATION_GID,
+  fakeGroupProductId,
+  fakeGroupVariantIds,
+  fakeShopifyIds,
+} from "./fake-ids";
 
 /**
  * An in-memory Shopify for tests, local development and E2E
@@ -184,6 +190,66 @@ export function createFakeShopifyAdmin(): FakeShopifyAdmin {
       }
       writeProduct(ids, input);
       return ids;
+    },
+
+    async upsertGroupProduct(input, existing): Promise<ShopifyGroupIds> {
+      record({
+        kind: "productSet",
+        handle: input.handle,
+        productId: existing?.productId,
+        status: input.status,
+        imageUrls: [...input.imageUrls],
+      });
+      let productId: string;
+      if (existing) {
+        if (
+          !products.has(existing.productId) &&
+          existing.productId !== fakeGroupProductId(input.handle)
+        ) {
+          throw notFound("Product");
+        }
+        productId = existing.productId;
+      } else {
+        productId =
+          [...products.values()].find((p) => p.handle === input.handle)?.productId ??
+          fakeGroupProductId(input.handle);
+      }
+      const previous = products.get(productId);
+      const out: ShopifyGroupIds["variants"] = input.variants.map((v) => {
+        const known = v.variantId ? variants.get(v.variantId) : undefined;
+        const ids = known
+          ? { variantId: known.variantId, inventoryItemId: known.inventoryItemId }
+          : fakeGroupVariantIds(input.handle, v.sku);
+        return { sku: v.sku, ...ids };
+      });
+      // productSet replaces the variants: those not listed go.
+      for (const id of previous?.variantIds ?? []) {
+        if (!out.some((v) => v.variantId === id)) variants.delete(id);
+      }
+      products.set(productId, {
+        productId,
+        handle: input.handle,
+        title: input.title,
+        vendor: input.vendor,
+        descriptionHtml: input.descriptionHtml,
+        status: input.status,
+        imageUrls: [...input.imageUrls],
+        variantIds: out.map((v) => v.variantId),
+        published: previous?.published ?? false,
+      });
+      input.variants.forEach((v, i) => {
+        const ids = out[i];
+        const old = variants.get(ids.variantId);
+        variants.set(ids.variantId, {
+          variantId: ids.variantId,
+          productId,
+          inventoryItemId: ids.inventoryItemId,
+          price: v.price ?? old?.price ?? null,
+          sku: v.sku,
+        });
+        if (!quantities.has(ids.inventoryItemId)) quantities.set(ids.inventoryItemId, 0);
+      });
+      return { productId, variants: out };
     },
 
     async updateVariantPrice({ productId, variantId, price }) {

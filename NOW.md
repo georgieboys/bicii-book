@@ -7,8 +7,7 @@ Ridge (C-000029, asking 470), P-000145 KHS Montaña Descent (C-000030,
 consignment item of the owner's consignor at RV Shop floor with 200 owed
 to him on sale, a researched description, the owner's photos (12, 20 and
 20, uploaded to Storage and recorded with `record_attachment`), public and
-published online. Verified by read-only queries: synced to Shopify at
-quantity 1 and the asking price. Before that,
+published online. The Marin's description names its silver Kintsugi finish and both KHS frames their rust-converter treatment (the owner, same day). Verified by read-only queries: all three synced to Shopify at quantity 1 and the asking price after those edits. Before that,
 Updated: 2026-11-15 SGT (product groups, D241-D245, ADR-027, merged:
 bicii-book PR #91, BICII PR #51; migration `20261115000200` live in
 production). The same day, in production under the owner's admin claims,

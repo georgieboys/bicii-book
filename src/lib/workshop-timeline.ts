@@ -415,6 +415,43 @@ export function describeEvent(
             : "";
       return { title: `${what}${kind}`, detail: text(p, "reason"), tone: "neutral" };
     }
+    // Build packages (D247-D251).
+    case "build_set": {
+      const price = amount(p, "price");
+      const name = text(p, "name") ?? "A build package";
+      return {
+        title: `${name} set${price !== null ? ` at ${formatMoney(price, currency)}` : ""}`,
+        detail: null,
+        tone: "neutral",
+      };
+    }
+    case "build_cleared":
+      return { title: "Build package taken off", detail: text(p, "reason"), tone: "neutral" };
+    case "build_fitted": {
+      const parts = amount(p, "parts_total");
+      const labour = amount(p, "labour_total");
+      return {
+        title: "Parts fitted to the build budget",
+        detail:
+          parts !== null && labour !== null
+            ? `Parts ${formatMoney(parts, currency)}, labour ${formatMoney(labour, currency)}`
+            : null,
+        tone: "neutral",
+      };
+    }
+    case "line_repriced": {
+      const from = amount(p, "from_price");
+      const to = amount(p, "to_price");
+      const what = text(p, "description") ?? "A line";
+      return {
+        title: `Repriced ${what}`,
+        detail:
+          from !== null && to !== null
+            ? `${formatMoney(from, currency)} to ${formatMoney(to, currency)} each`
+            : null,
+        tone: "neutral",
+      };
+    }
     default: {
       const unknown: never = event.type;
       return { title: String(unknown), detail: null, tone: "neutral" };

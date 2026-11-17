@@ -51,6 +51,12 @@ export default async function SettingsPage() {
       icon: WrenchIcon,
     },
     {
+      href: "/settings/build-packages",
+      label: "Build packages",
+      description: "Full builds and build-only packages, with their labour and parts budget",
+      icon: WrenchIcon,
+    },
+    {
       href: "/settings/product-categories",
       label: "Product categories",
       description: "How inventory products are grouped",

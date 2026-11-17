@@ -2137,6 +2137,82 @@ export type Database = {
           },
         ];
       };
+      build_packages: {
+        Row: {
+          archived_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          currency: string;
+          description: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["build_package_kind"];
+          labour_amount: number;
+          labour_service_id: string;
+          name: string;
+          price: number;
+          price_is_from: boolean;
+          public: boolean;
+          sort_order: number;
+          updated_at: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          currency?: string;
+          description?: string | null;
+          id?: string;
+          kind: Database["public"]["Enums"]["build_package_kind"];
+          labour_amount: number;
+          labour_service_id: string;
+          name: string;
+          price: number;
+          price_is_from?: boolean;
+          public?: boolean;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          currency?: string;
+          description?: string | null;
+          id?: string;
+          kind?: Database["public"]["Enums"]["build_package_kind"];
+          labour_amount?: number;
+          labour_service_id?: string;
+          name?: string;
+          price?: number;
+          price_is_from?: boolean;
+          public?: boolean;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "build_packages_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_packages_labour_service_id_fkey";
+            columns: ["labour_service_id"];
+            isOneToOne: false;
+            referencedRelation: "services";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_packages_labour_service_id_fkey";
+            columns: ["labour_service_id"];
+            isOneToOne: false;
+            referencedRelation: "services_staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       categories: {
         Row: {
           archived_at: string | null;
@@ -6521,6 +6597,99 @@ export type Database = {
           },
         ];
       };
+      work_order_builds: {
+        Row: {
+          build_package_id: string;
+          created_at: string;
+          created_by: string | null;
+          currency: string;
+          labour_amount: number;
+          labour_line_id: string;
+          price: number;
+          updated_at: string;
+          work_order_id: string;
+        };
+        Insert: {
+          build_package_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          currency: string;
+          labour_amount: number;
+          labour_line_id: string;
+          price: number;
+          updated_at?: string;
+          work_order_id: string;
+        };
+        Update: {
+          build_package_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          currency?: string;
+          labour_amount?: number;
+          labour_line_id?: string;
+          price?: number;
+          updated_at?: string;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "work_order_builds_build_package_id_fkey";
+            columns: ["build_package_id"];
+            isOneToOne: false;
+            referencedRelation: "build_packages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_labour_line_id_fkey";
+            columns: ["labour_line_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_line_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_labour_line_id_fkey";
+            columns: ["labour_line_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_line_items_staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       work_order_events: {
         Row: {
           actor_staff_id: string | null;
@@ -6610,6 +6779,7 @@ export type Database = {
           source_product_id: string | null;
           source_service_id: string | null;
           unit_direct_cost_snapshot: number;
+          unit_list_price_snapshot: number | null;
           unit_sale_price_snapshot: number;
           void_reason: string | null;
           voided_at: string | null;
@@ -6636,6 +6806,7 @@ export type Database = {
           source_product_id?: string | null;
           source_service_id?: string | null;
           unit_direct_cost_snapshot: number;
+          unit_list_price_snapshot?: number | null;
           unit_sale_price_snapshot: number;
           void_reason?: string | null;
           voided_at?: string | null;
@@ -6662,6 +6833,7 @@ export type Database = {
           source_product_id?: string | null;
           source_service_id?: string | null;
           unit_direct_cost_snapshot?: number;
+          unit_list_price_snapshot?: number | null;
           unit_sale_price_snapshot?: number;
           void_reason?: string | null;
           voided_at?: string | null;
@@ -7219,6 +7391,76 @@ export type Database = {
             columns: ["supplier_id"];
             isOneToOne: false;
             referencedRelation: "suppliers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      work_order_build_summary: {
+        Row: {
+          build_package_id: string | null;
+          currency: string | null;
+          difference: number | null;
+          kind: Database["public"]["Enums"]["build_package_kind"] | null;
+          labour_amount: number | null;
+          labour_line_id: string | null;
+          labour_total: number | null;
+          name: string | null;
+          package_total: number | null;
+          parts_budget: number | null;
+          parts_count: number | null;
+          parts_list_total: number | null;
+          parts_total: number | null;
+          price: number | null;
+          work_order_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "work_order_builds_build_package_id_fkey";
+            columns: ["build_package_id"];
+            isOneToOne: false;
+            referencedRelation: "build_packages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_labour_line_id_fkey";
+            columns: ["labour_line_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_line_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_labour_line_id_fkey";
+            columns: ["labour_line_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_line_items_staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_builds_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_orders";
             referencedColumns: ["id"];
           },
         ];
@@ -8192,6 +8434,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      clear_work_order_build: { Args: { reason: string; work_order_id: string }; Returns: string };
       consignor_payout_details: { Args: { consignor_id: string }; Returns: string };
       consignor_statement: {
         Args: { target_consignor_id?: string; target_item_id?: string };
@@ -8824,6 +9067,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      fit_build_to_budget: { Args: { work_order_id: string }; Returns: Json };
       fit_part_bought_outside: {
         Args: {
           line_id: string;
@@ -9587,6 +9831,19 @@ export type Database = {
           duration_minutes: number;
           id: string;
           name: string;
+        }[];
+      };
+      public_build_packages: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          currency: string;
+          description: string;
+          id: string;
+          kind: Database["public"]["Enums"]["build_package_kind"];
+          name: string;
+          price: unknown;
+          price_is_from: boolean;
+          sort_order: number;
         }[];
       };
       public_rider_profile: { Args: { public_id: string }; Returns: Json };
@@ -10440,6 +10697,42 @@ export type Database = {
           unit_short_id: string;
         }[];
       };
+      reprice_build_line: {
+        Args: { line_id: string; unit_sale_price: unknown };
+        Returns: {
+          consignment_item_id: string | null;
+          consignor_payout_snapshot: number | null;
+          cost_pending: boolean;
+          cost_total: number | null;
+          created_at: string;
+          created_by: string | null;
+          cult_commons_rate_snapshot: number;
+          cult_commons_share: number | null;
+          currency: string;
+          description_snapshot: string;
+          id: string;
+          line_type: Database["public"]["Enums"]["line_type"];
+          quantity: number;
+          sale_total: number | null;
+          source_inventory_unit_id: string | null;
+          source_product_id: string | null;
+          source_service_id: string | null;
+          unit_direct_cost_snapshot: number;
+          unit_list_price_snapshot: number | null;
+          unit_sale_price_snapshot: number;
+          void_reason: string | null;
+          voided_at: string | null;
+          voided_by: string | null;
+          work_order_id: string;
+          yield_total: number | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "work_order_line_items";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       request_my_adventure_cancellation: {
         Args: { booking_id: string; reason: string };
         Returns: undefined;
@@ -11290,6 +11583,31 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "tracking_devices";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_work_order_build: {
+        Args: {
+          build_package_id: string;
+          labour_line_id: string;
+          price?: unknown;
+          work_order_id: string;
+        };
+        Returns: {
+          build_package_id: string;
+          created_at: string;
+          created_by: string | null;
+          currency: string;
+          labour_amount: number;
+          labour_line_id: string;
+          price: number;
+          updated_at: string;
+          work_order_id: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "work_order_builds";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -12253,6 +12571,7 @@ export type Database = {
       attachment_event_type: "created" | "visibility_changed" | "caption_changed" | "deleted";
       attachment_visibility: "internal" | "customer" | "public";
       bike_ownership_event_type: "registered" | "transferred";
+      build_package_kind: "full_build" | "build_only";
       category_kind: "service" | "product";
       charge_bearer: "consignor" | "shop";
       closure_kind: "closed" | "custom_hours";
@@ -12438,7 +12757,11 @@ export type Database = {
         | "balance_link_sent"
         | "balance_link_withdrawn"
         | "counter_payment_recorded"
-        | "counter_payment_voided";
+        | "counter_payment_voided"
+        | "build_set"
+        | "build_cleared"
+        | "build_fitted"
+        | "line_repriced";
       work_order_note_kind: "note" | "diagnosis";
       work_order_status:
         | "received"
@@ -13449,6 +13772,7 @@ export const Constants = {
       attachment_event_type: ["created", "visibility_changed", "caption_changed", "deleted"],
       attachment_visibility: ["internal", "customer", "public"],
       bike_ownership_event_type: ["registered", "transferred"],
+      build_package_kind: ["full_build", "build_only"],
       category_kind: ["service", "product"],
       charge_bearer: ["consignor", "shop"],
       closure_kind: ["closed", "custom_hours"],
@@ -13660,6 +13984,10 @@ export const Constants = {
         "balance_link_withdrawn",
         "counter_payment_recorded",
         "counter_payment_voided",
+        "build_set",
+        "build_cleared",
+        "build_fitted",
+        "line_repriced",
       ],
       work_order_note_kind: ["note", "diagnosis"],
       work_order_status: [

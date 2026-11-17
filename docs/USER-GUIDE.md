@@ -211,6 +211,35 @@ managers.
     <consignor>" (see [Use a consigned item on a job](#use-a-consigned-item-on-a-job)).
   - "This job is completed or closed. Reopen it to change its lines."
 
+### Build a bike to a package (full builds and build only)
+
+- Before you start: the job is open, and an admin has added the packages
+  under **Settings → Build packages** (name, price, **Labour amount**,
+  **Labour service**; a full build's labour is S$180 and the rest of its
+  price is the parts budget).
+- Steps:
+  - On the job, **Build package → Set package**, choose it (for a "from"
+    package such as Clean Slate, enter the agreed **Price**; anything above
+    the starting price is labour) and **Save**. The labour line appears
+    under **Lines**.
+  - Add the parts the build uses with **Add part**, as usual.
+  - Press **Fit parts to budget**. If the parts at shelf price come to more
+    than the budget, every part is priced down by the same share so they
+    add up to it; if they come to less, they stay at shelf price and the
+    difference goes to labour. The card then says **Adds up to the price**.
+  - To change one part's price instead, **Reprice** on its row. The card
+    shows how far the package is from its price until it adds up again.
+  - **Change package** swaps it; **Take off** (with a reason) voids the
+    labour line and puts repriced parts back to their shelf prices.
+- Success looks like: the job's total equals the package price; when the
+  job is completed, the labour counts as service revenue and the parts as
+  product revenue. The frame is sold separately at its full price.
+- If it fails:
+  - "This package has a fixed price." Only "from" packages take a price.
+  - "Give the job a build package first." Repricing needs a package.
+  - "Only the build's parts and its labour line can be repriced."
+  - "This job is completed or closed. Reopen it to change its lines."
+
 ### Quote and order a part the shop doesn't stock (indent part)
 
 For a part ordered in for one bike: the customer approves it, per item,

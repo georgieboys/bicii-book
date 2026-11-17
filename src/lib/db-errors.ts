@@ -341,6 +341,11 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   build_labour_line_voided: "The build's labour line was voided. Set the package again first.",
   build_over_budget:
     "The parts cost more than the whole package even after fitting. Check the package price.",
+  build_order_linked_elsewhere: "That online order is already on another job.",
+  build_order_job_taken: "This job already has an online build order.",
+  build_order_customer_mismatch: "That online order belongs to another customer.",
+  build_order_package_mismatch:
+    "The job has another package than the one ordered. Change the job's package first.",
   // Product groups (D241, D242)
   product_group_short_id_immutable: "A group keeps its ID for life.",
   product_group_has_members:
@@ -625,6 +630,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
 export const UNIQUE_ERRORS: Record<string, string> = {
   products_group_option_value_key: "Another product in this group already has that option value.",
   build_packages_name_key: "Another live package has that name.",
+  build_packages_shopify_variant_id_key: "That Shopify variant belongs to another package.",
+  build_orders_line_part_key: "That online order line is already recorded.",
+  build_orders_work_order_id_key: "This job already has an online build order.",
   work_order_builds_labour_line_id_key: "That labour line belongs to another build. Save again.",
   product_groups_short_id_key: "That group ID is taken. Save again.",
   product_groups_shopify_product_id_key: "That Shopify product belongs to another group.",
@@ -781,6 +789,12 @@ export const UNIQUE_ERRORS: Record<string, string> = {
 /** 23514 check violations by constraint name. */
 export const CHECK_ERRORS: Record<string, string> = {
   build_packages_name_length: "Give the package a name of up to 80 characters.",
+  build_packages_shopify_product_id_format: "That isn't a Shopify product ID.",
+  build_packages_shopify_variant_id_format: "That isn't a Shopify variant ID.",
+  build_packages_shopify_ids_together: "A package's Shopify product and variant go together.",
+  build_packages_online_full_build: "Only a full build is sold online.",
+  build_orders_line_part_positive: "That online order line isn't valid.",
+  build_orders_link_shape: "A linked online order needs its job and the time it was linked.",
   build_packages_description_length: "Keep the description under 4,000 characters.",
   build_packages_price_positive: "Give the package a price above zero.",
   build_packages_labour_within_price: "The labour can't be more than the package price.",

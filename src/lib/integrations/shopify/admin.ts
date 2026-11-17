@@ -27,6 +27,12 @@ export type ShopifyProductInput = {
    */
   price: string | null;
   imageUrls: string[];
+  /**
+   * Whether Shopify tracks the variant's inventory. Products are tracked
+   * (BICII is the stock truth, D83); a build package is a service and is
+   * not (D252). Default true.
+   */
+  tracked?: boolean;
 };
 
 /** One member of a product group as a Shopify variant (D243). */

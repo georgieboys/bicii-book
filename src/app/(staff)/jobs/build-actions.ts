@@ -7,11 +7,13 @@ import {
   clearJobBuildSchema,
   fitBuildSchema,
   jobBuildSchema,
+  linkBuildOrderSchema,
   repriceLineSchema,
 } from "@/lib/build-package-forms";
 import {
   clearJobBuild,
   fitBuildToBudget,
+  linkBuildOrder,
   repriceBuildLine,
   setJobBuild,
 } from "@/lib/domain/build-packages";
@@ -56,6 +58,17 @@ export const fitBuildToBudgetAction = staffAction(
   { name: "jobs.fit_build_to_budget" },
   async ({ workOrderId }, { supabase }) => {
     await fitBuildToBudget(supabase, workOrderId);
+    refresh();
+    return null;
+  },
+);
+
+/** D255: put an online build order on this job (sets the package if it has none). */
+export const linkBuildOrderAction = staffAction(
+  linkBuildOrderSchema,
+  { name: "jobs.link_build_order" },
+  async ({ buildOrderId, workOrderId, labourLineId }, { supabase }) => {
+    await linkBuildOrder(supabase, buildOrderId, workOrderId, labourLineId);
     refresh();
     return null;
   },

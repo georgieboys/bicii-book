@@ -35,6 +35,9 @@ export type BuildPackage = {
   public: boolean;
   sortOrder: number;
   archived: boolean;
+  /** D252: sold on Shopify (ACTIVE) and its Shopify product, once pushed. */
+  publishOnline: boolean;
+  shopifyProductId: string | null;
 };
 
 export type BuildPackageInput = {
@@ -50,7 +53,7 @@ export type BuildPackageInput = {
 };
 
 const PACKAGE_COLUMNS =
-  "id, kind, name, description, price, price_is_from, labour_amount, labour_service_id, currency, public, sort_order, archived_at";
+  "id, kind, name, description, price, price_is_from, labour_amount, labour_service_id, currency, public, sort_order, archived_at, publish_online, shopify_product_id";
 
 type PackageRow = {
   id: string;
@@ -65,6 +68,8 @@ type PackageRow = {
   public: boolean;
   sort_order: number;
   archived_at: string | null;
+  publish_online: boolean;
+  shopify_product_id: string | null;
 };
 
 const toPackage = (r: PackageRow): BuildPackage => ({
@@ -80,6 +85,8 @@ const toPackage = (r: PackageRow): BuildPackage => ({
   public: r.public,
   sortOrder: r.sort_order,
   archived: r.archived_at !== null,
+  publishOnline: r.publish_online,
+  shopifyProductId: r.shopify_product_id,
 });
 
 const FIELDS: Record<string, string> = {
@@ -307,5 +314,131 @@ export async function fitBuildToBudget(
   workOrderId: string,
 ): Promise<void> {
   const { error } = await supabase.rpc("fit_build_to_budget", { work_order_id: workOrderId });
+  if (error) throw new DbError(error);
+}
+
+/** One package by id, or null. */
+export async function getBuildPackage(
+  supabase: ServerSupabase,
+  id: string,
+): Promise<BuildPackage | null> {
+  const row = unwrap(
+    await supabase.from("build_packages").select(PACKAGE_COLUMNS).eq("id", id).maybeSingle(),
+  ) as PackageRow | null;
+  return row ? toPackage(row) : null;
+}
+
+/** D252: on or off Shopify (an admin; the push follows). */
+export async function setBuildPackageOnline(
+  supabase: ServerSupabase,
+  id: string,
+  publishOnline: boolean,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("build_packages")
+    .update({ publish_online: publishOnline })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new DbError(error);
+  if (!data) throw new DomainError("That package no longer exists. Refresh and try again.");
+}
+
+export async function recordBuildPackagePush(
+  supabase: ServerSupabase,
+  id: string,
+  productId: string,
+  variantId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("record_build_package_push", {
+    build_package_id: id,
+    shopify_product_id: productId,
+    shopify_variant_id: variantId,
+  });
+  if (error) throw new DbError(error);
+}
+
+// ---------------------------------------------------------------------------
+// Online build orders (D253-D255)
+// ---------------------------------------------------------------------------
+
+export type BuildOrder = {
+  id: string;
+  orderName: string | null;
+  packageId: string;
+  packageName: string;
+  amount: string;
+  currency: string;
+  customerId: string | null;
+  workOrderId: string | null;
+  createdAt: string;
+};
+
+type OrderRow = {
+  id: string;
+  shopify_order_name: string | null;
+  build_package_id: string;
+  amount: number;
+  currency: string;
+  customer_id: string | null;
+  work_order_id: string | null;
+  created_at: string;
+  build_packages: { name: string } | null;
+};
+
+const toOrder = (r: OrderRow): BuildOrder => ({
+  id: r.id,
+  orderName: r.shopify_order_name,
+  packageId: r.build_package_id,
+  packageName: r.build_packages?.name ?? "Build",
+  amount: toMoneyString(r.amount),
+  currency: r.currency,
+  customerId: r.customer_id,
+  workOrderId: r.work_order_id,
+  createdAt: r.created_at,
+});
+
+const ORDER_COLUMNS =
+  "id, shopify_order_name, build_package_id, amount, currency, customer_id, work_order_id, created_at, build_packages(name)";
+
+/** Online build orders not on a job yet, oldest first. */
+export async function listUnlinkedBuildOrders(supabase: ServerSupabase): Promise<BuildOrder[]> {
+  const rows = unwrap(
+    await supabase
+      .from("build_orders")
+      .select(ORDER_COLUMNS)
+      .is("work_order_id", null)
+      .order("created_at")
+      .limit(100),
+  ) as OrderRow[] | null;
+  return (rows ?? []).map(toOrder);
+}
+
+/** The online build order on this job, or null. */
+export async function getJobBuildOrder(
+  supabase: ServerSupabase,
+  workOrderId: string,
+): Promise<BuildOrder | null> {
+  const row = unwrap(
+    await supabase
+      .from("build_orders")
+      .select(ORDER_COLUMNS)
+      .eq("work_order_id", workOrderId)
+      .maybeSingle(),
+  ) as OrderRow | null;
+  return row ? toOrder(row) : null;
+}
+
+export async function linkBuildOrder(
+  supabase: ServerSupabase,
+  buildOrderId: string,
+  workOrderId: string,
+  labourLineId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("link_build_order", {
+    build_order_id: buildOrderId,
+    work_order_id: workOrderId,
+    labour_line_id: labourLineId,
+  });
   if (error) throw new DbError(error);
 }

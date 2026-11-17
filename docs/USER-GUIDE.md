@@ -240,6 +240,31 @@ managers.
   - "Only the build's parts and its labour line can be repriced."
   - "This job is completed or closed. Reopen it to change its lines."
 
+### Sell a full build online with a frame
+
+- Before you start: Shopify is connected, and the package is a full build
+  shown on the site.
+- Steps:
+  - Admins: **Settings → Build packages**, **Put on Shopify** on the
+    package (it shows **On Shopify**). After editing its price or text,
+    **Update on Shopify**; **Take off Shopify** stops selling it.
+  - On the site, a frame that is on sale online then offers each online
+    full build; the customer buys the frame and the build together and
+    pays in full.
+  - When the customer brings or leaves the frame for the build, open the
+    build's job and, on **Build package**, press **Link online order** and
+    choose the order. The job gets the package if it had none, and the
+    payment shows as paid.
+- Success looks like: the frame is a sale on the order's day; the build's
+  money is held on the job and counts as revenue (labour and parts) only
+  when the job is completed.
+- If it fails:
+  - "That online order belongs to another customer." Link the Shopify
+    customer to the right customer first.
+  - "The job has another package than the one ordered." Change the job's
+    package first.
+  - "Shopify isn't connected, so the package can't be put online."
+
 ### Quote and order a part the shop doesn't stock (indent part)
 
 For a part ordered in for one bike: the customer approves it, per item,

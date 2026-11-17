@@ -3497,25 +3497,43 @@ URLs, or customer data in this file.
 - Last checked: 2026-11-15.
 
 
-## R-121 — A repriced build line shows only its final price, and online build sales are not built yet
+## R-121 — A repriced build line shows only its final price
 
 - Category: workshop money.
-- Status and owner: open; the build agent (online sales), the owner (process).
+- Status and owner: open; the owner (process).
 - Trigger: a part or labour line on a job with a build package is repriced
-  (`reprice_build_line`, `fit_build_to_budget`, D248), or a customer wants
-  to pay for a full build online with a frame.
+  (`reprice_build_line`, `fit_build_to_budget`, D248).
 - Impact: the line row holds its final price and its first price
   (`unit_list_price_snapshot`); intermediate prices live only in the job's
   `line_repriced` and `build_fitted` events, so a report reading the line
-  alone cannot show each step. Full builds can't yet be bought on Shopify:
-  staff set the package on the build job and take payment as now.
+  alone cannot show each step.
 - Evidence and confidence: high; by design (ADR-028).
 - Workaround or containment: the timeline lists every repricing with the
-  before and after price; payment through the existing deposit, balance
-  link or counter payment.
-- Next action: build the online sale (packages as Shopify products with
-  untracked inventory, the order's package line held as a customer payment
-  on the build job until delivered) and the build-only packages in the
-  site's signed-in screens (ADR-028, Consequences).
-- Revisit trigger: the first online full-build order request.
+  before and after price.
+- Next action: none unless a report needs the steps.
+- Revisit trigger: a request to report build discounts over time.
+- Last checked: 2026-11-17.
+
+## R-122 — Online build orders: refunds, and orders not yet on a job
+
+- Category: workshop money, Shopify.
+- Status and owner: open; the owner (process), the build agent (code).
+- Trigger: a customer who paid for a full build on Shopify is refunded or
+  cancels, or an order's build order waits for a job.
+- Impact: Shopify refunds are recorded on the order's sale (D85, D256), so
+  a refunded build shows as a sale refund while its build order still
+  counts as paid on the job; a build order not yet linked to a job is
+  money held that the job-based payment reports (`report_payments_held`)
+  do not list; an order with only a package records a sale with no lines.
+  Build orders are not in the Customer payments summary's breakdown (they
+  are in its movements list).
+- Evidence and confidence: high; by design for this step (ADR-028
+  amendment).
+- Workaround or containment: link each build order to its job when the
+  customer books (the job's Build card lists those waiting); for a
+  refunded build, take the package off the job and settle the order in
+  Shopify; check unlinked orders on any job's Build card.
+- Next action: a Build orders list with an unlink and refund path, and the
+  build orders in the payment summary.
+- Revisit trigger: the first refunded or cancelled online build.
 - Last checked: 2026-11-17.

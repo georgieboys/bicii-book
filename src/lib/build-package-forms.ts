@@ -71,3 +71,14 @@ export const repriceLineSchema = z.object({
 export const fitBuildSchema = z.object({
   workOrderId: z.guid({ error: "Unknown job." }),
 });
+
+export const packageOnlineSchema = z.object({
+  id: z.guid({ error: "Unknown package." }),
+  publishOnline: z.boolean(),
+});
+
+export const linkBuildOrderSchema = z.object({
+  buildOrderId: z.guid({ error: "Choose an online order." }),
+  workOrderId: z.guid({ error: "Unknown job." }),
+  labourLineId: z.guid({ error: "Open the form again." }),
+});

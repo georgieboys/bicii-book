@@ -4,12 +4,14 @@ import { useState, useTransition, useId } from "react";
 
 import {
   createBuildPackageAction,
+  pushBuildPackageAction,
   setBuildPackageArchivedAction,
   updateBuildPackageAction,
 } from "@/app/(staff)/settings/build-packages/actions";
 import {
   clearJobBuildAction,
   fitBuildToBudgetAction,
+  linkBuildOrderAction,
   repriceBuildLineAction,
   setJobBuildAction,
 } from "@/app/(staff)/jobs/build-actions";
@@ -48,6 +50,8 @@ export type EditablePackage = {
   public: boolean;
   sortOrder: number;
   archived: boolean;
+  publishOnline: boolean;
+  shopifyProductId: string | null;
 };
 
 export type ServiceChoice = { id: string; name: string };
@@ -248,6 +252,45 @@ export function ArchiveBuildPackageButton({ id, archived }: { id: string; archiv
   );
 }
 
+/** D252: put a full build on Shopify, update it there, or take it off (draft). */
+export function ShopifyPackageButton({
+  id,
+  online,
+  pushed,
+}: {
+  id: string;
+  online: boolean;
+  pushed: boolean;
+}) {
+  const { toast } = useToast();
+  const [pending, start] = useTransition();
+  const push = (publishOnline: boolean) =>
+    start(async () => {
+      const result = await callAction(() => pushBuildPackageAction({ id, publishOnline }));
+      toast(
+        result.ok
+          ? {
+              title: publishOnline ? "On Shopify" : "Taken off Shopify",
+              description: publishOnline ? "Customers can buy it with a frame." : undefined,
+              tone: "success",
+            }
+          : { title: "Shopify not changed", description: result.error, tone: "error" },
+      );
+    });
+  return (
+    <>
+      <Button variant="outline" size="sm" pending={pending} onClick={() => push(true)}>
+        {online && pushed ? "Update on Shopify" : "Put on Shopify"}
+      </Button>
+      {online ? (
+        <Button variant="outline" size="sm" disabled={pending} onClick={() => push(false)}>
+          Take off Shopify
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The job's Build card (D247-D251)
 // ---------------------------------------------------------------------------
@@ -269,6 +312,14 @@ export type JobBuildView = {
   listPrices: Record<string, string>;
 };
 
+export type OnlineOrder = {
+  id: string;
+  orderName: string | null;
+  packageName: string;
+  amount: string;
+  currency: string;
+};
+
 export type BuildPart = {
   id: string;
   description: string;
@@ -282,12 +333,18 @@ export function JobBuildPanel({
   build,
   packages,
   parts,
+  linkedOrder,
+  unlinkedOrders,
 }: {
   workOrderId: string;
   open: boolean;
   build: JobBuildView | null;
   packages: EditablePackage[];
   parts: BuildPart[];
+  /** D255: the online order paid for this build, if any. */
+  linkedOrder: OnlineOrder | null;
+  /** Online build orders waiting for a job. */
+  unlinkedOrders: OnlineOrder[];
 }) {
   const { toast } = useToast();
   const [sheet, setSheet] = useState<"set" | "clear" | null>(null);
@@ -311,10 +368,13 @@ export function JobBuildPanel({
           fitted are priced to the budget.
         </p>
         {open ? (
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => setSheet("set")}>
               Set package
             </Button>
+            {unlinkedOrders.length > 0 ? (
+              <LinkOrderButton workOrderId={workOrderId} orders={unlinkedOrders} />
+            ) : null}
           </div>
         ) : null}
         {sheet === "set" ? (
@@ -355,6 +415,17 @@ export function JobBuildPanel({
           </Badge>
         )}
       </div>
+      {linkedOrder ? (
+        <p className="text-sm text-done-deep">
+          Paid on Shopify{linkedOrder.orderName ? ` (${linkedOrder.orderName})` : ""}:{" "}
+          {formatMoney(linkedOrder.amount, linkedOrder.currency)}. It counts as revenue when the
+          build is completed.
+        </p>
+      ) : open && unlinkedOrders.length > 0 ? (
+        <div>
+          <LinkOrderButton workOrderId={workOrderId} orders={unlinkedOrders} />
+        </div>
+      ) : null}
       <dl
         aria-label="Build figures"
         className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3"
@@ -681,6 +752,97 @@ function RepriceSheet({
             value={value}
             onChange={(e) => setValue(e.target.value)}
           />
+        </Field>
+      </form>
+    </Sheet>
+  );
+}
+
+function LinkOrderButton({ workOrderId, orders }: { workOrderId: string; orders: OnlineOrder[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Link online order
+      </Button>
+      {open ? (
+        <LinkOrderSheet workOrderId={workOrderId} orders={orders} onClose={() => setOpen(false)} />
+      ) : null}
+    </>
+  );
+}
+
+function LinkOrderSheet({
+  workOrderId,
+  orders,
+  onClose,
+}: {
+  workOrderId: string;
+  orders: OnlineOrder[];
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const formId = useId();
+  const [labourLineId] = useState(() => newId());
+  const [buildOrderId, setBuildOrderId] = useState(orders[0]?.id ?? "");
+  const [state, setState] = useState<ActionResult<unknown> | null>(null);
+  const [pending, start] = useTransition();
+  const formRef = useFocusFirstInvalid(state);
+  const errors: Errors = state && !state.ok ? state.fieldErrors : undefined;
+  return (
+    <Sheet
+      open
+      onOpenChange={(next) => (next ? null : onClose())}
+      dismissible={!pending}
+      title="Link an online order"
+      description="A build bought on Shopify. Its payment counts on this job, and the job gets its package if it has none."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancel
+          </Button>
+          <Button type="submit" form={formId} pending={pending} pendingLabel="Linking…">
+            Link
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        ref={formRef}
+        className="flex flex-col gap-5"
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          start(async () => {
+            const result = await callAction(() =>
+              linkBuildOrderAction({ buildOrderId, workOrderId, labourLineId }),
+            );
+            setState(result);
+            if (!result.ok) return;
+            toast({ title: "Online order linked", tone: "success" });
+            onClose();
+          });
+        }}
+      >
+        {state && !state.ok ? (
+          <p role="alert" className="text-sm font-medium text-danger-deep">
+            {state.error}
+          </p>
+        ) : null}
+        <Field label="Online order" error={errors?.buildOrderId?.[0]} required>
+          <Select
+            name="buildOrderId"
+            value={buildOrderId}
+            onChange={(e) => setBuildOrderId(e.target.value)}
+          >
+            {orders.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.orderName ?? "Online order"} · {o.packageName} ·{" "}
+                {formatMoney(o.amount, o.currency)}
+              </option>
+            ))}
+          </Select>
         </Field>
       </form>
     </Sheet>

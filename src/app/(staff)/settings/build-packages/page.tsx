@@ -4,6 +4,7 @@ import {
   ArchiveBuildPackageButton,
   EditBuildPackageButton,
   NewBuildPackageButton,
+  ShopifyPackageButton,
 } from "@/components/domain/build-package-controls";
 import { ArchivedFilter } from "@/components/domain/list-filter";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +91,7 @@ export default async function BuildPackagesPage({
                         <span className="font-medium">{p.name}</span>
                         {p.archived ? <Badge tone="waiting">Archived</Badge> : null}
                         {!p.public ? <Badge tone="info">Not on the site</Badge> : null}
+                        {p.publishOnline ? <Badge tone="done">On Shopify</Badge> : null}
                       </span>
                       <span className="text-sm text-dust-500">
                         {kind === "full_build"
@@ -108,6 +110,13 @@ export default async function BuildPackagesPage({
                       <span className="flex gap-2">
                         {!p.archived ? (
                           <EditBuildPackageButton pkg={p} services={serviceChoices} />
+                        ) : null}
+                        {kind === "full_build" && !p.archived ? (
+                          <ShopifyPackageButton
+                            id={p.id}
+                            online={p.publishOnline}
+                            pushed={p.shopifyProductId !== null}
+                          />
                         ) : null}
                         <ArchiveBuildPackageButton id={p.id} archived={p.archived} />
                       </span>

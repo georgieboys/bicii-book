@@ -439,6 +439,15 @@ export function describeEvent(
         tone: "neutral",
       };
     }
+    case "build_order_linked": {
+      const paid = amount(p, "amount");
+      const order = text(p, "shopify_order_name");
+      return {
+        title: `Online build order${order ? ` ${order}` : ""} linked`,
+        detail: paid !== null ? `Paid on Shopify: ${formatMoney(paid, currency)}` : null,
+        tone: "done",
+      };
+    }
     case "line_repriced": {
       const from = amount(p, "from_price");
       const to = amount(p, "to_price");

@@ -40,6 +40,8 @@ const SUMMARY: PaymentSummary = {
   givenBackTotal: "10.00",
   netTotal: "465.00",
   otherCurrencyCount: 0,
+  shopifyCount: 0,
+  shopifyTotal: "0.00",
 };
 
 const held = (over: Partial<HeldJob>): HeldJob => ({

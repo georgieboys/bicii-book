@@ -3520,13 +3520,14 @@ URLs, or customer data in this file.
 - Status and owner: open; the owner (process), the build agent (code).
 - Trigger: a customer who paid for a full build on Shopify is refunded or
   cancels, or an order's build order waits for a job.
-- Impact: Shopify refunds are recorded on the order's sale (D85, D256), so
-  a refunded build shows as a sale refund while its build order still
-  counts as paid on the job; a build order not yet linked to a job is
-  money held that the job-based payment reports (`report_payments_held`)
-  do not list; an order with only a package records a sale with no lines.
-  Build orders are not in the Customer payments summary's breakdown (they
-  are in its movements list).
+- Impact: a Shopify refund of a package line is recorded on the order's
+  sale (D85, D256): on a frame-and-build order it is capped at the sale
+  total and lowers the frame's sales figures for money that was never a
+  sale, while the build order still counts as paid on the job; on an order
+  with only a package (a sale with no lines) it is "refund not allocated".
+  A build order not yet linked to a job is money held that no job-based
+  report lists; `payment_issues` does not flag Shopify money on a cancelled
+  job.
 - Evidence and confidence: high; by design for this step (ADR-028
   amendment).
 - Workaround or containment: link each build order to its job when the

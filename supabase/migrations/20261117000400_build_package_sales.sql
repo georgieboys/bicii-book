@@ -182,6 +182,7 @@ declare
   wo public.work_orders;
   bo public.build_orders;
   build public.work_order_builds;
+  pkg public.build_packages;
   result public.build_orders;
 begin
   if link_build_order.build_order_id is null or link_build_order.work_order_id is null
@@ -213,9 +214,35 @@ begin
     raise exception using errcode = 'P0001', message = 'currency_mismatch',
       detail = 'That order was paid in another currency than the job.';
   end if;
-  select b.* into build from public.work_order_builds b where b.work_order_id = wo.id;
+  select b.* into build from public.work_order_builds b where b.work_order_id = wo.id for update;
   if not found then
-    perform public.set_work_order_build(wo.id, bo.build_package_id, link_build_order.labour_line_id, null);
+    -- The package at what the customer paid (a Shopify discount, or a price
+    -- changed since), even if it has been archived since: the paid order
+    -- is the agreement. Labour as the package's, never above the price.
+    select p.* into pkg from public.build_packages p where p.id = bo.build_package_id;
+    if pkg.currency <> wo.currency then
+      raise exception using errcode = 'P0001', message = 'currency_mismatch',
+        detail = 'That package is priced in another currency than the job.';
+    end if;
+    perform private.insert_service_line(
+      wo, link_build_order.labour_line_id, pkg.labour_service_id, 1,
+      least(pkg.labour_amount, bo.amount)::public.money_amount, null, pkg.name || ' · build labour'
+    );
+    insert into public.work_order_builds (
+      work_order_id, build_package_id, price, labour_amount, labour_line_id, currency, created_by
+    )
+    values (
+      wo.id, pkg.id, bo.amount, least(pkg.labour_amount, bo.amount), link_build_order.labour_line_id,
+      wo.currency, actor
+    );
+    perform private.record_work_order_event(
+      wo.id, 'build_set',
+      pg_catalog.jsonb_build_object(
+        'build_package_id', pkg.id, 'name', pkg.name, 'kind', pkg.kind, 'price', bo.amount,
+        'labour_amount', least(pkg.labour_amount, bo.amount), 'labour_line_id', link_build_order.labour_line_id,
+        'build_order_id', bo.id
+      )
+    );
   elsif build.build_package_id <> bo.build_package_id then
     raise exception using errcode = 'P0001', message = 'build_order_package_mismatch',
       detail = 'The job has another package than the one ordered; change the job''s package first.';
@@ -239,7 +266,7 @@ end;
 $$;
 
 comment on function public.link_build_order(uuid, uuid, uuid) is
-  'D255: active staff: put an online build order on an open job (same customer when the order has one; one order per job), setting the job''s package from the order when it has none (labour line labour_line_id); replay-safe; build_order_linked event. The amount then counts as paid on the job (D254).';
+  'D255: active staff: put an online build order on an open job (same customer when the order has one; one order per job), giving the job the order''s package at the amount paid (even if archived since) when it has none (labour line labour_line_id, at the package''s labour amount, never above the price); replay-safe; build_set and build_order_linked events. The amount then counts as paid on the job (D254).';
 
 revoke all on function public.link_build_order(uuid, uuid, uuid) from public, anon, authenticated, service_role;
 grant execute on function public.link_build_order(uuid, uuid, uuid) to authenticated;
@@ -972,3 +999,238 @@ as
   join public.sales s on s.id = bo.sale_id
   where bo.work_order_id is not null;
 
+-- ---------------------------------------------------------------------------
+-- The payment reports (D254): report_payment_summary gains shopify_count and
+-- shopify_total (so its counts still add up to report_payment_items' rows,
+-- which the export checks), and report_payments_held considers jobs whose
+-- only money is a linked build order. Bodies from 20261014001500.
+-- ---------------------------------------------------------------------------
+drop function public.report_payment_summary(date, date);
+
+create function public.report_payment_summary(p_from date, p_to date)
+returns table (
+  currency text,
+  online_count integer,
+  online_total numeric,
+  deposit_online_total numeric,
+  balance_online_total numeric,
+  refund_count integer,
+  refund_total numeric,
+  counter_count integer,
+  counter_total numeric,
+  given_back_count integer,
+  given_back_total numeric,
+  net_total numeric,
+  other_currency_count integer,
+  shopify_count integer,
+  shopify_total numeric
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_start timestamptz;
+  v_end timestamptz;
+  v_currency text;
+begin
+  perform private.require_permission('view_financial_reports');
+  perform private.report_require_range(p_from, p_to);
+  v_start := private.shop_day_start(p_from);
+  v_end := private.shop_day_start(p_to + 1);
+  v_currency := private.shop_currency();
+
+  return query
+    with m as (
+      select x.movement, x.kind, x.amount, x.signed_amount, x.currency, x.other_currency
+      from reporting.payment_movements x
+      where x."at" >= v_start and x."at" < v_end
+    )
+    select
+      v_currency,
+      (count(*) filter (where m.movement = 'online_payment' and m.currency = v_currency))::integer,
+      coalesce(sum(m.amount) filter (where m.movement = 'online_payment' and m.currency = v_currency), 0.00)::numeric,
+      coalesce(sum(m.amount) filter (
+        where m.movement = 'online_payment' and m.kind = 'deposit' and m.currency = v_currency
+      ), 0.00)::numeric,
+      coalesce(sum(m.amount) filter (
+        where m.movement = 'online_payment' and m.kind = 'balance' and m.currency = v_currency
+      ), 0.00)::numeric,
+      (count(*) filter (where m.movement = 'online_refund' and m.currency = v_currency))::integer,
+      coalesce(sum(m.amount) filter (where m.movement = 'online_refund' and m.currency = v_currency), 0.00)::numeric,
+      (count(*) filter (where m.movement = 'counter_payment' and m.currency = v_currency))::integer,
+      coalesce(sum(m.amount) filter (where m.movement = 'counter_payment' and m.currency = v_currency), 0.00)::numeric,
+      (count(*) filter (where m.movement = 'counter_given_back' and m.currency = v_currency))::integer,
+      coalesce(sum(m.amount) filter (
+        where m.movement = 'counter_given_back' and m.currency = v_currency
+      ), 0.00)::numeric,
+      coalesce(sum(m.signed_amount) filter (where m.currency = v_currency), 0.00)::numeric,
+      (count(*) filter (where m.currency <> v_currency or m.other_currency))::integer,
+      -- D254: build packages paid on Shopify, once linked to their jobs.
+      (count(*) filter (where m.movement = 'shopify_payment' and m.currency = v_currency))::integer,
+      coalesce(sum(m.amount) filter (where m.movement = 'shopify_payment' and m.currency = v_currency), 0.00)::numeric
+    from m;
+end;
+$$;
+
+
+
+comment on function public.report_payment_summary(date, date) is
+  'view_financial_reports (D154d, D254): customer money that moved in the shop days p_from..p_to (reporting.payment_movements, half open on shop_day_start), in the shop currency: online payments (count, total, deposit and balance totals), online refunds (count, positive total), counter payments (count, total), counter money given back (count, positive total), build packages paid on Shopify once linked to their jobs (shopify_count, shopify_total); net_total = online - refunds + counter - given back + Shopify. other_currency_count: movements in another currency plus Stripe payments taken in another currency. Not sales, no GST. report_range_invalid / report_range_too_long.';
+
+revoke all on function public.report_payment_summary(date, date) from public, anon, authenticated, service_role;
+grant execute on function public.report_payment_summary(date, date) to authenticated;
+
+create or replace function public.report_payments_held()
+returns table (
+  grp text,
+  work_order_id uuid,
+  job_number text,
+  status text,
+  customer_label text,
+  amount numeric,
+  net_paid numeric,
+  net_paid_online numeric,
+  paid_at_counter numeric,
+  job_total numeric,
+  balance_due numeric,
+  paid_ahead numeric,
+  currency text
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_currency text;
+begin
+  perform private.require_permission('view_financial_reports');
+  v_currency := private.shop_currency();
+
+  return query
+    with cand as (
+      -- Jobs that can hold money or owe it: a paid-group Stripe payment
+      -- (paid_at is set exactly then), a live counter payment, or a
+      -- completed or ready job (a balance may be due). Every other job
+      -- has net_paid 0 and no balance due.
+      select p.work_order_id as job_id
+      from public.payments p
+      where p.paid_at is not null
+      union
+      select cp.work_order_id
+      from public.counter_payments cp
+      where not exists (select 1 from public.counter_payment_voids v where v.counter_payment_id = cp.id)
+      union
+      select w.id
+      from public.work_orders w
+      where w.status in ('completed', 'ready_for_collection')
+      union
+      -- D254: a build order paid on Shopify and linked to the job.
+      select bo.work_order_id
+      from public.build_orders bo
+      where bo.work_order_id is not null
+    ),
+    t as (
+      select
+        w.id as job_id,
+        w.job_number,
+        w.status as job_status,
+        w.customer_id,
+        w.currency::text as job_currency,
+        pt.net_paid::numeric as t_net_paid,
+        pt.net_paid_online::numeric as t_net_paid_online,
+        pt.paid_at_counter::numeric as t_paid_at_counter,
+        pt.job_total::numeric as t_job_total,
+        pt.balance_due::numeric as t_balance_due,
+        pt.paid_ahead::numeric as t_paid_ahead,
+        pt.held_over_total::numeric as t_held_over_total
+      from cand
+      join public.work_orders w on w.id = cand.job_id
+      join public.work_order_payment_totals pt on pt.work_order_id = cand.job_id
+      where w.currency::text = v_currency
+    ),
+    g as (
+      select 1 as g_rank, 'open'::text as g_name, t.*, t.t_net_paid as g_amount
+      from t
+      where private.work_order_status_is_open(t.job_status) and t.t_net_paid > 0
+      union all
+      select 2, 'awaiting_collection'::text, t.*, least(t.t_net_paid, t.t_job_total)
+      from t
+      where t.job_status in ('completed', 'ready_for_collection')
+        and (t.t_net_paid > 0 or t.t_balance_due > 0)
+      union all
+      select 3, 'above_bill'::text, t.*, t.t_held_over_total
+      from t
+      where not private.work_order_status_is_open(t.job_status) and t.t_held_over_total > 0
+    )
+    select
+      g.g_name,
+      g.job_id,
+      g.job_number::text,
+      g.job_status::text,
+      private.customer_label(c.first_name, c.last_name, c.display_name, c.email::text, c.phone),
+      g.g_amount,
+      g.t_net_paid,
+      g.t_net_paid_online,
+      g.t_paid_at_counter,
+      g.t_job_total,
+      g.t_balance_due,
+      g.t_paid_ahead,
+      g.job_currency
+    from g
+    left join public.customers c on c.id = g.customer_id
+    order by g.g_rank, g.job_number, g.job_id;
+end;
+$$;
+
+
+
+-- ---------------------------------------------------------------------------
+-- D253: the unmapped-lines list (20261004004000) leaves out package lines,
+-- which are not products and need no link.
+-- ---------------------------------------------------------------------------
+create or replace function private.shopify_unmapped_lines(payload jsonb)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_object(
+        'line_item_id', coalesce(private.shopify_gid_or_null('LineItem', x.li ->> 'id'), x.li ->> 'id'),
+        'title', x.li ->> 'title',
+        'variant_title', x.li ->> 'variant_title',
+        'variant_gid', x.variant_gid,
+        'product_gid', private.shopify_gid_or_null('Product', x.li ->> 'product_id'),
+        'quantity', x.qty
+      )
+      order by x.ord
+    ),
+    '[]'::jsonb
+  )
+  from (
+    select e.li, e.ord,
+           private.shopify_gid_or_null('ProductVariant', e.li ->> 'variant_id') as variant_gid,
+           case
+             when coalesce(e.li ->> 'current_quantity', e.li ->> 'quantity') ~ '^[0-9]{1,6}$'
+               then coalesce(e.li ->> 'current_quantity', e.li ->> 'quantity')::integer
+           end as qty
+    from pg_catalog.jsonb_array_elements(
+      case when pg_catalog.jsonb_typeof(shopify_unmapped_lines.payload -> 'line_items') = 'array'
+           then shopify_unmapped_lines.payload -> 'line_items' else '[]'::jsonb end
+    ) with ordinality as e(li, ord)
+    where pg_catalog.jsonb_typeof(e.li) = 'object'
+  ) x
+  where coalesce(x.qty, 0) > 0
+    and (
+      x.variant_gid is null
+      or (
+        not exists (select 1 from public.products p where p.shopify_variant_id = x.variant_gid)
+        and not exists (select 1 from public.build_packages b where b.shopify_variant_id = x.variant_gid)
+      )
+    );
+$$;

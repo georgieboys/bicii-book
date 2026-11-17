@@ -68,6 +68,8 @@ export function toPaymentSummary(r: SummaryRpcRow, from: string, to: string): Pa
     givenBackTotal: money(r.given_back_total, c),
     netTotal: money(r.net_total, c),
     otherCurrencyCount: int(r.other_currency_count),
+    shopifyCount: int(r.shopify_count),
+    shopifyTotal: money(r.shopify_total, c),
   };
 }
 

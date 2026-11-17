@@ -314,6 +314,83 @@ describe.skipIf(!isolatedDatabase())("selling full builds online (D252-D256)", (
       await actAs(tx, ADMIN);
     }));
 
+  it("linking prices the build at what was paid, even for a package archived since", () =>
+    inTx(async (tx) => {
+      const pkg = await onlinePackage(tx, { price: "785.00" });
+      // A Shopify discount: 785 charged as 700.
+      const result = await deliverOrder(tx, [
+        { ...line(pkg.variant, "785.00"), discount: "85.00" },
+      ]);
+      const [order] = await buildOrdersOf(tx, result.sale_id!);
+      expect(order.amount).toBe("700.00");
+      await readAsOwner(tx, () =>
+        tx.query("update public.build_packages set archived_at = now() where id = $1", [pkg.id]),
+      );
+      const job = await newJob(tx, MECHANIC1);
+      await tx.query("select public.link_build_order($1, $2, $3)", [
+        order.id,
+        job.id,
+        randomUUID(),
+      ]);
+      const { rows } = await tx.query(
+        "select price::text, labour_amount::text from public.work_order_builds where work_order_id = $1",
+        [job.id],
+      );
+      expect(rows[0]).toEqual({ price: "700.00", labour_amount: "180.00" });
+    }));
+
+  it("the payment reports count linked build orders: summary counts, held money", () =>
+    inTx(async (tx) => {
+      const pkg = await onlinePackage(tx, { price: "390.00" });
+      const result = await deliverOrder(tx, [line(pkg.variant, "390.00")]);
+      const [order] = await buildOrdersOf(tx, result.sale_id!);
+      const today = (
+        await tx.query<{ d: string }>(
+          "select (now() at time zone 'Asia/Singapore')::date::text as d",
+        )
+      ).rows[0].d;
+      const summary = async () =>
+        (
+          await tx.query<{ shopify_count: number; shopify_total: string }>(
+            "select shopify_count, shopify_total::text from public.report_payment_summary($1, $1)",
+            [today],
+          )
+        ).rows[0];
+      const before = await summary();
+      const job = await newJob(tx, ADMIN);
+      await tx.query("select public.link_build_order($1, $2, $3)", [
+        order.id,
+        job.id,
+        randomUUID(),
+      ]);
+      const after = await summary();
+      expect(after.shopify_count - before.shopify_count).toBe(1);
+      expect(Number(after.shopify_total) - Number(before.shopify_total)).toBeCloseTo(390, 2);
+      const held = await tx.query(
+        "select grp, amount::text from public.report_payments_held() where work_order_id = $1",
+        [job.id],
+      );
+      expect(held.rows).toEqual([{ grp: "open", amount: "390.00" }]);
+    }));
+
+  it("an order with an unlinked product lists only that line as unmapped, not the package", () =>
+    inTx(async (tx) => {
+      const pkg = await onlinePackage(tx);
+      const unknownVariant = nextShopifyId();
+      const result = await deliverOrder(tx, [
+        line(pkg.variant, "1075.00"),
+        line(unknownVariant, "20.00"),
+      ]);
+      expect(result.error_code).toBe("shopify_variant_unmapped");
+      await ownerMode(tx);
+      const { rows } = await tx.query<{ n: number }>(
+        "select pg_catalog.jsonb_array_length(result -> 'unmapped_lines')::int as n from public.integration_events where id = $1",
+        [result.eventId],
+      );
+      expect(rows[0].n).toBe(1);
+      await actAs(tx, ADMIN);
+    }));
+
   it("the site gets cart links only for an online frame and online full builds", () =>
     inTx(async (tx) => {
       const pkg = await onlinePackage(tx);

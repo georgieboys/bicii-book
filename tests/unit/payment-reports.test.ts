@@ -52,18 +52,20 @@ const held = (over: Partial<HeldJob>): HeldJob => ({
 });
 
 describe("the movement vocabulary (D154b, D154d)", () => {
-  it("labels the four movements of reporting.payment_movements", () => {
+  it("labels the five movements of reporting.payment_movements", () => {
     expect([...PAYMENT_MOVEMENTS]).toEqual([
       "online_payment",
       "online_refund",
       "counter_payment",
       "counter_given_back",
+      "shopify_payment",
     ]);
     expect(MOVEMENT_LABELS).toEqual({
       online_payment: "Taken online",
       online_refund: "Refunded online",
       counter_payment: "Recorded at the counter",
       counter_given_back: "Given back at the counter",
+      shopify_payment: "Builds paid on Shopify",
     });
     expect(movementLabel("counter_payment")).toBe("Recorded at the counter");
     // A movement a later migration adds still reads as something.
@@ -125,12 +127,24 @@ describe("the copy", () => {
 });
 
 describe("movementCount", () => {
-  it("adds the four integer counts (the export's consistency check)", () => {
+  it("adds the five integer counts (the export's consistency check)", () => {
     expect(
-      movementCount({ onlineCount: 3, refundCount: 1, counterCount: 2, givenBackCount: 1 }),
-    ).toBe(7);
+      movementCount({
+        onlineCount: 3,
+        refundCount: 1,
+        counterCount: 2,
+        givenBackCount: 1,
+        shopifyCount: 2,
+      }),
+    ).toBe(9);
     expect(
-      movementCount({ onlineCount: 0, refundCount: 0, counterCount: 0, givenBackCount: 0 }),
+      movementCount({
+        onlineCount: 0,
+        refundCount: 0,
+        counterCount: 0,
+        givenBackCount: 0,
+        shopifyCount: 0,
+      }),
     ).toBe(0);
   });
 });

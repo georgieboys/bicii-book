@@ -10771,6 +10771,8 @@ export type Database = {
           other_currency_count: number;
           refund_count: number;
           refund_total: number;
+          shopify_count: number;
+          shopify_total: number;
         }[];
       };
       report_payments_held: {

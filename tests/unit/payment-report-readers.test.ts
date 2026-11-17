@@ -62,6 +62,8 @@ const SUMMARY_ROW = {
   given_back_total: 10,
   net_total: "465.5",
   other_currency_count: 0,
+  shopify_count: 0,
+  shopify_total: 0,
 };
 
 const itemRow = (n: number, over: Record<string, unknown> = {}) => ({
@@ -100,6 +102,8 @@ describe("the summary (report_payment_summary)", () => {
       givenBackTotal: "10.00",
       netTotal: "465.50",
       otherCurrencyCount: 0,
+      shopifyCount: 0,
+      shopifyTotal: "0.00",
     });
   });
 

@@ -1954,8 +1954,14 @@ build_orders                             -- written by process_shopify_order_pai
   → the build order: replay on the same job; `build_order_linked_elsewhere`,
   `work_order_locked`, `build_order_job_taken`,
   `build_order_customer_mismatch`, `currency_mismatch`,
-  `build_order_package_mismatch`; sets the job's package when it has none;
-  event `build_order_linked`.
+  `build_order_package_mismatch`; a job without a package gets the
+  order's at the amount paid (archived or not), labour least(package
+  labour, amount), event `build_set`; then event `build_order_linked`.
+- `report_payment_summary` (dropped and created again) appends
+  `shopify_count` and `shopify_total` and adds them to `net_total`, so its
+  counts still equal `report_payment_items`' rows (the export's check);
+  `report_payments_held` adds linked build orders' jobs to its candidates;
+  `private.shopify_unmapped_lines` leaves out package variants.
 - `public_build_offers(item_short_id)` (anon): build_package_id, name,
   description, price, currency, cart_url (storefront `/cart/<frame
   variant>:1,<package variant>:1`) for a frame with a Buy-online link in a

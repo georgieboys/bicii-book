@@ -164,7 +164,7 @@ $$;
 comment on function public.public_build_packages() is
   'D246: anyone: the live, public build packages (no labour split, no service), by kind, sort order and price.';
 
-revoke all on function public.public_build_packages() from public;
+revoke all on function public.public_build_packages() from public, anon, authenticated, service_role;
 grant execute on function public.public_build_packages() to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -476,7 +476,7 @@ $$;
 comment on function public.set_work_order_build(uuid, uuid, uuid, public.money_amount) is
   'D247: active staff: give an open job a build package (or change it): snapshots the price (fixed, or at least a "from" price) and labour amount and adds or reprices the job''s labour line (a service line at the labour amount, id labour_line_id). Replay-safe; build_set event.';
 
-revoke all on function public.set_work_order_build(uuid, uuid, uuid, public.money_amount) from public;
+revoke all on function public.set_work_order_build(uuid, uuid, uuid, public.money_amount) from public, anon, authenticated, service_role;
 grant execute on function public.set_work_order_build(uuid, uuid, uuid, public.money_amount) to authenticated;
 
 create function public.clear_work_order_build(work_order_id uuid, reason text)
@@ -533,7 +533,7 @@ $$;
 comment on function public.clear_work_order_build(uuid, text) is
   'D251: active staff: take the package off an open job with a reason: repriced parts go back to their list prices and the labour line is voided; build_cleared event. No package: returns the job id.';
 
-revoke all on function public.clear_work_order_build(uuid, text) from public;
+revoke all on function public.clear_work_order_build(uuid, text) from public, anon, authenticated, service_role;
 grant execute on function public.clear_work_order_build(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -599,7 +599,7 @@ $$;
 comment on function public.reprice_build_line(uuid, public.money_amount) is
   'D248: active staff: change the sale price of one live part (inventory line) or the labour line of an open job with a build package; the first change keeps the list price; line_repriced event. Same price: no change, no event.';
 
-revoke all on function public.reprice_build_line(uuid, public.money_amount) from public;
+revoke all on function public.reprice_build_line(uuid, public.money_amount) from public, anon, authenticated, service_role;
 grant execute on function public.reprice_build_line(uuid, public.money_amount) to authenticated;
 
 create function public.fit_build_to_budget(work_order_id uuid)
@@ -707,7 +707,7 @@ $$;
 comment on function public.fit_build_to_budget(uuid) is
   'D249: active staff: on an open job with a build package, price the live parts (inventory lines) so they add up to the parts budget (list price × budget / list total, to the cent, when the list total is above the budget; list price otherwise) and give the labour line the rest of the package price; build_fitted event when anything changed. Returns the summary.';
 
-revoke all on function public.fit_build_to_budget(uuid) from public;
+revoke all on function public.fit_build_to_budget(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.fit_build_to_budget(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------

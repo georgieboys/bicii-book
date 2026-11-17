@@ -1,5 +1,29 @@
 # Current state
 
+Updated: 2026-11-17 SGT (build packages, D246-D256, ADR-028, merged and
+live: bicii-book PRs #95 and #96, BICII PR #82, BICII PR #80 for the
+hours sentence; migrations `20261117000100` to `20261117000400` applied by
+`migrate.yml`). A full build (Classic S$390, Classic+ S$785, Restomod
+S$1,075, Restomod+ S$1,680) sets a job's package: a S$180 labour line
+(service revenue) and the rest as the parts budget; **Fit parts to
+budget** prices the fitted parts down to it with one discount (never above
+shelf price; parts under budget leave the difference to labour);
+**Reprice** adjusts one part. Revenue counts at the job's completion. The
+four full builds are untracked Shopify products (pushed 2026-11-17 with
+the Admin's own push code, run locally because the production Admin needs
+the owner's sign-in; ids recorded with `record_build_package_push`); a
+frame's site page (`/q/P-000144` checked) offers each with a cart link
+holding the frame and the build (checkout opened with 2 items, S$860,
+nothing submitted). An order's package line becomes a build order (money
+held); **Link online order** on the job's Build card puts it on the job at
+the amount paid. Build-only packages (Full Send, Clean Slate from S$325,
+Strip and rebuild) are on the customer's bike page and the booking form.
+Production data: service "Build package labour" (S$180, not public) and
+the seven packages. An independent review of PR #96 found six defects,
+all fixed before merge. Open: refunds and unlinked orders (R-122); the
+Marin's and the Descent's sizes are estimates awaiting the owner's
+measurements. The site's opening hours already follow the Appointments
+schedule; the sentence under them no longer names days. Before that,
 Updated: 2026-11-16 SGT (three of the owner's frames consigned and listed,
 in production under the owner's admin claims): P-000144 Marin Bolinas
 Ridge (C-000029, asking 470), P-000145 KHS Montaña Descent (C-000030,

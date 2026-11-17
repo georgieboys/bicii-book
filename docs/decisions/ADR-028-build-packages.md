@@ -68,10 +68,8 @@ immutable except voiding (D15).
   reports, Cult Commons and margins work unchanged.
 - A repriced line shows its final price; the history is in the job's
   `line_repriced` and `build_fitted` events and the list price column.
-- Not built yet (the next steps of this record): selling full builds
-  online with the frame (packages as Shopify products, the order's package
-  line held as a customer payment on the build job until it is
-  delivered), and the build-only packages in the site's signed-in screens.
+- Selling online and the site's signed-in screens: see the amendment
+  below.
 
 ## Alternatives considered
 
@@ -82,3 +80,31 @@ immutable except voiding (D15).
 - **Void and re-add to reprice:** keeps strict immutability but moves
   stock out and back in for every fit, and a quantity part's consigned
   FIFO item could change.
+
+## Amendment 2026-11-17: selling full builds online (D252-D256)
+
+The owner: full payment is taken on Shopify at purchase, but recognised as
+revenue only when the build is delivered.
+
+1. **Packages on Shopify (D252).** A full build is its own Shopify
+   product, one variant at the package price, inventory not tracked (it is
+   a service). An admin presses Put on Shopify in Settings; the Admin
+   pushes it straight away (packages change rarely, so no queue) and
+   records the ids. The site's frame page offers each online full build
+   with a Shopify cart link holding the frame and the package
+   (`public_build_offers`).
+2. **Orders (D253).** A line whose variant is a package's becomes a build
+   order per unit, at its share of what Shopify charged; the frame is the
+   order's sale as before.
+3. **Money held (D254).** A build order is customer money held, like a
+   deposit: on its job it counts as paid (`paid_shopify`) and in the
+   payment movements, never in sales. The revenue is the job's lines at
+   completion (D250), so the build counts when it is delivered.
+4. **Linking (D255)** puts the order on the build's job and sets its
+   package.
+5. **Refunds (D256)** stay on the order's sale; staff settle the build
+   side (R-122).
+
+The build-only packages are offered in the site's signed-in screens (the
+bike page and the booking form), named in the booking's note; they are
+paid at intake.

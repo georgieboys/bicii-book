@@ -89,6 +89,14 @@ export function PaymentSummaryFigures({ summary }: { summary: PaymentSummary }) 
           currency={c}
           hint={plural(s.givenBackCount, "payment", "payments")}
         />
+        {s.shopifyCount > 0 ? (
+          <MoneyTile
+            label="Builds paid on Shopify"
+            amount={s.shopifyTotal}
+            currency={c}
+            hint={plural(s.shopifyCount, "build", "builds")}
+          />
+        ) : null}
         <MoneyTile
           label="Net taken"
           amount={s.netTotal}

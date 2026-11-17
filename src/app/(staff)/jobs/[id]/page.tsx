@@ -34,7 +34,12 @@ import {
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, shopDaysBetween } from "@/lib/dates";
 import { listPhotos } from "@/lib/domain/attachments";
-import { getJobBuild, listBuildPackages } from "@/lib/domain/build-packages";
+import {
+  getJobBuild,
+  getJobBuildOrder,
+  listBuildPackages,
+  listUnlinkedBuildOrders,
+} from "@/lib/domain/build-packages";
 import { getIndentPanel, getUnfittedSummary } from "@/lib/domain/indent";
 import { getJobPayments } from "@/lib/domain/payments";
 import { fittedIndentLines, isUnfitted, unfittedMemo } from "@/lib/indent";
@@ -121,28 +126,43 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   // D60, D147: expected costs and suppliers on indent parts.
   const purchaseData = viewCosts || canOrder;
   const supabase = await createClient();
-  const [job, photos, activeStaff, locations, report, indent, payments, unfitted, build, packages] =
-    await Promise.all([
-      getWorkOrder(supabase, id, {
-        viewCosts,
-        ...(allEvents ? { timelineRows: TIMELINE_ALL_ROWS } : {}),
-      }),
-      listPhotos(supabase, { entityType: "work_order", entityId: id }),
-      listActiveStaff(supabase),
-      listLocations(supabase),
-      // The yield panel's rates, losses and recognition (view_costs only, D30).
-      viewCosts ? getWorkOrderYield(supabase, id) : Promise.resolve(null),
-      // Indent parts and the customer's quote (Phase 13, D140-D147); with
-      // view_costs, whether each part's product has a cost (Fit needs one).
-      getIndentPanel(supabase, id, { purchaseData, viewCosts }),
-      // Deposits and online payments (Phase 14, D151-D159); null when the read fails.
-      getJobPayments(supabase, id),
-      // Approved indent items not on the bill (R-082); null when none or the read fails.
-      getUnfittedSummary(supabase, id),
-      // The build package and its numbers (D247-D249); null without one.
-      getJobBuild(supabase, id),
-      listBuildPackages(supabase),
-    ]);
+  const [
+    job,
+    photos,
+    activeStaff,
+    locations,
+    report,
+    indent,
+    payments,
+    unfitted,
+    build,
+    packages,
+    linkedOrder,
+    unlinkedOrders,
+  ] = await Promise.all([
+    getWorkOrder(supabase, id, {
+      viewCosts,
+      ...(allEvents ? { timelineRows: TIMELINE_ALL_ROWS } : {}),
+    }),
+    listPhotos(supabase, { entityType: "work_order", entityId: id }),
+    listActiveStaff(supabase),
+    listLocations(supabase),
+    // The yield panel's rates, losses and recognition (view_costs only, D30).
+    viewCosts ? getWorkOrderYield(supabase, id) : Promise.resolve(null),
+    // Indent parts and the customer's quote (Phase 13, D140-D147); with
+    // view_costs, whether each part's product has a cost (Fit needs one).
+    getIndentPanel(supabase, id, { purchaseData, viewCosts }),
+    // Deposits and online payments (Phase 14, D151-D159); null when the read fails.
+    getJobPayments(supabase, id),
+    // Approved indent items not on the bill (R-082); null when none or the read fails.
+    getUnfittedSummary(supabase, id),
+    // The build package and its numbers (D247-D249); null without one.
+    getJobBuild(supabase, id),
+    listBuildPackages(supabase),
+    // Online build orders (D253-D255): this job's, and those waiting for a job.
+    getJobBuildOrder(supabase, id),
+    listUnlinkedBuildOrders(supabase),
+  ]);
   if (!job) notFound();
   // Units on live part lines: a reopen puts them back on hold (D25).
   const heldUnits = job.lines
@@ -431,6 +451,10 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
                     quantity: l.quantity,
                     unitSalePrice: l.unitSalePrice,
                   }))}
+                linkedOrder={linkedOrder}
+                unlinkedOrders={unlinkedOrders.filter(
+                  (o) => o.customerId === null || o.customerId === job.customer.id,
+                )}
               />
             </Card>
           ) : null}

@@ -303,7 +303,7 @@ export function createGraphqlShopifyAdmin({
     async upsertProduct(input, existing): Promise<ShopifyIds> {
       const variant: Obj = {
         optionValues: [{ optionName: "Title", name: "Default Title" }],
-        inventoryItem: { tracked: true, sku: input.sku },
+        inventoryItem: { tracked: input.tracked ?? true, sku: input.sku },
       };
       if (input.price !== null) variant.price = input.price;
       const data = await call(PRODUCT_SET_MUTATION, {

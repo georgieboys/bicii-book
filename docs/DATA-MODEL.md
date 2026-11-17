@@ -1922,6 +1922,51 @@ RPCs (any active staff; each locks the job first):
   description, price, price_is_from, currency, sort_order of public live
   packages.
 
+Selling full builds online (D252-D256; `20261117000300_build_order_enum_values.sql`,
+`20261117000400_build_package_sales.sql`):
+
+```
+build_packages += publish_online boolean (only a full build: build_packages_online_full_build),
+  shopify_product_id, shopify_variant_id (gids, together, the variant unique),
+  shopify_pushed_at                       -- set by record_build_package_push
+
+build_orders                             -- written by process_shopify_order_paid and link_build_order
+  id uuid PK, sale_id -> sales (the order's sale), integration_event_id null,
+  shopify_order_id, shopify_order_name, shopify_line_item_id, line_part smallint ≥ 1
+    (unique together: one row per unit of a line), build_package_id -> build_packages,
+  amount money_amount (the unit's share of the line total), currency,
+  customer_id null -> customers (the sale's), work_order_id null unique -> work_orders,
+  linked_at, linked_by (set with work_order_id), created_at
+```
+
+- `process_shopify_order_paid` (20261004004000's body): in step 5 a line
+  whose variant is a package's is set aside; in step 9b each becomes one
+  build order per unit (`private.shopify_split_amount`); the event's
+  result gains `build_orders`.
+- `work_order_payment_totals` appends `paid_shopify` (Σ linked build
+  orders) and adds it to `net_paid`; `reporting.payment_movements` gains
+  `shopify_payment` rows (at the sale's `recognized_at`, kind `build`,
+  method `shopify`, recorded_at = linked_at), so per job Σ signed_amount =
+  net_paid still holds.
+- `record_build_package_push(build_package_id, shopify_product_id, shopify_variant_id)`
+  (admin) → the package row.
+- `link_build_order(build_order_id, work_order_id, labour_line_id)` (staff)
+  → the build order: replay on the same job; `build_order_linked_elsewhere`,
+  `work_order_locked`, `build_order_job_taken`,
+  `build_order_customer_mismatch`, `currency_mismatch`,
+  `build_order_package_mismatch`; a job without a package gets the
+  order's at the amount paid (archived or not), labour least(package
+  labour, amount), event `build_set`; then event `build_order_linked`.
+- `report_payment_summary` (dropped and created again) appends
+  `shopify_count` and `shopify_total` and adds them to `net_total`, so its
+  counts still equal `report_payment_items`' rows (the export's check);
+  `report_payments_held` adds linked build orders' jobs to its candidates;
+  `private.shopify_unmapped_lines` leaves out package variants.
+- `public_build_offers(item_short_id)` (anon): build_package_id, name,
+  description, price, currency, cart_url (storefront `/cart/<frame
+  variant>:1,<package variant>:1`) for a frame with a Buy-online link in a
+  category whose name contains "frame".
+
 ### Product groups (D241-D245)
 
 Built out of phase on 2026-11-15 (`20261115000200_product_groups.sql`;

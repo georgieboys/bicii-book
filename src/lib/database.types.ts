@@ -2137,6 +2137,124 @@ export type Database = {
           },
         ];
       };
+      build_orders: {
+        Row: {
+          amount: number;
+          build_package_id: string;
+          created_at: string;
+          currency: string;
+          customer_id: string | null;
+          id: string;
+          integration_event_id: string | null;
+          line_part: number;
+          linked_at: string | null;
+          linked_by: string | null;
+          sale_id: string;
+          shopify_line_item_id: string;
+          shopify_order_id: string;
+          shopify_order_name: string | null;
+          work_order_id: string | null;
+        };
+        Insert: {
+          amount: number;
+          build_package_id: string;
+          created_at?: string;
+          currency: string;
+          customer_id?: string | null;
+          id?: string;
+          integration_event_id?: string | null;
+          line_part?: number;
+          linked_at?: string | null;
+          linked_by?: string | null;
+          sale_id: string;
+          shopify_line_item_id: string;
+          shopify_order_id: string;
+          shopify_order_name?: string | null;
+          work_order_id?: string | null;
+        };
+        Update: {
+          amount?: number;
+          build_package_id?: string;
+          created_at?: string;
+          currency?: string;
+          customer_id?: string | null;
+          id?: string;
+          integration_event_id?: string | null;
+          line_part?: number;
+          linked_at?: string | null;
+          linked_by?: string | null;
+          sale_id?: string;
+          shopify_line_item_id?: string;
+          shopify_order_id?: string;
+          shopify_order_name?: string | null;
+          work_order_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "build_orders_build_package_id_fkey";
+            columns: ["build_package_id"];
+            isOneToOne: false;
+            referencedRelation: "build_packages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_orders_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_orders_integration_event_id_fkey";
+            columns: ["integration_event_id"];
+            isOneToOne: false;
+            referencedRelation: "integration_events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_orders_linked_by_fkey";
+            columns: ["linked_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_orders_sale_id_fkey";
+            columns: ["sale_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_orders_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "build_orders_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "build_orders_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "build_orders_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       build_packages: {
         Row: {
           archived_at: string | null;
@@ -2152,6 +2270,10 @@ export type Database = {
           price: number;
           price_is_from: boolean;
           public: boolean;
+          publish_online: boolean;
+          shopify_product_id: string | null;
+          shopify_pushed_at: string | null;
+          shopify_variant_id: string | null;
           sort_order: number;
           updated_at: string;
         };
@@ -2169,6 +2291,10 @@ export type Database = {
           price: number;
           price_is_from?: boolean;
           public?: boolean;
+          publish_online?: boolean;
+          shopify_product_id?: string | null;
+          shopify_pushed_at?: string | null;
+          shopify_variant_id?: string | null;
           sort_order?: number;
           updated_at?: string;
         };
@@ -2186,6 +2312,10 @@ export type Database = {
           price?: number;
           price_is_from?: boolean;
           public?: boolean;
+          publish_online?: boolean;
+          shopify_product_id?: string | null;
+          shopify_pushed_at?: string | null;
+          shopify_variant_id?: string | null;
           sort_order?: number;
           updated_at?: string;
         };
@@ -7649,6 +7779,7 @@ export type Database = {
           paid_ahead: number | null;
           paid_at_counter: number | null;
           paid_online: number | null;
+          paid_shopify: number | null;
           processing_online: number | null;
           refunded_online: number | null;
           work_order_id: string | null;
@@ -9166,6 +9297,32 @@ export type Database = {
         Returns: Json;
       };
       leave_adventure_departure: { Args: { booking_id: string }; Returns: undefined };
+      link_build_order: {
+        Args: { build_order_id: string; labour_line_id: string; work_order_id: string };
+        Returns: {
+          amount: number;
+          build_package_id: string;
+          created_at: string;
+          currency: string;
+          customer_id: string | null;
+          id: string;
+          integration_event_id: string | null;
+          line_part: number;
+          linked_at: string | null;
+          linked_by: string | null;
+          sale_id: string;
+          shopify_line_item_id: string;
+          shopify_order_id: string;
+          shopify_order_name: string | null;
+          work_order_id: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "build_orders";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       link_shopify_customer: {
         Args: { customer_id: string; reason: string; shopify_customer_id: string };
         Returns: Database["public"]["CompositeTypes"]["shopify_customer_link_result"];
@@ -9833,6 +9990,17 @@ export type Database = {
           name: string;
         }[];
       };
+      public_build_offers: {
+        Args: { item_short_id: string };
+        Returns: {
+          build_package_id: string;
+          cart_url: string;
+          currency: string;
+          description: string;
+          name: string;
+          price: unknown;
+        }[];
+      };
       public_build_packages: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -10074,6 +10242,36 @@ export type Database = {
           payment_id: string;
           stripe_checkout_session_id: string;
         }[];
+      };
+      record_build_package_push: {
+        Args: { build_package_id: string; shopify_product_id: string; shopify_variant_id: string };
+        Returns: {
+          archived_at: string | null;
+          created_at: string;
+          created_by: string | null;
+          currency: string;
+          description: string | null;
+          id: string;
+          kind: Database["public"]["Enums"]["build_package_kind"];
+          labour_amount: number;
+          labour_service_id: string;
+          name: string;
+          price: number;
+          price_is_from: boolean;
+          public: boolean;
+          publish_online: boolean;
+          shopify_product_id: string | null;
+          shopify_pushed_at: string | null;
+          shopify_variant_id: string | null;
+          sort_order: number;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "build_packages";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       record_counter_payment: {
         Args: {
@@ -10573,6 +10771,8 @@ export type Database = {
           other_currency_count: number;
           refund_count: number;
           refund_total: number;
+          shopify_count: number;
+          shopify_total: number;
         }[];
       };
       report_payments_held: {
@@ -12761,7 +12961,8 @@ export type Database = {
         | "build_set"
         | "build_cleared"
         | "build_fitted"
-        | "line_repriced";
+        | "line_repriced"
+        | "build_order_linked";
       work_order_note_kind: "note" | "diagnosis";
       work_order_status:
         | "received"
@@ -13988,6 +14189,7 @@ export const Constants = {
         "build_cleared",
         "build_fitted",
         "line_repriced",
+        "build_order_linked",
       ],
       work_order_note_kind: ["note", "diagnosis"],
       work_order_status: [

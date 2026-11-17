@@ -31,6 +31,7 @@ export const PAYMENT_MOVEMENTS = [
   "online_refund",
   "counter_payment",
   "counter_given_back",
+  "shopify_payment",
 ] as const;
 export type PaymentMovement = (typeof PAYMENT_MOVEMENTS)[number];
 
@@ -40,6 +41,7 @@ export const MOVEMENT_LABELS: Readonly<Record<PaymentMovement, string>> = {
   online_refund: "Refunded online",
   counter_payment: "Recorded at the counter",
   counter_given_back: "Given back at the counter",
+  shopify_payment: "Builds paid on Shopify",
 };
 
 const isMovement = (v: string): v is PaymentMovement =>
@@ -61,6 +63,7 @@ export function isOutgoing(movement: string): boolean {
  */
 export function paymentKindLabel(movement: string, kind: string): string {
   if (kind === "deposit") return "Deposit";
+  if (kind === "build") return "Build package";
   if (kind === "balance") {
     return movement === "counter_payment" || movement === "counter_given_back"
       ? "Towards the bill"
@@ -72,6 +75,7 @@ export function paymentKindLabel(movement: string, kind: string): string {
 /** How the money moved: Stripe online, or the counter method an admin recorded. */
 export function paymentMethodLabel(method: string): string {
   if (method === "stripe") return "Stripe";
+  if (method === "shopify") return "Shopify";
   return method in COUNTER_METHOD_LABELS ? COUNTER_METHOD_LABELS[method as CounterMethod] : method;
 }
 
@@ -151,9 +155,12 @@ export type PaymentSummary = {
   givenBackCount: number;
   /** Positive. */
   givenBackTotal: string;
-  /** online − refunds + counter − given back, as Postgres computed it. */
+  /** online − refunds + counter − given back + Shopify, as Postgres computed it. */
   netTotal: string;
   otherCurrencyCount: number;
+  /** Build packages paid on Shopify, once linked to their jobs (D254). */
+  shopifyCount: number;
+  shopifyTotal: string;
 };
 
 /**
@@ -161,9 +168,12 @@ export type PaymentSummary = {
  * export's consistency check, PR A): integer counts only, never money.
  */
 export function movementCount(
-  s: Pick<PaymentSummary, "onlineCount" | "refundCount" | "counterCount" | "givenBackCount">,
+  s: Pick<
+    PaymentSummary,
+    "onlineCount" | "refundCount" | "counterCount" | "givenBackCount" | "shopifyCount"
+  >,
 ): number {
-  return s.onlineCount + s.refundCount + s.counterCount + s.givenBackCount;
+  return s.onlineCount + s.refundCount + s.counterCount + s.givenBackCount + s.shopifyCount;
 }
 
 /** The payment list's keyset: the last row's (at, id), exactly as received. */

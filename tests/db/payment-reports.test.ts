@@ -107,6 +107,8 @@ const SUMMARY_COLUMNS = [
   "given_back_total",
   "net_total",
   "other_currency_count",
+  "shopify_count",
+  "shopify_total",
 ];
 
 const ITEM_COLUMNS = [

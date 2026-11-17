@@ -1862,6 +1862,66 @@ the same location, both carrying the source's default direct cost, and the
 unit's +1 `stock_adjustment`; both movements have request_id = the new
 unit id.
 
+### Build packages (D246-D251)
+
+Built out of phase on 2026-11-17 (`20261117000100_build_package_enum_values.sql`,
+`20261117000200_build_packages.sql`; [ADR-028](decisions/ADR-028-build-packages.md)).
+
+```
+build_packages                           -- admins write (RLS), staff read
+  id uuid PK, kind build_package_kind (full_build | build_only)
+  name text (trimmed, 1..80; unique lower(name) among live: build_packages_name_key)
+  description text null (≤ 4000), price money_amount (> 0), price_is_from boolean
+  labour_amount money_amount (≤ price), labour_service_id -> services (live at write:
+    build_labour_service_invalid), currency char(3) default 'SGD', public boolean,
+  sort_order integer (0..10000), created_by, created_at, updated_at, archived_at
+
+work_order_builds                        -- one per job; written only by the RPCs below
+  work_order_id uuid PK -> work_orders, build_package_id -> build_packages
+  price, labour_amount money_amount (snapshotted; labour ≤ price)
+  labour_line_id uuid unique -> work_order_line_items (the job's labour line)
+  currency, created_by, created_at, updated_at
+
+work_order_line_items.unit_list_price_snapshot money_amount null
+  -- D248: the sale price before the first build repricing
+
+work_order_build_summary (view, security invoker)
+  work_order_id, build_package_id, name, kind, price, labour_amount, parts_budget,
+  labour_line_id, parts_count, parts_list_total, parts_total, labour_total,
+  package_total, difference (price − package_total; 0 when fitted), currency
+```
+
+Repricing (D248): `private.work_order_line_items_enforce_rules` allows one
+more UPDATE: a change of `unit_sale_price_snapshot` (and the list price)
+on a live line of an open job, nothing else, only while the transaction
+setting `bicii.line_reprice` is on, which only `private.reprice_line`
+sets around its own statement. The generated totals follow the new price.
+Voiding is unchanged and may not touch the list price.
+
+RPCs (any active staff; each locks the job first):
+
+- `set_work_order_build(work_order_id, build_package_id, labour_line_id, price = null)` →
+  `work_order_builds`: replay (same package and price, labour line live)
+  returns the row; else `work_order_locked`, P0002, `build_package_archived`,
+  `currency_mismatch`, `build_price_fixed` (a fixed package with another
+  price), `build_price_below_from`; labour = package labour + (price − base
+  price). A new package adds the labour line (`private.insert_service_line`,
+  description "<name> · build labour"); a change reprices it. Event `build_set`.
+- `clear_work_order_build(work_order_id, reason)` → uuid: `reason_required`;
+  repriced parts back to list; labour line voided with the reason; row
+  deleted; event `build_cleared`. No package: returns the id.
+- `reprice_build_line(line_id, unit_sale_price)` → line: `build_missing`,
+  `build_line_voided`, `build_line_not_repriceable` (not a part or the
+  labour line); same price: no change; event `line_repriced`.
+- `fit_build_to_budget(work_order_id)` → jsonb summary (price,
+  labour_amount, parts_budget, parts_list_total, parts_total, labour_total,
+  factor, changed lines): D249's arithmetic; `build_missing`,
+  `build_labour_line_voided`, `build_over_budget` (labour would go
+  negative); event `build_fitted` only when something changed.
+- `public_build_packages()` (anon, authenticated): id, kind, name,
+  description, price, price_is_from, currency, sort_order of public live
+  packages.
+
 ### Product groups (D241-D245)
 
 Built out of phase on 2026-11-15 (`20261115000200_product_groups.sql`;

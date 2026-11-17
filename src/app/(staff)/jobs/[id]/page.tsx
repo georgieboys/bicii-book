@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { AddPartButton } from "@/components/domain/add-part-sheet";
 import { AddServiceButton } from "@/components/domain/add-service-sheet";
 import { AssignmentsCard } from "@/components/domain/assignments-card";
+import { JobBuildPanel } from "@/components/domain/build-package-controls";
 import { IndentCard } from "@/components/domain/indent-card";
 import { ApprovalSwitch, EditDetailsButton, NoteButtons } from "@/components/domain/job-notes";
 import { PaymentsCard } from "@/components/domain/payments-card";
@@ -33,6 +34,7 @@ import {
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime, shopDaysBetween } from "@/lib/dates";
 import { listPhotos } from "@/lib/domain/attachments";
+import { getJobBuild, listBuildPackages } from "@/lib/domain/build-packages";
 import { getIndentPanel, getUnfittedSummary } from "@/lib/domain/indent";
 import { getJobPayments } from "@/lib/domain/payments";
 import { fittedIndentLines, isUnfitted, unfittedMemo } from "@/lib/indent";
@@ -119,7 +121,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
   // D60, D147: expected costs and suppliers on indent parts.
   const purchaseData = viewCosts || canOrder;
   const supabase = await createClient();
-  const [job, photos, activeStaff, locations, report, indent, payments, unfitted] =
+  const [job, photos, activeStaff, locations, report, indent, payments, unfitted, build, packages] =
     await Promise.all([
       getWorkOrder(supabase, id, {
         viewCosts,
@@ -137,6 +139,9 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
       getJobPayments(supabase, id),
       // Approved indent items not on the bill (R-082); null when none or the read fails.
       getUnfittedSummary(supabase, id),
+      // The build package and its numbers (D247-D249); null without one.
+      getJobBuild(supabase, id),
+      listBuildPackages(supabase),
     ]);
   if (!job) notFound();
   // Units on live part lines: a reopen puts them back on hold (D25).
@@ -408,6 +413,27 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
               </p>
             ) : null}
           </Card>
+
+          {/* D247-D251: a full build's labour and parts budget. Shown on
+              an open job, or on any job that has a package. */}
+          {open || build ? (
+            <Card title="Build package" id="build-package" className="scroll-mt-20" flush>
+              <JobBuildPanel
+                workOrderId={job.id}
+                open={open}
+                build={build}
+                packages={packages}
+                parts={job.lines
+                  .filter((l) => !l.voided && l.type === "inventory")
+                  .map((l) => ({
+                    id: l.id,
+                    description: l.description,
+                    quantity: l.quantity,
+                    unitSalePrice: l.unitSalePrice,
+                  }))}
+              />
+            </Card>
+          ) : null}
 
           {/* U1-4: on a closed job with nothing ever proposed there is
               nothing to show or do, so no card (as the payments card). */}

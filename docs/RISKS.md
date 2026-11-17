@@ -3496,3 +3496,26 @@ URLs, or customer data in this file.
 - Revisit trigger: the first mixed-source colour or regroup request.
 - Last checked: 2026-11-15.
 
+
+## R-121 — A repriced build line shows only its final price, and online build sales are not built yet
+
+- Category: workshop money.
+- Status and owner: open; the build agent (online sales), the owner (process).
+- Trigger: a part or labour line on a job with a build package is repriced
+  (`reprice_build_line`, `fit_build_to_budget`, D248), or a customer wants
+  to pay for a full build online with a frame.
+- Impact: the line row holds its final price and its first price
+  (`unit_list_price_snapshot`); intermediate prices live only in the job's
+  `line_repriced` and `build_fitted` events, so a report reading the line
+  alone cannot show each step. Full builds can't yet be bought on Shopify:
+  staff set the package on the build job and take payment as now.
+- Evidence and confidence: high; by design (ADR-028).
+- Workaround or containment: the timeline lists every repricing with the
+  before and after price; payment through the existing deposit, balance
+  link or counter payment.
+- Next action: build the online sale (packages as Shopify products with
+  untracked inventory, the order's package line held as a customer payment
+  on the build job until delivered) and the build-only packages in the
+  site's signed-in screens (ADR-028, Consequences).
+- Revisit trigger: the first online full-build order request.
+- Last checked: 2026-11-17.

@@ -330,6 +330,17 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   shop_charge_unique_only: "A shop-borne charge goes on a unique item only.",
   shop_charge_unit_not_available:
     "That unit's cost is already fixed on a job or a sale. Change shop charges only while it is available.",
+  // Build packages (D246-D251)
+  build_labour_service_invalid: "Choose a live service for the build's labour line.",
+  build_price_fixed: "This package has a fixed price.",
+  build_price_below_from: "That's below the package's starting price.",
+  build_package_archived: "That package is archived. Choose a live one.",
+  build_missing: "Give the job a build package first.",
+  build_line_not_repriceable: "Only the build's parts and its labour line can be repriced.",
+  build_line_voided: "That line is voided. Reload the job.",
+  build_labour_line_voided: "The build's labour line was voided. Set the package again first.",
+  build_over_budget:
+    "The parts cost more than the whole package even after fitting. Check the package price.",
   // Product groups (D241, D242)
   product_group_short_id_immutable: "A group keeps its ID for life.",
   product_group_has_members:
@@ -613,6 +624,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
 /** 23505 unique violations by constraint name. */
 export const UNIQUE_ERRORS: Record<string, string> = {
   products_group_option_value_key: "Another product in this group already has that option value.",
+  build_packages_name_key: "Another live package has that name.",
+  work_order_builds_labour_line_id_key: "That labour line belongs to another build. Save again.",
   product_groups_short_id_key: "That group ID is taken. Save again.",
   product_groups_shopify_product_id_key: "That Shopify product belongs to another group.",
   adventure_departure_participants_one_open: "This rider has already joined a date.",
@@ -767,6 +780,14 @@ export const UNIQUE_ERRORS: Record<string, string> = {
 
 /** 23514 check violations by constraint name. */
 export const CHECK_ERRORS: Record<string, string> = {
+  build_packages_name_length: "Give the package a name of up to 80 characters.",
+  build_packages_description_length: "Keep the description under 4,000 characters.",
+  build_packages_price_positive: "Give the package a price above zero.",
+  build_packages_labour_within_price: "The labour can't be more than the package price.",
+  build_packages_currency_format: "That isn't a currency code.",
+  build_packages_sort_order_range: "Use a sort order from 0 to 10,000.",
+  work_order_builds_price_positive: "Give the build a price above zero.",
+  work_order_builds_labour_within_price: "The labour can't be more than the build price.",
   products_group_option_pair:
     "A product in a group needs an option value, and only a grouped product has one.",
   products_option_value_length: "Keep the option value to 60 characters.",

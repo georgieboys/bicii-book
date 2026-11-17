@@ -23,6 +23,7 @@ export const ANON_FUNCTIONS: readonly string[] = [
   "public.bookable_slots(date, date, uuid)",
   "public.public_appointment_types()",
   "public.public_shop_hours()",
+  "public.public_build_packages()",
   // Phase 13 (D142, D143): the quote page, for whoever holds a quote link;
   // the token is checked against its stored SHA-256, nothing else is read
   "public.answer_quote(text, jsonb, text)",
@@ -104,6 +105,11 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // (a cost also view_costs), Cult Commons rates are admin only
   "public.add_manual_line(uuid, uuid, text, money_amount, line_quantity, money_amount)",
   "public.add_service_line(uuid, uuid, uuid, line_quantity, money_amount, money_amount, text)",
+  // Build packages (D247-D251)
+  "public.set_work_order_build(uuid, uuid, uuid, money_amount)",
+  "public.clear_work_order_build(uuid, text)",
+  "public.reprice_build_line(uuid, money_amount)",
+  "public.fit_build_to_budget(uuid)",
   "public.add_work_order_note(uuid, uuid, work_order_note_kind, text)",
   "public.assign_staff(uuid, uuid, assignment_role)",
   "public.cancel_cult_commons_rate(uuid)",
@@ -148,6 +154,7 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.mark_appointment_status(uuid, appointment_status, text)",
   "public.public_appointment_types()",
   "public.public_shop_hours()",
+  "public.public_build_packages()",
   "public.save_appointment_type(uuid, boolean, text, text, integer, integer, boolean, boolean, integer)",
   "public.save_closure_override(uuid, boolean, closure_kind, date, date, text, time without time zone, time without time zone)",
   "public.set_shop_hours(smallint, jsonb, boolean)",
@@ -445,6 +452,10 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.work_order_line_items": ["SELECT"],
   "public.work_order_line_items_staff": ["SELECT"],
   "public.work_order_totals": ["SELECT"],
+  // Build packages (D246, D247, D249)
+  "public.build_packages": ["INSERT", "SELECT", "UPDATE"],
+  "public.work_order_builds": ["SELECT"],
+  "public.work_order_build_summary": ["SELECT"],
   "public.work_order_totals_staff": ["SELECT"],
   "public.work_orders": ["SELECT"],
   // Inventory (Phase 4): staff read; manage_inventory writes locations and

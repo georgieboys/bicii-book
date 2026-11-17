@@ -1,0 +1,84 @@
+# ADR-028: Build packages (labour and a parts budget)
+
+Date: 2026-11-17.
+Status: accepted (the owner's requirements 2026-11-17 SGT).
+Decision owner: Abhishek Cherian George (owner) for business meaning;
+design by the build agent.
+
+## Context
+
+The public site sells four full builds for a frame (Classic S$390,
+Classic+ S$785, Restomod S$1,075, Restomod+ S$1,680) and three build-only
+packages on the customer's own bike (Full Send S$220, Clean Slate from
+S$325, Strip and rebuild S$360). The owner, 2026-11-17:
+
+- a full build includes products and service revenue: the frame is full
+  product revenue; of the build, S$180 goes to labour (service revenue)
+  and the balance is the parts budget (product revenue);
+- the parts actually fitted are assigned to the build and make up the
+  budget, with individual prices adjustable, or one gross discount across
+  all of them so the total matches the budget, because not every part can
+  be billed at its full customer price;
+- payment is taken in full at checkout on Shopify, but recognised as
+  revenue only when the build is delivered;
+- the agent's defaults he accepted: parts are never charged above their
+  shelf price, so parts under budget leave the difference to labour
+  (service revenue); S$180 for all four, changeable per package.
+
+The workshop's jobs already split revenue this way: a job's service lines
+are service revenue and its part lines product revenue, recognised when
+the job is completed (D32). What was missing was the package, its fixed
+price and a way to price the parts to the budget, since lines are
+immutable except voiding (D15).
+
+## Decision
+
+1. **Packages (D246).** `build_packages`: kind (`full_build`,
+   `build_only`), name, price (or a "from" price), labour amount, the
+   service the labour line is recorded as, public and sort order. Admins
+   write them; staff read; `public_build_packages()` gives the site the
+   public, live ones without the labour split.
+2. **A job's package (D247).** `work_order_builds`, one per job, set by
+   `set_work_order_build` on an open job: it snapshots the price and
+   labour amount and adds the job's labour line, a service line at the
+   labour amount. A "from" price above the base is labour.
+3. **Repricing (D248).** A live part line or the labour line of a job with
+   a package may have its sale price changed, nothing else, only through
+   `reprice_build_line` and `fit_build_to_budget`, only while the job is
+   open, each with a job event; the first change keeps the original price
+   in `unit_list_price_snapshot`. The line rules trigger allows this one
+   path when the private writer marks its own statement; every other line
+   stays immutable except voiding.
+4. **Fit to budget (D249).** The parts are the job's live inventory lines.
+   Above the budget at list prices, each part's price is its list price
+   times budget / list total, to the cent (the one gross discount); at or
+   under it, they stay at list. The labour line takes the rest, so the
+   package always adds up to its price. Other service and manual lines are
+   outside the package and billed on top.
+5. **Revenue (D250).** Unchanged rules: the completed job recognises the
+   labour line as service revenue and the parts as product revenue. A
+   price below cost is allowed and reports as a loss line (D1). The frame
+   remains its own sale at full price.
+6. **Clearing (D251)** voids the labour line and returns repriced parts to
+   their list prices.
+
+## Consequences
+
+- The package's revenue split is in the ledger, not in a side table: the
+  reports, Cult Commons and margins work unchanged.
+- A repriced line shows its final price; the history is in the job's
+  `line_repriced` and `build_fitted` events and the list price column.
+- Not built yet (the next steps of this record): selling full builds
+  online with the frame (packages as Shopify products, the order's package
+  line held as a customer payment on the build job until it is
+  delivered), and the build-only packages in the site's signed-in screens.
+
+## Alternatives considered
+
+- **Shopify variants of each frame** (frame plus Classic, and so on): the
+  frame is one unit, so each variant would carry its own stock and the
+  frame could sell twice; the package money would land on the consigned
+  frame's sale; and every price change would touch every frame.
+- **Void and re-add to reprice:** keeps strict immutability but moves
+  stock out and back in for every fit, and a quantity part's consigned
+  FIFO item could change.

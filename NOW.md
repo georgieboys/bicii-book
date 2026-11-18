@@ -3,7 +3,7 @@
 Updated: 2026-11-17 SGT (build packages, D246-D256, ADR-028, merged and
 live: bicii-book PRs #95 and #96, BICII PR #82, BICII PR #80 for the
 hours sentence; migrations `20261117000100` to `20261117000400` applied by
-`migrate.yml`). A full build (Classic S$390, Classic+ S$785, Restomod
+`migrate.yml`). A full build (Classic S$485 since 2026-11-18, was S$390; Classic+ S$785, Restomod
 S$1,075, Restomod+ S$1,680) sets a job's package: a S$180 labour line
 (service revenue) and the rest as the parts budget; **Fit parts to
 budget** prices the fitted parts down to it with one discount (never above

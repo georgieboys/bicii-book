@@ -17,7 +17,7 @@ holding the frame and the build (checkout opened with 2 items, S$860,
 nothing submitted). An order's package line becomes a build order (money
 held); **Link online order** on the job's Build card puts it on the job at
 the amount paid. Build-only packages (Full Send, Clean Slate from S$325,
-Strip and rebuild) are on the customer's bike page and the booking form.
+Full Rebuild, named Strip and rebuild until 2026-11-20) are on the customer's bike page and the booking form.
 Production data: service "Build package labour" (S$180, not public) and
 the seven packages. An independent review of PR #96 found six defects,
 all fixed before merge. Open: refunds and unlinked orders (R-122); the

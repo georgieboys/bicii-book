@@ -82,7 +82,7 @@ The repository follows
      quotes, R-085–R-089 Stripe payments (its later entries R-090–R-094),
      R-095–R-097 later (R-095 reclassifying shop stock, R-096 booking
      emails, R-097 server environment failures), R-098–R-119 adventures, R-120 product groups,
-     R-121–R-129 build packages (R-098–R-105 taken), R-130+ later.
+     R-121–R-129 build packages (R-098–R-105 taken), R-130 frame grades, R-131+ later.
 3. Record problems, shortcuts and uncertainty with evidence in
    `docs/RISKS.md`. There is one backlog: the PLAN phases, the RISKS next
    actions and NOW.md.

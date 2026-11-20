@@ -237,6 +237,12 @@ function ProductSheetBody({
   const [active, setActive] = useState(product?.active ?? true);
   const [grade, setGrade] = useState(product?.frameGrade ?? "");
   const suggested = frameGrades.find((g) => g.grade === grade) ?? null;
+  // Controlled, so "Use it" can put the grade's base price in (D260).
+  const [price, setPrice] = useState(product?.defaultSalePrice ?? "");
+  const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
+  // The grade is for frames: offered in a frames category, or kept when one is set.
+  const isFrame =
+    grade !== "" || /frame/i.test(categories.find((c) => c.id === categoryId)?.name ?? "");
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     if (product) {
       const result = await callAction(
@@ -378,7 +384,11 @@ function ProductSheetBody({
             categories.length === 0 ? "Add categories in Settings → Product categories." : undefined
           }
         >
-          <Select name="categoryId" defaultValue={value("categoryId", product?.categoryId)}>
+          <Select
+            name="categoryId"
+            defaultValue={value("categoryId", product?.categoryId)}
+            onChange={(e) => setCategoryId(e.target.value)}
+          >
             <option value="">No category</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
@@ -387,21 +397,17 @@ function ProductSheetBody({
             ))}
           </Select>
         </Field>
-        {frameGrades.length > 0 ? (
+        {frameGrades.length > 0 && isFrame ? (
           <Field
             label="Frame grade"
-            hint="Frames only: C to S++, S best. Its suggested price shows under Sale price; the price stays your call."
+            hint="The frame itself, before any work done to it: C to S++, S best. Shown on its page, the site and Shopify (in the title). Its base price shows under Sale price; add any work (a disc conversion, a repaint, kintsugi) on top."
             error={errors?.frameGrade?.[0]}
           >
-            <Select
-              name="frameGrade"
-              value={values?.frameGrade ?? grade}
-              onChange={(e) => setGrade(e.target.value)}
-            >
+            <Select name="frameGrade" value={grade} onChange={(e) => setGrade(e.target.value)}>
               <option value="">No grade</option>
               {frameGrades.map((g) => (
                 <option key={g.grade} value={g.grade}>
-                  {g.grade} · suggested {formatMoney(g.suggestedPrice, g.currency)}
+                  {g.grade} · base {formatMoney(g.suggestedPrice, g.currency)}
                 </option>
               ))}
             </Select>
@@ -419,26 +425,17 @@ function ProductSheetBody({
           hint={tracking === "unique" ? "Optional when the unit has its own price." : undefined}
           error={errors?.salePrice?.[0]}
         >
-          <NumberInput
-            kind="money"
-            name="salePrice"
-            defaultValue={value("salePrice", product?.defaultSalePrice)}
-          />
+          <NumberInput kind="money" name="salePrice" value={price} onValueChange={setPrice} />
           {suggested ? (
             <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-dust-700">
-              Suggested for {suggested.grade}:{" "}
-              {formatMoney(suggested.suggestedPrice, suggested.currency)}
+              Base price for {suggested.grade}:{" "}
+              {formatMoney(suggested.suggestedPrice, suggested.currency)}, before any work on the
+              frame
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const form = document.getElementById(formId) as HTMLFormElement | null;
-                  const input = form?.elements.namedItem("salePrice") as HTMLInputElement | null;
-                  if (!input) return;
-                  input.value = suggested.suggestedPrice;
-                  input.dispatchEvent(new Event("input", { bubbles: true }));
-                }}
+                onClick={() => setPrice(suggested.suggestedPrice)}
               >
                 Use it
               </Button>

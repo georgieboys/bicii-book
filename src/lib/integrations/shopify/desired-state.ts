@@ -88,10 +88,15 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
 }
 
-/** D260: the description's first line on a graded frame (the grade is C ... S++, escaped anyway). */
+/**
+ * D260: the description's last paragraph on a graded frame, in the owner's
+ * words (2026-11-20). A grade is about the frame itself; work done to it
+ * (a disc conversion, a repaint, kintsugi) is priced on top of its grade's
+ * base price. The grade is C ... S++, escaped anyway.
+ */
 export function gradeLine(grade: string): string {
   const safe = grade.replace(/[&<>"']/g, (c) => ESCAPES[c]);
-  return `<p>Frame grade: ${safe} (C to S++, S best). A grade is a price level, not a verdict on quality or safety.</p>`;
+  return `<p>Frame grade ${safe} (C to S++, S best): the frame itself, before any work done to it. Not a safety rating.</p>`;
 }
 
 function photoUrl(base: string, path: string): string {
@@ -129,11 +134,14 @@ export function buildDesiredState(state: SyncState, options: DesiredStateOptions
     const name = state.name ?? shortId;
     input = {
       handle: state.handle ?? shopifyHandle(shortId),
-      // D260: a graded frame's title ends "· B+ frame", its description
-      // opens with the grade, and it is tagged "Grade B+". The tags are
-      // BICII's on a BICII-made product: an ungraded one is pushed with none.
+      // D260: a graded frame's title ends "· B+ frame", it is tagged
+      // "Grade B+", and its description ends with what the grade is (last,
+      // so Shopify's search and link-preview snippet, taken from the start
+      // of the description, still describes the frame). The tags are
+      // BICII's on a BICII-made product, like its title and photos: an
+      // ungraded one is pushed with none, so a removed grade drops its tag.
       title: grade ? `${name} · ${grade} frame` : name,
-      descriptionHtml: (grade ? gradeLine(grade) : "") + descriptionToHtml(state.description),
+      descriptionHtml: descriptionToHtml(state.description) + (grade ? gradeLine(grade) : ""),
       tags: grade ? [`Grade ${grade}`] : [],
       vendor: state.brand?.trim() ? state.brand.trim() : "BICII",
       status: effective ? "ACTIVE" : "DRAFT",

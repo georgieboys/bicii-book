@@ -79,7 +79,7 @@ describe("buildDesiredState", () => {
     expect(d.hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("shows a frame's grade in the title, the description's first line and a tag (D260)", () => {
+  it("shows a frame's grade in the title, a tag and the description's last paragraph (D260)", () => {
     const d = buildDesiredState(
       state({ name: "KHS Comp steel frame and fork", frame_grade: "B+" }),
       OPTIONS,
@@ -87,8 +87,8 @@ describe("buildDesiredState", () => {
     expect(d.input?.title).toBe("KHS Comp steel frame and fork · B+ frame");
     expect(d.input?.tags).toEqual(["Grade B+"]);
     expect(d.input?.descriptionHtml).toBe(
-      "<p>Frame grade: B+ (C to S++, S best). A grade is a price level, not a verdict on quality or safety.</p>" +
-        "<p>Line one.</p><p>Line &lt;two&gt; &amp; more</p>",
+      "<p>Line one.</p><p>Line &lt;two&gt; &amp; more</p>" +
+        "<p>Frame grade B+ (C to S++, S best): the frame itself, before any work done to it. Not a safety rating.</p>",
     );
     // Ungraded again: plain title, no tags (pushed as an empty list, so Shopify drops the old tag).
     const plain = buildDesiredState(state({ frame_grade: null }), OPTIONS);

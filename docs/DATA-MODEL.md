@@ -2012,7 +2012,8 @@ Built out of phase on 2026-11-20 (`20261120000200_frame_grades.sql`;
 ```
 frame_grades
   grade text PK (C, C+, C++, B ... S++: frame_grades_grade_format), sort_order unique,
-  suggested_price money_amount > 0, currency default 'SGD', updated_at
+  suggested_price money_amount > 0 (the grade's base price; work on the frame is on top),
+  currency default 'SGD', updated_at
   -- seeded: C 200, C+ 250, C++ 300, B 400, B+ 500, B++ 600, A 800, A+ 1000,
   --   A++ 1200, S 1500, S+ 2000, S++ 2500
   -- RLS: staff read; admins update suggested_price only
@@ -2026,9 +2027,10 @@ reporting.public_items += frame_grade (appended)
 - On Shopify (`20261120000300_frame_grade_on_shopify.sql`):
   `shopify_product_sync_state` gains `frame_grade` (appended);
   `product_sync_state` fills it; `products_enqueue_shopify_sync` also fires
-  on `frame_grade`. The Admin's desired state puts it in the title
-  ("· B+ frame"), the tags ("Grade B+"; none when ungraded) and the
-  description's first line.
+  on `frame_grade`; the migration queues every product already graded.
+  The Admin's desired state puts it in the title ("· B+ frame"), the tags
+  ("Grade B+"; none when ungraded) and the description's last paragraph.
+  A grouped member's listing is its group's, so it shows no grade.
 
 ### Product groups (D241-D245)
 

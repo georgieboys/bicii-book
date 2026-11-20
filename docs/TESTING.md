@@ -875,8 +875,10 @@ with an escaped description, vendor and SKU fallbacks, the price passed
 through unchanged including 0, DRAFT and 0 when not effective,
 `variant_only` with no input for an external product, the two problems
 only while effectively online, the hash stable under key order and
-changing with price, quantity, photos, API version, location, mode and
-status); `shopify-graphql-admin.test.ts` (mocked fetch: the pinned version
+changing with price, quantity, photos, API version, location, mode,
+status and frame grade; D260: a graded frame's title suffix, "Grade" tag
+and last description paragraph, an ungraded product pushed with no tags,
+an external product untouched whatever its grade); `shopify-graphql-admin.test.ts` (mocked fetch: tags sent when given, an empty list kept to clear them, left out otherwise (D260); the pinned version
 in the URL, the token header, productSet by handle on create and by id on
 update with one default variant, no price when there is none,
 productVariantsBulkUpdate with the price only, `changeFromQuantity`

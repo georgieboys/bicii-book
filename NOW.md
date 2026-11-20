@@ -1,15 +1,23 @@
 # Current state
 
-Updated: 2026-11-20 SGT (frame grades on Shopify, D260 amendment;
-branch `feat/frame-grade-shopify`, migration `20261120000300` applies on
-merge). A graded product's Shopify listing shows its grade: the title ends
-"· B+ frame", the description opens with "Frame grade: B+ (C to S++, S
-best) …" and it is tagged "Grade B+"; a grade change queues its sync. The
-owner's grades for the three frames on Shopify: P-000144 Marin B, P-000145
-KHS Descent B+, P-000146 KHS Comp B+ (set after the migration). Verified
-before merge: typecheck, lint, format and the unit tests; the DB tests run
-in CI. First next action: set the three grades, let the sync push, and
-check the store. Before that,
+Updated: 2026-11-20 SGT (frame grades on Shopify and the base-price model,
+D260 amendments; branch `feat/frame-grade-shopify`, migration
+`20261120000300` applies on merge). A grade is the frame itself, before
+any work done to it; its price in `frame_grades` is a base, with work such
+as a disc conversion, a repaint or kintsugi priced on top (the owner). The
+Admin offers the base under Sale price with **Use it** (now a controlled
+field, so the button works) and shows Frame grade only for frames. A
+graded product's Shopify title ends "· B+ frame", it is tagged "Grade B+"
+and its description ends with "Frame grade B+ (C to S++, S best): the frame
+itself, before any work done to it. Not a safety rating."; a grade change
+queues its sync, and the migration queues anything already graded. BICII
+owns the tags of products it made (R-130). The owner's grades for the
+three frames on Shopify: P-000144 Marin B, P-000145 KHS Descent B+,
+P-000146 KHS Comp B+ (set after the migration). Verified before merge: an
+independent four-lens review (no high or medium findings survived; its low
+findings are fixed or recorded), typecheck, lint, format and the unit
+tests; the DB tests run in CI. First next action: set the three grades, let
+the sync push, and check Shopify, the site and the Admin. Before that,
 Updated: 2026-11-20 SGT (frame grades, D260, ADR-029; branch
 `feat/frame-grades`, migration `20261120000200` applies on merge). A frame's
 price is said as a grade, C to S++ (S best), each with a suggested price in

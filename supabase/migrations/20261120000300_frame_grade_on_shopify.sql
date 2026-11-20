@@ -1,7 +1,9 @@
 -- D260 on Shopify: a frame's grade shows in its listing. The owner,
 -- 2026-11-20: the title ends "· B+ frame", the product is tagged
--- "Grade B+", and the description opens with the grade. The sync state
--- carries the grade, and changing it queues the product's sync.
+-- "Grade B+", and the description says what the grade is (after the
+-- frame's own text, so search and link previews keep describing the
+-- frame). The sync state carries the grade, and changing it queues the
+-- product's sync.
 
 alter type public.shopify_product_sync_state add attribute frame_grade text;
 
@@ -131,3 +133,12 @@ begin
   return r;
 end;
 $$;
+
+-- Grades saved before this trigger watched frame_grade queued nothing:
+-- queue every graded product once (enqueue_product_sync ignores products
+-- that are not published or pushed), in product order like the other
+-- bulk enqueue (shopify_settings_enqueue_all).
+select private.enqueue_product_sync(p.id)
+from public.products p
+where p.frame_grade is not null
+order by p.id;

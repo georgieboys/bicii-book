@@ -537,7 +537,10 @@ review, on `feat/staff-roles` in the second worktree, database
   photos never public, D19
   (`attachments.test.ts`); `CustomerSheet` / `BikeSheet` hand a new record
   to `onCreated` instead of navigating, and navigate as before without it
-  (`record-sheets.test.tsx`, actions mocked). Review fixes: the status
+  (`record-sheets.test.tsx`, actions mocked); the product sheet's frame
+  grade (D260) offered only for frames, its base price put in with **Use
+  it**, and the chosen grade kept and sent again after a failed save
+  (`product-sheet.test.tsx`, actions mocked). Review fixes: the status
   row disabled for 400 ms after each status change, Collected confirmed in
   a second step (job and customer named, focus on Back, confirm armed after
   400 ms), the Change status sheet with nothing pre-selected and its submit

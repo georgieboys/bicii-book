@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useId, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 
 import {
   createProduct,
@@ -240,9 +240,12 @@ function ProductSheetBody({
   // Controlled, so "Use it" can put the grade's base price in (D260).
   const [price, setPrice] = useState(product?.defaultSalePrice ?? "");
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
-  // The grade is for frames: offered in a frames category, or kept when one is set.
+  // The grade is for frames: offered in a frames category, or while the
+  // product has (or had, when this sheet opened) a grade.
   const isFrame =
-    grade !== "" || /frame/i.test(categories.find((c) => c.id === categoryId)?.name ?? "");
+    grade !== "" ||
+    !!product?.frameGrade ||
+    /frame/i.test(categories.find((c) => c.id === categoryId)?.name ?? "");
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     if (product) {
       const result = await callAction(
@@ -278,6 +281,14 @@ function ProductSheetBody({
     }
     return result;
   }, null);
+  // React resets the form after every action, failed ones too, and a
+  // controlled <select> then shows its first option ("No grade"). The grade
+  // is submitted from a hidden input instead, and the select is put back
+  // to the chosen grade after each result.
+  const gradeSelect = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (gradeSelect.current) gradeSelect.current.value = grade;
+  }, [state, grade]);
   const formRef = useFocusFirstInvalid(state);
   const errors = state && !state.ok ? state.fieldErrors : undefined;
   const values = state && !state.ok ? state.values : undefined;
@@ -403,7 +414,8 @@ function ProductSheetBody({
             hint="The frame itself, before any work done to it: C to S++, S best. Shown on its page, the site and Shopify (in the title). Its base price shows under Sale price; add any work (a disc conversion, a repaint, kintsugi) on top."
             error={errors?.frameGrade?.[0]}
           >
-            <Select name="frameGrade" value={grade} onChange={(e) => setGrade(e.target.value)}>
+            <input type="hidden" name="frameGrade" value={grade} />
+            <Select ref={gradeSelect} value={grade} onChange={(e) => setGrade(e.target.value)}>
               <option value="">No grade</option>
               {frameGrades.map((g) => (
                 <option key={g.grade} value={g.grade}>

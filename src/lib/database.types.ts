@@ -13255,6 +13255,7 @@ export type Database = {
         last_pushed_quantity: number | null;
         orders_in_flight: boolean | null;
         sync_status: Database["public"]["Enums"]["shopify_sync_status"] | null;
+        frame_grade: string | null;
       };
       shopify_publish_result: {
         product_id: string | null;

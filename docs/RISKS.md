@@ -3582,3 +3582,31 @@ URLs, or customer data in this file.
 - Next action: queue a package re-push when its donor service changes.
 - Revisit trigger: the first change to the strip's price.
 - Last checked: 2026-11-20.
+
+## R-130 — BICII replaces the tags of the products it made on Shopify
+
+- Category: Shopify.
+- Status and owner: open, accepted; the owner (process), the build agent
+  (code).
+- Trigger: someone adds a tag in Shopify to a product BICII put there (for
+  a tag-based collection or a feed), or a frame's grade tag is used in a
+  storefront tag URL.
+- Impact: since D260 the sync sends a BICII-made product's tags with every
+  push ("Grade B+" on a graded frame, none otherwise), so a tag added in
+  Shopify is removed on the product's next sync, and the product drops out
+  of a collection built on it. Shopify's tag handles drop "+", so "Grade
+  B", "Grade B+" and "Grade B++" share the handle `grade-b`: an exact-value
+  collection condition or filter tells them apart, a legacy tag URL does
+  not. A grouped product's grade is not on Shopify at all (its listing is
+  the group's).
+- Evidence and confidence: high, by design (ADR-029 amendment). When it
+  shipped, none of the 8 products on the storefront had tags; drafts were
+  not checked from the storefront.
+- Workaround or containment: tag BICII-made products only through BICII;
+  build collections on product type or exact tag values.
+- Next action: if Shopify-side tags are wanted, change the push to add and
+  remove only "Grade …" tags (tagsAdd/tagsRemove) instead of replacing the
+  list.
+- Revisit trigger: the first tag-based collection or feed.
+- Last checked: 2026-11-20.
+

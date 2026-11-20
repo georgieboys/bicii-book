@@ -317,6 +317,7 @@ export function createGraphqlShopifyAdmin({
           productOptions: [{ name: "Title", position: 1, values: [{ name: "Default Title" }] }],
           variants: [variant],
           files: input.imageUrls.map((url) => ({ originalSource: url, contentType: "IMAGE" })),
+          ...(input.tags !== undefined ? { tags: input.tags } : {}),
         },
       });
       const payload = payloadOf(data, "productSet");

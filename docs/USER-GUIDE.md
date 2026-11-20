@@ -771,12 +771,19 @@ while an approved or ordered item is neither fitted nor cancelled:
     same model: **Add unit** on the product.
 - Success looks like: toast "Product added" and the product's page with
   its P- number (a unique item's unit gets its own U- number).
-- A frame's grade: choose **Frame grade** (C to S++, S best) on **New
-  product** or **Edit details**. The suggested price for that grade shows
-  under **Sale price** ("Suggested for B++: $600.00"); press **Use it** to
-  put it in, or type your own. The grade shows on the product's page
-  ("Grade B++") and on its public page; say it with the build when selling
-  ("a B++ frame with a Classic+ build").
+- A frame's grade: in a frames category, choose **Frame grade** (C to
+  S++, S best) on **New product** or **Edit details**. Grade the frame
+  itself, before any work done to it. Its base price shows under **Sale
+  price** ("Base price for B++: $600.00, before any work on the frame");
+  press **Use it** to put it in, then add any work done to the frame (a
+  disc conversion, a repaint, kintsugi), or type your own price. The grade
+  shows on the product's page ("Grade B++"), on its public page and, once
+  it is online, on Shopify: the title ends "· B++ frame", the product is
+  tagged "Grade B++" and the description ends with "Frame grade B++ (C to
+  S++, S best): the frame itself, before any work done to it. Not a safety
+  rating." Saving queues the Shopify update. A product in a group shows no
+  grade on Shopify (its listing is the group's). Say it with the build when
+  selling ("a B++ frame with a Classic+ build").
 - Consigned items (owned by someone else) are not added here: use
   [Receive a consigned item](#receive-a-consigned-item). If they were
   added here by mistake, do not archive the product or count its stock
@@ -1200,9 +1207,12 @@ website's account pages go live when the owner switches them on,
 - It needs: the product public (Publication card), a price ($0 counts),
   not archived and not customer-owned. When something is missing the reason
   sits beside the switch, for example "Make the product public first."
-- Afterwards every stock, price, name or public-photo change is sent once,
-  automatically. **Sync now** sends it again; on a failed sync the card
-  shows the reason in red above it.
+- Afterwards every stock, price, name, frame grade or public-photo change
+  is sent once, automatically. **Sync now** sends it again; on a failed
+  sync the card shows the reason in red above it.
+- BICII sets the title, description, photos and tags of a product it put
+  on Shopify: a tag added in Shopify to such a product is removed on its
+  next sync (the only tag BICII sets is a frame's "Grade B+").
 - If the product later stops being public, is archived or made inactive,
   the switch stays on but the card says why it is not listed, for example
   "Not listed: the product is not public. It goes back online when you

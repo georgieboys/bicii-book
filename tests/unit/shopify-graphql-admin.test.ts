@@ -120,6 +120,17 @@ describe("createGraphqlShopifyAdmin", () => {
     expect((sent[1].body.variables.input as { status: string }).status).toBe("DRAFT");
   });
 
+  it("sends tags when given, an empty list to clear them, and leaves them alone otherwise (D260)", async () => {
+    const { admin, sent } = adminWith(productSetOk(), productSetOk(), productSetOk());
+    await admin.upsertProduct({ ...INPUT, tags: ["Grade B+"] }, { productId: PRODUCT });
+    await admin.upsertProduct({ ...INPUT, tags: [] }, { productId: PRODUCT });
+    await admin.upsertProduct(INPUT, { productId: PRODUCT });
+    const inputs = sent.map((s) => s.body.variables.input as Record<string, unknown>);
+    expect(inputs[0].tags).toEqual(["Grade B+"]);
+    expect(inputs[1].tags).toEqual([]);
+    expect(inputs[2]).not.toHaveProperty("tags");
+  });
+
   it("leaves the price out when there is none (unpublishing)", async () => {
     const { admin, sent } = adminWith(productSetOk());
     await admin.upsertProduct({ ...INPUT, price: null, status: "DRAFT" }, { productId: PRODUCT });

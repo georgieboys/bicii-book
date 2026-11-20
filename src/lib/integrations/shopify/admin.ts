@@ -33,6 +33,11 @@ export type ShopifyProductInput = {
    * not (D252). Default true.
    */
   tracked?: boolean;
+  /**
+   * The product's tags, replacing Shopify's (D260: "Grade B+" on a graded
+   * frame, none otherwise). Undefined leaves Shopify's tags as they are.
+   */
+  tags?: string[];
 };
 
 /** One member of a product group as a Shopify variant (D243). */

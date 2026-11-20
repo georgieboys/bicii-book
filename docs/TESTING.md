@@ -537,7 +537,10 @@ review, on `feat/staff-roles` in the second worktree, database
   photos never public, D19
   (`attachments.test.ts`); `CustomerSheet` / `BikeSheet` hand a new record
   to `onCreated` instead of navigating, and navigate as before without it
-  (`record-sheets.test.tsx`, actions mocked). Review fixes: the status
+  (`record-sheets.test.tsx`, actions mocked); the product sheet's frame
+  grade (D260) offered only for frames, its base price put in with **Use
+  it**, and the chosen grade kept and sent again after a failed save
+  (`product-sheet.test.tsx`, actions mocked). Review fixes: the status
   row disabled for 400 ms after each status change, Collected confirmed in
   a second step (job and customer named, focus on Back, confirm armed after
   400 ms), the Change status sheet with nothing pre-selected and its submit
@@ -875,8 +878,10 @@ with an escaped description, vendor and SKU fallbacks, the price passed
 through unchanged including 0, DRAFT and 0 when not effective,
 `variant_only` with no input for an external product, the two problems
 only while effectively online, the hash stable under key order and
-changing with price, quantity, photos, API version, location, mode and
-status); `shopify-graphql-admin.test.ts` (mocked fetch: the pinned version
+changing with price, quantity, photos, API version, location, mode,
+status and frame grade; D260: a graded frame's title suffix, "Grade" tag
+and last description paragraph, an ungraded product pushed with no tags,
+an external product untouched whatever its grade); `shopify-graphql-admin.test.ts` (mocked fetch: tags sent when given, an empty list kept to clear them, left out otherwise (D260); the pinned version
 in the URL, the token header, productSet by handle on create and by id on
 update with one default variant, no price when there is none,
 productVariantsBulkUpdate with the price only, `changeFromQuantity`

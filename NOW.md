@@ -1,5 +1,24 @@
 # Current state
 
+Updated: 2026-11-20 SGT (frame options and pictures on Shopify, D257-D259,
+ADR-028 amendment; bicii-book branch `feat/build-frame-options`, BICII PR
+#93 for the pictures; migration `20261120000100` applies on merge). Each
+full build on Shopify gets a **Frame** option: "Prepared frame from BICII"
+(the original variant, so the site's cart links keep working), "My own
+prepared frame (inspected first)" at the package price, and "Donor bike,
+stripped and prepared (+S$185)" from the package's donor service, priced
+in Postgres (`build_package_online_prices`). The description explains each
+option. A package has a **Picture link**, pushed as its Shopify media; the
+four use the site's `/builds/packages/<package>.png`, drawn in the site's
+De Stijl grid. An order on any variant becomes a build order with its frame
+option; linking a donor-bike order adds the S$185 strip as its own line and
+prices the build at the rest. Verified before merge: typecheck, lint and
+format; the unit tests for the push and the forms; the four pictures
+rendered locally. The DB tests run in CI (the devstack needs Linux). Open:
+what happens to the money when an own frame is refused (R-123, the
+owner's wording); a donor price change needs Update on Shopify (R-124).
+First next action: after merge, set each full build's donor service and
+picture, press Update on Shopify, and check the products. Before that,
 Updated: 2026-11-17 SGT (build packages, D246-D256, ADR-028, merged and
 live: bicii-book PRs #95 and #96, BICII PR #82, BICII PR #80 for the
 hours sentence; migrations `20261117000100` to `20261117000400` applied by

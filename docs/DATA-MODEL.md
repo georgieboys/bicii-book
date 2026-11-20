@@ -1967,6 +1967,43 @@ build_orders                             -- written by process_shopify_order_pai
   variant>:1,<package variant>:1`) for a frame with a Buy-online link in a
   category whose name contains "frame".
 
+Frame options and pictures (D257-D259; `20261120000100_build_frame_options.sql`):
+
+```
+build_frame_source enum: bicii_frame | own_frame | donor_bike
+
+build_packages += image_url text null (https: build_packages_image_url_https),
+  donor_service_id null -> services (the strip's service; null: no donor option),
+  shopify_own_frame_variant_id, shopify_donor_variant_id (gids, each unique; only
+    with shopify_variant_id), shopify_donor_amount money_amount (with the donor variant)
+  -- shopify_variant_id is the BICII-frame variant (the site's cart links)
+
+build_orders += frame_source build_frame_source not null default 'bicii_frame',
+  donor_service_id null -> services, donor_amount money_amount not null default 0
+  -- build_orders_donor_shape: 0 ≤ donor_amount ≤ amount; a donor amount or
+  --   service only on a donor_bike order
+```
+
+- `build_package_online_prices(build_package_id)` (staff, invoker): price,
+  and with an active donor service in the package's currency its id,
+  donor_amount and donor_price (price + donor_amount).
+- `record_build_package_push(build_package_id, shopify_product_id,
+  shopify_variant_id, shopify_own_frame_variant_id default null,
+  shopify_donor_variant_id default null, shopify_donor_amount default null)`
+  (admin) replaces the three-argument form; the three-argument call still
+  works and clears the other options.
+- `process_shopify_order_paid` (20261117000400's body): step 5 matches a
+  line against any of a package's three variants; step 9b stores the
+  frame option and, on a donor bike, donor_service_id and donor_amount =
+  least(shopify_donor_amount, the unit's share).
+- `link_build_order(build_order_id, work_order_id, labour_line_id,
+  donor_line_id default null)` (staff) replaces the three-argument form: a
+  donor-bike order needs donor_line_id (22004) and its donor service
+  (`build_order_donor_service_missing`); the build is priced at amount −
+  donor_amount, and the strip becomes line donor_line_id of the donor
+  service at donor_amount; `build_order_linked` carries frame_source,
+  donor_amount and donor_line_id.
+
 ### Product groups (D241-D245)
 
 Built out of phase on 2026-11-15 (`20261115000200_product_groups.sql`;

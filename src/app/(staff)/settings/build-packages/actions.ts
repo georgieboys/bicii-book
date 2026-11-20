@@ -11,6 +11,7 @@ import {
 import {
   createBuildPackage,
   getBuildPackage,
+  getOnlinePrices,
   recordBuildPackagePush,
   setBuildPackageArchived,
   setBuildPackageOnline,
@@ -75,16 +76,18 @@ export const pushBuildPackageAction = staffAction(
         "Show the package on the site, and unarchive it, before putting it online.",
       );
     }
+    const prices = await getOnlinePrices(supabase, id);
+    if (!prices) throw new ActionError("That package no longer exists. Refresh and try again.");
     // Shopify first: the flag (which the site's cart links read) changes
     // only once Shopify has the product in the same state.
-    let ids;
+    let pushed;
     try {
-      ids = await pushBuildPackage(admin, { ...pkg, publishOnline });
+      pushed = await pushBuildPackage(admin, { ...pkg, publishOnline, prices });
     } catch (error) {
       if (error instanceof ShopifyError) throw new ActionError(error.userMessage);
       throw error;
     }
-    await recordBuildPackagePush(supabase, id, ids.productId, ids.variantId);
+    await recordBuildPackagePush(supabase, id, pushed);
     await setBuildPackageOnline(supabase, id, publishOnline);
     refresh();
     return null;

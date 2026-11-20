@@ -2144,6 +2144,9 @@ export type Database = {
           created_at: string;
           currency: string;
           customer_id: string | null;
+          donor_amount: number;
+          donor_service_id: string | null;
+          frame_source: Database["public"]["Enums"]["build_frame_source"];
           id: string;
           integration_event_id: string | null;
           line_part: number;
@@ -2161,6 +2164,9 @@ export type Database = {
           created_at?: string;
           currency: string;
           customer_id?: string | null;
+          donor_amount?: number;
+          donor_service_id?: string | null;
+          frame_source?: Database["public"]["Enums"]["build_frame_source"];
           id?: string;
           integration_event_id?: string | null;
           line_part?: number;
@@ -2178,6 +2184,9 @@ export type Database = {
           created_at?: string;
           currency?: string;
           customer_id?: string | null;
+          donor_amount?: number;
+          donor_service_id?: string | null;
+          frame_source?: Database["public"]["Enums"]["build_frame_source"];
           id?: string;
           integration_event_id?: string | null;
           line_part?: number;
@@ -2202,6 +2211,20 @@ export type Database = {
             columns: ["customer_id"];
             isOneToOne: false;
             referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_orders_donor_service_id_fkey";
+            columns: ["donor_service_id"];
+            isOneToOne: false;
+            referencedRelation: "services";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_orders_donor_service_id_fkey";
+            columns: ["donor_service_id"];
+            isOneToOne: false;
+            referencedRelation: "services_staff";
             referencedColumns: ["id"];
           },
           {
@@ -2262,7 +2285,9 @@ export type Database = {
           created_by: string | null;
           currency: string;
           description: string | null;
+          donor_service_id: string | null;
           id: string;
+          image_url: string | null;
           kind: Database["public"]["Enums"]["build_package_kind"];
           labour_amount: number;
           labour_service_id: string;
@@ -2271,6 +2296,9 @@ export type Database = {
           price_is_from: boolean;
           public: boolean;
           publish_online: boolean;
+          shopify_donor_amount: number | null;
+          shopify_donor_variant_id: string | null;
+          shopify_own_frame_variant_id: string | null;
           shopify_product_id: string | null;
           shopify_pushed_at: string | null;
           shopify_variant_id: string | null;
@@ -2283,7 +2311,9 @@ export type Database = {
           created_by?: string | null;
           currency?: string;
           description?: string | null;
+          donor_service_id?: string | null;
           id?: string;
+          image_url?: string | null;
           kind: Database["public"]["Enums"]["build_package_kind"];
           labour_amount: number;
           labour_service_id: string;
@@ -2292,6 +2322,9 @@ export type Database = {
           price_is_from?: boolean;
           public?: boolean;
           publish_online?: boolean;
+          shopify_donor_amount?: number | null;
+          shopify_donor_variant_id?: string | null;
+          shopify_own_frame_variant_id?: string | null;
           shopify_product_id?: string | null;
           shopify_pushed_at?: string | null;
           shopify_variant_id?: string | null;
@@ -2304,7 +2337,9 @@ export type Database = {
           created_by?: string | null;
           currency?: string;
           description?: string | null;
+          donor_service_id?: string | null;
           id?: string;
+          image_url?: string | null;
           kind?: Database["public"]["Enums"]["build_package_kind"];
           labour_amount?: number;
           labour_service_id?: string;
@@ -2313,6 +2348,9 @@ export type Database = {
           price_is_from?: boolean;
           public?: boolean;
           publish_online?: boolean;
+          shopify_donor_amount?: number | null;
+          shopify_donor_variant_id?: string | null;
+          shopify_own_frame_variant_id?: string | null;
           shopify_product_id?: string | null;
           shopify_pushed_at?: string | null;
           shopify_variant_id?: string | null;
@@ -2325,6 +2363,20 @@ export type Database = {
             columns: ["created_by"];
             isOneToOne: false;
             referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_packages_donor_service_id_fkey";
+            columns: ["donor_service_id"];
+            isOneToOne: false;
+            referencedRelation: "services";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "build_packages_donor_service_id_fkey";
+            columns: ["donor_service_id"];
+            isOneToOne: false;
+            referencedRelation: "services_staff";
             referencedColumns: ["id"];
           },
           {
@@ -8209,6 +8261,15 @@ export type Database = {
           slot_start: string;
         }[];
       };
+      build_package_online_prices: {
+        Args: { build_package_id: string };
+        Returns: {
+          donor_amount: unknown;
+          donor_price: unknown;
+          donor_service_id: string;
+          price: unknown;
+        }[];
+      };
       cancel_adventure_booking: {
         Args: { booking_id: string; reason: string };
         Returns: {
@@ -9298,13 +9359,21 @@ export type Database = {
       };
       leave_adventure_departure: { Args: { booking_id: string }; Returns: undefined };
       link_build_order: {
-        Args: { build_order_id: string; labour_line_id: string; work_order_id: string };
+        Args: {
+          build_order_id: string;
+          donor_line_id?: string;
+          labour_line_id: string;
+          work_order_id: string;
+        };
         Returns: {
           amount: number;
           build_package_id: string;
           created_at: string;
           currency: string;
           customer_id: string | null;
+          donor_amount: number;
+          donor_service_id: string | null;
+          frame_source: Database["public"]["Enums"]["build_frame_source"];
           id: string;
           integration_event_id: string | null;
           line_part: number;
@@ -10244,14 +10313,23 @@ export type Database = {
         }[];
       };
       record_build_package_push: {
-        Args: { build_package_id: string; shopify_product_id: string; shopify_variant_id: string };
+        Args: {
+          build_package_id: string;
+          shopify_donor_amount?: unknown;
+          shopify_donor_variant_id?: string;
+          shopify_own_frame_variant_id?: string;
+          shopify_product_id: string;
+          shopify_variant_id: string;
+        };
         Returns: {
           archived_at: string | null;
           created_at: string;
           created_by: string | null;
           currency: string;
           description: string | null;
+          donor_service_id: string | null;
           id: string;
+          image_url: string | null;
           kind: Database["public"]["Enums"]["build_package_kind"];
           labour_amount: number;
           labour_service_id: string;
@@ -10260,6 +10338,9 @@ export type Database = {
           price_is_from: boolean;
           public: boolean;
           publish_online: boolean;
+          shopify_donor_amount: number | null;
+          shopify_donor_variant_id: string | null;
+          shopify_own_frame_variant_id: string | null;
           shopify_product_id: string | null;
           shopify_pushed_at: string | null;
           shopify_variant_id: string | null;
@@ -12771,6 +12852,7 @@ export type Database = {
       attachment_event_type: "created" | "visibility_changed" | "caption_changed" | "deleted";
       attachment_visibility: "internal" | "customer" | "public";
       bike_ownership_event_type: "registered" | "transferred";
+      build_frame_source: "bicii_frame" | "own_frame" | "donor_bike";
       build_package_kind: "full_build" | "build_only";
       category_kind: "service" | "product";
       charge_bearer: "consignor" | "shop";
@@ -13973,6 +14055,7 @@ export const Constants = {
       attachment_event_type: ["created", "visibility_changed", "caption_changed", "deleted"],
       attachment_visibility: ["internal", "customer", "public"],
       bike_ownership_event_type: ["registered", "transferred"],
+      build_frame_source: ["bicii_frame", "own_frame", "donor_bike"],
       build_package_kind: ["full_build", "build_only"],
       category_kind: ["service", "product"],
       charge_bearer: ["consignor", "shop"],

@@ -245,25 +245,39 @@ managers.
 - Before you start: Shopify is connected, and the package is a full build
   shown on the site.
 - Steps:
+  - Admins: on the package's **Edit**, set **Donor bike service** (the
+    "Donor bike strip and prep" service, S$185) and **Picture link** (the
+    site's picture, such as `https://bicii.sg/builds/packages/classic.png`).
   - Admins: **Settings → Build packages**, **Put on Shopify** on the
-    package (it shows **On Shopify**). After editing its price or text,
-    **Update on Shopify**; **Take off Shopify** stops selling it.
-  - On the site, a frame that is on sale online then offers each online
-    full build; the customer buys the frame and the build together and
-    pays in full.
-  - When the customer brings or leaves the frame for the build, open the
-    build's job and, on **Build package**, press **Link online order** and
-    choose the order. The job gets the package if it had none, and the
-    payment shows as paid.
+    package (it shows **On Shopify** and the frame options it offers).
+    After editing its price, text, picture or donor service, or the donor
+    service's price, **Update on Shopify**; **Take off Shopify** stops
+    selling it.
+  - On Shopify the customer picks **Frame**: **Prepared frame from BICII**
+    or **My own prepared frame (inspected first)** at the package price, or
+    **Donor bike, stripped and prepared (+S$185)**. On the site, a frame
+    that is on sale online offers each online full build with that frame
+    in the same cart. The customer pays in full.
+  - When the customer brings the frame or donor bike, open the build's job
+    and, on **Build package**, press **Link online order** and choose the
+    order. Each order shows its frame option:
+    - **Own frame**: inspect the frame before you accept it, and quote any
+      frame work separately before starting.
+    - **Donor bike**: the strip and prep is added to the job as its own
+      line; the build is priced at the rest. Unused parts go back to the
+      customer or into the community bin.
+    The job gets the package if it had none, and the payment shows as paid.
 - Success looks like: the frame is a sale on the order's day; the build's
-  money is held on the job and counts as revenue (labour and parts) only
-  when the job is completed.
+  money (and a donor bike's strip) is held on the job and counts as
+  revenue only when the job is completed.
 - If it fails:
   - "That online order belongs to another customer." Link the Shopify
     customer to the right customer first.
   - "The job has another package than the one ordered." Change the job's
     package first.
   - "Shopify isn't connected, so the package can't be put online."
+  - "That donor-bike order has no donor service." Add the strip to the
+    job by hand as a service line, then link the order.
 
 ### Quote and order a part the shop doesn't stock (indent part)
 

@@ -63,12 +63,15 @@ export const fitBuildToBudgetAction = staffAction(
   },
 );
 
-/** D255: put an online build order on this job (sets the package if it has none). */
+/**
+ * D255, D258: put an online build order on this job (sets the package if it
+ * has none; a donor-bike order also adds its strip as line donorLineId).
+ */
 export const linkBuildOrderAction = staffAction(
   linkBuildOrderSchema,
   { name: "jobs.link_build_order" },
-  async ({ buildOrderId, workOrderId, labourLineId }, { supabase }) => {
-    await linkBuildOrder(supabase, buildOrderId, workOrderId, labourLineId);
+  async ({ buildOrderId, workOrderId, labourLineId, donorLineId }, { supabase }) => {
+    await linkBuildOrder(supabase, buildOrderId, workOrderId, labourLineId, donorLineId);
     refresh();
     return null;
   },

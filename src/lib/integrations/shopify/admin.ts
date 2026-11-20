@@ -58,6 +58,8 @@ export type ShopifyGroupInput = {
   optionName: string;
   variants: ShopifyGroupVariantInput[];
   imageUrls: string[];
+  /** Whether Shopify tracks the variants' inventory: members are stock; a build package's frame options are a service (D257). Default true. */
+  tracked?: boolean;
 };
 
 export type ShopifyGroupIds = {

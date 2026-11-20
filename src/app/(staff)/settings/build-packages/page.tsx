@@ -14,6 +14,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireStaff } from "@/lib/auth/session";
 import {
   BUILD_KIND_LABEL,
+  FRAME_SOURCES,
+  FRAME_SOURCE_LABEL,
   listBuildPackages,
   type BuildPackageKind,
 } from "@/lib/domain/build-packages";
@@ -86,6 +88,16 @@ export default async function BuildPackagesPage({
               >
                 {rows.map((p) => (
                   <li key={p.id} className="flex min-h-16 flex-wrap items-center gap-3 px-4 py-3">
+                    {kind === "full_build" && p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- an external https link the admin set (D259)
+                      <img
+                        src={p.imageUrl}
+                        alt=""
+                        width={48}
+                        height={48}
+                        className="size-12 shrink-0 rounded-lg border border-hairline object-cover"
+                      />
+                    ) : null}
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{p.name}</span>
@@ -101,6 +113,14 @@ export default async function BuildPackagesPage({
                             )}`
                           : `Labour ${formatMoney(p.labourAmount, p.currency)}`}
                       </span>
+                      {kind === "full_build" && p.shopifyProductId ? (
+                        <span className="text-sm text-dust-500">
+                          Frame options on Shopify:{" "}
+                          {FRAME_SOURCES.filter((f) => p.shopifyVariantIds[f])
+                            .map((f) => FRAME_SOURCE_LABEL[f])
+                            .join(" · ")}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="font-semibold tabular-nums">
                       {p.priceIsFrom ? "From " : ""}

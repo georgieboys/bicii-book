@@ -346,6 +346,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   build_order_customer_mismatch: "That online order belongs to another customer.",
   build_order_package_mismatch:
     "The job has another package than the one ordered. Change the job's package first.",
+  build_order_donor_service_missing:
+    "That donor-bike order has no donor service. Add the strip to the job by hand.",
   // Product groups (D241, D242)
   product_group_short_id_immutable: "A group keeps its ID for life.",
   product_group_has_members:
@@ -631,6 +633,8 @@ export const UNIQUE_ERRORS: Record<string, string> = {
   products_group_option_value_key: "Another product in this group already has that option value.",
   build_packages_name_key: "Another live package has that name.",
   build_packages_shopify_variant_id_key: "That Shopify variant belongs to another package.",
+  build_packages_own_frame_variant_key: "That Shopify variant belongs to another package.",
+  build_packages_donor_variant_key: "That Shopify variant belongs to another package.",
   build_orders_line_part_key: "That online order line is already recorded.",
   build_orders_work_order_id_key: "This job already has an online build order.",
   work_order_builds_labour_line_id_key: "That labour line belongs to another build. Save again.",
@@ -793,6 +797,13 @@ export const CHECK_ERRORS: Record<string, string> = {
   build_packages_shopify_variant_id_format: "That isn't a Shopify variant ID.",
   build_packages_shopify_ids_together: "A package's Shopify product and variant go together.",
   build_packages_online_full_build: "Only a full build is sold online.",
+  build_packages_image_url_https: "Give a picture link starting with https://.",
+  build_packages_own_frame_variant_format: "That isn't a Shopify variant ID.",
+  build_packages_donor_variant_format: "That isn't a Shopify variant ID.",
+  build_packages_option_variants_need_product:
+    "A package's frame options on Shopify need its main variant first.",
+  build_packages_donor_amount_shape: "A donor-bike variant needs its price, and only with it.",
+  build_orders_donor_shape: "A donor bike's strip can't be more than what was paid for the build.",
   build_orders_line_part_positive: "That online order line isn't valid.",
   build_orders_link_shape: "A linked online order needs its job and the time it was linked.",
   build_packages_description_length: "Keep the description under 4,000 characters.",

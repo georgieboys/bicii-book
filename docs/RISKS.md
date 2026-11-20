@@ -3538,3 +3538,45 @@ URLs, or customer data in this file.
   build orders in the payment summary.
 - Revisit trigger: the first refunded or cancelled online build.
 - Last checked: 2026-11-17.
+
+## R-123 — An own-frame build is paid before the frame is inspected
+
+- Category: workshop money, Shopify, customer promise.
+- Status and owner: open; the owner (the promise), the build agent (code).
+- Trigger: a customer buys a full build on Shopify with "My own prepared
+  frame (inspected first)" (D257), and the inspection finds the build
+  can't be made to work on that frame.
+- Impact: the customer has paid in full for a build BICII won't do. The
+  product description says the frame is accepted only after an inspection
+  and frame work is quoted separately, but not what happens to the money if
+  the frame is refused; that is the owner's promise to make. A refund then
+  follows R-122's path.
+- Evidence and confidence: high; the option sells before the inspection by
+  design.
+- Workaround or containment: the job's Build card tells staff linking an
+  own-frame order to inspect first; refund in Shopify and settle the job as
+  in R-122.
+- Next action: the owner decides the wording for a refused frame (for
+  example a full refund), and it goes into the product description.
+- Revisit trigger: the first own-frame order, or the owner's wording.
+- Last checked: 2026-11-20.
+
+## R-124 — A donor-bike option priced from a service that changes later
+
+- Category: workshop money, Shopify.
+- Status and owner: open; the build agent.
+- Trigger: the donor service's price changes, or a package's donor service
+  is cleared, after the package was pushed (D257, D258).
+- Impact: Shopify keeps selling the donor variant at the old price until an
+  admin presses Update on Shopify. An order is split at the donor amount
+  that was pushed (`shopify_donor_amount`), so the job still adds up to
+  what was paid, but the strip line uses that amount, not the service's new
+  price. A donor variant still on Shopify after its package's donor service
+  was cleared records orders without a service, and linking them refuses
+  (`build_order_donor_service_missing`).
+- Evidence and confidence: high; by design.
+- Workaround or containment: after changing the donor service or its
+  price, press Update on Shopify on each full build.
+- Next action: queue a package re-push when its donor service changes.
+- Revisit trigger: the first change to the strip's price.
+- Last checked: 2026-11-20.

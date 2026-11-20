@@ -3557,7 +3557,9 @@ URLs, or customer data in this file.
   own-frame order to inspect first; refund in Shopify and settle the job as
   in R-122.
 - Next action: the owner decides the wording for a refused frame (for
-  example a full refund), and it goes into the product description.
+  example a full refund), and it goes into the product description. On
+  2026-11-20 the owner chose to decide later; until then a refused frame is
+  settled case by case.
 - Revisit trigger: the first own-frame order, or the owner's wording.
 - Last checked: 2026-11-20.
 

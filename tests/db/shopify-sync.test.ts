@@ -682,6 +682,21 @@ describe.skipIf(!isolatedDatabase())("Changes queue one sync per product (D84, D
     });
   });
 
+  it("a frame grade change queues one job, and the sync state carries the grade (D260)", async () => {
+    await inTx(async (tx) => {
+      const { productId } = await syncedProduct(tx);
+      await tx.query("update public.products set frame_grade = 'B+' where id = $1", [productId]);
+      await expectOneQueued(tx, productId);
+      const state = await readAsOwner(tx, () =>
+        tx.query<{ frame_grade: string | null }>(
+          "select (public.product_sync_state($1)).frame_grade",
+          [productId],
+        ),
+      );
+      expect(state.rows).toEqual([{ frame_grade: "B+" }]);
+    });
+  });
+
   it("a unit status change and a unit price edit of a unique product each queue one job", async () => {
     await inTx(async (tx) => {
       const { productId, units } = await publicUniqueProduct(tx, { units: [{}, {}] });

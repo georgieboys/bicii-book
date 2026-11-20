@@ -775,8 +775,10 @@ while an approved or ordered item is neither fitted nor cancelled:
   product** or **Edit details**. The suggested price for that grade shows
   under **Sale price** ("Suggested for B++: $600.00"); press **Use it** to
   put it in, or type your own. The grade shows on the product's page
-  ("Grade B++") and on its public page; say it with the build when selling
-  ("a B++ frame with a Classic+ build").
+  ("Grade B++"), on its public page and, once it is online, on Shopify:
+  the title ends "· B++ frame", the description opens with the grade and
+  the product is tagged "Grade B++" (saving queues the Shopify update). Say
+  it with the build when selling ("a B++ frame with a Classic+ build").
 - Consigned items (owned by someone else) are not added here: use
   [Receive a consigned item](#receive-a-consigned-item). If they were
   added here by mistake, do not archive the product or count its stock

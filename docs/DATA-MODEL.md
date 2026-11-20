@@ -2023,6 +2023,12 @@ reporting.public_items += frame_grade (appended)
 
 - `public_frame_grades()` (anon, authenticated): grade, suggested_price,
   currency in order, for the site's frame pricing.
+- On Shopify (`20261120000300_frame_grade_on_shopify.sql`):
+  `shopify_product_sync_state` gains `frame_grade` (appended);
+  `product_sync_state` fills it; `products_enqueue_shopify_sync` also fires
+  on `frame_grade`. The Admin's desired state puts it in the title
+  ("· B+ frame"), the tags ("Grade B+"; none when ungraded) and the
+  description's first line.
 
 ### Product groups (D241-D245)
 

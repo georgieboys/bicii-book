@@ -1,5 +1,15 @@
 # Current state
 
+Updated: 2026-11-20 SGT (frame grades on Shopify, D260 amendment;
+branch `feat/frame-grade-shopify`, migration `20261120000300` applies on
+merge). A graded product's Shopify listing shows its grade: the title ends
+"· B+ frame", the description opens with "Frame grade: B+ (C to S++, S
+best) …" and it is tagged "Grade B+"; a grade change queues its sync. The
+owner's grades for the three frames on Shopify: P-000144 Marin B, P-000145
+KHS Descent B+, P-000146 KHS Comp B+ (set after the migration). Verified
+before merge: typecheck, lint, format and the unit tests; the DB tests run
+in CI. First next action: set the three grades, let the sync push, and
+check the store. Before that,
 Updated: 2026-11-20 SGT (frame grades, D260, ADR-029; branch
 `feat/frame-grades`, migration `20261120000200` applies on merge). A frame's
 price is said as a grade, C to S++ (S best), each with a suggested price in

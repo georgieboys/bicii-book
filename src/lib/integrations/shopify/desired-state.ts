@@ -88,6 +88,12 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
 }
 
+/** D260: the description's first line on a graded frame (the grade is C ... S++, escaped anyway). */
+export function gradeLine(grade: string): string {
+  const safe = grade.replace(/[&<>"']/g, (c) => ESCAPES[c]);
+  return `<p>Frame grade: ${safe} (C to S++, S best). A grade is a price level, not a verdict on quality or safety.</p>`;
+}
+
 function photoUrl(base: string, path: string): string {
   const trimmed = base.replace(/\/+$/, "");
   return `${trimmed}/${path.split("/").map(encodeURIComponent).join("/")}`;
@@ -119,10 +125,16 @@ export function buildDesiredState(state: SyncState, options: DesiredStateOptions
   let input: ShopifyProductInput | null = null;
   if (mode === "full") {
     const shortId = state.short_id ?? "";
+    const grade = state.frame_grade?.trim() || null;
+    const name = state.name ?? shortId;
     input = {
       handle: state.handle ?? shopifyHandle(shortId),
-      title: state.name ?? shortId,
-      descriptionHtml: descriptionToHtml(state.description),
+      // D260: a graded frame's title ends "· B+ frame", its description
+      // opens with the grade, and it is tagged "Grade B+". The tags are
+      // BICII's on a BICII-made product: an ungraded one is pushed with none.
+      title: grade ? `${name} · ${grade} frame` : name,
+      descriptionHtml: (grade ? gradeLine(grade) : "") + descriptionToHtml(state.description),
+      tags: grade ? [`Grade ${grade}`] : [],
       vendor: state.brand?.trim() ? state.brand.trim() : "BICII",
       status: effective ? "ACTIVE" : "DRAFT",
       sku: state.sku?.trim() ? state.sku.trim() : shortId,

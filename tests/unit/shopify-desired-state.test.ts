@@ -53,6 +53,7 @@ function state(overrides: Partial<SyncState> = {}): SyncState {
     last_pushed_quantity: null,
     orders_in_flight: false,
     sync_status: "pending",
+    frame_grade: null,
     ...overrides,
   } as SyncState;
 }
@@ -73,8 +74,34 @@ describe("buildDesiredState", () => {
       sku: "P-000032",
       price: "12.00",
       imageUrls: [`${BASE}/product/abc/def.jpg`],
+      tags: [],
     });
     expect(d.hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("shows a frame's grade in the title, the description's first line and a tag (D260)", () => {
+    const d = buildDesiredState(
+      state({ name: "KHS Comp steel frame and fork", frame_grade: "B+" }),
+      OPTIONS,
+    );
+    expect(d.input?.title).toBe("KHS Comp steel frame and fork · B+ frame");
+    expect(d.input?.tags).toEqual(["Grade B+"]);
+    expect(d.input?.descriptionHtml).toBe(
+      "<p>Frame grade: B+ (C to S++, S best). A grade is a price level, not a verdict on quality or safety.</p>" +
+        "<p>Line one.</p><p>Line &lt;two&gt; &amp; more</p>",
+    );
+    // Ungraded again: plain title, no tags (pushed as an empty list, so Shopify drops the old tag).
+    const plain = buildDesiredState(state({ frame_grade: null }), OPTIONS);
+    expect(plain.input?.title).toBe("Stack sync stickers");
+    expect(plain.input?.tags).toEqual([]);
+  });
+
+  it("leaves a product made in Shopify alone whatever its grade (D84)", () => {
+    const d = buildDesiredState(
+      state({ shopify_origin: "external", handle: null, frame_grade: "S" }),
+      OPTIONS,
+    );
+    expect(d.input).toBeNull();
   });
 
   it("passes the database price through unchanged (0 is a price, D24)", () => {
@@ -167,6 +194,7 @@ describe("buildDesiredState", () => {
         h(state(), { ...OPTIONS, locationId: "gid://shopify/Location/1" }),
         h(state({ shopify_origin: "external" })),
         h(state({ effective_online: false })),
+        h(state({ frame_grade: "B" })),
       ];
       for (const v of variants) expect(v).not.toBe(base);
       expect(new Set(variants).size).toBe(variants.length);

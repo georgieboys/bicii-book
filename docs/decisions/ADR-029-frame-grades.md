@@ -34,3 +34,18 @@ quality or safety; the site keeps saying so.
 Considered: an enum (a price per grade would still need a table);
 grade-driven prices (the owner wants to fine tune each frame); the site's
 own copy of the prices (two places to change).
+
+## Amendment 2026-11-20: the grade on Shopify
+
+The owner, 2026-11-20: the frames on Shopify show their grade. A graded
+product's Shopify title ends "· B+ frame", its description opens with
+"Frame grade: B+ (C to S++, S best). A grade is a price level, not a
+verdict on quality or safety.", and it is tagged "Grade B+". The sync state
+carries `frame_grade`, and a grade change queues the product's sync like
+any other edit Shopify shows. A BICII-made product's tags are BICII's: an
+ungraded one is pushed with none, so removing a grade removes its tag
+(no product on the store had tags when this shipped). A product made in
+Shopify is still only priced and stocked (D84). The three frames on Shopify
+were graded the same day: P-000144 Marin Bolinas Ridge B, P-000145 KHS
+Montaña Descent B+, P-000146 KHS Comp B+.
+

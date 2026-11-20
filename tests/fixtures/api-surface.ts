@@ -25,6 +25,8 @@ export const ANON_FUNCTIONS: readonly string[] = [
   "public.public_shop_hours()",
   "public.public_build_packages()",
   "public.public_build_offers(text)",
+  // D260: the site's frame pricing
+  "public.public_frame_grades()",
   // Phase 13 (D142, D143): the quote page, for whoever holds a quote link;
   // the token is checked against its stored SHA-256, nothing else is read
   "public.answer_quote(text, jsonb, text)",
@@ -161,6 +163,8 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.public_shop_hours()",
   "public.public_build_packages()",
   "public.public_build_offers(text)",
+  // D260: the site's frame pricing
+  "public.public_frame_grades()",
   "public.save_appointment_type(uuid, boolean, text, text, integer, integer, boolean, boolean, integer)",
   "public.save_closure_override(uuid, boolean, closure_kind, date, date, text, time without time zone, time without time zone)",
   "public.set_shop_hours(smallint, jsonb, boolean)",
@@ -463,6 +467,7 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.work_order_builds": ["SELECT"],
   "public.work_order_build_summary": ["SELECT"],
   "public.build_orders": ["SELECT"],
+  "public.frame_grades": ["SELECT", "UPDATE"],
   "public.work_order_totals_staff": ["SELECT"],
   "public.work_orders": ["SELECT"],
   // Inventory (Phase 4): staff read; manage_inventory writes locations and

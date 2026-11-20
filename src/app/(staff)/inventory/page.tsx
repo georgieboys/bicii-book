@@ -16,6 +16,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
 import {
   listLocations,
+  listFrameGrades,
   listProductCategories,
   listProducts,
   type ProductFilter,
@@ -53,16 +54,18 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
   const manage = hasPermission(staff, "manage_inventory");
   const viewCosts = hasPermission(staff, "view_costs");
   const supabase = await createClient();
-  const [{ items: products, more }, categories, locations] = await Promise.all([
+  const [{ items: products, more }, categories, locations, frameGrades] = await Promise.all([
     listProducts(supabase, { q, filter }),
     manage ? listProductCategories(supabase) : Promise.resolve([]),
     manage ? listLocations(supabase) : Promise.resolve(null),
+    manage ? listFrameGrades(supabase) : Promise.resolve([]),
   ]);
 
   const newButton =
     manage && locations ? (
       <NewProductButton
         categories={categories}
+        frameGrades={frameGrades}
         locations={locations.locations}
         defaultLocationId={locations.defaultLocationId}
         viewCosts={viewCosts}

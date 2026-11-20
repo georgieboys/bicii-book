@@ -33,7 +33,12 @@ import { requireStaff } from "@/lib/auth/session";
 import { CONSIGNED_STOCK_NOTE, consignmentStatusPill } from "@/lib/consignment";
 import { consignmentsForProduct } from "@/lib/domain/consignment";
 import { getIndentReservations } from "@/lib/domain/indent";
-import { getProduct, listLocations, listProductCategories } from "@/lib/domain/inventory";
+import {
+  getProduct,
+  listFrameGrades,
+  listLocations,
+  listProductCategories,
+} from "@/lib/domain/inventory";
 import { getLabelContext, resolvePrintPreset } from "@/lib/domain/labels";
 import { getProductGrouping, listProductGroups } from "@/lib/domain/product-groups";
 import { getProductOnline } from "@/lib/domain/shopify";
@@ -105,12 +110,13 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
   for (const query of [labelsQuery, presetQuery, onlineQuery, groupingQuery, groupsQuery]) {
     query.catch(() => {});
   }
-  const [product, locations, categories, purchasing] = await Promise.all([
+  const [product, locations, categories, purchasing, frameGrades] = await Promise.all([
     getProduct(supabase, id, { viewCosts }),
     listLocations(supabase),
     manage ? listProductCategories(supabase) : Promise.resolve([]),
     // Purchasing (Phase 7): suppliers and orders for this product.
     getProductPurchasing(supabase, id, staff),
+    manage ? listFrameGrades(supabase) : Promise.resolve([]),
   ]);
   if (!product) notFound();
   // D50: consigned stock moves only through intake, sale, restock, a job,
@@ -166,6 +172,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
             </StatusPill>
             {archived ? <Badge tone="waiting">Archived</Badge> : null}
             {!product.active ? <Badge>Inactive</Badge> : null}
+            {product.frameGrade ? <Badge tone="info">Grade {product.frameGrade}</Badge> : null}
           </div>
           <h1 className="text-3xl break-words sm:text-4xl">{product.name}</h1>
           {meta.length > 0 ? (
@@ -214,7 +221,9 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                   reorderPoint: product.reorderPoint,
                   active: product.active,
                   trackingType: product.trackingType,
+                  frameGrade: product.frameGrade,
                 }}
+                frameGrades={frameGrades}
                 categories={
                   // An archived category stays choosable for a product
                   // already filed under it, so saving keeps it.

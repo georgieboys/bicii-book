@@ -82,6 +82,7 @@ const PRODUCT_FIELDS: Record<string, string> = {
   products_default_direct_cost_check: "cost",
   products_reorder_point_check: "reorderPoint",
   category_kind_mismatch: "categoryId",
+  products_frame_grade_fkey: "frameGrade",
 };
 
 const UNIT_FIELDS: Record<string, string> = {
@@ -612,6 +613,8 @@ export type ProductDetail = {
   currency: string;
   /** The editable default (products.default_sale_price). */
   defaultSalePrice: Money | null;
+  /** D260: the frame's grade (C ... S++), or null. */
+  frameGrade: string | null;
   /** What it sells for (public.selling_prices). */
   salePrice: Money | null;
   reorderPoint: number | null;
@@ -654,7 +657,7 @@ export type ProductDetail = {
 };
 
 const PRODUCT_COLUMNS =
-  "id, short_id, sku, name, description, brand, tracking_type, ownership_type, publication_status, public_slug, default_sale_price, currency, reorder_point, active, archived_at, created_at, updated_at, category:categories(id, name)";
+  "id, short_id, sku, name, description, brand, tracking_type, ownership_type, publication_status, public_slug, default_sale_price, frame_grade, currency, reorder_point, active, archived_at, created_at, updated_at, category:categories(id, name)";
 
 const asPayload = (v: unknown): Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -789,6 +792,7 @@ export async function getProduct(
     publicSlug: row.public_slug,
     currency: row.currency,
     defaultSalePrice: money(row.default_sale_price),
+    frameGrade: row.frame_grade,
     salePrice: money(productPrice),
     reorderPoint: row.reorder_point,
     active: row.active,
@@ -1016,6 +1020,8 @@ export type ProductInput = {
   /** Quantity products only. */
   reorderPoint: number | null;
   active: boolean;
+  /** D260: the frame's grade; null: none. */
+  frameGrade: string | null;
 };
 
 const productRow = (input: ProductInput) => ({
@@ -1027,6 +1033,7 @@ const productRow = (input: ProductInput) => ({
   default_sale_price: input.salePrice as unknown as number | null,
   reorder_point: input.reorderPoint,
   active: input.active,
+  frame_grade: input.frameGrade,
 });
 
 /**
@@ -1866,4 +1873,25 @@ export async function productLabel(
     await supabase.from("products").select("id, short_id, name").eq("id", id).maybeSingle(),
   );
   return row ? { id: row.id, shortId: row.short_id, name: row.name } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Frame grades (D260)
+// ---------------------------------------------------------------------------
+
+export type FrameGrade = { grade: string; suggestedPrice: Money; currency: string };
+
+/** The frame grades, C to S++, with their suggested prices. */
+export async function listFrameGrades(supabase: ServerSupabase): Promise<FrameGrade[]> {
+  const rows = unwrap(
+    await supabase
+      .from("frame_grades")
+      .select("grade, suggested_price, currency")
+      .order("sort_order"),
+  ) as { grade: string; suggested_price: number; currency: string }[] | null;
+  return (rows ?? []).map((r) => ({
+    grade: r.grade,
+    suggestedPrice: money(r.suggested_price)!,
+    currency: r.currency,
+  }));
 }

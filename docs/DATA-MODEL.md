@@ -2004,6 +2004,26 @@ build_orders += frame_source build_frame_source not null default 'bicii_frame',
   service at donor_amount; `build_order_linked` carries frame_source,
   donor_amount and donor_line_id.
 
+### Frame grades (D260)
+
+Built out of phase on 2026-11-20 (`20261120000200_frame_grades.sql`;
+[ADR-029](decisions/ADR-029-frame-grades.md)).
+
+```
+frame_grades
+  grade text PK (C, C+, C++, B ... S++: frame_grades_grade_format), sort_order unique,
+  suggested_price money_amount > 0, currency default 'SGD', updated_at
+  -- seeded: C 200, C+ 250, C++ 300, B 400, B+ 500, B++ 600, A 800, A+ 1000,
+  --   A++ 1200, S 1500, S+ 2000, S++ 2500
+  -- RLS: staff read; admins update suggested_price only
+
+products += frame_grade text null -> frame_grades (granted insert/update)
+reporting.public_items += frame_grade (appended)
+```
+
+- `public_frame_grades()` (anon, authenticated): grade, suggested_price,
+  currency in order, for the site's frame pricing.
+
 ### Product groups (D241-D245)
 
 Built out of phase on 2026-11-15 (`20261115000200_product_groups.sql`;

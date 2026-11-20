@@ -771,6 +771,12 @@ while an approved or ordered item is neither fitted nor cancelled:
     same model: **Add unit** on the product.
 - Success looks like: toast "Product added" and the product's page with
   its P- number (a unique item's unit gets its own U- number).
+- A frame's grade: choose **Frame grade** (C to S++, S best) on **New
+  product** or **Edit details**. The suggested price for that grade shows
+  under **Sale price** ("Suggested for B++: $600.00"); press **Use it** to
+  put it in, or type your own. The grade shows on the product's page
+  ("Grade B++") and on its public page; say it with the build when selling
+  ("a B++ frame with a Classic+ build").
 - Consigned items (owned by someone else) are not added here: use
   [Receive a consigned item](#receive-a-consigned-item). If they were
   added here by mistake, do not archive the product or count its stock

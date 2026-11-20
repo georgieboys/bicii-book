@@ -77,6 +77,7 @@ const productInput = (input: z.output<typeof updateProductSchema>) => ({
   cost: input.cost,
   reorderPoint: input.reorderPoint,
   active: input.active,
+  frameGrade: input.frameGrade,
 });
 
 /** A new counted (quantity) or unique product; the form's id is the idempotency key. */

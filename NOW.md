@@ -1,5 +1,17 @@
 # Current state
 
+Updated: 2026-11-20 SGT (frame grades, D260, ADR-029; branch
+`feat/frame-grades`, migration `20261120000200` applies on merge). A frame's
+price is said as a grade, C to S++ (S best), each with a suggested price in
+`frame_grades` (C S$200, C+ 250, C++ 300, B 400, B+ 500, B++ 600, A 800, A+
+1,000, A++ 1,200, S 1,500, S+ 2,000, S++ 2,500). **Frame grade** on New
+product and Edit details shows the suggestion under Sale price with **Use
+it**; the price is never changed by itself. The grade shows on the product
+page and in `reporting.public_items`; the site reads the grades with
+`public_frame_grades`. Verified before merge: typecheck, lint, format and
+the unit tests; the DB tests (`tests/db/frame-grades.test.ts`) run in CI.
+First next action: grade the three consigned frames (P-000144 to P-000146).
+Before that,
 Updated: 2026-11-20 SGT (frame options and pictures on Shopify, D257-D259,
 ADR-028 amendment; merged and live: bicii-book PR #101, BICII PR #93 for
 the pictures; migration `20261120000100` applied by `migrate.yml`). Each

@@ -111,9 +111,10 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.clear_work_order_build(uuid, text)",
   "public.reprice_build_line(uuid, money_amount)",
   "public.fit_build_to_budget(uuid)",
-  // Selling full builds online (D252, D255)
-  "public.record_build_package_push(uuid, text, text)",
-  "public.link_build_order(uuid, uuid, uuid)",
+  // Selling full builds online (D252, D255), with frame options (D257, D258)
+  "public.record_build_package_push(uuid, text, text, text, text, money_amount)",
+  "public.link_build_order(uuid, uuid, uuid, uuid)",
+  "public.build_package_online_prices(uuid)",
   "public.add_work_order_note(uuid, uuid, work_order_note_kind, text)",
   "public.assign_staff(uuid, uuid, assignment_role)",
   "public.cancel_cult_commons_rate(uuid)",

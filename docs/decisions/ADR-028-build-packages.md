@@ -108,3 +108,34 @@ revenue only when the build is delivered.
 The build-only packages are offered in the site's signed-in screens (the
 bike page and the booking form), named in the booking's note; they are
 paid at intake.
+
+## Amendment 2026-11-20: frame options and pictures on Shopify (D257-D259)
+
+The owner, 2026-11-20: the full builds on Shopify need pictures and three
+frame options: a prepared frame from BICII and the customer's own prepared
+frame at no extra charge (the own frame accepted only after an inspection,
+with cleanup quoted separately), and a donor bike at S$185. The site has
+said the same since 2026-11-19 ("Where the frame comes from").
+
+1. **Frame options (D257).** Each full build's Shopify product gets a
+   "Frame" option and a variant per frame option, pushed with the product
+   group push (D243) untracked. The BICII-frame variant keeps the original
+   SKU, so its id, which `public_build_offers` puts in the site's cart
+   links, survives. The donor-bike variant exists only when the package has
+   an active donor service; its price is the package price plus that
+   service's price, from `build_package_online_prices` so Postgres does the
+   arithmetic. The product description explains each option.
+2. **Donor money (D258).** An order on the donor variant becomes a build
+   order whose `donor_amount` is the strip's share. Linking it adds a line
+   of the donor service for that amount and sets the build's price to the
+   rest, so labour, parts budget and the job's total still add up to what
+   the customer paid.
+3. **Pictures (D259).** A package has an `image_url`; the four full builds
+   point at the site's generated pictures, so a price change on the site
+   redraws them on the next deploy and a re-push sends them to Shopify.
+
+Considered: a separate Shopify product per frame option (three products a
+package, harder to compare); a variant price computed in TypeScript (the
+money rule keeps it in Postgres); charging the strip as a second product in
+the cart (the customer could drop it).
+

@@ -29,7 +29,29 @@ describe("build package forms (D246-D249)", () => {
       labourServiceId: ID,
       public: true,
       sortOrder: 30,
+      donorServiceId: null,
+      imageUrl: null,
     });
+  });
+
+  it("takes a donor service and an https picture link, or neither (D257, D259)", () => {
+    expect(
+      buildPackageSchema.parse({
+        ...base,
+        donorServiceId: ID,
+        imageUrl: " https://bicii.sg/builds/packages/restomod.png ",
+      }),
+    ).toMatchObject({
+      donorServiceId: ID,
+      imageUrl: "https://bicii.sg/builds/packages/restomod.png",
+    });
+    expect(buildPackageSchema.parse({ ...base, donorServiceId: "", imageUrl: "" })).toMatchObject({
+      donorServiceId: null,
+      imageUrl: null,
+    });
+    const http = buildPackageSchema.safeParse({ ...base, imageUrl: "http://bicii.sg/a.png" });
+    expect(http.success).toBe(false);
+    expect(http.error?.issues[0].path).toEqual(["imageUrl"]);
   });
 
   it("refuses labour above the price, a zero price and an unknown kind", () => {

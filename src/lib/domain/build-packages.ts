@@ -16,6 +16,16 @@ import { DomainError } from "./errors";
  */
 
 export type BuildPackageKind = Database["public"]["Enums"]["build_package_kind"];
+export type BuildFrameSource = Database["public"]["Enums"]["build_frame_source"];
+
+/** D257: the three frame options, in the order Shopify and the site show them. */
+export const FRAME_SOURCES: BuildFrameSource[] = ["bicii_frame", "own_frame", "donor_bike"];
+
+export const FRAME_SOURCE_LABEL: Record<BuildFrameSource, string> = {
+  bicii_frame: "Prepared frame from BICII",
+  own_frame: "Customer's own prepared frame",
+  donor_bike: "Donor bike",
+};
 
 export const BUILD_KIND_LABEL: Record<BuildPackageKind, string> = {
   full_build: "Full build",
@@ -38,6 +48,12 @@ export type BuildPackage = {
   /** D252: sold on Shopify (ACTIVE) and its Shopify product, once pushed. */
   publishOnline: boolean;
   shopifyProductId: string | null;
+  /** D257: the Shopify variant of each frame option, once pushed. */
+  shopifyVariantIds: Record<BuildFrameSource, string | null>;
+  /** D257: the service a donor bike's strip is charged as; null: no donor option. */
+  donorServiceId: string | null;
+  /** D259: the package's picture, pushed as its Shopify media. */
+  imageUrl: string | null;
 };
 
 export type BuildPackageInput = {
@@ -50,10 +66,12 @@ export type BuildPackageInput = {
   labourServiceId: string;
   public: boolean;
   sortOrder: number;
+  donorServiceId: string | null;
+  imageUrl: string | null;
 };
 
 const PACKAGE_COLUMNS =
-  "id, kind, name, description, price, price_is_from, labour_amount, labour_service_id, currency, public, sort_order, archived_at, publish_online, shopify_product_id";
+  "id, kind, name, description, price, price_is_from, labour_amount, labour_service_id, currency, public, sort_order, archived_at, publish_online, shopify_product_id, shopify_variant_id, shopify_own_frame_variant_id, shopify_donor_variant_id, donor_service_id, image_url";
 
 type PackageRow = {
   id: string;
@@ -70,6 +88,11 @@ type PackageRow = {
   archived_at: string | null;
   publish_online: boolean;
   shopify_product_id: string | null;
+  shopify_variant_id: string | null;
+  shopify_own_frame_variant_id: string | null;
+  shopify_donor_variant_id: string | null;
+  donor_service_id: string | null;
+  image_url: string | null;
 };
 
 const toPackage = (r: PackageRow): BuildPackage => ({
@@ -87,6 +110,13 @@ const toPackage = (r: PackageRow): BuildPackage => ({
   archived: r.archived_at !== null,
   publishOnline: r.publish_online,
   shopifyProductId: r.shopify_product_id,
+  shopifyVariantIds: {
+    bicii_frame: r.shopify_variant_id,
+    own_frame: r.shopify_own_frame_variant_id,
+    donor_bike: r.shopify_donor_variant_id,
+  },
+  donorServiceId: r.donor_service_id,
+  imageUrl: r.image_url,
 });
 
 const FIELDS: Record<string, string> = {
@@ -97,6 +127,8 @@ const FIELDS: Record<string, string> = {
   build_packages_labour_within_price: "labourAmount",
   build_packages_sort_order_range: "sortOrder",
   build_labour_service_invalid: "labourServiceId",
+  build_packages_image_url_https: "imageUrl",
+  build_packages_donor_service_id_fkey: "donorServiceId",
 };
 
 function rethrowFields(err: unknown): never {
@@ -136,6 +168,8 @@ const row = (input: BuildPackageInput) => ({
   labour_service_id: input.labourServiceId,
   public: input.public,
   sort_order: input.sortOrder,
+  donor_service_id: input.donorServiceId,
+  image_url: input.imageUrl,
 });
 
 /** Creates a package; the form's id is the idempotency key. */
@@ -344,16 +378,58 @@ export async function setBuildPackageOnline(
   if (!data) throw new DomainError("That package no longer exists. Refresh and try again.");
 }
 
+/** D257: a package's Shopify prices, from Postgres (money arithmetic stays there). */
+export type OnlinePrices = {
+  price: string;
+  /** Null: no active donor service, so no donor-bike option online. */
+  donor: { serviceId: string; amount: string; price: string } | null;
+};
+
+export async function getOnlinePrices(
+  supabase: ServerSupabase,
+  id: string,
+): Promise<OnlinePrices | null> {
+  const rows = unwrap(
+    await supabase.rpc("build_package_online_prices", { build_package_id: id }),
+  ) as
+    | {
+        price: number;
+        donor_service_id: string | null;
+        donor_amount: number | null;
+        donor_price: number | null;
+      }[]
+    | null;
+  const r = rows?.[0];
+  if (!r) return null;
+  return {
+    price: toMoneyString(r.price),
+    donor:
+      r.donor_service_id && r.donor_amount !== null && r.donor_price !== null
+        ? {
+            serviceId: r.donor_service_id,
+            amount: toMoneyString(r.donor_amount),
+            price: toMoneyString(r.donor_price),
+          }
+        : null,
+  };
+}
+
 export async function recordBuildPackagePush(
   supabase: ServerSupabase,
   id: string,
-  productId: string,
-  variantId: string,
+  push: {
+    productId: string;
+    variantIds: Record<BuildFrameSource, string | null>;
+    donorAmount: string | null;
+  },
 ): Promise<void> {
   const { error } = await supabase.rpc("record_build_package_push", {
     build_package_id: id,
-    shopify_product_id: productId,
-    shopify_variant_id: variantId,
+    shopify_product_id: push.productId,
+    shopify_variant_id: push.variantIds.bicii_frame!,
+    shopify_own_frame_variant_id: push.variantIds.own_frame ?? undefined,
+    shopify_donor_variant_id: push.variantIds.donor_bike ?? undefined,
+    shopify_donor_amount: push.variantIds.donor_bike ? (push.donorAmount ?? undefined) : undefined,
   });
   if (error) throw new DbError(error);
 }
@@ -372,6 +448,10 @@ export type BuildOrder = {
   customerId: string | null;
   workOrderId: string | null;
   createdAt: string;
+  /** D257: the frame option bought. */
+  frameSource: BuildFrameSource;
+  /** D258: the donor strip's share of amount ("0.00" unless a donor bike). */
+  donorAmount: string;
 };
 
 type OrderRow = {
@@ -383,6 +463,8 @@ type OrderRow = {
   customer_id: string | null;
   work_order_id: string | null;
   created_at: string;
+  frame_source: BuildFrameSource;
+  donor_amount: number;
   build_packages: { name: string } | null;
 };
 
@@ -396,10 +478,12 @@ const toOrder = (r: OrderRow): BuildOrder => ({
   customerId: r.customer_id,
   workOrderId: r.work_order_id,
   createdAt: r.created_at,
+  frameSource: r.frame_source,
+  donorAmount: toMoneyString(r.donor_amount),
 });
 
 const ORDER_COLUMNS =
-  "id, shopify_order_name, build_package_id, amount, currency, customer_id, work_order_id, created_at, build_packages(name)";
+  "id, shopify_order_name, build_package_id, amount, currency, customer_id, work_order_id, created_at, frame_source, donor_amount, build_packages(name)";
 
 /** Online build orders not on a job yet, oldest first. */
 export async function listUnlinkedBuildOrders(supabase: ServerSupabase): Promise<BuildOrder[]> {
@@ -434,11 +518,13 @@ export async function linkBuildOrder(
   buildOrderId: string,
   workOrderId: string,
   labourLineId: string,
+  donorLineId: string,
 ): Promise<void> {
   const { error } = await supabase.rpc("link_build_order", {
     build_order_id: buildOrderId,
     work_order_id: workOrderId,
     labour_line_id: labourLineId,
+    donor_line_id: donorLineId,
   });
   if (error) throw new DbError(error);
 }

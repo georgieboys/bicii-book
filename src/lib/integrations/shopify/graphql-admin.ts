@@ -339,7 +339,7 @@ export function createGraphqlShopifyAdmin({
       const variants = input.variants.map((v) => {
         const variant: Obj = {
           optionValues: [{ optionName: input.optionName, name: v.optionValue }],
-          inventoryItem: { tracked: true, sku: v.sku },
+          inventoryItem: { tracked: input.tracked ?? true, sku: v.sku },
         };
         if (v.variantId) variant.id = v.variantId;
         if (v.price !== null) variant.price = v.price;

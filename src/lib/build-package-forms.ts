@@ -40,6 +40,21 @@ export const buildPackageSchema = z
       .int({ error: "Enter a whole number." })
       .min(0, { error: "Enter a sort order from 0 to 10,000." })
       .max(10000, { error: "Enter a sort order from 0 to 10,000." }),
+    /** D257: the service a donor bike's strip and prep is charged as. */
+    donorServiceId: z
+      .union([z.guid({ error: "Choose a service, or none." }), z.literal("")])
+      .nullish()
+      .transform((v) => v || null),
+    /** D259: the package's picture on Shopify. */
+    imageUrl: z
+      .string()
+      .trim()
+      .max(2000, { error: "Keep the link under 2,000 characters." })
+      .refine((v) => v === "" || /^https:\/\/\S+$/.test(v), {
+        error: "Give a link starting with https://, or leave it empty.",
+      })
+      .nullish()
+      .transform((v) => v || null),
   })
   .refine((v) => parseMoney(v.labourAmount)!.lte(parseMoney(v.price)!), {
     error: "The labour can't be more than the package price.",
@@ -81,4 +96,5 @@ export const linkBuildOrderSchema = z.object({
   buildOrderId: z.guid({ error: "Choose an online order." }),
   workOrderId: z.guid({ error: "Unknown job." }),
   labourLineId: z.guid({ error: "Open the form again." }),
+  donorLineId: z.guid({ error: "Open the form again." }),
 });

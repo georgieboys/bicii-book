@@ -442,9 +442,22 @@ export function describeEvent(
     case "build_order_linked": {
       const paid = amount(p, "amount");
       const order = text(p, "shopify_order_name");
+      const donor = amount(p, "donor_amount");
+      const frame = {
+        own_frame: "the customer's own frame",
+        donor_bike: "a donor bike",
+        bicii_frame: "a BICII frame",
+      }[text(p, "frame_source") ?? ""];
+      const parts = [
+        paid !== null ? `Paid on Shopify: ${formatMoney(paid, currency)}` : null,
+        frame ? `with ${frame}` : null,
+        donor !== null && Number(donor) > 0
+          ? `strip and prep ${formatMoney(donor, currency)} on its own line`
+          : null,
+      ].filter(Boolean);
       return {
         title: `Online build order${order ? ` ${order}` : ""} linked`,
-        detail: paid !== null ? `Paid on Shopify: ${formatMoney(paid, currency)}` : null,
+        detail: parts.length > 0 ? parts.join(", ") : null,
         tone: "done",
       };
     }

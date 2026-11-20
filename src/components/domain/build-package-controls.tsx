@@ -52,6 +52,8 @@ export type EditablePackage = {
   archived: boolean;
   publishOnline: boolean;
   shopifyProductId: string | null;
+  donorServiceId: string | null;
+  imageUrl: string | null;
 };
 
 export type ServiceChoice = { id: string; name: string };
@@ -207,6 +209,33 @@ function PackageSheet({
             ))}
           </Select>
         </Field>
+        <Field
+          label="Donor bike service"
+          hint="Full builds only. On Shopify, a donor-bike frame option at the package price plus this service's price; linking such an order adds the service to the job."
+          error={errors?.donorServiceId?.[0]}
+        >
+          <Select name="donorServiceId" defaultValue={pkg?.donorServiceId ?? ""}>
+            <option value="">None: no donor-bike option</option>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field
+          label="Picture link"
+          hint="Full builds only. An https link to the package's picture, sent to Shopify, such as https://bicii.sg/builds/packages/classic.png."
+          error={errors?.imageUrl?.[0]}
+        >
+          <Input
+            name="imageUrl"
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            defaultValue={pkg?.imageUrl ?? ""}
+          />
+        </Field>
         <Field label="Description" hint="Shown on the site." error={errors?.description?.[0]}>
           <Textarea name="description" rows={4} defaultValue={pkg?.description ?? ""} />
         </Field>
@@ -271,7 +300,9 @@ export function ShopifyPackageButton({
         result.ok
           ? {
               title: publishOnline ? "On Shopify" : "Taken off Shopify",
-              description: publishOnline ? "Customers can buy it with a frame." : undefined,
+              description: publishOnline
+                ? "Customers choose where the frame comes from: one of ours, their own, or a donor bike."
+                : undefined,
               tone: "success",
             }
           : { title: "Shopify not changed", description: result.error, tone: "error" },
@@ -312,12 +343,46 @@ export type JobBuildView = {
   listPrices: Record<string, string>;
 };
 
+export type FrameSource = "bicii_frame" | "own_frame" | "donor_bike";
+
+/** D257: where the customer said the frame comes from, as staff read it. */
+const FRAME_LABEL: Record<FrameSource, string> = {
+  bicii_frame: "BICII frame",
+  own_frame: "Own frame",
+  donor_bike: "Donor bike",
+};
+
+/** D257, D258: what staff do next for each frame option. */
+function FrameNote({ order }: { order: OnlineOrder }) {
+  if (order.frameSource === "own_frame") {
+    return (
+      <p className="text-sm font-medium text-waiting-deep">
+        The customer is bringing their own prepared frame. Inspect it before you accept it, and
+        quote any frame work separately before starting.
+      </p>
+    );
+  }
+  if (order.frameSource === "donor_bike") {
+    return (
+      <p className="text-sm text-dust-700">
+        The customer is bringing a donor bike. Of the {formatMoney(order.amount, order.currency)}{" "}
+        paid, {formatMoney(order.donorAmount, order.currency)} is the strip and prep, added to the
+        job as its own line; the build is priced at the rest. Unused parts go back to the customer
+        or into the community bin.
+      </p>
+    );
+  }
+  return null;
+}
+
 export type OnlineOrder = {
   id: string;
   orderName: string | null;
   packageName: string;
   amount: string;
   currency: string;
+  frameSource: FrameSource;
+  donorAmount: string;
 };
 
 export type BuildPart = {
@@ -416,11 +481,15 @@ export function JobBuildPanel({
         )}
       </div>
       {linkedOrder ? (
-        <p className="text-sm text-done-deep">
-          Paid on Shopify{linkedOrder.orderName ? ` (${linkedOrder.orderName})` : ""}:{" "}
-          {formatMoney(linkedOrder.amount, linkedOrder.currency)}. It counts as revenue when the
-          build is completed.
-        </p>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-done-deep">
+            Paid on Shopify{linkedOrder.orderName ? ` (${linkedOrder.orderName})` : ""}, with{" "}
+            {FRAME_LABEL[linkedOrder.frameSource].toLowerCase()}:{" "}
+            {formatMoney(linkedOrder.amount, linkedOrder.currency)}. It counts as revenue when the
+            build is completed.
+          </p>
+          <FrameNote order={linkedOrder} />
+        </div>
       ) : open && unlinkedOrders.length > 0 ? (
         <div>
           <LinkOrderButton workOrderId={workOrderId} orders={unlinkedOrders} />
@@ -784,7 +853,9 @@ function LinkOrderSheet({
   const { toast } = useToast();
   const formId = useId();
   const [labourLineId] = useState(() => newId());
+  const [donorLineId] = useState(() => newId());
   const [buildOrderId, setBuildOrderId] = useState(orders[0]?.id ?? "");
+  const chosen = orders.find((o) => o.id === buildOrderId) ?? null;
   const [state, setState] = useState<ActionResult<unknown> | null>(null);
   const [pending, start] = useTransition();
   const formRef = useFocusFirstInvalid(state);
@@ -816,7 +887,7 @@ function LinkOrderSheet({
           e.preventDefault();
           start(async () => {
             const result = await callAction(() =>
-              linkBuildOrderAction({ buildOrderId, workOrderId, labourLineId }),
+              linkBuildOrderAction({ buildOrderId, workOrderId, labourLineId, donorLineId }),
             );
             setState(result);
             if (!result.ok) return;
@@ -838,12 +909,13 @@ function LinkOrderSheet({
           >
             {orders.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.orderName ?? "Online order"} · {o.packageName} ·{" "}
+                {o.orderName ?? "Online order"} · {o.packageName} · {FRAME_LABEL[o.frameSource]} ·{" "}
                 {formatMoney(o.amount, o.currency)}
               </option>
             ))}
           </Select>
         </Field>
+        {chosen ? <FrameNote order={chosen} /> : null}
       </form>
     </Sheet>
   );

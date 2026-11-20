@@ -18,7 +18,9 @@ nothing submitted). An order's package line becomes a build order (money
 held); **Link online order** on the job's Build card puts it on the job at
 the amount paid. Build-only packages (Full Send, Clean Slate from S$325,
 Full Rebuild, named Strip and rebuild until 2026-11-20) are on the customer's bike page and the booking form.
-Production data: service "Build package labour" (S$180, not public) and
+Production data: service "Build package labour" (S$180, not public), service
+"Donor bike strip and prep" (S$185, not public, added 2026-11-20 for a donor
+bike with a full build) and
 the seven packages. An independent review of PR #96 found six defects,
 all fixed before merge. Open: refunds and unlinked orders (R-122); the
 Marin's and the Descent's sizes are estimates awaiting the owner's

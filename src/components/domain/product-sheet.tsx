@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import type { TrackingType } from "@/lib/inventory";
+import { formatMoney } from "@/lib/money";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
@@ -36,6 +37,8 @@ type Values = Record<string, string> | undefined;
 
 export type SheetLocationOption = { id: string; name: string; active: boolean };
 export type CategoryOption = { id: string; name: string };
+/** D260: a frame grade and its suggested price. */
+export type FrameGradeOption = { grade: string; suggestedPrice: string; currency: string };
 
 /** The editable fields of a product (ProductDetail has them). */
 export type ProductFields = {
@@ -51,6 +54,8 @@ export type ProductFields = {
   reorderPoint: number | null;
   active: boolean;
   trackingType: TrackingType;
+  /** D260: the frame's grade, or null. */
+  frameGrade: string | null;
 };
 
 /**
@@ -178,6 +183,7 @@ export function ProductSheet({
   onOpenChange,
   product,
   categories,
+  frameGrades,
   locations,
   defaultLocationId,
   viewCosts,
@@ -187,6 +193,7 @@ export function ProductSheet({
   /** Edit this product; omit for a new one. */
   product?: ProductFields;
   categories: CategoryOption[];
+  frameGrades: FrameGradeOption[];
   locations: SheetLocationOption[];
   defaultLocationId: string | null;
   viewCosts: boolean;
@@ -196,6 +203,7 @@ export function ProductSheet({
       onOpenChange={onOpenChange}
       product={product}
       categories={categories}
+      frameGrades={frameGrades}
       locations={locations}
       defaultLocationId={defaultLocationId}
       viewCosts={viewCosts}
@@ -207,6 +215,7 @@ function ProductSheetBody({
   onOpenChange,
   product,
   categories,
+  frameGrades,
   locations,
   defaultLocationId,
   viewCosts,
@@ -214,6 +223,7 @@ function ProductSheetBody({
   onOpenChange: (open: boolean) => void;
   product?: ProductFields;
   categories: CategoryOption[];
+  frameGrades: FrameGradeOption[];
   locations: SheetLocationOption[];
   defaultLocationId: string | null;
   viewCosts: boolean;
@@ -225,6 +235,8 @@ function ProductSheetBody({
   const [unitId] = useState(newId);
   const [tracking, setTracking] = useState<TrackingType>(product?.trackingType ?? "quantity");
   const [active, setActive] = useState(product?.active ?? true);
+  const [grade, setGrade] = useState(product?.frameGrade ?? "");
+  const suggested = frameGrades.find((g) => g.grade === grade) ?? null;
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     if (product) {
       const result = await callAction(
@@ -375,6 +387,26 @@ function ProductSheetBody({
             ))}
           </Select>
         </Field>
+        {frameGrades.length > 0 ? (
+          <Field
+            label="Frame grade"
+            hint="Frames only: C to S++, S best. Its suggested price shows under Sale price; the price stays your call."
+            error={errors?.frameGrade?.[0]}
+          >
+            <Select
+              name="frameGrade"
+              value={values?.frameGrade ?? grade}
+              onChange={(e) => setGrade(e.target.value)}
+            >
+              <option value="">No grade</option>
+              {frameGrades.map((g) => (
+                <option key={g.grade} value={g.grade}>
+                  {g.grade} · suggested {formatMoney(g.suggestedPrice, g.currency)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         <Field label="Description" error={errors?.description?.[0]}>
           <Textarea
             name="description"
@@ -392,6 +424,26 @@ function ProductSheetBody({
             name="salePrice"
             defaultValue={value("salePrice", product?.defaultSalePrice)}
           />
+          {suggested ? (
+            <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-dust-700">
+              Suggested for {suggested.grade}:{" "}
+              {formatMoney(suggested.suggestedPrice, suggested.currency)}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const form = document.getElementById(formId) as HTMLFormElement | null;
+                  const input = form?.elements.namedItem("salePrice") as HTMLInputElement | null;
+                  if (!input) return;
+                  input.value = suggested.suggestedPrice;
+                  input.dispatchEvent(new Event("input", { bubbles: true }));
+                }}
+              >
+                Use it
+              </Button>
+            </span>
+          ) : null}
         </Field>
         {viewCosts ? (
           <Field
@@ -449,6 +501,7 @@ function ProductSheetBody({
 
 export function NewProductButton(props: {
   categories: CategoryOption[];
+  frameGrades: FrameGradeOption[];
   locations: SheetLocationOption[];
   defaultLocationId: string | null;
   viewCosts: boolean;
@@ -467,6 +520,7 @@ export function NewProductButton(props: {
 export function EditProductButton(props: {
   product: ProductFields;
   categories: CategoryOption[];
+  frameGrades: FrameGradeOption[];
   viewCosts: boolean;
 }) {
   const [open, setOpen] = useState(false);

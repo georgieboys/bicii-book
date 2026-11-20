@@ -89,6 +89,8 @@ const PUBLIC_COLUMNS = [
   "group_name",
   "option_name",
   "option_value",
+  // D260: a frame's grade.
+  "frame_grade",
 ];
 
 const shortIdOf = (tx: pg.Client, table: string, id: string) =>

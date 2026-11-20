@@ -147,6 +147,7 @@ export const proposePartAction = staffAction(
         cost: hasPermission(staff, "view_costs") ? input.expectedUnitCost : null,
         reorderPoint: null,
         active: true,
+        frameGrade: null,
       }));
     }
     const id = await proposePart(supabase, {

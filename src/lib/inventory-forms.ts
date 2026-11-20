@@ -133,6 +133,14 @@ export const productFields = {
   cost: optionalMoney("cost"),
   reorderPoint,
   active: toggle,
+  /** D260: a frame's grade; blank: none. The database checks it is one of frame_grades. */
+  frameGrade: z
+    .union([
+      z.string().regex(/^[SABC]\+{0,2}$/, { error: "Choose a grade from the list." }),
+      z.literal(""),
+    ])
+    .nullish()
+    .transform((v) => v || null),
 };
 
 /** The first unit's (or Add unit's) fields. */

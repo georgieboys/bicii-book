@@ -3137,6 +3137,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      frame_grades: {
+        Row: {
+          currency: string;
+          grade: string;
+          sort_order: number;
+          suggested_price: number;
+          updated_at: string;
+        };
+        Insert: {
+          currency?: string;
+          grade: string;
+          sort_order: number;
+          suggested_price: number;
+          updated_at?: string;
+        };
+        Update: {
+          currency?: string;
+          grade?: string;
+          sort_order?: number;
+          suggested_price?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       integration_audit_events: {
         Row: {
           actor_staff_id: string | null;
@@ -4641,6 +4665,7 @@ export type Database = {
           default_direct_cost: number | null;
           default_sale_price: number | null;
           description: string | null;
+          frame_grade: string | null;
           id: string;
           name: string;
           option_value: string | null;
@@ -4669,6 +4694,7 @@ export type Database = {
           default_direct_cost?: number | null;
           default_sale_price?: number | null;
           description?: string | null;
+          frame_grade?: string | null;
           id?: string;
           name: string;
           option_value?: string | null;
@@ -4697,6 +4723,7 @@ export type Database = {
           default_direct_cost?: number | null;
           default_sale_price?: number | null;
           description?: string | null;
+          frame_grade?: string | null;
           id?: string;
           name?: string;
           option_value?: string | null;
@@ -4728,6 +4755,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "staff";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "products_frame_grade_fkey";
+            columns: ["frame_grade"];
+            isOneToOne: false;
+            referencedRelation: "frame_grades";
+            referencedColumns: ["grade"];
           },
           {
             foreignKeyName: "products_product_group_id_fkey";
@@ -10083,6 +10117,14 @@ export type Database = {
           sort_order: number;
         }[];
       };
+      public_frame_grades: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          currency: string;
+          grade: string;
+          suggested_price: unknown;
+        }[];
+      };
       public_rider_profile: { Args: { public_id: string }; Returns: Json };
       public_shared_ride: { Args: { token: string }; Returns: Json };
       public_shop_hours: {
@@ -13574,6 +13616,7 @@ export type Database = {
           condition: string | null;
           currency: string | null;
           description: string | null;
+          frame_grade: string | null;
           group_name: string | null;
           group_short_id: string | null;
           kind: string | null;

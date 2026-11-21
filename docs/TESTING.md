@@ -1361,7 +1361,10 @@ PostgREST `details` row or `hint`, for an Error and a plain object;
 `loggablePath` masks the token of `/quote/` and `/pay/` and drops every
 query) and `customer-headers.test.ts` (every page's `Permissions-Policy`:
 the camera for the Admin only, microphone, geolocation, payment, USB and
-screen capture refused; no `X-Powered-By`). The audit's efficiency items
+screen capture refused; no `X-Powered-By`); `csp-header.test.ts` checks
+every page's report-only Content-Security-Policy (`frame-ancestors
+'none'`, `object-src 'none'`, `base-uri 'self'`, the Supabase origin and
+websocket from `NEXT_PUBLIC_SUPABASE_URL`, none when it is missing). The audit's efficiency items
 add `photo-urls.test.ts` (`listPhotos`: without `STORAGE_IMAGE_TRANSFORMS`
 the grid gets the original and nothing more is signed; with it a private
 photo's thumbnail is a 480 px signed rendition, one request per photo, a

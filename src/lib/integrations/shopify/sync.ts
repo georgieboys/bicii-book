@@ -30,7 +30,11 @@ import {
  *     quantity as the compare quantity;
  *   7 Shopify's count moved: deferred once (the order webhook may be on its
  *     way), then overwritten without a compare (BICII is the stock truth);
- *   8 pushed, with the ids, quantity, price, hash and API version.
+ *   8 an ACTIVE product is published to the Online Store, after its ids
+ *     and quantity are recorded without the hash or the job (A-09), so a
+ *     refused or throttled publish fails the job but keeps them, and the
+ *     retry pushes again by id with the right compare quantity;
+ *   9 pushed, with the ids, quantity, price, hash and API version.
  */
 
 export const SYNC_MESSAGES = {
@@ -66,6 +70,8 @@ type Recorded = {
   code?: string;
   message?: string;
   retriable?: boolean;
+  /** Record without the job: the job is settled by a later record. */
+  detached?: boolean;
 };
 
 class RecordRefused extends Error {
@@ -104,7 +110,7 @@ export async function runProductSync(job: SyncJob, deps: IntegrationDeps): Promi
   async function record(r: Recorded): Promise<SyncResult> {
     const args = {
       product_id: productId,
-      job_id: job.id,
+      job_id: r.detached ? null : job.id,
       outcome: r.outcome,
       shopify_product_id: r.ids?.productId ?? null,
       shopify_variant_id: r.ids?.variantId ?? null,
@@ -128,6 +134,21 @@ export async function runProductSync(job: SyncJob, deps: IntegrationDeps): Promi
 
   const failed = (code: string, message: string, retriable: boolean) =>
     record({ outcome: "failed", code, message, retriable });
+
+  /** Records a push; a business refusal of it (e.g. shopify_ids_conflict) fails the job. */
+  async function recordPush(r: Recorded): Promise<SyncResult> {
+    try {
+      return await record(r);
+    } catch (e) {
+      if (e instanceof RecordRefused && (e.error.code === "P0001" || e.error.code === "23505")) {
+        // A person must act.
+        const mapped = mapDbError(e.error);
+        const fallback = e.error.code === "P0001" ? "shopify_sync_failed" : "shopify_ids_conflict";
+        return failed(mapped.reason ?? fallback, mapped.message, false);
+      }
+      throw e;
+    }
+  }
 
   if (!productId) {
     log.error({ jobId: job.id }, "shopify product sync job without a product");
@@ -309,7 +330,15 @@ export async function runProductSync(job: SyncJob, deps: IntegrationDeps): Promi
         locationId,
         quantity: desired.quantity,
         compareQuantity,
-        idempotencyKey: inventoryIdempotencyKey([ids.inventoryItemId, desired.hash, job.id, phase]),
+        // The compare quantity is in the key: a retry of the same job after a
+        // recorded push compares with a different quantity (A-09).
+        idempotencyKey: inventoryIdempotencyKey([
+          ids.inventoryItemId,
+          desired.hash,
+          job.id,
+          phase,
+          String(compareQuantity),
+        ]),
         reference: state.handle ?? state.short_id ?? productId,
       });
     try {
@@ -333,42 +362,35 @@ export async function runProductSync(job: SyncJob, deps: IntegrationDeps): Promi
       await setQuantity(null, "overwrite");
     }
 
+    const pushed: Recorded = {
+      outcome: "pushed",
+      ids,
+      locationId,
+      quantity: desired.quantity,
+      price: desired.price,
+      hash: desired.hash,
+      apiVersion: admin.apiVersion,
+    };
+
     // 8. An ACTIVE BICII-made product goes on the Online Store sales
     // channel (productSet does not publish it; Shopify ignores a repeat).
     // After the price and stock, so a refusal here never holds those back.
+    // A-09: the ids and quantity are recorded first, without the hash (so
+    // the retry is not "unchanged" and publishes) and without the job (so
+    // the job stays open). A ShopifyError from the publish then reaches the
+    // outer catch and fails the job, retriable or not, keeping them.
     if (
       grouped
         ? grouped.input.status === "ACTIVE"
         : desired.mode === "full" && desired.input?.status === "ACTIVE"
     ) {
+      const kept = await recordPush({ ...pushed, hash: undefined, detached: true });
+      if (kept.outcome !== "pushed") return done(kept);
       await admin.publishToOnlineStore(ids.productId);
     }
 
     // 9. Done.
-    try {
-      return done(
-        await record({
-          outcome: "pushed",
-          ids,
-          locationId,
-          quantity: desired.quantity,
-          price: desired.price,
-          hash: desired.hash,
-          apiVersion: admin.apiVersion,
-        }),
-      );
-    } catch (e) {
-      if (e instanceof RecordRefused && e.error.code === "P0001") {
-        // A business refusal (e.g. shopify_ids_conflict): a person must act.
-        const mapped = mapDbError(e.error);
-        return done(await failed(mapped.reason ?? "shopify_sync_failed", mapped.message, false));
-      }
-      if (e instanceof RecordRefused && e.error.code === "23505") {
-        const mapped = mapDbError(e.error);
-        return done(await failed(mapped.reason ?? "shopify_ids_conflict", mapped.message, false));
-      }
-      throw e;
-    }
+    return done(await recordPush(pushed));
   } catch (e) {
     try {
       if (e instanceof ShopifyError) {

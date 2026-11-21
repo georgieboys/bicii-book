@@ -1202,6 +1202,59 @@ describe.skipIf(!isolatedDatabase())(
         expect((await syncRow(tx, productId))?.sync_status).toBe("error");
       });
     });
+
+    it("a push recorded without the job or hash, then a failed job, keeps the ids and quantity and retries (A-09)", async () => {
+      await inTx(async (tx) => {
+        const productId = await publicQuantityProduct(tx);
+        await setPublish(tx, productId, true);
+        await flush(tx);
+        const [job] = await queuedJobs(tx, productId);
+        const productGid = `gid://shopify/Product/${nextShopifyId()}`;
+        const variantGid = `gid://shopify/ProductVariant/${nextShopifyId()}`;
+        const itemGid = `gid://shopify/InventoryItem/${nextShopifyId()}`;
+        const state = await syncState(tx, productId);
+        await asService(tx, async () => {
+          expect(await claim(tx, job.id)).toHaveLength(1);
+          // What the runner keeps before publishing to the Online Store.
+          await recordResult(tx, {
+            productId,
+            jobId: null,
+            outcome: "pushed",
+            productGid,
+            variantGid,
+            inventoryItemGid: itemGid,
+            locationGid: SHOPIFY_SETTINGS.shopifyLocationId,
+            quantity: state.available_quantity,
+            price: state.sale_price,
+            apiVersion: "2026-07",
+          });
+          // The publish was throttled.
+          await recordResult(tx, {
+            productId,
+            jobId: job.id,
+            outcome: "failed",
+            errorCode: "shopify_throttled",
+            errorMessage: "Shopify is busy. BICII will try again shortly.",
+            retriable: true,
+          });
+        });
+        expect(await productIds(tx, productId)).toEqual({
+          shopify_product_id: productGid,
+          shopify_variant_id: variantGid,
+        });
+        expect(await syncRow(tx, productId)).toMatchObject({
+          sync_status: "error",
+          shopify_inventory_item_id: itemGid,
+          last_pushed_quantity: state.available_quantity,
+          desired_hash: null,
+          last_error_code: "shopify_throttled",
+        });
+        expect((await syncJobs(tx, productId)).find((j) => j.id === job.id)).toMatchObject({
+          status: "queued",
+          attempts: 1,
+        });
+      });
+    });
   },
 );
 

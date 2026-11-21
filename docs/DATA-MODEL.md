@@ -3473,7 +3473,11 @@ D81, D83, D84, D86, D87):
   `needs_attention`. When another job is already queued for the product, a
   re-queue dismisses this job and pushes the queued one's next attempt out
   instead (one queued per product). `job_id` may be NULL; a job closed
-  meanwhile is left closed; an unknown outcome is 22023.
+  meanwhile is left closed; an unknown outcome is 22023. `failed` never
+  clears the ids, quantity or hash: before publishing an ACTIVE product to
+  the Online Store the runner records `pushed` with `job_id` and
+  `desired_hash` NULL, so a refused or throttled publish then fails the
+  job but keeps what landed, and the retry pushes again by id (A-09).
 - **Settings** (`set_shopify_settings`, admin): the only editor of the row
   and of `storefront_url` (https or NULL, trailing slashes trimmed);
   creates the row when absent; the online location must exist (P0002) and,

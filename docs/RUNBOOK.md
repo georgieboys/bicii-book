@@ -293,6 +293,10 @@ and `bicii-prod`. The owner creates them; agents never see production keys.
    `media-public` has no select policy for anon on purpose (public URLs
    need none; one would let anyone list the bucket): if the Supabase
    advisor or a dashboard prompt offers to add "public read" there, don't.
+   Staff can write to `media-public` only the copy of a recorded internal
+   photo (the visibility move; `20261122001100_audit_public_bucket`):
+   a manual upload there through the dashboard as staff is refused by
+   design.
    Leftover objects from a failed Storage cleanup are removed by the app
    whenever the record is shown (`attachment_stray_objects`); to look for
    any by hand, as an admin in the SQL editor: `select o.bucket_id, o.name

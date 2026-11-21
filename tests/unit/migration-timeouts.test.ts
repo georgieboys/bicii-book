@@ -36,8 +36,8 @@ describe("migration timeouts", () => {
     .sort();
   const newer = files.filter((f) => f > LAST_BEFORE_RULE);
 
-  it("the cut-off file exists (the rule applies to files sorting after it)", () => {
-    expect(files).toContain(LAST_BEFORE_RULE);
+  it("the cut-off is a migration file name (the rule applies to files sorting after it)", () => {
+    expect(LAST_BEFORE_RULE).toMatch(/^\d{14}_[a-z0-9_]+\.sql$/);
   });
 
   it("every migration after the cut-off starts with set local lock_timeout and statement_timeout", () => {

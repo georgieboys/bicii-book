@@ -13,6 +13,10 @@
  *   * the fences: receipt costs equal the products' costs, no low-stock
  *     product is received, so reporting.low_stock is unchanged;
  *   * the archived supplier has no POs.
+ *
+ * Seeded days are counted from the seed's anchor (seedToday, the shop day
+ * the template was built), never from the wall clock, so a run that crosses
+ * Singapore midnight reads the same (DATA-MODEL §18, TESTING.md).
  */
 import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -30,11 +34,16 @@ import {
 import { actAs, connect, inTransaction, isolatedDatabase, scalar } from "./harness";
 import { ADMIN } from "./inventory-fixtures";
 import { progress, receive } from "./purchasing-fixtures";
+import { seedToday, shopToday } from "./reporting-fixtures";
 
 let conn: pg.Client;
+let anchor: string;
+let anchorIsToday: boolean;
 
 beforeAll(async () => {
   conn = await connect();
+  anchor = await seedToday(conn);
+  anchorIsToday = anchor === (await shopToday(conn));
 });
 
 const it7 = it.skipIf(!isolatedDatabase());
@@ -149,8 +158,8 @@ describe("Phase 7 seed: suppliers and purchase orders", () => {
     // created and submitted 2.
     const daysAgo = (column: string, id: string) =>
       shopDay(
-        `select private.shop_today() - private.shop_day(${column}) from public.purchase_orders where id = $1`,
-        [id],
+        `select $2::date - private.shop_day(${column}) from public.purchase_orders where id = $1`,
+        [id, anchor],
       );
     expect(await daysAgo("created_at", PURCHASE_ORDER.receivedInFull)).toBe("12");
     expect(await daysAgo("submitted_at", PURCHASE_ORDER.receivedInFull)).toBe("11");
@@ -166,9 +175,10 @@ describe("Phase 7 seed: suppliers and purchase orders", () => {
       days_ago: number;
       received_by: string;
     }>(
-      `select idempotency_key, reference, private.shop_today() - private.shop_day(received_at) as days_ago,
+      `select idempotency_key, reference, $1::date - private.shop_day(received_at) as days_ago,
               received_by
          from public.purchase_receipts order by received_at`,
+      [anchor],
     );
     expect(receipts).toEqual([
       {
@@ -192,8 +202,9 @@ describe("Phase 7 seed: suppliers and purchase orders", () => {
       reason: string;
       today: boolean;
     }>(
-      `select product_id, quantity_delta, reason, private.shop_day(created_at) = private.shop_today() as today
+      `select product_id, quantity_delta, reason, private.shop_day(created_at) = $1::date as today
          from public.inventory_movements where movement_type = 'purchase_received' order by product_id`,
+      [anchor],
     );
     expect(movements.map((m) => [m.product_id, m.quantity_delta, m.today])).toEqual([
       [PRODUCT.chainX11, 18, true],
@@ -282,26 +293,35 @@ describe("Phase 7 seed: suppliers and purchase orders", () => {
       [PURCHASE_ORDER_LINE.partialLube, "partially_received", 10, 10, 0, false],
     ]);
     expect(
-      await shopDay(
-        "select private.shop_today() - expected_at from public.purchase_orders where id = $1",
-        [PURCHASE_ORDER.partial],
-      ),
+      await shopDay("select $2::date - expected_at from public.purchase_orders where id = $1", [
+        PURCHASE_ORDER.partial,
+        anchor,
+      ]),
     ).toBe("1");
 
-    // The others: received in full, awaiting (not overdue), draft, and cancelled.
+    // The others: received in full and cancelled.
     expect((await progress(conn, PURCHASE_ORDER.receivedInFull))[0]).toMatchObject({
       quantity_received: 4,
       quantity_outstanding: 0,
       is_overdue: false,
     });
+    expect((await progress(conn, PURCHASE_ORDER.cancelled))[0]).toMatchObject({
+      quantity_outstanding: 0,
+      quantity_cancelled: 20,
+    });
+  });
+
+  it("PO-000003 is awaiting delivery, expected after the anchor, not overdue", async (ctx) => {
+    // is_overdue reads the live shop day: on a database seeded days ago
+    // (existing-database mode) its expected day may have passed.
+    if (!anchorIsToday)
+      ctx.skip(
+        `the seed's anchor (${anchor}) is not the shop's today: run \`npm run db:reset\` to re-anchor it`,
+      );
     expect((await progress(conn, PURCHASE_ORDER.awaitingDelivery))[0]).toMatchObject({
       quantity_received: 0,
       quantity_outstanding: 6,
       is_overdue: false,
-    });
-    expect((await progress(conn, PURCHASE_ORDER.cancelled))[0]).toMatchObject({
-      quantity_outstanding: 0,
-      quantity_cancelled: 20,
     });
   });
 

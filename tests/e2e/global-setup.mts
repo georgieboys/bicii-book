@@ -37,6 +37,7 @@ import {
   GATEWAY_URL,
   ROOT,
   SERVICE_ROLE_KEY,
+  assertLocalDatabase,
   databaseName,
   devDatabaseUrl,
 } from "../../scripts/devstack/config.mjs";
@@ -125,6 +126,8 @@ async function readSeedAnchor(url: string): Promise<string> {
 
 export default async function globalSetup() {
   const env = { DATABASE_URL: devDatabaseUrl() };
+  // The reset below drops and rebuilds this database: never a hosted one.
+  assertLocalDatabase(env.DATABASE_URL);
 
   if (process.env.E2E_EXTERNAL_STACK === "1") {
     // `supabase start` (Docker) or another stack on the same URL and demo

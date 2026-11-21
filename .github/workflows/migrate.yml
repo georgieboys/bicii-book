@@ -18,6 +18,10 @@
 #   this job applies the migrations: keep every app change tolerant of the
 #   previous schema, or gate Vercel's production promotion on the "db push"
 #   check (RUNBOOK).
+# - A failed run opens a GitHub issue naming the commit and the pending
+#   files (the job's only write permission). New migrations start with
+#   `set local lock_timeout` / `statement_timeout`, so one blocked behind a
+#   lock fails fast instead of stalling the shop (docs/ENGINEERING.md).
 #
 # - The only secret is SUPABASE_DB_URL, the project's session pooler
 #   connection string (Project Settings -> Database -> Connection string ->
@@ -63,6 +67,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production-db
+    # The last step opens an issue when the run fails; nothing else writes.
+    permissions:
+      contents: read
+      issues: write
     steps:
       # The exact commit CI tested (workflow_run), or main (dispatch).
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -89,9 +97,12 @@ jobs:
         run: npx --yes "$SUPABASE_CLI" migration list --db-url "$SUPABASE_DB_URL"
 
       - name: What would be applied (dry run)
+        shell: bash
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: npx --yes "$SUPABASE_CLI" db push --dry-run --db-url "$SUPABASE_DB_URL"
+        run: |
+          npx --yes "$SUPABASE_CLI" db push --dry-run --db-url "$SUPABASE_DB_URL" \
+            | tee "$RUNNER_TEMP/dry-run.txt"
 
       - name: Apply pending migrations
         env:
@@ -102,3 +113,29 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npx --yes "$SUPABASE_CLI" migration list --db-url "$SUPABASE_DB_URL"
+
+      # Tell the owner. The issue names the commit, the files that were
+      # pending (file names only: CLI output is never copied into a public
+      # issue) and the run; RUNBOOK "A migration failed half way" says what
+      # to do next.
+      - name: Open an issue when the run failed
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pending=$(grep -oE '[0-9]{14}_[A-Za-z0-9_]+\.sql' "$RUNNER_TEMP/dry-run.txt" 2>/dev/null | sort -u || true)
+          {
+            echo "The hosted migration run for ${SHA} failed: ${RUN_URL}"
+            echo
+            echo "Pending before the push (each applies in its own transaction, in this order; the first one still missing from \`migration list\` is the one that failed):"
+            echo
+            if [ -n "$pending" ]; then echo "$pending" | sed 's/^/- /'; else echo "- unknown (the run stopped before the dry run)"; fi
+            echo
+            echo "Next: docs/RUNBOOK.md, \"A migration failed half way\". Fix forward with a later-timestamped file; never edit or revert an applied one."
+          } > "$RUNNER_TEMP/issue.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Hosted migration failed at ${SHA:0:7}" \
+            --body-file "$RUNNER_TEMP/issue.md"

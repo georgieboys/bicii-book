@@ -13,10 +13,19 @@
  * and seeded database (for example the one `supabase start` gives you) and no
  * template or clones are made; tests run against it directly, each inside a
  * transaction that is rolled back unless the test asks to commit.
+ *
+ * The server and BICII_TEST_DATABASE_URL must both be local (loopback or a
+ * unix socket; another host only with BICII_ALLOW_REMOTE_DB=1, a hosted
+ * Supabase address never): the run stops before it connects otherwise.
  */
 import type { TestProject } from "vitest/node";
 
-import { databaseUrl, redact, withDatabase } from "../../scripts/devstack/config.mjs";
+import {
+  assertLocalDatabase,
+  databaseUrl,
+  redact,
+  withDatabase,
+} from "../../scripts/devstack/config.mjs";
 import { buildDatabase, dropDatabase } from "../../scripts/devstack/database.mjs";
 
 declare module "vitest" {
@@ -33,6 +42,10 @@ declare module "vitest" {
 export default async function setup(project: TestProject) {
   const existing = process.env.BICII_TEST_DATABASE_URL ?? "";
   const server = withDatabase(databaseUrl(), "postgres");
+  // Clones, templates and committed test writes land on these: never a
+  // hosted project (scripts/devstack/config.mjs assertLocalDatabase).
+  assertLocalDatabase(server);
+  if (existing) assertLocalDatabase(existing);
   project.provide("dbServerUrl", server);
   project.provide("dbExistingUrl", existing);
 

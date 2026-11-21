@@ -13,8 +13,9 @@ the Next.js 16 differences (`proxy.ts`, async request APIs, Turbopack):
 
 ## Prerequisites and access
 
-- Node 22 ([`.nvmrc`](../.nvmrc); `package.json` `engines` says `>=22`) with
-  npm 10.
+- Node 22 ([`.nvmrc`](../.nvmrc); `package.json` `engines` pins `22.x`, so
+  Vercel runs the major CI tests; `tests/unit/node-version.test.ts` fails if
+  the two drift) with npm 10.
 - A Postgres 16 you can reach as a superuser (default `postgres`/`postgres`
   on 127.0.0.1:5432). The scripts create databases and the Supabase platform
   roles, so a non-superuser does not work.
@@ -253,6 +254,12 @@ from the code:
   or applied migration; add a new one (`migrate.yml` skips a version the
   hosted project already holds, so an edit there would never run). Only a
   file that has not yet merged to `main` may still be edited in place.
+  Every file that sorts after `20261122001100_audit_public_bucket.sql` begins
+  with `set local lock_timeout = '5s';` and
+  `set local statement_timeout = '120s';` (as its first two statements,
+  comments aside; `tests/unit/migration-timeouts.test.ts` enforces it), so
+  DDL queued behind a lock on a busy table fails fast instead of blocking
+  every query on it. Files before it are applied and stay as they are.
 - **Access.** Every object gets an explicit `revoke` and `grant`; every table
   ships with RLS and its policies in the same migration. Base tables are
   staff-only; customers reach data only through security definer `my_*`

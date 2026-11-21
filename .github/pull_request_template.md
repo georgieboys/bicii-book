@@ -30,7 +30,7 @@ Not run:
 
 ## Release considerations
 
-<!-- Nothing is deployed until docs/OPERATIONS.md says otherwise; then say what each hosted environment needs. -->
+<!-- Merging to main deploys the Admin to production (Vercel) and, after CI is green, applies any new file under supabase/migrations/ to the production database (migrate.yml). There is no staging. Say what production needs. -->
 
 - Migrations (file names), or none:
 - `tests/fixtures/api-surface.ts` and `src/lib/database.types.ts` updated, or not needed:

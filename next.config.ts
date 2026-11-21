@@ -1,4 +1,27 @@
+import { realpathSync } from "node:fs";
+import path from "node:path";
+
 import type { NextConfig } from "next";
+
+/**
+ * This directory, or the nearest directory above it that also holds the real
+ * node_modules: Turbopack resolves nothing outside its root, and a git
+ * worktree may share the main checkout's node_modules through a symlink.
+ */
+function projectRoot(): string {
+  let root: string;
+  let modules: string;
+  try {
+    root = realpathSync(__dirname);
+    modules = realpathSync(path.join(__dirname, "node_modules"));
+  } catch {
+    return __dirname;
+  }
+  while (root !== path.dirname(root) && !modules.startsWith(root + path.sep)) {
+    root = path.dirname(root);
+  }
+  return root;
+}
 
 /**
  * The Supabase project's origin and its Realtime websocket, read from
@@ -74,6 +97,11 @@ const customerPageHeaders = [
 const nextConfig: NextConfig = {
   // No X-Powered-By: nothing gains from knowing the framework.
   poweredByHeader: false,
+  // Pin the root (next-config-js/turbopack.md, output.md): otherwise Next
+  // infers it from the outermost lockfile it finds, which on a workstation
+  // can be the home directory, watched and traced as a whole.
+  turbopack: { root: projectRoot() },
+  outputFileTracingRoot: projectRoot(),
   // Every <Image> already passes `unoptimized`: images are served as they
   // are from Supabase Storage or /public. Saying so here keeps the image
   // optimizer, an unauthenticated endpoint nothing uses, out of the picture.

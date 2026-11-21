@@ -118,7 +118,11 @@ NEXT_PUBLIC_PUBLIC_SITE_URL=http://localhost:4000
 The scripts and tests do not read `.env.local`: give them the database in
 the shell (`DATABASE_URL=…` or `BICII_TEST_DATABASE_URL=…` before the
 command, as below), or they use the devstack default
-(`postgres:postgres@127.0.0.1:5432/bicii_dev`).
+(`postgres:postgres@127.0.0.1:5432/bicii_dev`). They refuse, before
+connecting, any database that is not on this machine (loopback or a unix
+socket): `db:reset`, `db:migrate`, the DB tests and Playwright stop with
+"refusing to touch …". `BICII_ALLOW_REMOTE_DB=1` allows another host for a
+disposable server; a hosted Supabase address is refused even then.
 
 Differences from the devstack:
 
@@ -368,6 +372,48 @@ merge, once CI has finished.
   the live definition, then merge.
 - After a run that applied something, check Storage buckets (step 6 above)
   and the Supabase advisors (security and performance).
+- Every migration after `20261122001100_audit_public_bucket.sql` starts with
+  `set local lock_timeout = '5s';` and `set local statement_timeout = '120s';`
+  (tests/unit/migration-timeouts.test.ts), so one that waits behind a lock
+  on a busy table fails within seconds instead of blocking the shop. Such
+  a timeout is safe: that file rolls back and the run goes red; re-run the
+  workflow outside shop hours.
+- A failed run opens a GitHub issue ("Hosted migration failed at …") with
+  the commit, the files that were pending and the run link.
+
+### A migration failed half way
+
+`db push` applies each pending file in its own transaction, in order, and
+stops at the first error: the files before it stay applied, the failing
+one and those after it are not, and Vercel has meanwhile deployed the app
+written for all of them.
+
+1. See what applied: re-run the workflow's history step, or locally
+   `npx supabase@2.119.0 migration list --db-url "$SUPABASE_DB_URL"` (the
+   session pooler string; never paste it anywhere).
+2. Never edit or revert a file that applied. Fix forward: change the failed
+   file only if it is not in the remote history, or add a new file with a
+   later timestamp that completes or compensates, and merge it; the next
+   green run applies it.
+3. If the deployed app needs what did not apply, roll the app back in
+   Vercel (Deployments → the previous production deployment → Promote)
+   until the fix is applied.
+4. Close the issue with the run that applied the fix.
+
+### A migration file was reverted
+
+Reverting a merged pull request removes a file that production's history
+already lists, and the next `db push` refuses (remote versions missing
+locally). Mark the version reverted, then undo its effect with a new
+later-timestamped migration:
+
+```bash
+npx supabase@2.119.0 migration repair --status reverted <version> --db-url "$SUPABASE_DB_URL"
+```
+
+Only the owner runs this, against the hosted project, with the version
+from `migration list`. Prefer a compensating migration over reverting a
+merge that contains one.
 
 ### If `20261005005000_staff_session_revocation` refuses to apply
 
@@ -494,9 +540,15 @@ One Vercel project for the Admin, connected to this repository.
    redeploy (a new build, not a rollback).
 4. Add the production domain and the staging alias to the matching Supabase
    project's Auth URL configuration (Site URL and redirect URLs).
-5. Deploy order for a change with a migration: `supabase db push` to
-   staging → preview check → `db push` to production → promote or merge to
-   `main`.
+5. Deploy order for a change with a migration (there is no staging): merge
+   the pull request to `main` → Vercel builds and deploys `main` to
+   production → CI (`check`, `test`, `build`) goes green on `main` →
+   [`migrate.yml`](#from-github-actions-the-hosted-project) applies the new
+   files to the production database. The new app can therefore run for a
+   few minutes against the previous schema: keep every app change tolerant
+   of it, or require the **db push** check in Vercel's Deployment Checks.
+   A red migrate run opens a GitHub issue; see
+   [A migration failed half way](#a-migration-failed-half-way).
 6. After every deploy and every change to a server-only variable: from a
    fresh private browser window, sign in with an email code. Every sign-in
    counts its attempt with `SUPABASE_SERVICE_ROLE_KEY` first (PLAN D72), so

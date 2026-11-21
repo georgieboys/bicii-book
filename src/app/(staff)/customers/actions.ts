@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import { staffAction } from "@/lib/actions";
+import { expectedUpdatedAt } from "@/lib/inventory-forms";
 import {
   createCustomer as create,
   searchCustomerOptions,
@@ -23,23 +24,36 @@ const text = (max: number, what: string) =>
 // The same shape the customers_email_check constraint accepts.
 const EMAIL = /^[^@\s]+@[^@\s]+$/;
 
-const customerSchema = z
-  .object({
-    /** New customer: the form's idempotency key. Edit: the customer. */
-    id: z.guid({ error: "Unknown customer." }),
-    firstName: text(100, "first name"),
-    lastName: text(100, "last name"),
-    displayName: text(200, "name"),
-    email: text(320, "email").refine((v) => v === null || EMAIL.test(v), {
-      error: "Enter a valid email address.",
-    }),
-    phone: text(40, "phone number"),
-    internalNotes: text(10_000, "notes"),
-  })
-  .refine((c) => c.firstName || c.lastName || c.displayName || c.email || c.phone, {
-    error: "Enter a name, an email or a phone number.",
-    path: ["firstName"],
-  });
+const customerFields = {
+  /** New customer: the form's idempotency key. Edit: the customer. */
+  id: z.guid({ error: "Unknown customer." }),
+  firstName: text(100, "first name"),
+  lastName: text(100, "last name"),
+  displayName: text(200, "name"),
+  email: text(320, "email").refine((v) => v === null || EMAIL.test(v), {
+    error: "Enter a valid email address.",
+  }),
+  phone: text(40, "phone number"),
+  internalNotes: text(10_000, "notes"),
+};
+
+const someContact = {
+  check: (c: {
+    firstName: string | null;
+    lastName: string | null;
+    displayName: string | null;
+    email: string | null;
+    phone: string | null;
+  }) => Boolean(c.firstName || c.lastName || c.displayName || c.email || c.phone),
+  params: { error: "Enter a name, an email or a phone number.", path: ["firstName"] },
+};
+
+const customerSchema = z.object(customerFields).refine(someContact.check, someContact.params);
+
+/** Edit also carries the updated_at the sheet opened with (audit A-11). */
+const updateCustomerSchema = z
+  .object({ ...customerFields, expectedUpdatedAt })
+  .refine(someContact.check, someContact.params);
 
 /** New customer (src/lib/domain/customers.ts createCustomer). */
 export const createCustomer = staffAction(
@@ -49,10 +63,10 @@ export const createCustomer = staffAction(
 );
 
 export const updateCustomer = staffAction(
-  customerSchema,
+  updateCustomerSchema,
   { name: "customers.update" },
-  async ({ id, ...input }, { supabase }) => {
-    await update(supabase, id, input);
+  async ({ id, expectedUpdatedAt, ...input }, { supabase }) => {
+    await update(supabase, id, input, expectedUpdatedAt);
     refresh();
     return null;
   },

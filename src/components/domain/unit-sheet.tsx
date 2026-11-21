@@ -155,6 +155,8 @@ export type UnitEditFields = {
    * so the sheet keeps them as they are and does not offer them.
    */
   consigned?: boolean;
+  /** The row's updated_at when the sheet opened; the save is refused if it moved (audit A-11). */
+  updatedAt: string;
 };
 
 type EditState = ActionResult<null> | null;
@@ -230,6 +232,7 @@ function EditUnitSheet({
         noValidate
       >
         <input type="hidden" name="id" value={unit.id} />
+        <input type="hidden" name="expectedUpdatedAt" value={unit.updatedAt} />
         {state && !state.ok ? (
           <p role="alert" className="text-sm font-medium text-danger-deep">
             {state.error}

@@ -491,8 +491,15 @@ review, on `feat/staff-roles` in the second worktree, database
   buckets per client and per email holding SHA-256 digests (email
   lower-cased; no address in clear; clients without an address share one
   bucket), requests and verifications apart, the multiplier, and "over the
-  limit" only past it. `env.test.ts`: `SIGN_IN_LIMIT_MULTIPLIER` defaults
-  to 1 and takes whole numbers 1-100000.
+  limit" only past it. `sign-in-throttle.test.ts` (`checkSignInAttempt`
+  with a fake rpc): the client's bucket is counted alone, then the
+  email's; past the client's limit the email's call is skipped; either
+  call's error is "unavailable"; the multiplier. `env.test.ts`:
+  `SIGN_IN_LIMIT_MULTIPLIER` defaults to 1 and takes whole numbers
+  1-100000.
+- Device data on sign-out (`sign-out-device-data.test.tsx`, the actions
+  mocked): Sign out and the login page remove the intake draft (v1 and
+  v2) and recent searches, and nothing else.
 - The staff guard (PLAN D71, `session-guard.test.ts`, with Next's
   `forbidden`/`redirect` and the Supabase client mocked): `authorizeStaff`,
   `requireStaff` and `requireAdmin` answer 403 for an inactive person
@@ -533,7 +540,9 @@ review, on `feat/staff-roles` in the second worktree, database
   `describeEvent` for every `work_order_event_type`
   (`workshop-timeline.test.ts`); the intake draft (de)serialiser and its
   guarded storage, and a restored draft pruned of archived services and
-  inactive staff with a sentence saying so (`intake-draft.test.ts`); job
+  inactive staff with a sentence saying so, and a draft offered only to
+  the staff member who started it within 24 hours, removed otherwise
+  (`intake-draft.test.ts`); job
   photos never public, D19
   (`attachments.test.ts`); `CustomerSheet` / `BikeSheet` hand a new record
   to `onCreated` instead of navigating, and navigate as before without it

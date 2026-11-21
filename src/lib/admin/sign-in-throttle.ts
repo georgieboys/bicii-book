@@ -46,7 +46,14 @@ export type SignInThrottleResult = {
   cause?: SignInUnavailableCause;
 };
 
-/** Counts one attempt with an explicit client address and says why a count failed. */
+/**
+ * Counts one attempt with an explicit client address and says why a count
+ * failed. The client's bucket is counted alone first, and the email's only
+ * while the client is under its limit (as in link-throttle.ts): a client
+ * past its limit adds nothing to any email's counter, so it can neither
+ * spend another person's per-email allowance nor grow the counter table
+ * one row per email it names.
+ */
 export async function checkSignInAttempt(
   service: SupabaseClient<Database>,
   attempt: SignInAttempt,
@@ -54,19 +61,23 @@ export async function checkSignInAttempt(
   email: string,
   multiplier = 1,
 ): Promise<SignInThrottleResult> {
-  const buckets = signInBuckets(attempt, client, email, multiplier);
-  const { data, error } = await service.rpc("note_sign_in_attempt", {
-    buckets: buckets.map((b) => b.key),
-    window_seconds: SIGN_IN_WINDOW_SECONDS,
-  });
-  if (error || !data) {
-    return {
-      throttle: "unavailable",
-      cause: { reason: "rpc_error", code: error?.code, message: error?.message },
-    };
+  const [clientBucket, ...emailBuckets] = signInBuckets(attempt, client, email, multiplier);
+  for (const buckets of [[clientBucket], emailBuckets]) {
+    if (buckets.length === 0) continue;
+    const { data, error } = await service.rpc("note_sign_in_attempt", {
+      buckets: buckets.map((b) => b.key),
+      window_seconds: SIGN_IN_WINDOW_SECONDS,
+    });
+    if (error || !data) {
+      return {
+        throttle: "unavailable",
+        cause: { reason: "rpc_error", code: error?.code, message: error?.message },
+      };
+    }
+    const hits = new Map(data.map((row) => [row.bucket_key, row.hit_count]));
+    if (overSignInLimit(buckets, hits)) return { throttle: "limited" };
   }
-  const hits = new Map(data.map((row) => [row.bucket_key, row.hit_count]));
-  return { throttle: overSignInLimit(buckets, hits) ? "limited" : "ok" };
+  return { throttle: "ok" };
 }
 
 /** Counts one attempt with an explicit client address (the stack test calls this). */

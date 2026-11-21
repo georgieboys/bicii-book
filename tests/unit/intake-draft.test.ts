@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DRAFT_MAX_AGE_MS,
   INTAKE_DRAFT_KEY,
   clearDraft,
   draftHasContent,
@@ -15,8 +16,12 @@ import {
 
 const ID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
+const STAFF = ID(11);
+const OTHER_STAFF = ID(12);
+
 const draft: IntakeDraft = {
-  v: 1,
+  v: 2,
+  staffId: STAFF,
   startedAt: "2026-10-04T02:42:00.000Z",
   workOrderId: ID(1),
   step: 3,
@@ -71,6 +76,7 @@ describe("intake draft (de)serialiser", () => {
         "leadId",
         "requestedWork",
         "services",
+        "staffId",
         "startedAt",
         "step",
         "v",
@@ -84,7 +90,9 @@ describe("intake draft (de)serialiser", () => {
     expect(parseDraft("")).toBeNull();
     expect(parseDraft("{not json")).toBeNull();
     expect(parseDraft("[]")).toBeNull();
-    expect(parseDraft(JSON.stringify({ ...draft, v: 2 }))).toBeNull();
+    expect(parseDraft(JSON.stringify({ ...draft, v: 1 }))).toBeNull();
+    expect(parseDraft(JSON.stringify({ ...draft, staffId: undefined }))).toBeNull();
+    expect(parseDraft(JSON.stringify({ ...draft, staffId: "nope" }))).toBeNull();
     expect(parseDraft(JSON.stringify({ ...draft, workOrderId: "nope" }))).toBeNull();
     expect(parseDraft(JSON.stringify({ ...draft, startedAt: "yesterday" }))).toBeNull();
   });
@@ -134,13 +142,46 @@ describe("intake draft (de)serialiser", () => {
 });
 
 describe("intake draft storage", () => {
+  /** An hour after the draft started. */
+  const NOW = Date.parse(draft.startedAt) + 60 * 60 * 1000;
+
   it("saves one draft per device, reads it back, and clears it", () => {
     const storage = memory();
     saveDraft(draft, storage);
     expect([...storage.data.keys()]).toEqual([INTAKE_DRAFT_KEY]);
-    expect(readDraft(storage)).toEqual(draft);
+    expect(INTAKE_DRAFT_KEY).toBe("bicii.intake-draft.v2");
+    expect(readDraft(STAFF, storage, NOW)).toEqual(draft);
     clearDraft(storage);
-    expect(readDraft(storage)).toBeNull();
+    expect(readDraft(STAFF, storage, NOW)).toBeNull();
+  });
+
+  it("never offers another staff member's draft, and removes it", () => {
+    const storage = memory();
+    saveDraft(draft, storage);
+    expect(readDraft(OTHER_STAFF, storage, NOW)).toBeNull();
+    expect(storage.data.size).toBe(0);
+    // Not to its author afterwards either: it is gone from the device.
+    expect(readDraft(STAFF, storage, NOW)).toBeNull();
+  });
+
+  it("offers a draft for 24 hours after it started, and removes it after", () => {
+    const storage = memory();
+    saveDraft(draft, storage);
+    const started = Date.parse(draft.startedAt);
+    expect(readDraft(STAFF, storage, started + DRAFT_MAX_AGE_MS)).toEqual(draft);
+    expect(readDraft(STAFF, storage, started + DRAFT_MAX_AGE_MS + 1)).toBeNull();
+    expect(storage.data.size).toBe(0);
+  });
+
+  it("removes an unreadable draft and any version-1 draft", () => {
+    const storage = memory();
+    storage.setItem("bicii.intake-draft.v1", JSON.stringify({ ...draft, v: 1 }));
+    storage.setItem(INTAKE_DRAFT_KEY, "{not json");
+    expect(readDraft(STAFF, storage, NOW)).toBeNull();
+    expect(storage.data.size).toBe(0);
+    storage.setItem("bicii.intake-draft.v1", JSON.stringify({ ...draft, v: 1 }));
+    clearDraft(storage);
+    expect(storage.data.size).toBe(0);
   });
 
   it("removes the stored draft instead of saving an empty one", () => {
@@ -154,8 +195,8 @@ describe("intake draft storage", () => {
   });
 
   it("never throws when storage is missing or blocked", () => {
-    expect(readDraft(null)).toBeNull();
-    expect(readDraft(throwing)).toBeNull();
+    expect(readDraft(STAFF, null)).toBeNull();
+    expect(readDraft(STAFF, throwing)).toBeNull();
     expect(() => saveDraft(draft, throwing)).not.toThrow();
     expect(() => clearDraft(throwing)).not.toThrow();
     expect(() => saveDraft(draft, null)).not.toThrow();

@@ -99,7 +99,9 @@ managers.
 - Success looks like: the job page with its J- number, the photos, the
   people and the totals; its timeline starts "Checked in as J-…".
 - If it fails: an interrupted intake offers "Continue the intake you
-  started at …" (**Continue** or **Discard**). "Say what the customer
+  started at …" (**Continue** or **Discard**) to the person who started
+  it, on the same device, for 24 hours; signing out removes it, and your
+  recent searches, from the device. "Say what the customer
   wants done." means Requested work is empty. "That bike belongs to someone
   else. Transfer it to this customer first." "That customer is archived.
   Unarchive them before checking in a bike."

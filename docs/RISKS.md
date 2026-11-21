@@ -1200,16 +1200,21 @@ URLs, or customer data in this file.
   per-IP limit, which counts the Admin's server. The per-client limits
   rely on the host setting the client's address in `x-forwarded-for` and
   overwriting what the client sent (Vercel does; another host might not).
+  Since 2026-11-22 a client past its own limit is refused before the
+  per-email counter is touched (`checkSignInAttempt` counts the two
+  buckets in two calls, as `link-throttle.ts` does), so one client alone
+  can no longer use up someone's per-email allowance; many clients
+  together still can.
 - Evidence and confidence: high for the design (`src/lib/auth/sign-in-limits.ts`,
-  `tests/unit/sign-in-limits.test.ts`, `tests/db/sign-in-throttle.test.ts`);
-  never observed in use.
+  `tests/unit/sign-in-limits.test.ts`, `tests/unit/sign-in-throttle.test.ts`,
+  `tests/db/sign-in-throttle.test.ts`); never observed in use.
 - Why accepted: MVP; the window is short and staff can ask an admin.
 - Workaround or containment: Auth's hosted per-IP limits sized well above
   the Admin's (RUNBOOK); logs show `auth.request_code` warnings.
 - Next action: revisit if it is ever observed, or before moving off
   Vercel.
 - Revisit trigger: a report of locked-out staff; a hosting change.
-- Last checked: 2026-10-06.
+- Last checked: 2026-11-22.
 
 ## R-039 — Hosted email delivery and Auth settings are unverified
 

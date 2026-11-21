@@ -46,6 +46,23 @@ describe("mapDbError", () => {
     });
   });
 
+  it("maps a refused customer archive (A-22) without echoing its detail", () => {
+    const mapped = mapDbError(
+      pgrst(
+        "P0001",
+        "customer_has_open_work",
+        "This customer still has an upcoming booking; close it before archiving.",
+      ),
+    );
+    expect(mapped).toEqual({
+      message: BUSINESS_ERRORS.customer_has_open_work,
+      kind: "business",
+      code: "P0001",
+      reason: "customer_has_open_work",
+    });
+    expect(mapped.message).toMatch(/before archiving/);
+  });
+
   it("never echoes an unknown P0001 message", () => {
     const mapped = mapDbError(pgrst("P0001", "secret internal detail about table x"));
     expect(mapped.message).toBe(GENERIC_ERROR);

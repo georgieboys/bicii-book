@@ -35,7 +35,12 @@ import {
   STAFF,
   WORK_ORDER,
 } from "../fixtures/ids";
-import { attachmentPath, customerClaims, linkCustomerLogin } from "./customer-fixtures";
+import {
+  archiveCustomerUnguarded,
+  attachmentPath,
+  customerClaims,
+  linkCustomerLogin,
+} from "./customer-fixtures";
 import { actAs, asAnon, asStaff, connect, inTransaction, scalar, staffClaims } from "./harness";
 
 let conn: pg.Client;
@@ -519,11 +524,8 @@ describe("staff, archived customers and anonymous callers", () => {
 
   it("an archived customer sees nothing", async () => {
     expect(
-      await asCustomer(CUSTOMER.tan, myJobs, (tx) =>
-        tx
-          .query("update public.customers set archived_at = now() where id = $1", [CUSTOMER.tan])
-          .then(() => {}),
-      ),
+      // Tan has open jobs, so only the owner can archive him (A-22).
+      await asCustomer(CUSTOMER.tan, myJobs, (tx) => archiveCustomerUnguarded(tx, CUSTOMER.tan)),
     ).toEqual([]);
   });
 

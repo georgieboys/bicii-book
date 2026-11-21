@@ -43,6 +43,24 @@ export function previewSale(lines: readonly LineInput[]): SalePreview {
 }
 
 // ---------------------------------------------------------------------------
+// Quantity (the sale sheet's field)
+// ---------------------------------------------------------------------------
+
+export const SALE_QUANTITY_MESSAGE = "Enter a whole number, like 1.";
+
+/**
+ * The sale sheet's quantity text as a whole number of 1 or more, or null:
+ * digits only (surrounding spaces allowed), so "1.5", "2x" or "1e3" are not
+ * read as a different number than the field shows.
+ */
+export function saleQuantity(text: string): number | null {
+  const t = text.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isSafeInteger(n) && n >= 1 ? n : null;
+}
+
+// ---------------------------------------------------------------------------
 // Price warnings (D53: any staff may change a price; no database floor)
 // ---------------------------------------------------------------------------
 

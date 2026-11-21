@@ -9,7 +9,9 @@
  * column), a date "YYYY-MM-DD", a datetime shop-local "YYYY-MM-DD HH:mm".
  *
  * Formula injection (OWASP "CSV Injection"): a TEXT cell that starts with
- * =, +, -, @, a tab or a carriage return gets a leading single quote, so a
+ * =, +, -, @ (also after leading whitespace or control characters, such as
+ * a space or a line feed), a tab or a carriage return gets a leading single
+ * quote, so a
  * spreadsheet shows it as text instead of running it. Numeric, money, date
  * and boolean cells are never altered, so a negative yield stays -50.00.
  */
@@ -26,7 +28,12 @@ export type CsvColumn<T> = {
 export const CSV_BOM = "\uFEFF";
 export const CSV_EOL = "\r\n";
 
-const FORMULA_START = /^[=+\-@\t\r]/;
+/**
+ * A formula start, also after leading whitespace or control characters
+ * (some importers trim those before deciding a cell is a formula), or a
+ * leading tab or carriage return.
+ */
+const FORMULA_START = /^[\s\u0000-\u001f]*[=+\-@]|^[\t\r]/;
 
 /** RFC 4180: quote a field containing a comma, a quote, CR or LF; double the inner quotes. */
 export function quoteCsv(field: string): string {

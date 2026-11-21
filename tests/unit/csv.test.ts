@@ -54,6 +54,15 @@ describe("toCsv", () => {
     expect(csv.split("\r\n")[1]).toBe("'=HYPERLINK(1),-50.00,-1,2026-10-05 08:00,true");
   });
 
+  it("guards a formula after leading whitespace or control characters", () => {
+    for (const text of [" =1+1", "\n@SUM(A1)", " +1", "\u0000=1", "  \n -1", "\u000b=1"]) {
+      expect(csvCell("text", text)).toBe(`'${text}`);
+    }
+    for (const text of ["Ana Lim", " Ana", "\nnote", "1-2", "a=b"]) {
+      expect(csvCell("text", text)).toBe(text);
+    }
+  });
+
   it("keeps unicode names intact", () => {
     const csv = toCsv(columns, [
       { name: "Zoë Ng 黄", amount: "1.00", qty: 1, when: "2026-10-05T00:00:00Z", ok: true },

@@ -1040,13 +1040,14 @@ const productRow = (input: ProductInput) => ({
  * Creates a product (a plain insert under RLS: manage_inventory; the
  * database assigns its P- number and starts it as a draft, D26). The form's
  * id is the idempotency key, like createBike: a products_pkey conflict is
- * the product a lost response already created.
+ * the product a lost response already created. `created` is false on that
+ * replay, so a caller undoing its own write (A-87) leaves an earlier one be.
  */
 export async function createProduct(
   supabase: ServerSupabase,
   id: string,
   input: ProductInput & { trackingType: TrackingType },
-): Promise<{ id: string }> {
+): Promise<{ id: string; created: boolean }> {
   const { error } = await supabase.from("products").insert({
     id,
     tracking_type: input.trackingType,
@@ -1057,10 +1058,11 @@ export async function createProduct(
     ...(input.cost !== null ? { default_direct_cost: input.cost as unknown as number } : {}),
   });
   if (error) {
-    if (error.code === "23505" && constraintOf(error) === "products_pkey") return { id };
+    if (error.code === "23505" && constraintOf(error) === "products_pkey")
+      return { id, created: false };
     rethrowFields(new DbError(error), PRODUCT_FIELDS);
   }
-  return { id };
+  return { id, created: true };
 }
 
 /** Edits a product's details; its tracking type, P- number and publication never change here. */

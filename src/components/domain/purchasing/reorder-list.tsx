@@ -115,17 +115,17 @@ export function ReorderList({
 
       <section aria-labelledby="below-reorder-point" className="flex flex-col gap-2">
         <h2 id="below-reorder-point" className="eyebrow text-dust-500">
-          Below reorder point
+          At or below reorder point
         </h2>
         {items.length === 0 ? (
           <EmptyState
             icon={<BoxIcon />}
-            title="Nothing is below its reorder point."
+            title="Nothing is at or below its reorder point"
             description="Shop-owned counted products at or below their reorder point appear here. Consigned stock is never reordered."
           />
         ) : (
           <ul
-            aria-label="Below reorder point"
+            aria-label="At or below reorder point"
             className="flex flex-col divide-y divide-hairline rounded-2xl border border-hairline bg-card px-4"
           >
             {items.map((i) => {

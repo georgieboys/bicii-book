@@ -136,7 +136,7 @@ test("a buyer cancels a submitted order with a reason, kept in its history", asy
 
   const cancel = section(page, "Cancel order");
   await cancel.getByRole("button", { name: "Cancel order…" }).click();
-  await expect(cancel).toContainText("Items already received stay in stock");
+  await expect(cancel).toContainText("Nothing has been received on this order");
   await cancel.getByLabel("Why is this order being cancelled?").fill(reason);
   // The confirm ignores presses for 400 ms after it appears (a double tap).
   await page.waitForTimeout(500);
@@ -277,7 +277,7 @@ test("journey 3, receiving: a double-tapped delivery is received once, sets the 
   // 2 x 20 - 17 - 2 = 21 (D66); the draft has it x 21 at the last cost.
   await page.goto(`/purchasing/reorder?supplier=${order.supplierId}`);
   const row = page
-    .getByRole("list", { name: "Below reorder point" })
+    .getByRole("list", { name: "At or below reorder point" })
     .getByRole("listitem")
     .filter({ hasText: name });
   await expect(row).toContainText("On hand 17 / reorder at 20");

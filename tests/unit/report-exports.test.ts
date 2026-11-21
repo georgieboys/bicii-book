@@ -155,7 +155,9 @@ describe("the snapshot exports (Phase 9 step 4; D106–D108)", () => {
       // No cost column, so nothing differs without view_costs.
       expect(headers(kind, false), kind).toEqual(headers(kind, true));
     }
-    expect(SNAPSHOT_KINDS).toEqual(new Set(["exceptions", "stock", "units", "payments_held"]));
+    expect(SNAPSHOT_KINDS).toEqual(
+      new Set(["exceptions", "stock", "units", "payments_held", "stock_value"]),
+    );
   });
 
   it("writes the brief's exception columns", () => {
@@ -229,6 +231,10 @@ describe("the snapshot exports (Phase 9 step 4; D106–D108)", () => {
   it("names a snapshot by the day it was taken", () => {
     const params = { basis: "sale", from: "2026-10-05", to: "2026-10-11" } as const;
     expect(exportFilename("units", params, "2026-10-06")).toBe("bicii-units-2026-10-06.csv");
+    // Stock at cost now is today's value whatever period is on screen.
+    expect(exportFilename("stock_value", params, "2026-10-06")).toBe(
+      "bicii-stock_value-2026-10-06.csv",
+    );
     expect(exportFilename("breakdown", params, "2026-10-06")).toBe(
       "bicii-breakdown-sale-2026-10-05_2026-10-11.csv",
     );

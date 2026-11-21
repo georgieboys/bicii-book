@@ -271,10 +271,12 @@ managers.
     package (it shows **On Shopify** and the frame options it offers).
     After editing its price, text, picture or donor service, or the donor
     service's price, **Update on Shopify**; **Take off Shopify** stops
-    selling it.
+    selling it. A package that is archived or hidden from the site offers
+    only **Take off Shopify** while it is still online.
   - On Shopify the customer picks **Frame**: **Prepared frame from BICII**
     or **My own prepared frame (inspected first)** at the package price, or
-    **Donor bike, stripped and prepared (+S$185)**. On the site, a frame
+    **Donor bike, stripped and prepared (+S$185)** when the package has a
+    donor bike service. On the site, a frame
     that is on sale online offers each online full build with that frame
     in the same cart. The customer pays in full.
   - When the customer brings the frame or donor bike, open the build's job
@@ -982,7 +984,7 @@ while an approved or ordered item is neither fitted nor cancelled:
   reorder point still counts on Today and the Inventory low-stock filter,
   but it is never reordered here: more of it comes from its consignor
   through intake. If only consigned products are low, the list says
-  "Nothing is below its reorder point."
+  "Nothing is at or below its reorder point".
 
 ### Publish a product
 
@@ -1180,9 +1182,12 @@ website's account pages go live when the owner switches them on,
   sign in again. "Your account is closed" means their customer is archived:
   unarchive it if they should be back. A customer is archived only once
   nothing is open for them: "This customer still has an open job, an
-  upcoming booking, an open quote or payment link, or a consignor record.
-  Close those before archiving." means collect or cancel their jobs, cancel
-  their upcoming bookings and archive their consignor record first. A customer linked to the wrong
+  upcoming booking, an open quote or payment link, or a consignor record
+  that isn't archived. Finish or cancel those (archive the consignor)
+  before archiving." means collect or cancel their jobs, cancel their
+  upcoming bookings, quotes and payment links, and archive their consignor
+  record first. The customer's **Archive** card says this before you press
+  it, and that archiving closes their bicii.sg account. A customer linked to the wrong
   record needs the fix in
   [RUNBOOK](RUNBOOK.md#the-public-site-customer-accounts) (no screen yet).
 
@@ -1383,6 +1388,8 @@ published waiver riders sign). Until then nothing is sold.
   hold** with a reason).
 - An admin can **Revoke** a certificate from its booking, with a reason.
   It comes off the finisher board; the certificate and its history stay.
+  Its pack stays too, marked **Certificate revoked** on **Packs** with a
+  warning on the booking: check with an admin before handing it over.
 - **A cancellation request** (D237) puts the booking in **Needs attention**
   with the rider's reason. Cancel it (and refund in Stripe), or press
   **Clear the flag** with a note saying how you answered.
@@ -1428,8 +1435,9 @@ published waiver riders sign). Until then nothing is sold.
   hour. Cancelling an unpaid booking closes its Stripe page first.
 - **The waiver riders sign** is version 2026-11-14.2 (D239). Late-fee days
   are calendar days: days the shop is closed count.
-- Long lists (bookings, reviews, packs, Live rides) say when they show only
-  the first 200 (or 50).
+- **Bookings** and **Packs** show 200 at a time: **Show older bookings**
+  or **Show more packs** at the foot of the list reaches the rest. Reviews
+  and Live rides say when they show only the first 200 (or 50).
 - **Tracker late fees** (D213): hire is 20 per 24 hours. A tracker gets a
   grace day after its return day; after that it costs 20 a day. Taking a
   late tracker back records the fee and emails the rider. When they pay at
@@ -1458,7 +1466,8 @@ published waiver riders sign). Until then nothing is sold.
   emails, payments waiting on Stripe, ride recordings waiting or failed,
   overdue trackers, feeds more
   than an hour behind (positions not being collected) and failing feeds.
-  **Retry failed emails** puts failed adventure emails back in the queue.
+  A count with a list behind it links there (Reviews, Needs attention,
+  Not paid, Handovers or Trackers). **Retry failed emails** puts failed adventure emails back in the queue.
 - Emails: the rider is emailed when their ticket is paid, when you ask for
   changes, when the ride is certified or not (with your message to them),
   and when you mark the pack ready to collect. The people on **Booking

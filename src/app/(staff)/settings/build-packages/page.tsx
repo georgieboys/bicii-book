@@ -131,11 +131,13 @@ export default async function BuildPackagesPage({
                         {!p.archived ? (
                           <EditBuildPackageButton pkg={p} services={serviceChoices} />
                         ) : null}
-                        {kind === "full_build" && (!p.archived || p.publishOnline) ? (
+                        {kind === "full_build" && ((p.public && !p.archived) || p.publishOnline) ? (
                           <ShopifyPackageButton
                             id={p.id}
                             online={p.publishOnline}
                             pushed={p.shopifyProductId !== null}
+                            sellable={p.public && !p.archived}
+                            hasDonor={p.donorServiceId !== null}
                           />
                         ) : null}
                         <ArchiveBuildPackageButton id={p.id} archived={p.archived} />

@@ -23,6 +23,7 @@ import {
   FINISHER_NAME_LABELS,
   formatDistance,
   PACK_STATUS_LABELS,
+  REVOKED_PACK_TEXT,
   PARTICIPATION_LABELS,
   refundLine,
   SUBMISSION_STATE_LABELS,
@@ -374,6 +375,9 @@ export default async function AdventureBookingPage({
                   {PACK_STATUS_LABELS[booking.pack.status]}
                 </Badge>
               </p>
+              {booking.pack.certificateRevoked && booking.pack.status !== "fulfilled" ? (
+                <p className="text-danger-deep">{REVOKED_PACK_TEXT}</p>
+              ) : null}
               <p>
                 {booking.pack.items.join(", ")}
                 {booking.pack.tshirtSize ? ` · T-shirt ${booking.pack.tshirtSize}` : ""}

@@ -13,6 +13,7 @@ import {
   isOpenStatus,
   isOverdue,
   isPurchaseOrderFilter,
+  leadTimeText,
   normaliseWebsite,
   progressText,
   purchaseOrderStatusLabel,
@@ -59,6 +60,14 @@ describe("purchase order statuses", () => {
     expect(["open", "draft", "closed", "all"].every(isPurchaseOrderFilter)).toBe(true);
     expect(isPurchaseOrderFilter("toString")).toBe(false);
     expect(isPurchaseOrderFilter("received")).toBe(false);
+  });
+});
+
+describe("leadTimeText", () => {
+  it("is singular for one day only", () => {
+    expect(leadTimeText(0)).toBe("0 days lead time");
+    expect(leadTimeText(1)).toBe("1 day lead time");
+    expect(leadTimeText(14)).toBe("14 days lead time");
   });
 });
 

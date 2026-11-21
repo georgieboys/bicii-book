@@ -43,6 +43,7 @@ const LINE: EditableLine = {
   expectedAt: null,
   notes: null,
   hasReceipts: true,
+  hasJobParts: false,
   unitCost: "24.00",
 };
 
@@ -120,6 +121,16 @@ describe("PurchaseOrderLineSheet", () => {
     renderSheet(ORDER, LINE);
     expect(screen.getByRole("button", { name: "Remove line" })).toBeDisabled();
     expect(screen.getByText(/Part of this line has been received/)).toBeInTheDocument();
+  });
+
+  it("explains why a line a customer job's part was ordered on can't be removed", () => {
+    renderSheet(
+      { ...ORDER, status: "draft" },
+      { ...LINE, received: 0, hasReceipts: false, hasJobParts: true },
+    );
+    expect(screen.getByRole("button", { name: "Remove line" })).toBeDisabled();
+    expect(screen.getByText(/Customer jobs ordered parts on this line/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove line…" })).not.toBeInTheDocument();
   });
 
   it("sends the line with its cost as typed, 0 included (D24 as amended)", async () => {

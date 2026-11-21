@@ -2,7 +2,8 @@ import { handleAppointmentNoticesRequest } from "@/lib/integrations/notification
 
 /**
  * Booking emails (vercel.json, every minute; PLAN D163): sends the alerts
- * and confirmations the database queued. proxy.ts does not run under
+ * and confirmations the database queued, at most 5 a run, none started
+ * after 40 seconds (R-100). proxy.ts does not run under
  * /api/cron, so a signed-out GET reaches the handler instead of /login.
  */
 export const runtime = "nodejs";

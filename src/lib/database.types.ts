@@ -9328,8 +9328,8 @@ export type Database = {
         Returns: undefined;
       };
       finish_appointment_notice: {
-        Args: { error?: string; notice_id: string; ok: boolean };
-        Returns: undefined;
+        Args: { claim_token: string; error?: string; notice_id: string; result: string };
+        Returns: boolean;
       };
       finish_my_adventure_ride: {
         Args: { booking_id: string };
@@ -13233,6 +13233,7 @@ export type Database = {
       };
       appointment_notice: {
         id: string | null;
+        claim_token: string | null;
         kind: Database["public"]["Enums"]["appointment_notice_kind"] | null;
         audience: Database["public"]["Enums"]["appointment_notice_audience"] | null;
         recipient: string | null;

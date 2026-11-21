@@ -1256,6 +1256,7 @@ export const CHECK_ERRORS: Record<string, string> = {
   // Booking emails (D163). Only the RPCs and the sender write these.
   shop_settings_booking_alert_staff_ids_check: "Choose at most 10 staff members.",
   shop_settings_booking_alert_emails_check: "List at most 10 other addresses.",
+  appointment_notices_claim: "A claimed email needs its claim token and time.",
   appointment_notices_cancelled_by: "Only a cancellation email says who cancelled.",
   appointment_notices_reason_shop_only: "Only the shop's cancellation alert carries a reason.",
   appointment_notices_sent_at: "Only a sent email has a sent time.",

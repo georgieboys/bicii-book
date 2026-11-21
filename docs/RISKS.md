@@ -3336,7 +3336,9 @@ URLs, or customer data in this file.
 ## R-100 — The booking emails' outbox can give up on an email it never tried, or record a delivered one as failed
 
 - Category: reliability.
-- Status and owner: open; code (a new migration for the booking emails).
+- Status and owner: closed 2026-11-22 (audit A-10, A-20) by
+  `20261122000700_audit_booking_notices.sql` and the sender change in
+  `src/lib/appointment-notices.ts`; code.
 - Trigger: Resend slow or hanging while booking emails are queued.
 - Impact: `claim_appointment_notices` (D163) counts an attempt when it
   claims a row, holds the claim for 2 minutes, and the sender claims 20 rows
@@ -3352,11 +3354,17 @@ URLs, or customer data in this file.
   minutes and carry a token, unsent rows are released, a late success is
   recorded (`20261114000800_adventure_notices.sql`,
   `tests/db/adventure-notices.test.ts`).
-- Next action: move the booking emails to the same design in a new
-  migration and sender change.
+- Next action: none. The booking emails now use the same design: an
+  attempt counts only when a result is recorded, claims are counted
+  separately (15 without a result is final), a claim lasts 5 minutes under
+  a token and only that claim's result is recorded, a late success is
+  recorded after the row was given up, and the sender claims 5 a run,
+  starts no send after 40 seconds and releases the rest
+  (`tests/db/appointment-notices.test.ts`,
+  `tests/unit/appointment-notices.test.ts`; the database tests run in CI).
 - Revisit trigger: a booking email marked failed with "No result was
-  recorded".
-- Last checked: 2026-11-14.
+  recorded after 15 claims".
+- Last checked: 2026-11-22.
 
 ## R-101 — A lost or late tracker is the shop's loss unless staff recover it
 

@@ -725,7 +725,7 @@ Staff bookings send nothing.
    only):
 
    ```sql
-   select n.kind, n.audience, n.status, n.attempts, n.last_error,
+   select n.kind, n.audience, n.status, n.attempts, n.claims, n.last_error,
           n.created_at, n.sent_at
    from private.appointment_notices n
    order by n.created_at desc
@@ -734,14 +734,18 @@ Staff bookings send nothing.
 
    `pending` with attempts 0 for more than a couple of minutes means the
    cron is not running or email is off; `failed` means five attempts
-   failed (`last_error` gives Resend's reason and status).
+   failed (`last_error` gives Resend's reason and status), or "No result
+   was recorded after 15 claims" (the sender kept stopping before it
+   recorded anything: look at the cron's logs). A run sends at most 5
+   emails and releases the ones it did not reach by 40 seconds, so a
+   backlog drains 5 a minute.
 5. Put a failed email back in the queue, once the cause is fixed (owner,
    SQL editor; the notice id from the query above with `n.id` added):
 
    ```sql
    update private.appointment_notices
-   set status = 'pending', attempts = 0, next_attempt_at = now(),
-       last_error = null
+   set status = 'pending', attempts = 0, claims = 0, next_attempt_at = now(),
+       claimed_until = null, claim_token = null, last_error = null
    where id = '<notice id>' and status = 'failed';
    ```
 

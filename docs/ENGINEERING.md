@@ -254,7 +254,7 @@ from the code:
   or applied migration; add a new one (`migrate.yml` skips a version the
   hosted project already holds, so an edit there would never run). Only a
   file that has not yet merged to `main` may still be edited in place.
-  Every file that sorts after `20261122000200_build_extras.sql` begins
+  Every file that sorts after `20261122001100_audit_public_bucket.sql` begins
   with `set local lock_timeout = '5s';` and
   `set local statement_timeout = '120s';` (as its first two statements,
   comments aside; `tests/unit/migration-timeouts.test.ts` enforces it), so

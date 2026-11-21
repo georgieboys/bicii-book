@@ -2,7 +2,7 @@
 // Every new migration fails fast instead of queueing behind a lock during
 // shop hours: its first two statements are `set local lock_timeout` and
 // `set local statement_timeout` (docs/ENGINEERING.md, Migrations). Files up
-// to 20261122000200_build_extras.sql were applied before the rule and are
+// to 20261122001100_audit_public_bucket.sql were applied before the rule and are
 // never edited.
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -10,7 +10,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const dir = path.resolve(__dirname, "../../supabase/migrations");
-const LAST_BEFORE_RULE = "20261122000200_build_extras.sql";
+const LAST_BEFORE_RULE = "20261122001100_audit_public_bucket.sql";
 const LOCK = /^set local lock_timeout = '\d+m?s'$/;
 const STATEMENT = /^set local statement_timeout = '\d+m?s'$/;
 

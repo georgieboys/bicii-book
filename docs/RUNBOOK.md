@@ -368,7 +368,7 @@ merge, once CI has finished.
   the live definition, then merge.
 - After a run that applied something, check Storage buckets (step 6 above)
   and the Supabase advisors (security and performance).
-- Every migration after `20261122000200_build_extras.sql` starts with
+- Every migration after `20261122001100_audit_public_bucket.sql` starts with
   `set local lock_timeout = '5s';` and `set local statement_timeout = '120s';`
   (tests/unit/migration-timeouts.test.ts), so one that waits behind a lock
   on a busy table fails within seconds instead of blocking the shop. Such

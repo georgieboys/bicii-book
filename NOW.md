@@ -1,5 +1,16 @@
 # Current state
 
+Updated: 2026-11-22 SGT (audit batch 5, operations; branch
+`fix/audit-ops`, no migration). Devstack and test scripts refuse any
+non-local database (A-14); the purchasing seed test no longer depends on
+the wall clock (A-13); Node is pinned to 22.x (A-16); ESLint closes the
+service-role import gaps (A-26); functions run in sin1 next to the
+database and the Turbopack root is pinned (A-33); an unused dependency is
+gone (A-34); migrations after `20261122001100` start with lock and
+statement timeouts, and a failed `migrate.yml` opens an issue (A-12); the PR
+template and RUNBOOK describe the real release flow (A-32). Owner items
+remain (see the audit's owner list).
+Before that,
 Updated: 2026-11-22 SGT (build extras, D261, ADR-028 amendment; branch
 `feat/build-extras`, migrations `20261122000100` and `20261122000200` apply
 by `migrate.yml` on merge). On a job with a build package, a part (shop

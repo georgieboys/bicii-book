@@ -1129,9 +1129,9 @@ while an approved or ordered item is neither fitted nor cancelled:
   an alert ("New booking: Tune-up, Fri 13 Nov 2026, 10:00 am") with the
   customer's name, phone, email, bike, their note and a link to the
   appointment, and the customer gets a confirmation. When the customer
-  cancels online, both get an email again (the alert gives their reason).
-  When staff cancel an online booking, only the customer is told. Bookings
-  staff make send nothing. Emails go out within a minute (D163).
+  cancels online, both get an email again (the alert gives their reason),
+  even for a booking staff made. When staff cancel an online booking,
+  only the customer is told. Bookings staff make send nothing otherwise. Emails go out within a minute (D163).
 - Before you start: you are an admin.
 - Steps: **Settings** → **Shop hours and closures** → **Booking emails**
   → **Edit**. Tick the **Staff** who should get alerts (sent to the email

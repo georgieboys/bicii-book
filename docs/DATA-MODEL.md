@@ -809,9 +809,13 @@ recipient and a `customer` row for the customer's email. A cancellation
 by the customer (`cancelled_via = 'customer'`) queues the same two kinds,
 the shop rows with the customer's reason (the change reason
 `cancel_my_appointment` sets, without its default "Cancelled by the
-customer"). A cancellation by staff queues only the customer's row,
-without the staff reason. Staff bookings queue nothing, and a replayed
-booking queues nothing more (the unique key). The shop's recipients are
+customer"), whoever made the booking: a customer who cancels a booking
+staff made, from their account, alerts the shop too (audit A-23,
+`20261122001000_audit_customer_cancel_alert`). A cancellation of an online
+booking by staff queues only the customer's row, without the staff reason.
+Staff bookings queue no `booked` emails and their cancellation by staff
+queues nothing, and a replayed booking queues nothing more (the unique
+key). The shop's recipients are
 resolved when a row is queued: the active staff in
 `shop_settings.booking_alert_staff_ids` (their login email) and the
 addresses in `booking_alert_emails`, set by `set_booking_alert_recipients`

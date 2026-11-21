@@ -585,10 +585,12 @@ URLs, or customer data in this file.
 - D163 (2026-11-12, the owner's request): booking emails for online
   bookings. The shop gets an alert when a customer books or cancels
   online, and the customer gets a confirmation, and an email when they or
-  the shop cancel. Still none for bookings staff make, for a settings
+  the shop cancel. A customer's online cancellation of a booking staff
+  made alerts the shop too (audit A-23, 2026-11-22). Otherwise still none
+  for bookings staff make, for a settings
   change that leaves a booking outside the hours, and still no reschedule.
   Delivery: [R-096](#r-096--booking-emails-can-fail-without-anyone-seeing).
-- Last checked: 2026-11-12 (`tests/db/appointment-notices.test.ts`).
+- Last checked: 2026-11-22 (`tests/db/appointment-notices.test.ts`, written; runs in CI).
 
 ## R-018 — Four sections are placeholder pages
 

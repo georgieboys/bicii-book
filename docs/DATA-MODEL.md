@@ -805,8 +805,9 @@ private.appointment_notices (D163; RLS on, no policies, no API role)
   cancelled_by appointment_source null        -- set exactly when kind = cancelled
   reason text null (≤ 500)                    -- the customer's cancellation reason; shop rows only
   status appointment_notice_status            -- pending | sent | failed
-  attempts 0..5, next_attempt_at, claimed_until, last_error (≤ 200),
-  sent_at (set exactly when sent), created_at
+  attempts 0..5, claims 0..15, next_attempt_at,
+  claimed_until, claim_token                  -- both set or both null (R-100)
+  last_error (≤ 200), sent_at (set exactly when sent), created_at
 ```
 
 **Booking emails (D163).** An appointment booked online (`source =
@@ -829,12 +830,15 @@ resolved when a row is queued: the active staff in
 addresses in `booking_alert_emails`, set by `set_booking_alert_recipients`
 (admin; §16). The Admin's sender, a Vercel cron every minute
 (`/api/cron/appointment-notices`), claims due rows with
-`claim_appointment_notices` and records each result with
-`finish_appointment_notice` (both service_role only): sent is final; a
-failure waits `attempts × 5` minutes, and the fifth failure is final (a
-claim whose result was never recorded is final too once its attempts are
-used up). The notice id is Resend's idempotency key, so a send that
-succeeded but was not recorded is not doubled.
+`claim_appointment_notices` (at most 5 a run, each for 5 minutes under a
+claim token) and records each result with `finish_appointment_notice`
+under that token (both service_role only; R-100, `20261122000700`): an
+attempt is counted only when a result is recorded; sent is final, and is
+recorded even if the row was given up meanwhile; a failure waits
+`attempts × 5` minutes, and the fifth failure is final; a row the run did
+not reach is released without using an attempt; a row claimed 15 times
+without any result is given up. The notice id is Resend's idempotency key,
+so a send that succeeded but was not recorded is not doubled.
 
 **Time zone.** The shop's time zone is fixed at Asia/Singapore in the MVP
 (D35, SPEC §24): `private.shop_timezone()` reads `shop_settings.timezone`
@@ -3968,8 +3972,8 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `book_my_appointment(appointment_id, appointment_type_id, starts_at, bike_id = null, customer_note = null)` → `my_appointment` | C (42501 otherwise) | Built (Phase 2, D37). The booking core with the caller's customer id and source customer: active public types, `appointment_too_soon`, `appointment_too_far_ahead`, `appointment_customer_limit` (per-customer lock), then hours, closures, capacity; a bike that is not theirs (or unknown) → `appointment_bike_not_owned` with nothing about the bike. |
 | `cancel_my_appointment(appointment_id, reason = null)` → `my_appointment` | C (42501 otherwise) | Built (Phase 2, D37). `reason_too_long`; `shop_settings` FOR SHARE; the caller's row FOR UPDATE, else NULL (no error); already cancelled → it (no event); booked/confirmed before `customer_cancel_cutoff_minutes` ahead of the start, else `appointment_not_cancellable`; reason defaults to 'Cancelled by the customer'; `cancelled_via` = customer. |
 | `set_booking_alert_recipients(staff_ids uuid[], emails text[])` → void | A | Built (D163b, `20261112000100`). Distinct staff ids, each an active staff member (`booking_alert_staff_invalid`); addresses trimmed, lowercased, blank and repeated ones dropped, each `x@y.z` and ≤ 320 (`booking_alert_email_invalid`); at most 10 of each (`booking_alert_too_many`). Writes `shop_settings.booking_alert_staff_ids` and `booking_alert_emails` (history in `schedule_events`). |
-| `claim_appointment_notices(max_count integer = 10)` → setof `appointment_notice` | service role only | Built (D163d). First marks failed any pending row with 5 attempts whose claim lapsed; then claims up to `max_count` (1..50) pending, due, unclaimed rows, oldest due first, `for update skip locked`: each gets attempts + 1 and a 2-minute claim, and is returned with the appointment's time, type, the customer's label, first name, email and phone, the bike (brand model variant), the customer's note, `cancelled_by`, the reason, `public_site_url` and the shop time zone. |
-| `finish_appointment_notice(notice_id, ok boolean, error text = null)` → void | service role only | Built (D163d). A pending row only: ok → `sent` (sent_at); else `failed` once attempts reached 5, or `pending` again after `attempts × 5` minutes with `last_error` (≤ 200). A row already sent or failed is left as it is. |
+| `claim_appointment_notices(max_count integer = 5)` → setof `appointment_notice` | service role only | Built (D163d; R-100, `20261122000700`). First marks failed any pending row claimed 15 times whose claim lapsed (the claim stays, so a late success is still recorded); then claims up to `max_count` (1..20) pending, due, unclaimed rows, oldest due first, `for update skip locked`: each gets claims + 1, a new `claim_token` and a 5-minute claim (no attempt is used), and is returned with its claim token, the appointment's time, type, the customer's label, first name, email and phone, the bike (brand model variant), the customer's note, `cancelled_by`, the reason, `public_site_url` and the shop time zone. |
+| `finish_appointment_notice(notice_id, claim_token uuid, result text, error text = null)` → boolean | service role only | Built (D163d; R-100, `20261122000700`, replacing `(notice_id, ok, error)`). Only under the row's current `claim_token`; true when the row changed. `sent` → `sent` (sent_at), also on a row given up while the send was in flight if never sent; `failed` → attempts + 1, `failed` at the fifth, else `pending` again after `attempts × 5` minutes with `last_error` (≤ 200, default "Email failed"); `released` → the claim is returned (claims − 1), no attempt. Another result → 22023. A different token changes nothing. |
 | `check_in_appointment(appointment_id uuid, bike_id uuid, work_order_id uuid, link_existing boolean = false, requested_work text = null, intake_notes text = null, lead_mechanic_id uuid = null)` → `appointment_check_in (appointment_id uuid, appointment_status appointment_status, work_order_id uuid, job_number text, created boolean)` | S | Built (Phase 2, D40). In order: 22004 on null ids; the appointment FOR UPDATE (P0002); checked_in or completed → its existing link with `created` false, whatever `work_order_id` was passed (replay, second device); not booked/confirmed/arrived → `appointment_transition_invalid`; `link_existing`: that job FOR UPDATE (P0002), same customer and bike, open (`private.work_order_status_is_open`) and unlinked, else `appointment_work_order_mismatch`; customer then bike FOR SHARE; bike P0002 / `appointment_bike_archived` / `appointment_bike_not_owned` (shop bikes too); the appointment → bike set, `checked_in` (stamps checked_in_at, arrived_at). New job: `private.create_work_order(actor, work_order_id, customer, bike, coalesce(nullif(btrim(requested_work), ''), customer_note), intake_notes, lead_mechanic_id, '{}', '[]', appointment_id)` (job number, `checked_in` event, D18, lead as for a walk-in; blank work and no note → `requested_work_required`), then `work_order_conflict` unless the returned job carries this appointment (an older job under that id). Existing job: `appointment_id` null → this appointment. Both link events from the triggers (§4). One transaction; `created` = not `link_existing`. |
 | `appointment_daily(from_day date = null, to_day date = null)` → `day, booked, expected, arrived, checked_in, no_shows, cancelled` | S | Built (Phase 2, D41). Operational counts, no permission needed (D30). `reporting.appointment_daily` zero-filled one row per day; daily_summary's range rules (null bound = the other, both null = today, ≤ 366 days, else `report_range_invalid`); future days allowed (upcoming appointments). |
 | `create_work_order(work_order_id, customer_id, bike_id, requested_work, intake_notes = null, lead_mechanic_id = null, additional_staff_ids uuid[] = '{}', services jsonb = '[]')` → `work_orders` | S | Calls `private.create_work_order(actor, …, appointment_id)`. Replay first: an existing id returns the row as it is now when customer and bike match (no check, assignment or line re-run, no number burned), else `work_order_conflict`. Then FOR SHARE on customer and bike (D18 against a concurrent transfer), insert (trigger: J- number, `work_order_customer_archived`, `work_order_bike_archived`, `bike_owner_mismatch`), lead, ≤ 10 distinct additional staff, ≤ 20 services `{line_id, service_id, quantity}` (malformed 22023) through `private.insert_service_line`. One transaction. `requested_work_required`; 22004 for missing ids. |

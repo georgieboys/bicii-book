@@ -63,21 +63,24 @@ export function ManualLineButton({
   );
 }
 
-function ManualLineSheet({
+export function ManualLineSheet({
   workOrderId,
   viewCosts,
   currency,
+  initialDescription = "",
   onClose,
 }: {
   workOrderId: string;
   viewCosts: boolean;
   currency: string;
+  /** Add part's "one-off" shortcut fills in what was searched for. */
+  initialDescription?: string;
   onClose: () => void;
 }) {
   const { toast } = useToast();
   const formId = useId();
   const [lineId] = useState(newId);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(initialDescription);
   const [quantity, setQuantity] = useState("1");
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");

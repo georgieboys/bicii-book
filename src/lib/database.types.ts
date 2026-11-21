@@ -6813,6 +6813,63 @@ export type Database = {
           },
         ];
       };
+      work_order_build_extras: {
+        Row: {
+          line_id: string;
+          marked_at: string;
+          marked_by: string | null;
+          work_order_id: string;
+        };
+        Insert: {
+          line_id: string;
+          marked_at?: string;
+          marked_by?: string | null;
+          work_order_id: string;
+        };
+        Update: {
+          line_id?: string;
+          marked_at?: string;
+          marked_by?: string | null;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "work_order_build_extras_line_id_fkey";
+            columns: ["line_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_line_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_build_extras_line_id_fkey";
+            columns: ["line_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_line_items_staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_build_extras_marked_by_fkey";
+            columns: ["marked_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_build_extras_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_build_summary";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_build_extras_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_builds";
+            referencedColumns: ["work_order_id"];
+          },
+        ];
+      };
       work_order_builds: {
         Row: {
           build_package_id: string;
@@ -7616,6 +7673,8 @@ export type Database = {
           build_package_id: string | null;
           currency: string | null;
           difference: number | null;
+          extras_count: number | null;
+          extras_total: number | null;
           kind: Database["public"]["Enums"]["build_package_kind"] | null;
           labour_amount: number | null;
           labour_line_id: string | null;
@@ -11655,6 +11714,42 @@ export type Database = {
         Args: { emails: string[]; staff_ids: string[] };
         Returns: undefined;
       };
+      set_build_line_extra: {
+        Args: { extra: boolean; line_id: string };
+        Returns: {
+          consignment_item_id: string | null;
+          consignor_payout_snapshot: number | null;
+          cost_pending: boolean;
+          cost_total: number | null;
+          created_at: string;
+          created_by: string | null;
+          cult_commons_rate_snapshot: number;
+          cult_commons_share: number | null;
+          currency: string;
+          description_snapshot: string;
+          id: string;
+          line_type: Database["public"]["Enums"]["line_type"];
+          quantity: number;
+          sale_total: number | null;
+          source_inventory_unit_id: string | null;
+          source_product_id: string | null;
+          source_service_id: string | null;
+          unit_direct_cost_snapshot: number;
+          unit_list_price_snapshot: number | null;
+          unit_sale_price_snapshot: number;
+          void_reason: string | null;
+          voided_at: string | null;
+          voided_by: string | null;
+          work_order_id: string;
+          yield_total: number | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "work_order_line_items";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       set_consignment_settlement_alert_days: { Args: { p_days: number }; Returns: number };
       set_default_label_template: {
         Args: { template_id: string };
@@ -13086,7 +13181,9 @@ export type Database = {
         | "build_cleared"
         | "build_fitted"
         | "line_repriced"
-        | "build_order_linked";
+        | "build_order_linked"
+        | "build_extra_marked"
+        | "build_extra_unmarked";
       work_order_note_kind: "note" | "diagnosis";
       work_order_status:
         | "received"
@@ -14317,6 +14414,8 @@ export const Constants = {
         "build_fitted",
         "line_repriced",
         "build_order_linked",
+        "build_extra_marked",
+        "build_extra_unmarked",
       ],
       work_order_note_kind: ["note", "diagnosis"],
       work_order_status: [

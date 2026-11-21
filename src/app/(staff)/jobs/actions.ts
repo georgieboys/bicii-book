@@ -11,6 +11,7 @@ import {
   addServiceLine as addService,
   voidLine as voidOne,
 } from "@/lib/domain/lines";
+import { setBuildLineExtra } from "@/lib/domain/build-packages";
 import { addPartToJob as addPart } from "@/lib/domain/inventory";
 import { searchServices } from "@/lib/domain/services";
 import {
@@ -198,6 +199,18 @@ export const addPartToJob = staffAction(
   { name: "jobs.add_part" },
   async (input, { supabase }) => {
     const result = await addPart(supabase, input);
+    // D261: an extra on a build, charged on top of the package. A retry
+    // replays the add (same line id) and marks it again.
+    if (input.buildExtra) {
+      try {
+        await setBuildLineExtra(supabase, result.lineId, true);
+      } catch {
+        refresh();
+        throw new ActionError(
+          "The part was added to the package, not charged on top. Press Charge on top on its row in the build card.",
+        );
+      }
+    }
     refresh();
     return result;
   },

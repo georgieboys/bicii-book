@@ -2004,6 +2004,31 @@ build_orders += frame_source build_frame_source not null default 'bicii_frame',
   service at donor_amount; `build_order_linked` carries frame_source,
   donor_amount and donor_line_id.
 
+Build extras (D261; `20261122000100_build_extra_enum_values.sql`,
+`20261122000200_build_extras.sql`):
+
+```
+work_order_build_extras
+  line_id uuid PK -> work_order_line_items, work_order_id -> work_order_builds
+    on delete cascade (taking the package off drops them), marked_by -> staff, marked_at
+  -- RLS: staff read; written only by set_build_line_extra
+
+work_order_event_type += build_extra_marked, build_extra_unmarked
+work_order_build_summary += extras_count, extras_total (appended; the parts
+  columns, package_total and difference leave extras out)
+```
+
+- `set_build_line_extra(line_id, extra boolean)` (staff) → the line: open
+  job (`work_order_locked`) with a package (`build_missing`), a live line
+  (`build_line_voided`) that is an inventory line (`build_line_not_part`);
+  marking a repriced part puts it back at its list price (via
+  `private.reprice_line`); no change, no event; else `build_extra_marked`
+  or `build_extra_unmarked` with description, quantity, from_price,
+  to_price, sale_total.
+- `fit_build_to_budget` and `clear_work_order_build` (re-created): the
+  parts are the live inventory lines that are not extras; clearing leaves
+  an extra's price alone.
+
 ### Frame grades (D260)
 
 Built out of phase on 2026-11-20 (`20261120000200_frame_grades.sql`;

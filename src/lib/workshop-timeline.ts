@@ -461,6 +461,23 @@ export function describeEvent(
         tone: "done",
       };
     }
+    // Build extras (D261).
+    case "build_extra_marked":
+    case "build_extra_unmarked": {
+      const what = text(p, "description") ?? "A part";
+      const total = amount(p, "sale_total");
+      return {
+        title:
+          event.type === "build_extra_marked"
+            ? `${what} charged on top of the package`
+            : `${what} put back in the package`,
+        detail:
+          event.type === "build_extra_marked" && total !== null
+            ? formatMoney(total, currency)
+            : null,
+        tone: "neutral",
+      };
+    }
     case "line_repriced": {
       const from = amount(p, "from_price");
       const to = amount(p, "to_price");

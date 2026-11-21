@@ -238,6 +238,9 @@ export type JobBuild = {
   currency: string;
   /** Each live part's list price (its price before the first repricing). */
   listPrices: Record<string, string>;
+  /** D261: the live parts charged on top of the package, at their own price. */
+  extraLineIds: string[];
+  extrasTotal: string;
 };
 
 /** The job's build and its numbers, or null without a package. */
@@ -249,7 +252,7 @@ export async function getJobBuild(
     await supabase
       .from("work_order_build_summary")
       .select(
-        "build_package_id, name, kind, price, labour_amount, parts_budget, labour_line_id, parts_count, parts_list_total, parts_total, labour_total, package_total, difference, currency",
+        "build_package_id, name, kind, price, labour_amount, parts_budget, labour_line_id, parts_count, parts_list_total, parts_total, labour_total, package_total, difference, currency, extras_total",
       )
       .eq("work_order_id", workOrderId)
       .maybeSingle(),
@@ -265,6 +268,14 @@ export async function getJobBuild(
     ) as
       | { id: string; unit_sale_price_snapshot: number; unit_list_price_snapshot: number | null }[]
       | null) ?? [];
+  const extras =
+    (unwrap(
+      await supabase
+        .from("work_order_build_extras")
+        .select("line_id")
+        .eq("work_order_id", workOrderId),
+    ) as { line_id: string }[] | null) ?? [];
+  const live = new Set(lists.map((l) => l.id));
   return {
     packageId: summary.build_package_id!,
     name: summary.name!,
@@ -286,6 +297,8 @@ export async function getJobBuild(
         toMoneyString(l.unit_list_price_snapshot ?? l.unit_sale_price_snapshot),
       ]),
     ),
+    extraLineIds: extras.map((e) => e.line_id).filter((id) => live.has(id)),
+    extrasTotal: toMoneyString(summary.extras_total ?? 0),
   };
 }
 
@@ -340,6 +353,16 @@ export async function repriceBuildLine(
     line_id: lineId,
     unit_sale_price: Number(price),
   });
+  if (error) throw new DbError(error);
+}
+
+/** D261: charge a part on top of the package (extra) or put it back in. */
+export async function setBuildLineExtra(
+  supabase: ServerSupabase,
+  lineId: string,
+  extra: boolean,
+): Promise<void> {
+  const { error } = await supabase.rpc("set_build_line_extra", { line_id: lineId, extra });
   if (error) throw new DbError(error);
 }
 

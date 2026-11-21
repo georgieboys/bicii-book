@@ -352,8 +352,10 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
                 <AddPartButton
                   workOrderId={job.id}
                   viewCosts={viewCosts}
+                  currency={job.currency}
                   disabled={!open}
                   hasActiveLocation={locations.defaultLocationId !== null}
+                  hasBuild={build !== null}
                 />
                 <ManualLineButton
                   workOrderId={job.id}

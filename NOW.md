@@ -1,5 +1,20 @@
 # Current state
 
+Updated: 2026-11-22 SGT (build extras, D261, ADR-028 amendment; branch
+`feat/build-extras`, migrations `20261122000100` and `20261122000200` apply
+by `migrate.yml` on merge). On a job with a build package, a part (shop
+stock, a unique item or a consigned item) can be charged on top: **Charge on
+top** on its row in the build card, or the **Charge on top of the build
+package** box in Add part. It keeps its own price (a fitted part goes back to
+its shelf price), **Fit parts to budget** leaves it out, and the card lists
+it under "Extras, charged on top"; it still takes stock, owes a consignor
+and counts as product revenue. A one-off with no stock record is a manual
+line; Add part links to one carrying the search. Verified locally:
+typecheck, lint, format and unit tests (`job-build-extras.test.tsx`) pass;
+the database tests (`tests/db/build-extras.test.ts`) and the types check run
+in CI only, because `.env.local` points at production. First next action:
+after merge and the migration, check a build job's card in the Admin.
+Before that,
 Updated: 2026-11-20 SGT (frame grades on Shopify and the base-price model,
 D260 amendments; merged and live: bicii-book PR #105, BICII PRs #99 and
 #100; migrations `20261120000200` and `20261120000300` applied by

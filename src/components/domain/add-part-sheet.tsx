@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
 import { BoxIcon, PlusIcon } from "@/components/ui/icons";
 import { NumberInput } from "@/components/ui/number-input";
 import { SearchPicker, type PickerOption } from "@/components/ui/search-picker";
@@ -22,6 +23,7 @@ import { formatMoney, lineTotal, parseMoney, toDecimal } from "@/lib/money";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
+import { ManualLineSheet } from "./manual-line-sheet";
 import { NoActiveLocation } from "./no-active-location";
 import { ShortId } from "./short-id";
 import { StockBadge } from "./stock-badge";
@@ -63,16 +65,22 @@ const plain = (n: number) => signedQuantity(n).replace(/^\+/, "");
 export function AddPartButton({
   workOrderId,
   viewCosts,
+  currency,
   disabled = false,
   hasActiveLocation,
+  hasBuild = false,
 }: {
   workOrderId: string;
   viewCosts: boolean;
+  /** The job's, for the one-off line. */
+  currency: string;
   disabled?: boolean;
   /** listLocations found an active location (otherwise the sheet says to add one). */
   hasActiveLocation: boolean;
+  /** D261: the job has a build package, so a part may be charged on top of it. */
+  hasBuild?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState<"part" | { oneOff: string } | null>(null);
   return (
     <>
       <Button
@@ -80,16 +88,28 @@ export function AddPartButton({
         size="sm"
         icon={<PlusIcon className="size-4" />}
         disabled={disabled}
-        onClick={() => setOpen(true)}
+        onClick={() => setSheet("part")}
       >
         Add part
       </Button>
-      {open ? (
+      {sheet === "part" ? (
         <AddPartSheet
           workOrderId={workOrderId}
           viewCosts={viewCosts}
           hasActiveLocation={hasActiveLocation}
-          onClose={() => setOpen(false)}
+          hasBuild={hasBuild}
+          onOneOff={(query) => setSheet({ oneOff: query })}
+          onClose={() => setSheet(null)}
+        />
+      ) : sheet ? (
+        // D261: a one-off with no stock record is a manual line (no SKU, no
+        // count), charged on top of a build package like every manual line.
+        <ManualLineSheet
+          workOrderId={workOrderId}
+          viewCosts={viewCosts}
+          currency={currency}
+          initialDescription={sheet.oneOff}
+          onClose={() => setSheet(null)}
         />
       ) : null}
     </>
@@ -115,11 +135,16 @@ function AddPartSheet({
   workOrderId,
   viewCosts,
   hasActiveLocation,
+  hasBuild,
+  onOneOff,
   onClose,
 }: {
   workOrderId: string;
   viewCosts: boolean;
   hasActiveLocation: boolean;
+  hasBuild: boolean;
+  /** Switch to a one-off manual line, carrying what was searched for. */
+  onOneOff: (query: string) => void;
   onClose: () => void;
 }) {
   const { toast } = useToast();
@@ -129,6 +154,9 @@ function AddPartSheet({
   const [quantity, setQuantity] = useState("1");
   const [locationId, setLocationId] = useState<string | null>(null);
   const [price, setPrice] = useState("");
+  const [lastQuery, setLastQuery] = useState("");
+  // Controlled: React resets uncontrolled fields after a failed action.
+  const [buildExtra, setBuildExtra] = useState(false);
   const part = picked?.part ?? null;
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = await callAction(() => addPartToJob(prev, formData), formData);
@@ -144,7 +172,8 @@ function AddPartSheet({
           : onHandAfter !== null && locationName
             ? `${plain(onHandAfter)} left at ${locationName}.`
             : "";
-      toast({ title: `${what} ${left}`.trim(), tone: "success" });
+      const extra = formData.get("buildExtra") === "on" ? " Charged on top of the package." : "";
+      toast({ title: `${what} ${left}${extra}`.trim(), tone: "success" });
       onClose();
     }
     return result;
@@ -153,6 +182,7 @@ function AddPartSheet({
   const errors = state && !state.ok ? state.fieldErrors : undefined;
 
   const search = async (q: string): Promise<PartPick[]> => {
+    setLastQuery(q);
     const result = await callAction(() => searchParts({ q }));
     if (!result.ok) throw new Error(result.error);
     return result.data.map((p) => ({
@@ -278,6 +308,21 @@ function AddPartSheet({
             />
           </Field>
 
+          {!part ? (
+            <p className="text-sm text-dust-700">
+              Not in stock? A one-off with no stock record or SKU goes on as a{" "}
+              <button
+                type="button"
+                className="font-medium text-ink underline underline-offset-4"
+                onClick={() => onOneOff(lastQuery.trim())}
+              >
+                one-off line
+              </button>
+              . A consigned item is received under Consignment first, so its consignor is owed when
+              the job is completed.
+            </p>
+          ) : null}
+
           {part ? (
             <>
               {part.consigned ? (
@@ -383,6 +428,15 @@ function AddPartSheet({
                     product first.
                   </p>
                 )
+              ) : null}
+              {hasBuild ? (
+                <Checkbox
+                  name="buildExtra"
+                  checked={buildExtra}
+                  onChange={(e) => setBuildExtra(e.target.checked)}
+                  label="Charge on top of the build package"
+                  description="For a one-off the customer adds: it keeps its own price and stays out of the parts budget."
+                />
               ) : null}
               <p className="flex items-baseline justify-between rounded-xl bg-sunken px-4 py-3 tabular-nums">
                 <span className="text-sm text-dust-700">Line total</span>

@@ -540,7 +540,14 @@ review, on `feat/staff-roles` in the second worktree, database
   (`record-sheets.test.tsx`, actions mocked); the product sheet's frame
   grade (D260) offered only for frames, its base price put in with **Use
   it**, and the chosen grade kept and sent again after a failed save
-  (`product-sheet.test.tsx`, actions mocked). Review fixes: the status
+  (`product-sheet.test.tsx`, actions mocked). Build extras (D261): the build card
+  lists extras apart under "Extras, charged on top" with their total and
+  moves a part either way, with nothing to press on a closed job; Add part
+  offers **Charge on top of the build package** only on a job with a
+  package, and its one-off line opens a manual line carrying the search
+  (`job-build-extras.test.tsx`, actions mocked); the database side is
+  `tests/db/build-extras.test.ts` (left out of the fit, back at shelf
+  price, refusals, clearing, a consigned extra's liability and revenue). Review fixes: the status
   row disabled for 400 ms after each status change, Collected confirmed in
   a second step (job and customer named, focus on Back, confirm armed after
   400 ms), the Change status sheet with nothing pre-selected and its submit

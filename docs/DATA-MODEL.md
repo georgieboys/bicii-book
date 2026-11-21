@@ -2029,6 +2029,23 @@ work_order_build_summary += extras_count, extras_total (appended; the parts
   parts are the live inventory lines that are not extras; clearing leaves
   an extra's price alone.
 
+Audit fixes 2026-11-22 (`20261122000300_audit_build_fixes.sql`):
+
+- `reprice_build_line` and `set_build_line_extra` return
+  `build_line_result` (line_id, unit_sale_price, unit_list_price,
+  sale_total, currency), never the line's cost, yield, Cult Commons or
+  payout (D14).
+- `link_build_order`: a job that already has the ordered package at
+  another price takes the price paid less any donor strip (labour
+  least(package labour, price), the labour line repriced, `build_set`
+  with `previous_price` and `build_order_id`); a voided labour line →
+  `build_labour_line_voided`.
+- `private.shopify_unmapped_lines` leaves out all three of a package's
+  variants; `link_shopify_variant` refuses a build package's product or
+  variant (`shopify_ids_conflict`).
+- `build_packages`: archiving a package with `publish_online` →
+  `build_package_online` (take it off Shopify first).
+
 ### Frame grades (D260)
 
 Built out of phase on 2026-11-20 (`20261120000200_frame_grades.sql`;

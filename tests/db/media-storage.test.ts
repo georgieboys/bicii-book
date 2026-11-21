@@ -11,7 +11,9 @@
  *   media-public    public bucket: files are served at public URLs (which
  *                   skip RLS; stack.smoke.test.ts fetches one), but only
  *                   active staff may read or list it through the API, and
- *                   only they add to it.
+ *                   only they add to it, and only the copy of a recorded
+ *                   internal photo of a record that can be public (audit
+ *                   2026-11-13 A-24).
  *   both            nobody overwrites an object (no UPDATE policy), and
  *                   staff delete only objects no attachment row points at,
  *                   so a recorded photo leaves only through the RPCs.
@@ -25,7 +27,7 @@ import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { AUTH_USER, BIKE, CUSTOMER, STAFF } from "../fixtures/ids";
+import { AUTH_USER, BIKE, CONSIGNMENT_ITEM, CUSTOMER, PRODUCT, STAFF } from "../fixtures/ids";
 import {
   attachmentPath,
   customerClaims,
@@ -188,7 +190,11 @@ describe("media-public", () => {
       expect(del.rowCount).toBe(0);
     });
     await withObject("media-public", "staff", async (tx, name) => {
-      await insertAs(tx, "media-public");
+      // An object no attachment row points at in media-internal is refused
+      // (A-24; the copy of a recorded photo is tested below).
+      await tx.query("savepoint s");
+      await expect(insertAs(tx, "media-public")).rejects.toMatchObject({ code: "42501" });
+      await tx.query("rollback to savepoint s");
       await allowDelete(tx);
       const del = await tx.query(
         "delete from storage.objects where bucket_id = 'media-public' and name = $1",
@@ -279,6 +285,86 @@ describe("recorded photos", () => {
         name,
       ]);
       expect(rows).toEqual([{ bucket_id: "media-public" }]);
+    });
+  });
+});
+
+describe("copies into media-public (audit 2026-11-13 A-24)", () => {
+  /** A recorded internal photo of `entityType` `entityId` (as the owner). */
+  async function internalPhoto(tx: pg.Client, entityType: string, entityId: string) {
+    const id = randomUUID();
+    const path = attachmentPath(entityType, entityId, id);
+    await putStorageObject(tx, "media-internal", path);
+    await tx.query(
+      `insert into public.attachments
+         (id, entity_type, entity_id, storage_bucket, storage_path, media_type, visibility, width, height)
+       values ($1, $2, $3, 'media-internal', $4, 'image/jpeg', 'internal', 640, 480)`,
+      [id, entityType, entityId, path],
+    );
+    return { id, path };
+  }
+
+  const insertAt = (tx: pg.Client, name: string) =>
+    tx.query(
+      "insert into storage.objects (bucket_id, name, metadata) values ('media-public', $1, '{}')",
+      [name],
+    );
+
+  it("a mechanic cannot write a customer or consignment path, even of a recorded internal photo", async () => {
+    for (const [entityType, entityId] of [
+      ["customer", CUSTOMER.tan],
+      ["consignment_item", CONSIGNMENT_ITEM.colnago],
+    ] as const) {
+      await inTransaction(conn, async (tx) => {
+        await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+        await tx.query("savepoint s");
+        await expect(
+          insertAt(tx, attachmentPath(entityType, randomUUID(), randomUUID())),
+        ).rejects.toMatchObject({ code: "42501" });
+        await tx.query("rollback to savepoint s");
+        await tx.query("reset role");
+        const { path } = await internalPhoto(tx, entityType, entityId);
+        await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+        await expect(insertAt(tx, path)).rejects.toMatchObject({ code: "42501" });
+      });
+    }
+  });
+
+  it("a mechanic cannot write a path no recorded internal photo has", async () => {
+    await inTransaction(conn, async (tx) => {
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      await tx.query("savepoint s");
+      // A product that does not exist.
+      await expect(
+        insertAt(tx, attachmentPath("product", randomUUID(), randomUUID())),
+      ).rejects.toMatchObject({ code: "42501" });
+      await tx.query("rollback to savepoint s");
+      // A real product, but no attachment at that path.
+      await expect(
+        insertAt(tx, attachmentPath("product", PRODUCT.gp5000Tyre, randomUUID())),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+  });
+
+  it("the visibility move of a recorded product photo still works: copy, then the RPC", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { id, path } = await internalPhoto(tx, "product", PRODUCT.gp5000Tyre);
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      await insertAt(tx, path);
+      const { rows } = await tx.query(
+        "select visibility, storage_bucket, storage_path from public.set_attachment_visibility($1, 'public', 'media-public', $2)",
+        [id, path],
+      );
+      expect(rows).toEqual([
+        { visibility: "public", storage_bucket: "media-public", storage_path: path },
+      ]);
+      // The row now names the public copy, so the internal original is removable.
+      await allowDelete(tx);
+      const del = await tx.query(
+        "delete from storage.objects where bucket_id = 'media-internal' and name = $1",
+        [path],
+      );
+      expect(del.rowCount).toBe(1);
     });
   });
 });

@@ -669,6 +669,14 @@ Storage policies on `storage.objects`:
   active staff member could put an object at any path, so the public bucket
   could serve a file no row points at). Signed upload URLs and the
   internal-to-public copy already use exactly that path.
+- The `media-public` insert takes only the copy of a recorded internal
+  photo: an attachment row must currently point at the same path in
+  `media-internal`, and the entity type must be one that can be public
+  (not `customer`, `consignment_item` or `work_order`)
+  (`20261122001100_audit_public_bucket`, audit 2026-11-13 A-24; before it
+  any active staff member could put an unrecorded image there). The copy
+  step of a visibility move runs while the row still names the internal
+  object, so the move is unchanged.
 - Both: no update policy (nothing is overwritten: uploads never upsert, a
   move copies to a new bucket). Delete for active staff only of objects no
   attachment row points at (`private.attachment_object_referenced`; those
@@ -3807,7 +3815,7 @@ written out, e.g. `A, M or P(view_costs)`.
 | attachments | S; C `customer`/`public` rows of own bikes via `my_bike_attachments()` and of own jobs via `my_work_order_attachments()` | RPC `record_attachment` (S) | S caption only; visibility via RPC `set_attachment_visibility` (S) | RPC `delete_attachment` (S, reason) |
 | attachment_events | S | triggers only | never | never |
 | storage `media-internal` | S; C the objects of their own customer- or public-visible bike photos (current, non-archived bikes) and job photos (jobs not cancelled), policy `media_internal_select_customer` over `private.customer_can_read_media` (Phase 11, D124) | S | — | S, only objects no attachment points at |
-| storage `media-public` | S (everyone else only by public URL; nobody lists it) | S | — | S, only objects no attachment points at |
+| storage `media-public` | S (everyone else only by public URL; nobody lists it) | S, only the copy of a recorded internal photo (an entity type that can be public) | — | S, only objects no attachment points at |
 | shop_settings | S; nobody else (anon/C read none of it) | — (one row, inserted by the migration) | RPC `update_shop_settings` (A); `consignment_settlement_alert_days` only through RPC `set_consignment_settlement_alert_days` (A, D107; authenticated has no UPDATE on the table, so a direct write is 42501 even for an admin); `indent_deposit_percent` only through RPC `set_indent_deposit_percent` (A, D151, D157) | never (`shop_settings_required`) |
 | shop_hours | S; anon/C active weekly rows via `public_shop_hours()` | RPC `set_shop_hours` (A) | RPC `set_shop_hours` (A) | RPC `set_shop_hours` (A) |
 | closure_overrides | S (anon/C: never listed; `available_slots` leaves closures out) | RPC `save_closure_override` (A) | RPC `save_closure_override` (A) | RPC `delete_closure_override` (A, reason) |

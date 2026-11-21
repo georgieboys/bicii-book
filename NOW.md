@@ -1,5 +1,22 @@
 # Current state
 
+Updated: 2026-11-22 SGT (front-end and copy audit, Admin fixes; branch
+`fix/fe-admin`, migrations `20261122001300` and `20261122001400`). A
+front-end audit of the Admin and the site (57 confirmed findings, each
+checked by two reviewers) found wrong hints, stale or untrue text,
+pluralisation, dead ends and a few broken actions. Admin fixes: the cancel
+hint depends on how the booking was made; the timeline quotes only what
+people wrote; a collected job's payment link no longer asks for a new link
+(`balance_by_token` says collected or reopened); supported riders get
+their own purchase emails (`adventure_notice.booking_kind`); refused quote
+answers refresh the page; booking emails say how to change a time; a
+purchase order line with indent parts on it refuses removal clearly;
+revoking a certificate takes its pack off the packing list; reports, stock
+and Health text and pluralisation fixed. Owner questions remain for six
+findings (restocking counted refund lines, a link from quote and bill pages
+to the account, purchases in the account, the contact privacy text, a
+failed own-frame inspection, quoting every extra).
+Before that,
 Updated: 2026-11-22 SGT (D262, online stock holds, audit A-04; branch
 `fix/a04-online-holds`, migration `20261122001200`). A paid Shopify order
 BICII has not recorded keeps its units off sale online: the sync pushes the

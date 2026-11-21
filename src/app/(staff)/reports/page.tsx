@@ -115,7 +115,8 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
         />
       ) : (
         <p className="text-dust-700">
-          Sales, yield and Cult Commons figures need the View financial reports permission.
+          Sales and payment figures need the View financial reports permission; cost, yield and Cult
+          Commons also need View costs.
         </p>
       )}
 

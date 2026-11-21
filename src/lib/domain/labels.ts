@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Database } from "@/lib/database.types";
 import { DbError, constraintOf, unwrap } from "@/lib/db-errors";
 import { isValidQrBase, parseShortId } from "@/lib/ids";
+import { afterKeyset, decodeKeyset, encodeKeyset, type KeysetCursor } from "@/lib/keyset";
 import {
   LABEL_ENTITY_NOT_FOUND,
   labelUnavailable,
@@ -251,19 +252,10 @@ function toListItem(row: ListColumns, names: Map<string, string>): PrintJobListI
 export type PrintJobFilter = "all" | "open" | "failed";
 
 /** The cursor of the next page: the last row's created_at and id. */
-export type PrintJobCursor = { createdAt: string; id: string };
+export type PrintJobCursor = KeysetCursor;
 
-export function encodeCursor(c: PrintJobCursor): string {
-  return `${c.createdAt}_${c.id}`;
-}
-
-export function decodeCursor(value: string | null | undefined): PrintJobCursor | null {
-  const m = /^(\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:?\d{2}))_([0-9a-f-]{36})$/i.exec(
-    value ?? "",
-  );
-  if (!m || Number.isNaN(Date.parse(m[1]))) return null;
-  return { createdAt: m[1], id: m[2].toLowerCase() };
-}
+export const encodeCursor = encodeKeyset;
+export const decodeCursor = decodeKeyset;
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
@@ -291,8 +283,7 @@ export async function listPrintJobs(
       : query.ilike("content->>name", `%${escapeLike(q)}%`);
   }
   if (before) {
-    const at = JSON.stringify(before.createdAt);
-    query = query.or(`created_at.lt.${at},and(created_at.eq.${at},id.lt.${before.id})`);
+    query = query.or(afterKeyset(before, false));
   }
   const [rows, names] = await Promise.all([
     query

@@ -115,6 +115,28 @@ describe("mapDbError", () => {
     );
   });
 
+  it("maps foreign-key violations (23503) by constraint, with a neutral fallback", () => {
+    expect(
+      mapDbError(
+        pgrst(
+          "23503",
+          'update or delete on table "purchase_order_lines" violates foreign key constraint "job_part_requests_purchase_order_line_id_fkey" on table "job_part_requests"',
+        ),
+      ),
+    ).toMatchObject({
+      message: "Customer jobs ordered parts on this line, so it stays. Lower its quantity instead.",
+      kind: "invalid",
+      reason: "job_part_requests_purchase_order_line_id_fkey",
+    });
+    expect(
+      mapDbError(pgrst("23503", 'violates foreign key constraint "mystery_fkey"')).message,
+    ).toBe("That refers to something that no longer exists.");
+    expect(mapDbError(pgrst("P0001", "purchase_line_has_job_parts"))).toMatchObject({
+      kind: "business",
+      message: "Customer jobs ordered parts on this line, so it stays. Lower its quantity instead.",
+    });
+  });
+
   it("maps the last-admin guard (55000) and not-found (P0002)", () => {
     expect(mapDbError(pgrst("55000", "cannot remove the last active admin"))).toMatchObject({
       kind: "conflict",

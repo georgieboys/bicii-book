@@ -217,7 +217,7 @@ test("a mechanic without permissions sees activity only, and the exports refuse"
   await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
   await expect(
     page.getByText(
-      "Sales, yield and Cult Commons figures need the View financial reports permission.",
+      "Sales and payment figures need the View financial reports permission; cost, yield and Cult Commons also need View costs.",
     ),
   ).toBeVisible();
   await expect(page.getByText("Gross sales")).toHaveCount(0);

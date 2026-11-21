@@ -101,6 +101,8 @@ export const SNAPSHOT_KINDS: ReadonlySet<ExportKind> = new Set([
   "stock",
   "units",
   "payments_held",
+  // Stock at cost now: report_stock_value takes no period.
+  "stock_value",
 ]);
 
 /**

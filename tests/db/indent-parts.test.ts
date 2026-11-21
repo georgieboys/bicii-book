@@ -16,7 +16,9 @@
  *                       fitting adds one ordinary line (D146).
  *   cancel_purchase_order, set_purchase_order_line (A-21)  refused
  *                       while a job's ordered part has not arrived, or
- *                       when a line would be cut below what jobs await.
+ *                       when a line would be cut below what jobs await;
+ *                       remove_purchase_order_line never removes a line
+ *                       a job's part was ordered on.
  *   completed and closed jobs (R-082, D149)  an admin or manager cancels
  *                       an unfitted request on a collected or cancelled
  *                       job, with a reason; fit, order and withdraw are
@@ -66,7 +68,7 @@ import {
   sendQuote,
   setup,
 } from "./indent-fixtures";
-import { cancelPO, grantPurchasing, receive, setLine } from "./purchasing-fixtures";
+import { cancelPO, grantPurchasing, receive, removeLine, setLine } from "./purchasing-fixtures";
 import { eventTypes, events, failsWith, ownerMode, setStatus, walkTo } from "./workshop-fixtures";
 
 let conn: pg.Client;
@@ -881,6 +883,41 @@ describe("purchase orders customer jobs wait on (A-21)", () => {
         lines: [{ lineId: t.lineId, quantity: 2, locationId: LOCATION.shopFloor }],
       });
       expect((await line(2)).quantity_ordered).toBe(2);
+    });
+  });
+
+  it("never removes a line a job's part was ordered on, and says why", async () => {
+    await inTransaction(conn, async (tx) => {
+      const t = await twoJobsOnOneLine(tx);
+      // A second, ordinary line on the same draft goes as before.
+      const plain = await makeProduct(tx, { name: "Plain line" });
+      const plainLine = randomUUID();
+      await setLine(tx, {
+        id: plainLine,
+        poId: t.poId,
+        productId: plain,
+        quantity: 1,
+        cost: "5.00",
+      });
+
+      await failsWith(tx, () => removeLine(tx, t.lineId), {
+        ...p0001("purchase_order_has_indent_requests"),
+        detail: expect.stringContaining(`${t.job.job_number}, ${t.other.job_number}`),
+      });
+
+      // Both jobs' parts settled on the jobs: the link stays, so does the line.
+      await tx.query("select public.cancel_part_request($1, $2)", [t.later, "Supplier can't"]);
+      await tx.query("select public.cancel_part_request($1, $2)", [t.partId, "Supplier can't"]);
+      await failsWith(tx, () => removeLine(tx, t.lineId), p0001("purchase_line_has_job_parts"));
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.purchase_order_lines where id = $1",
+          [t.lineId],
+        ),
+      ).toBe(1);
+
+      expect(await removeLine(tx, plainLine)).toEqual([plainLine]);
     });
   });
 });

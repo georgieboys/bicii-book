@@ -38,7 +38,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, { label: string; descripti
   },
   view_financial_reports: {
     label: "View financial reports",
-    description: "Sales, yield and Cult Commons reports.",
+    description: "Sales and payment reports; cost, yield and Cult Commons also need View costs.",
   },
   manage_adventures: {
     label: "Manage adventures",

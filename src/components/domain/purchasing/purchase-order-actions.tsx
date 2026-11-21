@@ -79,7 +79,7 @@ export function CancelOrderControl({
     >
       {received > 0
         ? `Items already received stay in stock (${received} so far). Nothing more can be received on this order, and it can't be reopened.`
-        : "Items already received stay in stock. Nothing can be received on a cancelled order, and it can't be reopened."}
+        : "Nothing has been received on this order. Once cancelled, nothing can be received on it and it can't be reopened."}
     </ReasonConfirm>
   );
 }

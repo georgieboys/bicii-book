@@ -1164,7 +1164,11 @@ website's account pages go live when the owner switches them on,
 - If it fails: "We can't link your account" means two customers here share
   that email: archive the duplicate or correct one email, then ask them to
   sign in again. "Your account is closed" means their customer is archived:
-  unarchive it if they should be back. A customer linked to the wrong
+  unarchive it if they should be back. A customer is archived only once
+  nothing is open for them: "This customer still has an open job, an
+  upcoming booking, an open quote or payment link, or a consignor record.
+  Close those before archiving." means collect or cancel their jobs, cancel
+  their upcoming bookings and archive their consignor record first. A customer linked to the wrong
   record needs the fix in
   [RUNBOOK](RUNBOOK.md#the-public-site-customer-accounts) (no screen yet).
 

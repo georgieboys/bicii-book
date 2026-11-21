@@ -180,6 +180,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   staff_role_changed: "Someone changed their role in the meantime. Reload and try again.",
   // Customers and bikes (Phase 1)
   customer_archived: "That customer is archived. Unarchive them first.",
+  // A-22: customers_guard_archive.
+  customer_has_open_work:
+    "This customer still has an open job, an upcoming booking, an open quote or payment link, or a consignor record. Close those before archiving.",
   bike_archived: "That bike is archived. Unarchive it before changing its owner or stocking it.",
   bike_short_id_immutable: "A bike keeps its ID for life.",
   bike_history_append_only: "Bike ownership history cannot be changed.",

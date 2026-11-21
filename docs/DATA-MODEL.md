@@ -542,6 +542,7 @@ customers
   created_at, updated_at, archived_at
   check customers_identifies_someone    -- a name, an email or a phone
   -- trigger: text trimmed, blanks stored as NULL
+  -- trigger customers_guard_archive (A-22, 20261122000900): see below
 
 bikes
   id uuid PK
@@ -602,6 +603,19 @@ Rules:
   `transfer_bike_ownership`. Archived customers receive no bikes
   (`customer_archived`); archived bikes are not transferred
   (`bike_archived`).
+- A customer is archived only once nothing is open for them
+  (`customers_guard_archive`, BEFORE UPDATE OF `archived_at`, security
+  definer, every writer; audit A-22). Archiving raises
+  `customer_has_open_work` while they have a work order not `collected` or
+  `cancelled`, a `booked`, `confirmed` or `arrived` appointment whose
+  `ends_at` is still ahead, an `open` unexpired quote or a live (not
+  withdrawn, unexpired) balance link on any of their jobs, or a consignor
+  that is not archived. Otherwise `archived_at` is set to the database's
+  `now()`, whatever value was sent; re-archiving keeps the first date, and
+  unarchiving is never refused. Residual: a check-in or booking committed
+  at the same moment as the archive is not serialised against it (neither
+  locks the customer row), so both can succeed; staff then see an archived
+  customer with a new job and unarchive them.
 - Attachments are created only by `record_attachment`, which checks the
   object is in `storage.objects` at the canonical path (it reads the table
   as the function owner, which bypasses RLS on hosted Supabase and

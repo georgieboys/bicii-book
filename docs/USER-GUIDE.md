@@ -1262,7 +1262,9 @@ website's account pages go live when the owner switches them on,
 - Where: Today → **Needs attention** shows a **Shopify needs attention**
   row with the order and the problem in words; it opens **More → Shopify →
   Queue** on that item. The queue's **Needs attention** list has them all.
-- Nothing was recorded for the order, so nothing has to be undone.
+- Nothing was recorded for the order, so nothing has to be undone. Until
+  it is recorded or dismissed, the items on it are not offered for sale
+  online again.
 - An unknown product ("… is not linked to a BICII product"): tap the item →
   **Link to a BICII product** for the line → search the product by name or
   P- number → give a reason → **Link and retry**. The toast says

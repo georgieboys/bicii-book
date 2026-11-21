@@ -54,6 +54,7 @@ function state(overrides: Partial<SyncState> = {}): SyncState {
     orders_in_flight: false,
     sync_status: "pending",
     frame_grade: null,
+    unrecorded_online_quantity: 0,
     ...overrides,
   } as SyncState;
 }
@@ -123,6 +124,29 @@ describe("buildDesiredState", () => {
     const d = buildDesiredState(state({ effective_online: false, publish_online: false }), OPTIONS);
     expect(d.input?.status).toBe("DRAFT");
     expect(d.quantity).toBe(0);
+  });
+
+  it("holds back units on paid online orders not recorded yet, floored at 0 (A-04)", () => {
+    expect(buildDesiredState(state({ unrecorded_online_quantity: 3 }), OPTIONS).quantity).toBe(47);
+    expect(
+      buildDesiredState(state({ available_quantity: 1, unrecorded_online_quantity: 1 }), OPTIONS)
+        .quantity,
+    ).toBe(0);
+    expect(
+      buildDesiredState(state({ available_quantity: 1, unrecorded_online_quantity: 4 }), OPTIONS)
+        .quantity,
+    ).toBe(0);
+    expect(buildDesiredState(state({ unrecorded_online_quantity: null }), OPTIONS).quantity).toBe(
+      50,
+    );
+    expect(
+      buildDesiredState(state({ effective_online: false, unrecorded_online_quantity: 2 }), OPTIONS)
+        .quantity,
+    ).toBe(0);
+    // The quantity pushed is in the hash, so a held-back unit re-pushes.
+    expect(buildDesiredState(state({ unrecorded_online_quantity: 1 }), OPTIONS).hash).toBe(
+      buildDesiredState(state({ available_quantity: 49 }), OPTIONS).hash,
+    );
   });
 
   it("is price and inventory only for a product made in Shopify", () => {

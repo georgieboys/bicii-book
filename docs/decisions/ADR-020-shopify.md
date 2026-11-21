@@ -297,3 +297,32 @@ Shopify changes its webhook payloads or API version.
   risks [R-011](../RISKS.md#r-011--shopify-is-not-built-and-will-be-fixture-tested-only),
   [R-021](../RISKS.md#r-021--reports-overstate-net-sales-after-a-refund-or-restock),
   R-040 to R-049.
+
+## Amendment 2026-11-22: holding stock for paid orders not recorded yet (D262)
+
+The 2026-11-13 audit (A-04) found that a paid Shopify order BICII could
+not record (a mixed order with an unlinked line, for example) had already
+taken its units off Shopify's count, while the ledger still had them. D83
+deferred a sync for ten minutes while an order was in flight; after that
+the overwrite put the units back on sale, so a second customer could buy
+stock a first customer had already paid for. The owner asked for the best
+fix (2026-11-22).
+
+1. **The hold.** `product_sync_state` carries `unrecorded_online_quantity`:
+   the units of the product's variant on paid orders still pending or
+   failed, at any age, counting one delivery per order and nothing for an
+   order recorded under another delivery. The sync pushes the ledger
+   quantity less that, floored at 0.
+2. **The release.** When the order's event is recorded, skipped or
+   dismissed, a deferred trigger queues each product on it for a sync, so
+   the hold ends with the order rather than at the next unrelated change.
+3. **D83 still holds in spirit.** BICII remains the stock truth; the only
+   change is that Shopify is never told to offer units a paying customer
+   already has. Recording the order (or a hand sale) moves the ledger;
+   dismissing it releases the hold.
+
+Considered: a time limit on the hold (an order needing attention for a
+day is still owed to its customer); recording a partial sale for the
+linked lines (D89 records an order whole or not at all); asking Shopify for
+its own count (Shopify's count is not the truth, D83).
+

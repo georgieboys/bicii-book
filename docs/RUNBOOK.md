@@ -1070,6 +1070,9 @@ or Dismiss with a reason.
   (D87): the same order or refund delivered again, even under a new
   webhook id, is skipped ("Earlier delivery closed, not recorded").
   Dismiss only an order you have refunded in Shopify or recorded by hand.
+  While it needs attention, its units stay off sale in Shopify (A-04:
+  the sync pushes the ledger quantity less them); recording or
+  dismissing it queues the product's sync, which puts them back (D262).
 - **The same order failed under two webhook ids**: fix the cause and
   Retry one; recording it closes the other as a duplicate of the same
   sale, so Today keeps no stale row.

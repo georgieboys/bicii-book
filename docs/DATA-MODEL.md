@@ -3498,9 +3498,21 @@ D81, D83, D84, D86, D87):
   the public product photo paths oldest first, the handle
   (`bicii-<short id>` unless the origin is `external`), the Shopify ids,
   inventory item and location, the last hash and pushed quantity (the
-  compare quantity, D83), and `orders_in_flight` (an orders/paid event
+  compare quantity, D83), `orders_in_flight` (an orders/paid event
   received in the last 10 minutes that is pending, or failed with its job
-  queued or running).
+  queued or running) and `unrecorded_online_quantity` (D262, audit A-04: the units of
+  the product's own variant, a grouped member's included, on orders/paid
+  events still `pending` or `failed`, at any age, by each line's
+  `current_quantity`; a partial index on `integration_events (topic)
+  where status in ('pending', 'failed')` serves it). The worker pushes
+  the available quantity less it, floored at 0, so an order that needs
+  attention keeps its stock off sale until it is recorded or dismissed.
+  One delivery per order counts (the latest), and none for an order
+  recorded under another delivery. When an orders/paid event leaves
+  pending or failed, a deferred trigger
+  (`integration_events_release_online_hold`) queues a sync for each
+  product on it, so the hold ends with the order
+  (`20261122001200_online_holds_for_unrecorded_orders.sql`).
 - **The worker's result** (`record_product_sync_result`, service role):
   `pushed` stores the Shopify product and variant ids on `products` when
   missing (reason "Created in Shopify by the BICII sync"; different ids, or

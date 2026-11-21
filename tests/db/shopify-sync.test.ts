@@ -238,6 +238,7 @@ type SyncState = {
   online_location_name: string;
   last_desired_hash: string | null;
   orders_in_flight: boolean;
+  unrecorded_online_quantity: number;
   sync_status: string;
 };
 
@@ -251,7 +252,7 @@ const syncState = (tx: pg.Client, productId: string, back: Claims = ADMIN) =>
                 sale_price::text, publish_online, effective_online, available_quantity, unit_price_conflicts,
                 public_photo_paths, handle, shopify_origin, shopify_product_id, shopify_variant_id,
                 shopify_location_id, online_location_name, last_desired_hash, orders_in_flight,
-                sync_status::text
+                unrecorded_online_quantity, sync_status::text
            from public.product_sync_state($1)`,
         [productId],
       );
@@ -989,6 +990,146 @@ describe.skipIf(!isolatedDatabase())(
           );
         });
         expect((await syncState(tx, productId)).orders_in_flight).toBe(true);
+      });
+    });
+
+    it("unrecorded_online_quantity counts the variant's units on pending or failed orders/paid events, at any age (A-04)", async () => {
+      await inTx(async (tx) => {
+        const { productId, productGid, variantGid } = await syncedProduct(tx, { stock: 4 });
+        const variantId = Number(variantGid.split("/").pop());
+        const shopifyProductId = Number(productGid.split("/").pop());
+        expect(await syncState(tx, productId)).toMatchObject({
+          available_quantity: 4,
+          unrecorded_online_quantity: 0,
+        });
+
+        const line = (quantity: number, o: { variant?: number; current?: number } = {}) => ({
+          lineItemId: nextShopifyId(),
+          productId: o.variant === undefined ? shopifyProductId : nextShopifyId(),
+          variantId: o.variant ?? variantId,
+          title: "Synced part",
+          quantity,
+          currentQuantity: o.current,
+          price: "20.00",
+        });
+        /** Records an orders/paid delivery as the service role; processes it when asked. */
+        const order = (lines: ReturnType<typeof line>[], process: boolean) =>
+          asService(tx, async () => {
+            const orderId = nextShopifyId();
+            const raw = JSON.stringify(orderPaidPayload({ orderId, name: `#U${orderId}`, lines }));
+            const { rows } = await tx.query<{ event_id: string }>(
+              `select event_id from public.record_shopify_webhook('orders/paid', $1, null, $2, '2026-07', null,
+                    '{}'::jsonb, $3::jsonb, $4, $5, true, null, null)`,
+              [
+                `sync-test-${randomUUID()}`,
+                SHOPIFY_TEST_SHOP,
+                raw,
+                sha(raw),
+                Buffer.byteLength(raw),
+              ],
+            );
+            if (!process) return null;
+            const { rows: processed } = await tx.query<{
+              event_status: string;
+              error_code: string | null;
+            }>("select event_status::text, error_code from public.process_shopify_event($1)", [
+              rows[0].event_id,
+            ]);
+            return processed[0];
+          });
+
+        // A mixed order with a line linked to nothing needs attention: no
+        // sale, the ledger keeps 4, nothing is in flight, yet Shopify has
+        // already taken 2.
+        expect(await order([line(2), line(1, { variant: nextShopifyId() })], true)).toMatchObject({
+          event_status: "failed",
+          error_code: "shopify_variant_unmapped",
+        });
+        expect(await syncState(tx, productId)).toMatchObject({
+          available_quantity: 4,
+          orders_in_flight: false,
+          unrecorded_online_quantity: 2,
+        });
+
+        // A pending one counts too, by its current quantity (a removed line counts 0).
+        await order([line(1), line(1, { current: 0 })], false);
+        expect(await syncState(tx, productId)).toMatchObject({
+          available_quantity: 4,
+          unrecorded_online_quantity: 3,
+        });
+
+        // A recorded sale is in the ledger, not counted again.
+        expect(await order([line(1)], true)).toMatchObject({ event_status: "processed" });
+        expect(await syncState(tx, productId)).toMatchObject({
+          available_quantity: 3,
+          unrecorded_online_quantity: 3,
+        });
+
+        // Another product's variant is not counted.
+        const other = await syncedProduct(tx, { stock: 2 });
+        expect((await syncState(tx, other.productId)).unrecorded_online_quantity).toBe(0);
+      });
+    });
+
+    it("an order delivered twice holds its units once, and dismissing it queues the sync that releases them (D262)", async () => {
+      await inTx(async (tx) => {
+        const { productId, productGid, variantGid } = await syncedProduct(tx, { stock: 4 });
+        const variantId = Number(variantGid.split("/").pop());
+        const shopifyProductId = Number(productGid.split("/").pop());
+        const orderId = nextShopifyId();
+        const raw = JSON.stringify(
+          orderPaidPayload({
+            orderId,
+            name: `#D${orderId}`,
+            lines: [
+              {
+                lineItemId: nextShopifyId(),
+                productId: shopifyProductId,
+                variantId,
+                title: "Synced part",
+                quantity: 2,
+                price: "20.00",
+              },
+              {
+                lineItemId: nextShopifyId(),
+                productId: nextShopifyId(),
+                variantId: nextShopifyId(),
+                title: "Unlinked",
+                quantity: 1,
+                price: "5.00",
+              },
+            ],
+          }),
+        );
+        const eventIds: string[] = [];
+        for (let i = 0; i < 2; i++) {
+          await asService(tx, async () => {
+            const { rows } = await tx.query<{ event_id: string }>(
+              `select event_id from public.record_shopify_webhook('orders/paid', $1, null, $2, '2026-07', null,
+                    '{}'::jsonb, $3::jsonb, $4, $5, true, null, null)`,
+              [`dup-${randomUUID()}`, SHOPIFY_TEST_SHOP, raw, sha(raw), Buffer.byteLength(raw)],
+            );
+            eventIds.push(rows[0].event_id);
+            await tx.query("select public.process_shopify_event($1)", [rows[0].event_id]);
+          });
+        }
+        expect((await syncState(tx, productId)).unrecorded_online_quantity).toBe(2);
+
+        const job = await readAsOwner(tx, () =>
+          scalar<string>(
+            tx,
+            `select id from public.integration_retry_queue
+              where integration_event_id = $1 and status = 'needs_attention'`,
+            [eventIds[0]],
+          ),
+        );
+        await actAs(tx, ADMIN);
+        await tx.query("select public.dismiss_integration_job($1, $2)", [
+          job,
+          "Recorded by hand in the shop",
+        ]);
+        await expectOneQueued(tx, productId);
+        expect((await syncState(tx, productId)).unrecorded_online_quantity).toBe(0);
       });
     });
   },

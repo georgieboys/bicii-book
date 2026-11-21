@@ -96,7 +96,7 @@ describe("booking email wording (D163c)", () => {
     expect(email.text).toContain("Your Tune-up at BICII is booked for Fri 13 Nov 2026, 10:00 am.");
     expect(email.text).toContain("Your note: Squeaky <brakes>");
     expect(email.text).toContain(
-      "To cancel or change it, sign in at https://shop.example.com/account.",
+      "To cancel, sign in at https://shop.example.com/account. To change the time, book the new time first, then cancel this one.",
     );
     // Nothing of the shop's: no Admin link, no phone line.
     expect(email.text).not.toMatch(/admin\.x|Phone:/);
@@ -136,7 +136,9 @@ describe("booking email wording (D163c)", () => {
       null,
     );
     expect(email.text).toContain("Hi,");
-    expect(email.text).toContain("To cancel or change it, sign in on the BICII website.");
+    expect(email.text).toContain(
+      "To cancel, sign in on the BICII website. To change the time, book the new time first, then cancel this one.",
+    );
   });
 });
 

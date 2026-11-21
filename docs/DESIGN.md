@@ -916,7 +916,9 @@ outline (every group is `aria-required`) and focuses the first; a missing
 name focuses the name field; a dropped connection says "We couldn't reach
 the shop. Check your connection and try again." (audit U2-1, U2-3, U2-2);
 database refusals come back as one alert in the customer's words
-(expired, already answered, the job closed). Once answered, the page is
+(expired, already answered, the job closed); an expired or no longer open
+quote also re-reads the page, so it shows its own notice instead of a
+form that can't be sent. Once answered, the page is
 the thank-you status ("Thank you, <name>. You approved 2 of 3 items on
 …"), which takes focus in the tab that just sent the answer (U2-4), over
 a read-only **Your answer** list and the approved total. The expiry reads
@@ -985,7 +987,9 @@ X-Robots-Tag `noindex, nofollow` and Cache-Control `private, no-store` on
 | What the link reads | The page shows |
 |---|---|
 | unknown or malformed token | "This link is not valid" and "Check you opened the whole link, or ask the shop for a new one." |
-| withdrawn (a resend, a reopen or Collected) | "Your bill for job J-…" and "This payment link was replaced or stopped. Ask the shop for a new one." |
+| collected (the job is collected, whatever stopped the link) | "Your bill for job J-…" and "Your bike has been collected, so this link no longer takes payments. If anything is still owed, the shop will let you know." (never "ask for a new one": the shop can't send a link for a collected job) |
+| reopened (the job was reopened after the link was sent) | "Your bill for job J-…" and "The shop reopened this job after sending this link, so the link stopped. Ask the shop for a new one." |
+| withdrawn (replaced by a newer link) | "Your bill for job J-…" and "This payment link was replaced or stopped. Ask the shop for a new one." |
 | expired | "Your bill for job J-…" and "This payment link has expired. Ask the shop for a new one." |
 | closed (a fallback: the job is no longer completed or ready) | "Your bill for job J-…" and "This job has changed. Ask the shop how to pay." |
 | open | eyebrow "Job J-… · <bike>" (brand, model, variant; never a serial), "Hi <first name>, here is your bill", a **Your bill** card listing each live line (description with any unit number and serial cut by the database, "Quantity N", the line total; "No lines on this bill." when empty), then Job total, Paid so far (online and at the counter, net of Stripe refunds; once anything was refunded the label reads "Paid so far (after $20.00 refunded)", `paidLabel`, U2-11) and **Balance due**; then the **Payment** section below |

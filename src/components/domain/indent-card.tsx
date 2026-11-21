@@ -44,7 +44,7 @@ import {
   whatsappHref,
 } from "@/lib/indent";
 import { formatMoney, formatQuantity, sumMoney } from "@/lib/money";
-import { depositBlockedIds, depositStates, type DepositState } from "@/lib/payments";
+import { depositBlockedIds, depositStates, sentByWords, type DepositState } from "@/lib/payments";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
 import type { WorkOrderStatus } from "@/lib/workshop";
@@ -185,8 +185,8 @@ export function IndentCard({
             ) : quote.state === "open" ? (
               <>
                 Quote sent {formatDateTime(quote.sentAt)}
-                {quote.channel === "whatsapp" ? " by WhatsApp" : ""}, waiting for the customer. The
-                link works until {formatDateTime(quote.expiresAt)}.
+                {sentByWords(quote.channel)}, waiting for the customer. The link works until{" "}
+                {formatDateTime(quote.expiresAt)}.
               </>
             ) : quote.state === "answered" ? (
               <>

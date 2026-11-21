@@ -127,6 +127,7 @@ describe("describeEvent", () => {
     expect(d({ type: "photo_added", payload: { visibility: "internal" } })).toEqual({
       title: "Photo added",
       detail: null,
+      plain: true,
       tone: "neutral",
     });
     expect(d({ type: "photo_added", payload: { visibility: "customer" } }).detail).toBe(
@@ -301,6 +302,7 @@ describe("describeEvent", () => {
     ).toEqual({
       title: "Parts ordered on PO-000006",
       detail: null,
+      plain: true,
       tone: "info",
     });
     // D152: ordered before the deposit was paid, with the reason.
@@ -316,11 +318,12 @@ describe("describeEvent", () => {
     ).toEqual({
       title: "Parts ordered on PO-000007",
       detail: "Ordered before the deposit was paid: Customer is paying at the counter",
+      plain: true,
       tone: "waiting",
     });
     expect(
       d({ type: "part_ordered", payload: { purchase_order: "PO-000008", deposit_override: "x" } }),
-    ).toEqual({ title: "Parts ordered on PO-000008", detail: null, tone: "info" });
+    ).toEqual({ title: "Parts ordered on PO-000008", detail: null, plain: true, tone: "info" });
     expect(
       d({
         type: "part_request_cancelled",
@@ -357,6 +360,7 @@ describe("describeEvent", () => {
     ).toEqual({
       title: "Shimano chain back to approved: its line was voided",
       detail: "Fit it again or cancel it.",
+      plain: true,
       tone: "waiting",
     });
     expect(
@@ -383,7 +387,7 @@ describe("describeEvent", () => {
         type: "payment_received",
         payload: { ...base, kind: "deposit", quote_id: "q", amount: 120, asked: 120 },
       }),
-    ).toEqual({ title: "Deposit of $120.00 paid online", detail: null, tone: "done" });
+    ).toEqual({ title: "Deposit of $120.00 paid online", detail: null, plain: true, tone: "done" });
     expect(
       d({
         type: "payment_received",
@@ -398,6 +402,7 @@ describe("describeEvent", () => {
     ).toEqual({
       title: "Deposit of $119.99 paid online",
       detail: "Stripe's amount differs from the $120.00 asked",
+      plain: true,
       tone: "done",
     });
     expect(
@@ -408,6 +413,7 @@ describe("describeEvent", () => {
     ).toEqual({
       title: "Deposit paid online",
       detail: "Stripe's amount differs from the $120.00 asked",
+      plain: true,
       tone: "done",
     });
     expect(
@@ -418,6 +424,7 @@ describe("describeEvent", () => {
     ).toEqual({
       title: "$50.00 refunded in Stripe",
       detail: "$50.00 refunded in total",
+      plain: true,
       tone: "info",
     });
     expect(
@@ -428,6 +435,7 @@ describe("describeEvent", () => {
     ).toEqual({
       title: "$70.00 refunded in Stripe",
       detail: "The whole payment is refunded",
+      plain: true,
       tone: "info",
     });
     expect(
@@ -438,6 +446,7 @@ describe("describeEvent", () => {
     ).toEqual({
       title: "A refund of $50.00 failed in Stripe",
       detail: "$70.00 refunded in total",
+      plain: true,
       tone: "danger",
     });
   });

@@ -122,6 +122,14 @@ describe("/pay/[token] before the bill", () => {
 
   it.each([
     ["withdrawn", "This payment link was replaced or stopped. Ask the shop for a new one."],
+    [
+      "collected",
+      "Your bike has been collected, so this link no longer takes payments. If anything is still owed, the shop will let you know.",
+    ],
+    [
+      "reopened",
+      "The shop reopened this job after sending this link, so the link stopped. Ask the shop for a new one.",
+    ],
     ["expired", "This payment link has expired. Ask the shop for a new one."],
     ["closed", "This job has changed. Ask the shop how to pay."],
   ])("a %s link shows the job and what to do, no bill and no Pay", async (status, body) => {

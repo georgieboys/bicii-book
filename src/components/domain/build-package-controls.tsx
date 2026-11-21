@@ -356,6 +356,13 @@ const FRAME_LABEL: Record<FrameSource, string> = {
   donor_bike: "Donor bike",
 };
 
+/** The frame inside a sentence, worded as the job timeline words it (build_order_linked). */
+const FRAME_SOURCE_PHRASE: Record<FrameSource, string> = {
+  bicii_frame: "a BICII frame",
+  own_frame: "the customer's own frame",
+  donor_bike: "a donor bike",
+};
+
 /** D257, D258: what staff do next for each frame option. */
 function FrameNote({ order }: { order: OnlineOrder }) {
   if (order.frameSource === "own_frame") {
@@ -495,7 +502,7 @@ export function JobBuildPanel({
         <div className="flex flex-col gap-1">
           <p className="text-sm text-done-deep">
             Paid on Shopify{linkedOrder.orderName ? ` (${linkedOrder.orderName})` : ""}, with{" "}
-            {FRAME_LABEL[linkedOrder.frameSource].toLowerCase()}:{" "}
+            {FRAME_SOURCE_PHRASE[linkedOrder.frameSource]}:{" "}
             {formatMoney(linkedOrder.amount, linkedOrder.currency)}. It counts as revenue when the
             build is completed.
           </p>

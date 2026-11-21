@@ -58,6 +58,26 @@ describe("Timeline", () => {
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 
+  it("quotes what someone wrote, but not the app's own details", () => {
+    render(
+      <Timeline
+        entries={[
+          {
+            ...entry(6),
+            type: "build_extra_marked",
+            title: "Rear derailleur charged on top of the package",
+            detail: "$89.00",
+            plain: true,
+          },
+          entry(5),
+        ]}
+      />,
+    );
+    expect(screen.getByText("$89.00")).toBeInTheDocument();
+    expect(screen.queryByText("“$89.00”")).toBeNull();
+    expect(screen.getByText("“Note 5”")).toBeInTheDocument();
+  });
+
   it("still says so when there is no further page", () => {
     render(<Timeline entries={[entry(1)]} truncated moreHref={null} />);
     expect(screen.getByRole("note")).toHaveTextContent("Showing the newest 1 events.");

@@ -1473,7 +1473,10 @@ URLs, or customer data in this file.
   product's next push: the order lowers Shopify's count before BICII
   records it, so the push's compare quantity (the last pushed quantity) is
   stale once, and the worker waits before overwriting (D83, step 3's
-  `runProductSync` step 7).
+  `runProductSync` step 7). The wait is taken once even when a newer
+  change is queued during the run: the successor inherits the deferral's
+  code and overwrites (audit A-19, `20261122000600_audit_integration_queue`;
+  test in `tests/db/shopify-sync.test.ts`).
 - Next action: kept as built in step 3 (no database change); revisit the
   in-flight scope (only orders naming the product's variant) and the
   per-order deferral (compare with Shopify's count less the order just
@@ -1619,7 +1622,11 @@ URLs, or customer data in this file.
   (`tests/unit/shopify-cron-route.test.ts` "the runner's time budget").
   If the platform stops the function anyway, or a runner cannot store a
   result (the database unreachable), the job stays `running` and is
-  reclaimed only after 10 minutes.
+  reclaimed only after 10 minutes, and only while it has attempts left:
+  a job that stalls on every run ends as `needs_attention`
+  (`integration_job_stalled`, its event failed) instead of looping
+  (audit A-17, `20261122000600_audit_integration_queue`; test in
+  `tests/db/shopify-webhooks.test.ts`).
 - Evidence and confidence: high for the Hobby limit: Vercel's page
   "Cron jobs: usage and pricing" (last updated 2026-07-15) says
   expressions that run more than once a day fail during deployment on

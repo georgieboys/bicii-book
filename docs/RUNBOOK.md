@@ -993,7 +993,11 @@ Logs: every webhook logs `{correlationId, topic, webhookId, eventId,
 duplicate, status, outcome}` and every sync `{correlationId, productId,
 jobId, mode, outcome, durationMs}`; the correlation id is stored on the
 event row. A job whose result could not be stored stays `running` and is
-reclaimed after 10 minutes.
+reclaimed after 10 minutes, at most until its attempts run out (8 by
+default); then it needs attention with "The last runs did not finish"
+(code `integration_job_stalled`, its event failed). Check the function
+logs for the timeout or crash, fix it, then Retry (three more attempts)
+or Dismiss with a reason.
 
 ### Shopify: resolving problems
 

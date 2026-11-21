@@ -514,6 +514,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "This order is closed: it has been fully received or cancelled. Extra units go on a new order.",
   purchase_order_not_submitted: "Submit the order before receiving against it.",
   purchase_order_needs_lines: "An order needs at least one line. Add one, or cancel the order.",
+  purchase_order_has_indent_requests:
+    "Customer jobs are waiting for parts on this order. Fit or cancel those parts on the jobs first.",
   purchase_line_conflict: "That line clashes with another one. Refresh the order and try again.",
   purchase_line_below_received:
     "More than that has already been received. The ordered quantity can't go below it.",

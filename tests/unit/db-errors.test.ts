@@ -324,6 +324,14 @@ describe("mapDbError", () => {
     expect(mapDbError(pgrst("P0001", "purchase_order_closed")).message).toBe(
       "This order is closed: it has been fully received or cancelled. Extra units go on a new order.",
     );
+    // A-21: a cancel or a cut that would strand customer jobs' parts
+    expect(mapDbError(pgrst("P0001", "purchase_order_has_indent_requests"))).toEqual({
+      kind: "business",
+      code: "P0001",
+      reason: "purchase_order_has_indent_requests",
+      message:
+        "Customer jobs are waiting for parts on this order. Fit or cancel those parts on the jobs first.",
+    });
     expect(mapDbError(pgrst("P0001", "supplier_has_open_orders")).message).toBe(
       "This supplier still has open orders. Receive or cancel them first.",
     );

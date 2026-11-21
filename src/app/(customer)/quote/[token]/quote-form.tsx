@@ -100,6 +100,12 @@ export function QuoteForm({
         const fieldError = result.fieldErrors?.name?.[0] ?? null;
         setNameError(fieldError);
         setError(result.error);
+        // The quote changed under this tab (replaced, withdrawn, answered
+        // elsewhere or expired): read the page again so it shows its own
+        // notice instead of a form that can no longer be sent.
+        if (result.code === "quote_not_open" || result.code === "quote_expired") {
+          router.refresh();
+        }
         if (fieldError) focusSoon(() => nameRef.current?.focus());
       } catch {
         // A dropped connection: say so here instead of an error page.

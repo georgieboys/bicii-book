@@ -211,7 +211,8 @@ managers.
   - "No part in stock matches. Archived, inactive and customer-owned items
     are not offered." Consigned items are offered, marked "Consigned ·
     <consignor>" (see [Use a consigned item on a job](#use-a-consigned-item-on-a-job)).
-  - "This job is completed or closed. Reopen it to change its lines."
+  - "This job is no longer open. Reopen a completed or ready job to change
+    its lines; a collected or cancelled job can't change."
 
 ### Build a bike to a package (full builds and build only)
 
@@ -255,7 +256,8 @@ managers.
   - "Only the build's parts and its labour line can be repriced."
   - "Only a part from stock can be an extra. Services and manual lines are
     already charged on top of the package."
-  - "This job is completed or closed. Reopen it to change its lines."
+  - "This job is no longer open. Reopen a completed or ready job to change
+    its lines; a collected or cancelled job can't change."
 
 ### Sell a full build online with a frame
 
@@ -550,7 +552,8 @@ while an approved or ordered item is neither fitted nor cancelled:
     have permission to do that." (without View costs or Manage
     purchasing).
   - Ordering, proposing or fitting on a completed or collected job: "This
-    job is completed or closed. Reopen it to change its lines."
+    job is no longer open. Reopen a completed or ready job to change its
+    lines; a collected or cancelled job can't change."
   - Withdrawing a quote, or (anyone but an admin or manager) cancelling an
     item, on a collected or cancelled job: "This job is collected or
     cancelled and can no longer change."
@@ -591,10 +594,13 @@ while an approved or ordered item is neither fitted nor cancelled:
   cancelled. Ask the shop.", or "Too many attempts. Wait a few minutes and
   try again."
 - What the customer may see instead of the quote: "This link is not valid"
-  (a cut-off link), "Quote for job J-… replaced" (you sent again or
-  withdrew it), "Quote for job J-… expired", "Too many requests" (wait a
-  few minutes), or, after answering, "This quote has already been answered
-  or replaced."
+  (a cut-off link), "Quote for job J-… is no longer open" (you sent again
+  or withdrew it, or the job was completed or cancelled before they
+  answered; it tells them to use a newer link if you sent one, otherwise
+  to message the shop), "Quote for job J-… expired", "Too many requests"
+  (wait a few minutes), or, when the quote changed while they had it open,
+  "This quote can no longer be answered. Use the newest link the shop sent
+  you, or message the shop." (the page then reloads and shows why).
   (Email delivery is not covered by an E2E spec; the quote page is.)
 
 ### Receive a consigned item
@@ -1492,7 +1498,11 @@ facilitator on the date (with **Facilitate adventures**) presses **Check
 in** for each rider and **Add observation** for anything worth knowing
 (left the route, withdrew, finished, a note). Observations are kept as
 written and help the reviewer; they never certify anyone. A rider cannot
-leave a paid supported place online: staff change or refund it.
+leave a paid supported place online: staff change or refund it. The
+rider's emails say so: once paid, "Thanks: your place on the … supported ride is
+paid. A tracker is included for the day, and we ride with you.", then the
+date and meeting point, with "To change the date, message the shop."
+(never the self-supported or group-ride wording).
 
 ### Tracker hire at the counter
 

@@ -12,6 +12,7 @@ import {
   APPOINTMENT_STATUS_LABELS,
   appointmentTone,
   availableActions,
+  cancelHint,
   isLate,
   primaryAction,
 } from "@/lib/appointments/status";
@@ -176,5 +177,15 @@ describe("describeAppointmentEvent", () => {
         "Away that week",
       ),
     ).toMatchObject({ title: "Cancelled online by the customer", detail: "Away that week" });
+  });
+});
+
+describe("cancelHint", () => {
+  it("says an online booking emails the customer, without the reason", () => {
+    expect(cancelHint("customer")).toContain("The customer is emailed");
+    expect(cancelHint("customer")).toContain("your reason isn't in it");
+  });
+  it("says a staff booking tells the customer nothing", () => {
+    expect(cancelHint("staff")).toContain("The customer is not told automatically.");
   });
 });

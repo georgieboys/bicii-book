@@ -36,7 +36,7 @@ const INPUT: AdventureCheckoutInput = {
   amountCents: 4900,
   expiresAt: NOW_S + 35 * 60,
   successUrl: `${SITE}/account/adventures/${BOOKING}?checkout=done`,
-  cancelUrl: `${SITE}/adventures?checkout=cancelled`,
+  cancelUrl: `${SITE}/account/adventures/${BOOKING}?checkout=cancelled`,
 };
 
 describe("the adventure Checkout Session body (D167)", () => {
@@ -87,10 +87,10 @@ describe("validAdventureRedirect", () => {
     expect(validAdventureRedirect(null, "test", SITE)).toBe(false);
   });
 
-  it("returns riders to their booking, or to the adventures page when they cancel", () => {
+  it("returns riders to their booking, paid or cancelled (its page says an unfinished payment)", () => {
     expect(adventureReturnUrls(`${SITE}/`, BOOKING)).toEqual({
       success: `${SITE}/account/adventures/${BOOKING}?checkout=done`,
-      cancel: `${SITE}/adventures?checkout=cancelled`,
+      cancel: `${SITE}/account/adventures/${BOOKING}?checkout=cancelled`,
     });
   });
 });

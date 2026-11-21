@@ -22,7 +22,9 @@ import {
   APPOINTMENT_STATUS_LABELS,
   appointmentTone,
   availableActions,
+  cancelHint,
   primaryAction,
+  type AppointmentSource,
   type AppointmentStatus,
 } from "@/lib/appointments/status";
 import { callAction } from "@/lib/call-action";
@@ -88,10 +90,13 @@ export function AppointmentStatusPill() {
 export function AppointmentActionBar({
   appointmentId,
   startsAt,
+  source,
   now,
 }: {
   appointmentId: string;
   startsAt: string;
+  /** How it was booked: cancelling an online booking emails the customer. */
+  source: AppointmentSource;
   /** The server's render time (ISO), so the offered actions match the page. */
   now: string;
 }) {
@@ -192,7 +197,7 @@ export function AppointmentActionBar({
         <ReasonConfirm
           startLabel="Cancel appointment…"
           question="Why is the appointment cancelled?"
-          hint="Kept in the appointment's history. The customer is not told automatically."
+          hint={cancelHint(source)}
           confirmLabel="Cancel appointment"
           pendingLabel="Cancelling…"
           failureTitle="Appointment not cancelled"

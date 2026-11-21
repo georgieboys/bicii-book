@@ -13,6 +13,7 @@ import { AUTH_USER, STAFF } from "../fixtures/ids";
 import { makeRider, signWaiver, TERMS, type Rider } from "./adventure-fixtures";
 import { customerClaims } from "./customer-fixtures";
 import { actAs, connect, inTransaction, scalar, staffClaims, type Connection } from "./harness";
+import { SERVICE } from "./payment-fixtures";
 import { pay, setup } from "./tracker-fixtures";
 import { failsWith } from "./workshop-fixtures";
 
@@ -199,6 +200,44 @@ describe("buying a supported seat (D196, D197; P04, S04)", () => {
         held: false,
         left_: true,
         tracker: "cancelled",
+      });
+    });
+  });
+
+  it("the rider's paid and date emails are claimed with the booking's kind, so they are worded for a supported ride", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, revision } = await supportedSetup(tx, 1);
+      const d = await supportedDate(tx, sale.adventureId);
+      const rider = await makeRiderAs(tx);
+      await tx.query("reset role");
+      await tx.query("update public.customers set email = 'supported@example.test' where id = $1", [
+        rider.customerId,
+      ]);
+      const p = await buySeat(tx, rider, revision, d);
+      await tx.query("reset role");
+      await tx.query("delete from private.adventure_notices");
+      await pay(tx, p);
+      await actAs(tx, SERVICE);
+      const { rows } = await tx.query<{
+        kind: string;
+        booking_id: string;
+        booking_kind: string;
+        departure_meeting_point: string | null;
+      }>(
+        `select kind::text, booking_id, booking_kind::text, departure_meeting_point
+           from public.claim_adventure_notices(20) where audience = 'customer' order by kind::text`,
+      );
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({
+        kind: "departure_joined",
+        booking_id: p.booking_id,
+        booking_kind: "supported",
+        departure_meeting_point: "294 River Valley",
+      });
+      expect(rows[1]).toMatchObject({
+        kind: "ticket_paid",
+        booking_id: p.booking_id,
+        booking_kind: "supported",
       });
     });
   });

@@ -873,7 +873,7 @@ test("a payment link: sent on a completed job, the bill without serials, paid th
   await expect(timeline).toContainText("Payment link stopped (collected)");
   await customer.reload();
   await expect(main).toContainText(
-    "This payment link was replaced or stopped. Ask the shop for a new one.",
+    "Your bike has been collected, so this link no longer takes payments.",
   );
   await expect(main).not.toContainText(frame);
   await context.close();

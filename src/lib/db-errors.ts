@@ -202,7 +202,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   attachment_history_append_only: "Photo history cannot be changed.",
   // Workshop (Phase 3)
   work_order_transition_invalid: "A job can't move to that status from where it is now.",
-  work_order_locked: "This job is completed or closed. Reopen it to change its lines.",
+  work_order_locked:
+    "This job is no longer open. Reopen a completed or ready job to change its lines; a collected or cancelled job can't change.",
   work_order_closed: "This job is collected or cancelled and can no longer change.",
   work_order_has_lines:
     "Void the job's lines before cancelling it. Voiding a part returns it to stock.",
@@ -564,7 +565,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "Only items proposed on this job and not on another quote can be sent.",
   quote_answered: "The customer has already answered this quote.",
   quote_not_found: "This link is not valid. Ask the shop for a new one.",
-  quote_not_open: "This quote has already been answered or replaced.",
+  quote_not_open:
+    "This quote can no longer be answered. Use the newest link the shop sent you, or message the shop.",
   quote_expired: "This quote has expired. Ask the shop for a new one.",
   quote_name_required: "Type your name (up to 100 characters).",
   quote_answer_incomplete: "Answer every item before sending.",

@@ -147,9 +147,11 @@ function customerEmail(n: AppointmentNotice): NoticeEmail {
       ["Bike", n.bike],
       ["Your note", n.customerNote],
     ];
+    // The site's account page can only cancel (there is no reschedule), so
+    // the email says what that page's own hint says.
     const manage = account
-      ? `To cancel or change it, sign in at ${account}.`
-      : "To cancel or change it, sign in on the BICII website.";
+      ? `To cancel, sign in at ${account}. To change the time, book the new time first, then cancel this one.`
+      : "To cancel, sign in on the BICII website. To change the time, book the new time first, then cancel this one.";
     const text = [
       hello,
       "",

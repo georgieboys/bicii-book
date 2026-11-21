@@ -664,10 +664,32 @@ describe("A link is withdrawn when its job leaves completed or ready (D156d)", (
         payload: { link_id: sent.link_id, reason: "collected" },
         actor: STAFF.mechanic2,
       });
+      // The page says the bike was collected, not "ask for a new link",
+      // which the shop can't send for a collected job.
       expect(await balancePage(tx, sent.token)).toEqual({
-        status: "withdrawn",
+        status: "collected",
         job_number: job.job_number,
       });
+    });
+  });
+
+  it("a link replaced earlier, or stopped by a reopen, reads as collected once the job is collected", async () => {
+    await inTransaction(conn, async (tx) => {
+      const job = await completedJob(tx);
+      const first = await sendLink(tx, job.id);
+      const second = await sendLink(tx, job.id);
+      expect((await balancePage(tx, first.token))!.status).toBe("withdrawn");
+      await actAs(tx, ADMIN);
+      await reopenJob(tx, job.id);
+      expect((await balancePage(tx, second.token))!.status).toBe("reopened");
+      await completeJob(tx, job.id);
+      await setStatus(tx, job.id, "collected");
+      for (const token of [first.token, second.token]) {
+        expect(await balancePage(tx, token)).toEqual({
+          status: "collected",
+          job_number: job.job_number,
+        });
+      }
     });
   });
 
@@ -688,7 +710,7 @@ describe("A link is withdrawn when its job leaves completed or ready (D156d)", (
       expect((await linkRow(tx, sent.link_id)).withdrawn).toBe(true);
       expect(await liveLinks(tx, job.id)).toBe(0);
       expect(await balancePage(tx, sent.token)).toEqual({
-        status: "withdrawn",
+        status: "reopened",
         job_number: job.job_number,
       });
       await failsWith(tx, () => prepareBalance(tx, sent.token), p0001("balance_link_withdrawn"));

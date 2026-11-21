@@ -585,10 +585,12 @@ URLs, or customer data in this file.
 - D163 (2026-11-12, the owner's request): booking emails for online
   bookings. The shop gets an alert when a customer books or cancels
   online, and the customer gets a confirmation, and an email when they or
-  the shop cancel. Still none for bookings staff make, for a settings
+  the shop cancel. A customer's online cancellation of a booking staff
+  made alerts the shop too (audit A-23, 2026-11-22). Otherwise still none
+  for bookings staff make, for a settings
   change that leaves a booking outside the hours, and still no reschedule.
   Delivery: [R-096](#r-096--booking-emails-can-fail-without-anyone-seeing).
-- Last checked: 2026-11-12 (`tests/db/appointment-notices.test.ts`).
+- Last checked: 2026-11-22 (`tests/db/appointment-notices.test.ts`, written; runs in CI).
 
 ## R-018 — Four sections are placeholder pages
 
@@ -1478,7 +1480,10 @@ URLs, or customer data in this file.
   product's next push: the order lowers Shopify's count before BICII
   records it, so the push's compare quantity (the last pushed quantity) is
   stale once, and the worker waits before overwriting (D83, step 3's
-  `runProductSync` step 7).
+  `runProductSync` step 7). The wait is taken once even when a newer
+  change is queued during the run: the successor inherits the deferral's
+  code and overwrites (audit A-19, `20261122000600_audit_integration_queue`;
+  test in `tests/db/shopify-sync.test.ts`).
 - Next action: kept as built in step 3 (no database change); revisit the
   in-flight scope (only orders naming the product's variant) and the
   per-order deferral (compare with Shopify's count less the order just
@@ -1624,7 +1629,11 @@ URLs, or customer data in this file.
   (`tests/unit/shopify-cron-route.test.ts` "the runner's time budget").
   If the platform stops the function anyway, or a runner cannot store a
   result (the database unreachable), the job stays `running` and is
-  reclaimed only after 10 minutes.
+  reclaimed only after 10 minutes, and only while it has attempts left:
+  a job that stalls on every run ends as `needs_attention`
+  (`integration_job_stalled`, its event failed) instead of looping
+  (audit A-17, `20261122000600_audit_integration_queue`; test in
+  `tests/db/shopify-webhooks.test.ts`).
 - Evidence and confidence: high for the Hobby limit: Vercel's page
   "Cron jobs: usage and pricing" (last updated 2026-07-15) says
   expressions that run more than once a day fail during deployment on
@@ -2499,7 +2508,12 @@ URLs, or customer data in this file.
     `receive_purchase`'s D63 check reads only receipt lines;
   - an ordered part later bought elsewhere has no clean path: it is
     refused (`part_request_ordered`), cancelling it keeps it on its
-    purchase order, and there is no "un-order";
+    purchase order, and there is no "un-order"; the other direction is
+    closed: a purchase order is not cancelled, nor a line cut, while a
+    job's ordered part on it has not arrived
+    (`purchase_order_has_indent_requests`, 2026-11-22 audit A-21,
+    `20261122000800`; `tests/db/indent-parts.test.ts`), so staff settle
+    the job's item first;
   - it sidesteps D152's deposit gate (Fit was never gated), and a request
     is all bought outside or all from stock: it cannot be split.
 - Evidence and confidence: high, by design and by test:
@@ -3345,7 +3359,9 @@ URLs, or customer data in this file.
 ## R-100 — The booking emails' outbox can give up on an email it never tried, or record a delivered one as failed
 
 - Category: reliability.
-- Status and owner: open; code (a new migration for the booking emails).
+- Status and owner: closed 2026-11-22 (audit A-10, A-20) by
+  `20261122000700_audit_booking_notices.sql` and the sender change in
+  `src/lib/appointment-notices.ts`; code.
 - Trigger: Resend slow or hanging while booking emails are queued.
 - Impact: `claim_appointment_notices` (D163) counts an attempt when it
   claims a row, holds the claim for 2 minutes, and the sender claims 20 rows
@@ -3361,11 +3377,17 @@ URLs, or customer data in this file.
   minutes and carry a token, unsent rows are released, a late success is
   recorded (`20261114000800_adventure_notices.sql`,
   `tests/db/adventure-notices.test.ts`).
-- Next action: move the booking emails to the same design in a new
-  migration and sender change.
+- Next action: none. The booking emails now use the same design: an
+  attempt counts only when a result is recorded, claims are counted
+  separately (15 without a result is final), a claim lasts 5 minutes under
+  a token and only that claim's result is recorded, a late success is
+  recorded after the row was given up, and the sender claims 5 a run,
+  starts no send after 40 seconds and releases the rest
+  (`tests/db/appointment-notices.test.ts`,
+  `tests/unit/appointment-notices.test.ts`; the database tests run in CI).
 - Revisit trigger: a booking email marked failed with "No result was
-  recorded".
-- Last checked: 2026-11-14.
+  recorded after 15 claims".
+- Last checked: 2026-11-22.
 
 ## R-101 — A lost or late tracker is the shop's loss unless staff recover it
 

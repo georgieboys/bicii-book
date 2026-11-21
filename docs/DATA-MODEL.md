@@ -544,6 +544,7 @@ customers
   created_at, updated_at, archived_at
   check customers_identifies_someone    -- a name, an email or a phone
   -- trigger: text trimmed, blanks stored as NULL
+  -- trigger customers_guard_archive (A-22, 20261122000900): see below
 
 bikes
   id uuid PK
@@ -604,6 +605,19 @@ Rules:
   `transfer_bike_ownership`. Archived customers receive no bikes
   (`customer_archived`); archived bikes are not transferred
   (`bike_archived`).
+- A customer is archived only once nothing is open for them
+  (`customers_guard_archive`, BEFORE UPDATE OF `archived_at`, security
+  definer, every writer; audit A-22). Archiving raises
+  `customer_has_open_work` while they have a work order not `collected` or
+  `cancelled`, a `booked`, `confirmed` or `arrived` appointment whose
+  `ends_at` is still ahead, an `open` unexpired quote or a live (not
+  withdrawn, unexpired) balance link on any of their jobs, or a consignor
+  that is not archived. Otherwise `archived_at` is set to the database's
+  `now()`, whatever value was sent; re-archiving keeps the first date, and
+  unarchiving is never refused. Residual: a check-in or booking committed
+  at the same moment as the archive is not serialised against it (neither
+  locks the customer row), so both can succeed; staff then see an archived
+  customer with a new job and unarchive them.
 - Attachments are created only by `record_attachment`, which checks the
   object is in `storage.objects` at the canonical path (it reads the table
   as the function owner, which bypasses RLS on hosted Supabase and
@@ -657,6 +671,14 @@ Storage policies on `storage.objects`:
   active staff member could put an object at any path, so the public bucket
   could serve a file no row points at). Signed upload URLs and the
   internal-to-public copy already use exactly that path.
+- The `media-public` insert takes only the copy of a recorded internal
+  photo: an attachment row must currently point at the same path in
+  `media-internal`, and the entity type must be one that can be public
+  (not `customer`, `consignment_item` or `work_order`)
+  (`20261122001100_audit_public_bucket`, audit 2026-11-13 A-24; before it
+  any active staff member could put an unrecorded image there). The copy
+  step of a visibility move runs while the row still names the internal
+  object, so the move is unchanged.
 - Both: no update policy (nothing is overwritten: uploads never upsert, a
   move copies to a new bucket). Delete for active staff only of objects no
   attachment row points at (`private.attachment_object_referenced`; those
@@ -785,8 +807,9 @@ private.appointment_notices (D163; RLS on, no policies, no API role)
   cancelled_by appointment_source null        -- set exactly when kind = cancelled
   reason text null (≤ 500)                    -- the customer's cancellation reason; shop rows only
   status appointment_notice_status            -- pending | sent | failed
-  attempts 0..5, next_attempt_at, claimed_until, last_error (≤ 200),
-  sent_at (set exactly when sent), created_at
+  attempts 0..5, claims 0..15, next_attempt_at,
+  claimed_until, claim_token                  -- both set or both null (R-100)
+  last_error (≤ 200), sent_at (set exactly when sent), created_at
 ```
 
 **Booking emails (D163).** An appointment booked online (`source =
@@ -797,20 +820,27 @@ recipient and a `customer` row for the customer's email. A cancellation
 by the customer (`cancelled_via = 'customer'`) queues the same two kinds,
 the shop rows with the customer's reason (the change reason
 `cancel_my_appointment` sets, without its default "Cancelled by the
-customer"). A cancellation by staff queues only the customer's row,
-without the staff reason. Staff bookings queue nothing, and a replayed
-booking queues nothing more (the unique key). The shop's recipients are
+customer"), whoever made the booking: a customer who cancels a booking
+staff made, from their account, alerts the shop too (audit A-23,
+`20261122001000_audit_customer_cancel_alert`). A cancellation of an online
+booking by staff queues only the customer's row, without the staff reason.
+Staff bookings queue no `booked` emails and their cancellation by staff
+queues nothing, and a replayed booking queues nothing more (the unique
+key). The shop's recipients are
 resolved when a row is queued: the active staff in
 `shop_settings.booking_alert_staff_ids` (their login email) and the
 addresses in `booking_alert_emails`, set by `set_booking_alert_recipients`
 (admin; §16). The Admin's sender, a Vercel cron every minute
 (`/api/cron/appointment-notices`), claims due rows with
-`claim_appointment_notices` and records each result with
-`finish_appointment_notice` (both service_role only): sent is final; a
-failure waits `attempts × 5` minutes, and the fifth failure is final (a
-claim whose result was never recorded is final too once its attempts are
-used up). The notice id is Resend's idempotency key, so a send that
-succeeded but was not recorded is not doubled.
+`claim_appointment_notices` (at most 5 a run, each for 5 minutes under a
+claim token) and records each result with `finish_appointment_notice`
+under that token (both service_role only; R-100, `20261122000700`): an
+attempt is counted only when a result is recorded; sent is final, and is
+recorded even if the row was given up meanwhile; a failure waits
+`attempts × 5` minutes, and the fifth failure is final; a row the run did
+not reach is released without using an attempt; a row claimed 15 times
+without any result is given up. The notice id is Resend's idempotency key,
+so a send that succeeded but was not recorded is not doubled.
 
 **Time zone.** The shop's time zone is fixed at Asia/Singapore in the MVP
 (D35, SPEC §24): `private.shop_timezone()` reads `shop_settings.timezone`
@@ -3489,10 +3519,12 @@ D81, D83, D84, D86, D87):
   `private.integration_backoff` when retriable and attempts remain, else
   `needs_attention`. When another job is already queued for the product, a
   re-queue dismisses this job and pushes the queued one's next attempt out
-  instead (one queued per product). `job_id` may be NULL; a job closed
-  meanwhile is left closed; an unknown outcome is 22023. `failed` never
-  clears the ids, quantity or hash: before publishing an ACTIVE product to
-  the Online Store the runner records `pushed` with `job_id` and
+  instead (one queued per product); a deferral also hands the queued one
+  its code and message, so the wait is taken once (audit A-19,
+  `20261122000600_audit_integration_queue`). `job_id` may be NULL; a job
+  closed meanwhile is left closed; an unknown outcome is 22023. `failed`
+  never clears the ids, quantity or hash: before publishing an ACTIVE
+  product to the Online Store the runner records `pushed` with `job_id` and
   `desired_hash` NULL, so a refused or throttled publish then fails the
   job but keeps what landed, and the retry pushes again by id (A-09).
 - **Settings** (`set_shopify_settings`, admin): the only editor of the row
@@ -3813,7 +3845,7 @@ written out, e.g. `A, M or P(view_costs)`.
 | attachments | S; C `customer`/`public` rows of own bikes via `my_bike_attachments()` and of own jobs via `my_work_order_attachments()` | RPC `record_attachment` (S) | S caption only; visibility via RPC `set_attachment_visibility` (S) | RPC `delete_attachment` (S, reason) |
 | attachment_events | S | triggers only | never | never |
 | storage `media-internal` | S; C the objects of their own customer- or public-visible bike photos (current, non-archived bikes) and job photos (jobs not cancelled), policy `media_internal_select_customer` over `private.customer_can_read_media` (Phase 11, D124) | S | — | S, only objects no attachment points at |
-| storage `media-public` | S (everyone else only by public URL; nobody lists it) | S | — | S, only objects no attachment points at |
+| storage `media-public` | S (everyone else only by public URL; nobody lists it) | S, only the copy of a recorded internal photo (an entity type that can be public) | — | S, only objects no attachment points at |
 | shop_settings | S; nobody else (anon/C read none of it) | — (one row, inserted by the migration) | RPC `update_shop_settings` (A); `consignment_settlement_alert_days` only through RPC `set_consignment_settlement_alert_days` (A, D107; authenticated has no UPDATE on the table, so a direct write is 42501 even for an admin); `indent_deposit_percent` only through RPC `set_indent_deposit_percent` (A, D151, D157) | never (`shop_settings_required`) |
 | shop_hours | S; anon/C active weekly rows via `public_shop_hours()` | RPC `set_shop_hours` (A) | RPC `set_shop_hours` (A) | RPC `set_shop_hours` (A) |
 | closure_overrides | S (anon/C: never listed; `available_slots` leaves closures out) | RPC `save_closure_override` (A) | RPC `save_closure_override` (A) | RPC `delete_closure_override` (A, reason) |
@@ -3978,8 +4010,8 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `book_my_appointment(appointment_id, appointment_type_id, starts_at, bike_id = null, customer_note = null)` → `my_appointment` | C (42501 otherwise) | Built (Phase 2, D37). The booking core with the caller's customer id and source customer: active public types, `appointment_too_soon`, `appointment_too_far_ahead`, `appointment_customer_limit` (per-customer lock), then hours, closures, capacity; a bike that is not theirs (or unknown) → `appointment_bike_not_owned` with nothing about the bike. |
 | `cancel_my_appointment(appointment_id, reason = null)` → `my_appointment` | C (42501 otherwise) | Built (Phase 2, D37). `reason_too_long`; `shop_settings` FOR SHARE; the caller's row FOR UPDATE, else NULL (no error); already cancelled → it (no event); booked/confirmed before `customer_cancel_cutoff_minutes` ahead of the start, else `appointment_not_cancellable`; reason defaults to 'Cancelled by the customer'; `cancelled_via` = customer. |
 | `set_booking_alert_recipients(staff_ids uuid[], emails text[])` → void | A | Built (D163b, `20261112000100`). Distinct staff ids, each an active staff member (`booking_alert_staff_invalid`); addresses trimmed, lowercased, blank and repeated ones dropped, each `x@y.z` and ≤ 320 (`booking_alert_email_invalid`); at most 10 of each (`booking_alert_too_many`). Writes `shop_settings.booking_alert_staff_ids` and `booking_alert_emails` (history in `schedule_events`). |
-| `claim_appointment_notices(max_count integer = 10)` → setof `appointment_notice` | service role only | Built (D163d). First marks failed any pending row with 5 attempts whose claim lapsed; then claims up to `max_count` (1..50) pending, due, unclaimed rows, oldest due first, `for update skip locked`: each gets attempts + 1 and a 2-minute claim, and is returned with the appointment's time, type, the customer's label, first name, email and phone, the bike (brand model variant), the customer's note, `cancelled_by`, the reason, `public_site_url` and the shop time zone. |
-| `finish_appointment_notice(notice_id, ok boolean, error text = null)` → void | service role only | Built (D163d). A pending row only: ok → `sent` (sent_at); else `failed` once attempts reached 5, or `pending` again after `attempts × 5` minutes with `last_error` (≤ 200). A row already sent or failed is left as it is. |
+| `claim_appointment_notices(max_count integer = 5)` → setof `appointment_notice` | service role only | Built (D163d; R-100, `20261122000700`). First marks failed any pending row claimed 15 times whose claim lapsed (the claim stays, so a late success is still recorded); then claims up to `max_count` (1..20) pending, due, unclaimed rows, oldest due first, `for update skip locked`: each gets claims + 1, a new `claim_token` and a 5-minute claim (no attempt is used), and is returned with its claim token, the appointment's time, type, the customer's label, first name, email and phone, the bike (brand model variant), the customer's note, `cancelled_by`, the reason, `public_site_url` and the shop time zone. |
+| `finish_appointment_notice(notice_id, claim_token uuid, result text, error text = null)` → boolean | service role only | Built (D163d; R-100, `20261122000700`, replacing `(notice_id, ok, error)`). Only under the row's current `claim_token`; true when the row changed. `sent` → `sent` (sent_at), also on a row given up while the send was in flight if never sent; `failed` → attempts + 1, `failed` at the fifth, else `pending` again after `attempts × 5` minutes with `last_error` (≤ 200, default "Email failed"); `released` → the claim is returned (claims − 1), no attempt. Another result → 22023. A different token changes nothing. |
 | `check_in_appointment(appointment_id uuid, bike_id uuid, work_order_id uuid, link_existing boolean = false, requested_work text = null, intake_notes text = null, lead_mechanic_id uuid = null)` → `appointment_check_in (appointment_id uuid, appointment_status appointment_status, work_order_id uuid, job_number text, created boolean)` | S | Built (Phase 2, D40). In order: 22004 on null ids; the appointment FOR UPDATE (P0002); checked_in or completed → its existing link with `created` false, whatever `work_order_id` was passed (replay, second device); not booked/confirmed/arrived → `appointment_transition_invalid`; `link_existing`: that job FOR UPDATE (P0002), same customer and bike, open (`private.work_order_status_is_open`) and unlinked, else `appointment_work_order_mismatch`; customer then bike FOR SHARE; bike P0002 / `appointment_bike_archived` / `appointment_bike_not_owned` (shop bikes too); the appointment → bike set, `checked_in` (stamps checked_in_at, arrived_at). New job: `private.create_work_order(actor, work_order_id, customer, bike, coalesce(nullif(btrim(requested_work), ''), customer_note), intake_notes, lead_mechanic_id, '{}', '[]', appointment_id)` (job number, `checked_in` event, D18, lead as for a walk-in; blank work and no note → `requested_work_required`), then `work_order_conflict` unless the returned job carries this appointment (an older job under that id). Existing job: `appointment_id` null → this appointment. Both link events from the triggers (§4). One transaction; `created` = not `link_existing`. |
 | `appointment_daily(from_day date = null, to_day date = null)` → `day, booked, expected, arrived, checked_in, no_shows, cancelled` | S | Built (Phase 2, D41). Operational counts, no permission needed (D30). `reporting.appointment_daily` zero-filled one row per day; daily_summary's range rules (null bound = the other, both null = today, ≤ 366 days, else `report_range_invalid`); future days allowed (upcoming appointments). |
 | `create_work_order(work_order_id, customer_id, bike_id, requested_work, intake_notes = null, lead_mechanic_id = null, additional_staff_ids uuid[] = '{}', services jsonb = '[]')` → `work_orders` | S | Calls `private.create_work_order(actor, …, appointment_id)`. Replay first: an existing id returns the row as it is now when customer and bike match (no check, assignment or line re-run, no number burned), else `work_order_conflict`. Then FOR SHARE on customer and bike (D18 against a concurrent transfer), insert (trigger: J- number, `work_order_customer_archived`, `work_order_bike_archived`, `bike_owner_mismatch`), lead, ≤ 10 distinct additional staff, ≤ 20 services `{line_id, service_id, quantity}` (malformed 22023) through `private.insert_service_line`. One transaction. `requested_work_required`; 22004 for missing ids. |
@@ -4064,8 +4096,8 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `create_purchase_order(id, supplier_id, expected_at = null, supplier_reference = null, notes = null)` → `purchase_orders` | P(manage_purchasing) | Built (Phase 7). 22004 for null ids; replay by id first, FOR UPDATE (same supplier → the row unchanged, no event; another → `purchase_order_conflict`); P0002 / `supplier_archived`; insert in the shop currency (D62) catching a `purchase_orders_pkey` race. Never ON CONFLICT (the number trigger would burn a PO number per replay). |
 | `update_purchase_order(purchase_order_id, supplier_id, expected_at, supplier_reference, notes)` → `purchase_orders` | P(manage_purchasing) | Sets all four exactly (null clears); locks the PO; `purchase_order_closed`; `purchase_order_supplier_locked` outside draft; identical → no update, no event. |
 | `submit_purchase_order(purchase_order_id)` → `purchase_orders` | P(manage_purchasing) | Already submitted or further → unchanged; cancelled → `purchase_order_closed`; `purchase_order_needs_lines`; `supplier_archived`; else submitted_at/by. |
-| `cancel_purchase_order(purchase_order_id, reason)` → `purchase_orders` | P(manage_purchasing) | D61. `reason_required` / `reason_too_long`; cancelled → unchanged; received → `purchase_order_closed`; receipts, movements and stock stay. |
-| `set_purchase_order_line(id, purchase_order_id, product_id, quantity_ordered, unit_cost, expected_at = null, notes = null, reason = null)` → `purchase_order_lines` | P(manage_purchasing) | Upsert by id under the PO lock. Closed → `purchase_order_closed` (D65); existing: `purchase_line_conflict`, `purchase_line_below_received`, identical → unchanged; new: P0002, `purchase_line_unique_product`, `purchase_line_not_shop_owned`, `purchase_line_product_inactive`, `purchase_currency_mismatch`, `purchase_line_duplicate_product` (D62). 0 is a valid cost. Refreshes the status (a cut to the received total completes the PO). |
+| `cancel_purchase_order(purchase_order_id, reason)` → `purchase_orders` | P(manage_purchasing) | D61. `reason_required` / `reason_too_long`; cancelled → unchanged; received → `purchase_order_closed`; receipts, movements and stock stay. A-21 (`20261122000800`): locks the jobs with parts ordered on the PO in id order, then the PO (`order_part_requests`' order); `purchase_order_has_indent_requests` (detail: the job numbers) while an ordered request on one of its lines has not arrived (`private.purchase_order_waiting_indent`, `part_request_arrival_rows`' queue). |
+| `set_purchase_order_line(id, purchase_order_id, product_id, quantity_ordered, unit_cost, expected_at = null, notes = null, reason = null)` → `purchase_order_lines` | P(manage_purchasing) | Upsert by id under the PO lock. Closed → `purchase_order_closed` (D65); existing: `purchase_line_conflict`, `purchase_line_below_received`, a lowered quantity below the cumulative quantity its last not-yet-arrived ordered request needs → `purchase_order_has_indent_requests` (A-21; raising is never refused), identical → unchanged; new: P0002, `purchase_line_unique_product`, `purchase_line_not_shop_owned`, `purchase_line_product_inactive`, `purchase_currency_mismatch`, `purchase_line_duplicate_product` (D62). 0 is a valid cost. Refreshes the status (a cut to the received total completes the PO). |
 | `remove_purchase_order_line(line_id, reason = null)` → setof `purchase_order_lines` | P(manage_purchasing) | Unknown → no row. Locks the PO; `purchase_order_closed`; `purchase_line_has_receipts`; after submission `reason_required` and never the last line (`purchase_order_needs_lines`). Refreshes the status. |
 | `receive_purchase(purchase_order_id, idempotency_key, lines jsonb, reference = null, received_at = null, notes = null)` → `purchase_receipts` | P(manage_purchasing) | Built (Phase 7); the 14 steps in §10 (replay, over-receipt, D64 dating, lock_stock, one movement per receipt line, D63 last cost, `received` event, status). |
 | `purchase_receipt_by_key(idempotency_key)` → setof `purchase_receipts` | P(manage_purchasing) | Zero or one row, after a lost response. |
@@ -4075,7 +4107,7 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `reorder_suggestions(supplier_id = null)` → `table(product_id, short_id, sku, name, on_hand, reorder_point, on_order, suggested_quantity, supplier_linked, preferred_supplier_id, supplier_sku, draft_po_numbers text[])` | S | Built (Phase 7, D66 D-REORDER; `20261005000500_purchasing_reorder.sql`). The shop-owned `reporting.low_stock` products (a consigned product below its reorder point is never listed, D62); `on_order` from `reporting.product_on_order` (submitted and partially received POs, never drafts); `suggested_quantity` = max(2 × reorder_point − on_hand − on_order, 0); `supplier_linked` / `supplier_sku` relative to the given supplier (false / null without one); `preferred_supplier_id` whatever was asked; `draft_po_numbers` the draft POs (any supplier) already holding the product, ascending, `{}` when none. Ordered by supplier_linked desc, suggested_quantity desc, name. No cost column (D60). |
 | `create_purchase_order_from_low_stock(id, supplier_id, product_ids uuid[])` → `purchase_orders` | P(manage_purchasing) | Built (Phase 7, D66). 22004 for a null id/supplier or a null element; null or empty selection → `reorder_nothing_selected`; more than 100 ids → 22023. Replay by id with `create_purchase_order`'s mechanism (FOR UPDATE first, insert only when absent, `purchase_orders_pkey` unique_violation fallback, never ON CONFLICT): the same supplier returns the PO unchanged with no line added and the PO sequence untouched; another supplier → `purchase_order_conflict`. Else `supplier_archived` / P0002, a draft in `private.shop_currency()`, then one line per DISTINCT product in ascending id with `set_purchase_order_line`'s checks (P0002, `purchase_line_unique_product`, `purchase_line_not_shop_owned`, `purchase_line_product_inactive`, `purchase_currency_mismatch`, `purchase_line_duplicate_product`): quantity max(suggestion computed now, 1), capped at the line limit 100000; unit cost `private.default_purchase_unit_cost` (supplier last cost, else product cost incl. 0, else 0). `line_added` events come from the trigger, without a reason. Locks only the new PO row; products and stock are read unlocked. |
 | `record_shopify_webhook(topic, webhook_id, shopify_event_id, shop_domain, api_version, triggered_at, headers jsonb, payload jsonb, body_sha256, body_bytes, hmac_valid, rejection_reason, correlation_id)` → `event_id, duplicate, event_status, job_id` | service role only | Built (Phase 10 step 1, D88, D89). 22004 / 22023 on shape; headers capped (16 lower-cased keys, ≤ 512 characters, `x-bicii-truncated`); rejected → one row per (reason, body sha) with no payload and no job; verified → dedupe on the webhook id (a repeat counts the delivery, no new job); a new event is skipped (`topic_not_handled`, `test_order`, `pos_order`) or gets a queued `shopify_event` job (`job_id`). |
-| `claim_integration_jobs(max_jobs integer, only_job_id uuid = null)` → setof `integration_retry_queue` | service role only | Built (Phase 10 step 1, D87). Dismisses a running product sync stalled 10 minutes when its product has a queued one; claims up to clamp(max_jobs, 1, 50) jobs: queued and due (or the one named, even before it is due) or running and stalled 10 minutes, oldest due first, `FOR UPDATE SKIP LOCKED`, one product sync per product and never beside a fresh running one; each → running, `locked_at` now, attempts + 1. |
+| `claim_integration_jobs(max_jobs integer, only_job_id uuid = null)` → setof `integration_retry_queue` | service role only | Built (Phase 10 step 1, D87). Dismisses a running product sync stalled 10 minutes when its product has a queued one; claims up to clamp(max_jobs, 1, 50) jobs: queued and due (or the one named, even before it is due) or running and stalled 10 minutes with attempts left, oldest due first, `FOR UPDATE SKIP LOCKED`, one product sync per product and never beside a fresh running one; each → running, `locked_at` now, attempts + 1. A job stalled 10 minutes with `attempts >= max_attempts` is never reclaimed: it becomes `needs_attention` (`integration_job_stalled`, "The last runs did not finish. Retry, or dismiss with a reason.") and, for a `shopify_event` job, its pending or failed event `failed` with the same code (`20261122000600_audit_integration_queue`, audit A-17). |
 | `process_shopify_order_paid(event_id)` / `process_shopify_refund(event_id)` / `process_shopify_event(event_id)` → `event_status, outcome, sale_id, error_code, error_message` | service role only | Built (Phase 10 step 1, D80–D82, D85, D87, D89): §13's algorithm; `process_shopify_event` dispatches by topic (others → skipped `topic_not_handled`). P0002 unknown event; 22023 wrong topic. Business failures never raise: they return `failed` with the code and the human message and leave the job `needs_attention` (or queued with backoff when transient). |
 | `retry_integration_job(job_id)` → `integration_retry_queue` | A; P(manage_inventory) for product-sync jobs only (42501 otherwise) | Built (Phase 10 step 1, D86, D87). The job FOR UPDATE (P0002); done/dismissed → `integration_job_closed`; running → unchanged; else queued now with `max_attempts` ≥ attempts + 3, `last_retried_by/at`; audit `job_retried`. |
 | `dismiss_integration_job(job_id, reason)` → `integration_retry_queue` | A | Built (Phase 10 step 1, D86, D87). `reason_required` / `reason_too_long` (`private.require_reason`); running → `integration_job_running`; done/dismissed → `integration_job_closed`; dismissed with the reason; a `shopify_event` job's event → skipped / `dismissed` (keeps its last error); an `orders/paid` event of an order with no sale is final for the order (D87): every `orders/paid` event of the order is locked in id order, its other open deliveries' queued or needs_attention jobs are dismissed ('Another delivery of this order was dismissed: ' ‖ reason; their events skipped / `dismissed`), and the order's waiting refund jobs close ('The order was dismissed: ' ‖ reason; their events skipped / `order_not_recorded`); a later delivery of the order is `earlier_delivery_skipped`. audit `job_dismissed` {closed_refund_job_ids, closed_order_job_ids}. |
@@ -4106,7 +4138,7 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `record_product_group_push(group_id, product_id, shopify_product_id, pushed_hash, variants jsonb)` → `product_groups` | service_role | D243: after a group productSet, stores the group's Shopify product and hash, each member's variant ids (products, reason "Created in Shopify by the BICII sync") and inventory item, origin bicii and the group's handle on its sync row; different ids → `shopify_ids_conflict`. When the hash changed, queues every other member. 22004/22023 on a bad shape; P0002 unknown group. `record_product_sync_result` accepts a member pushing the group's Shopify product (D243) and stores the group's handle (D245). |
 | `private.shopify_online_price(product_id)` → money_amount; `private.enqueue_product_sync(product_id)` → uuid | no API role | Built (Phase 10 step 2): §13. |
 | `grant_permission(target_staff_id, permission)` / `revoke_permission(…)` | A, or P(manage_staff) on a mechanic within the D11 ceiling (D93: a non-admin's target must be a mechanic, never themselves; never `manage_staff`; only permissions they hold) | Exception rows (`granted_by` = caller); replay-safe (no row change, no event). `grant_permission` refuses a permission the target's role implies (P0001 `permission_implied_by_role`, D92) before inserting; revoking a row that does not exist returns null. One `permission_granted` / `permission_revoked` event; the revoke event keeps the removed row's `granted_by`/`granted_at`. |
-| `set_staff_active(target_staff_id, active, reason)` | A, or P(manage_staff) on a mechanic (D93) | Deactivating needs a reason (P0001 `reason_required`; `reason_too_long` over 500). Nobody deactivates themselves; only an admin changes an admin's or a manager's status (42501); the last active admin stays (55000). One `deactivated`/`reactivated` event with the reason; replaying the current state is a no-op. Deactivation also deletes the person's Supabase Auth sessions (trigger `staff_revoke_sessions`, D71). |
+| `set_staff_active(target_staff_id, active, reason)` | A, or P(manage_staff) on a mechanic (D93) | Deactivating needs a reason (P0001 `reason_required`; `reason_too_long` over 500). Nobody deactivates themselves; only an admin changes an admin's or a manager's status (42501); the last active admin stays (55000). Deactivation keeps the person's exceptions, so a non-admin reactivates only a mechanic whose every exception they could grant (not `manage_staff`, only permissions they hold); otherwise 42501 and nothing changes (`20261122000500`). One `deactivated`/`reactivated` event with the reason; replaying the current state is a no-op. Deactivation also deletes the person's Supabase Auth sessions (trigger `staff_revoke_sessions`, D71). |
 | `note_sign_in_attempt(buckets, window_seconds)` | service role only (the Admin's login actions; since Phase 13 step 3 the quote page's limits, `src/lib/admin/quote-throttle.ts`, with `quote-` keys, and since Phase 14 step 3 PR B the payment page's, `src/lib/admin/balance-throttle.ts`, with `balance-` keys, both through `link-throttle.ts`) | Counts one sign-in attempt in each bucket for the current fixed window and returns the counts (PLAN D72, §1 "Sign-in attempt counters"); 22023 for malformed arguments. Not callable with the anon key or a user session. |
 | `update_staff(target_staff_id, display_name, role, reason, expected_role)` | A or P(manage_staff); role changes A only (D93) | Null leaves a field as it is. `expected_role` (optional) is the role the caller's confirmation showed: checked against the row locked `for update`, a different current role raises P0001 `staff_role_changed` and nothing changes (the Admin always sends it, so a stale page cannot make a change its sheet did not describe). Nobody changes their own role; only an admin renames an admin or a manager (a non-admin renames mechanics only); the last active admin cannot be demoted (55000). `role_changed` (with the reason, ≤ 500 characters) / `details_changed` events; a role change also deletes the exceptions the new role implies, one `permission_revoked` event each with the same actor and reason (D92). Email is not editable (it must stay the login's email). |
 | `staff_history(target_staff_id, max_rows)` | A or P(manage_staff) | `staff_events` for one person, newest first, with the actor's display name (≤ 500 rows, default 100). |

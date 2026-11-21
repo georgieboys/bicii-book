@@ -64,3 +64,19 @@ export async function putStorageObject(
     [bucket, name, mimetype, size],
   );
 }
+
+/**
+ * Archives a customer as the owner with triggers skipped, for tests of what
+ * an archived customer who still has open work sees or may do. Every other
+ * writer goes through customers_guard_archive, which refuses that
+ * (customer_has_open_work, A-22); seeded customers have open jobs.
+ */
+export async function archiveCustomerUnguarded(tx: pg.Client, customerId: string): Promise<void> {
+  await tx.query("set local session_replication_role = replica");
+  const { rowCount } = await tx.query(
+    "update public.customers set archived_at = now() where id = $1",
+    [customerId],
+  );
+  await tx.query("set local session_replication_role = origin");
+  if (rowCount !== 1) throw new Error(`No customers row ${customerId}`);
+}

@@ -929,7 +929,10 @@ while an approved or ordered item is neither fitted nor cancelled:
   (a consigned or customer-owned product); "That product is already on
   this order. Change its line instead."; "An order needs at least one
   line." To stop an order, **Cancel order…** with a reason (D61): what was
-  already received stays in stock.
+  already received stays in stock. "Customer jobs are waiting for parts on
+  this order." means a job's indent part ordered on it has not arrived:
+  fit it from other stock or cancel the item on the job first; the same
+  message stops a line being cut below what those jobs still need.
 
 ### Receive a delivery
 
@@ -1134,9 +1137,9 @@ while an approved or ordered item is neither fitted nor cancelled:
   an alert ("New booking: Tune-up, Fri 13 Nov 2026, 10:00 am") with the
   customer's name, phone, email, bike, their note and a link to the
   appointment, and the customer gets a confirmation. When the customer
-  cancels online, both get an email again (the alert gives their reason).
-  When staff cancel an online booking, only the customer is told. Bookings
-  staff make send nothing. Emails go out within a minute (D163).
+  cancels online, both get an email again (the alert gives their reason),
+  even for a booking staff made. When staff cancel an online booking,
+  only the customer is told. Bookings staff make send nothing otherwise. Emails go out within a minute (D163).
 - Before you start: you are an admin.
 - Steps: **Settings** → **Shop hours and closures** → **Booking emails**
   → **Edit**. Tick the **Staff** who should get alerts (sent to the email
@@ -1169,7 +1172,11 @@ website's account pages go live when the owner switches them on,
 - If it fails: "We can't link your account" means two customers here share
   that email: archive the duplicate or correct one email, then ask them to
   sign in again. "Your account is closed" means their customer is archived:
-  unarchive it if they should be back. A customer linked to the wrong
+  unarchive it if they should be back. A customer is archived only once
+  nothing is open for them: "This customer still has an open job, an
+  upcoming booking, an open quote or payment link, or a consignor record.
+  Close those before archiving." means collect or cancel their jobs, cancel
+  their upcoming bookings and archive their consignor record first. A customer linked to the wrong
   record needs the fix in
   [RUNBOOK](RUNBOOK.md#the-public-site-customer-accounts) (no screen yet).
 

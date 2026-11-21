@@ -383,6 +383,26 @@ describe("delegation ceiling (mirrors private.authorize_permission_change and gr
     );
   });
 
+  it("access: anyone but an admin reactivates only someone whose exceptions they could grant", () => {
+    const holder = actor("mechanic", ["manage_staff", "view_costs"]);
+    const away = (grantedPermissions: PermissionKey[]) => ({
+      ...mechanic,
+      active: false,
+      grantedPermissions,
+    });
+    expect(accessChangeBlocker(holder, away([]))).toBeNull();
+    expect(accessChangeBlocker(holder, away(["view_costs"]))).toBeNull();
+    const beyond: PermissionKey[][] = [["manage_staff"], ["view_costs", "adjust_stock"]];
+    for (const granted of beyond) {
+      expect(accessChangeBlocker(holder, away(granted))).toBe(
+        "Only an admin reactivates someone with access you can't grant.",
+      );
+      // Deactivating them, and an admin reactivating them, are unaffected.
+      expect(accessChangeBlocker(holder, { ...away(granted), active: true })).toBeNull();
+      expect(accessChangeBlocker(actor("admin"), away(granted))).toBeNull();
+    }
+  });
+
   it("roles: only an active admin changes them, never their own (mirrors update_staff)", () => {
     expect(roleChangeBlocker(actor("admin"), mechanic)).toBeNull();
     expect(roleChangeBlocker(actor("admin"), manager)).toBeNull();

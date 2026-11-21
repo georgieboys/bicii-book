@@ -20,6 +20,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { AUTH_USER, BIKE, CUSTOMER, STAFF } from "../fixtures/ids";
 import {
+  archiveCustomerUnguarded,
   attachmentPath,
   createAuthUser,
   customerClaims,
@@ -174,10 +175,8 @@ describe("private.current_customer_id()", () => {
         expect(await rowsOf(tx, "select * from public.my_customer_profile()")).toEqual([]);
         expect(await rowsOf(tx, "select * from public.my_bikes()")).toEqual([]);
       },
-      (tx) =>
-        tx
-          .query("update public.customers set archived_at = now() where id = $1", [CUSTOMER.tan])
-          .then(() => {}),
+      // Tan has open jobs, so only the owner can archive him (A-22).
+      (tx) => archiveCustomerUnguarded(tx, CUSTOMER.tan),
     );
   });
 });

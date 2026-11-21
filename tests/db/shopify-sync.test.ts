@@ -1153,6 +1153,54 @@ describe.skipIf(!isolatedDatabase())(
       });
     });
 
+    it("deferred with a newer change queued hands the wait, its code and message to the successor (A-19)", async () => {
+      await inTx(async (tx) => {
+        const { productId } = await syncedProduct(tx);
+        await addStock(tx, productId, 1);
+        const jobId = await expectOneQueued(tx, productId);
+        await asService(tx, async () => {
+          expect(await claim(tx, jobId)).toHaveLength(1);
+        });
+        // A change while the job runs queues a successor.
+        await addStock(tx, productId, 1);
+        const successor = await expectOneQueued(tx, productId);
+        expect(successor).not.toBe(jobId);
+        const message = "Shopify's count changed. BICII will check again shortly.";
+        await asService(tx, async () => {
+          await recordResult(tx, {
+            productId,
+            jobId,
+            outcome: "deferred",
+            errorCode: "shopify_quantity_changed",
+            errorMessage: message,
+          });
+        });
+        const jobs = await syncJobs(tx, productId);
+        expect(jobs.find((j) => j.id === jobId)).toMatchObject({
+          status: "dismissed",
+          resolution_reason: "Superseded by a newer change",
+        });
+        const next = jobs.find((j) => j.id === successor)!;
+        // The successor's run sees the wait as taken and overwrites.
+        expect(next).toMatchObject({
+          status: "queued",
+          last_error_code: "shopify_quantity_changed",
+          last_error: message,
+        });
+        expect(next.due_in_seconds).toBeGreaterThanOrEqual(115);
+        expect(next.due_in_seconds).toBeLessThanOrEqual(125);
+        await asService(tx, async () => {
+          const [claimed] = (
+            await tx.query<{ last_error_code: string | null }>(
+              "select last_error_code from public.claim_integration_jobs(1, $1)",
+              [successor],
+            )
+          ).rows;
+          expect(claimed.last_error_code).toBe("shopify_quantity_changed");
+        });
+      });
+    });
+
     it("failed and retriable backs off with status error and the message; not retriable needs attention", async () => {
       await inTx(async (tx) => {
         const { productId } = await syncedProduct(tx);

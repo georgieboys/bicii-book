@@ -46,6 +46,23 @@ describe("mapDbError", () => {
     });
   });
 
+  it("maps a refused customer archive (A-22) without echoing its detail", () => {
+    const mapped = mapDbError(
+      pgrst(
+        "P0001",
+        "customer_has_open_work",
+        "This customer still has an upcoming booking; close it before archiving.",
+      ),
+    );
+    expect(mapped).toEqual({
+      message: BUSINESS_ERRORS.customer_has_open_work,
+      kind: "business",
+      code: "P0001",
+      reason: "customer_has_open_work",
+    });
+    expect(mapped.message).toMatch(/before archiving/);
+  });
+
   it("never echoes an unknown P0001 message", () => {
     const mapped = mapDbError(pgrst("P0001", "secret internal detail about table x"));
     expect(mapped.message).toBe(GENERIC_ERROR);
@@ -324,6 +341,14 @@ describe("mapDbError", () => {
     expect(mapDbError(pgrst("P0001", "purchase_order_closed")).message).toBe(
       "This order is closed: it has been fully received or cancelled. Extra units go on a new order.",
     );
+    // A-21: a cancel or a cut that would strand customer jobs' parts
+    expect(mapDbError(pgrst("P0001", "purchase_order_has_indent_requests"))).toEqual({
+      kind: "business",
+      code: "P0001",
+      reason: "purchase_order_has_indent_requests",
+      message:
+        "Customer jobs are waiting for parts on this order. Fit or cancel those parts on the jobs first.",
+    });
     expect(mapDbError(pgrst("P0001", "supplier_has_open_orders")).message).toBe(
       "This supplier still has open orders. Receive or cancel them first.",
     );

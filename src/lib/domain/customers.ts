@@ -231,7 +231,10 @@ export async function updateCustomer(
 /**
  * Archive (hidden from search and pickers; no new bikes) or unarchive.
  * Replaying the current state changes nothing, so an archived customer
- * keeps the date they were first archived.
+ * keeps the date they were first archived. The database stamps the date
+ * itself (the value sent here is ignored) and refuses archiving while the
+ * customer still has open work: the DbError maps customer_has_open_work
+ * to its message (A-22, customers_guard_archive).
  */
 export async function setCustomerArchived(
   supabase: ServerSupabase,

@@ -133,7 +133,8 @@ describe("the runner's time budget (D87)", () => {
     // Claimed at 0, 4 and 8 s; at 12 s a job's worst case would end past 55 s.
     expect(claims).toEqual([0, 4_000, 8_000]);
     expect(summary).toMatchObject({ claimed: 3, done: 3 });
-    for (const at of claims) expect(at + MAX_JOB_MS + RUNNER_MARGIN_MS).toBeLessThanOrEqual(RUNNER_MAX_DURATION_MS);
+    for (const at of claims)
+      expect(at + MAX_JOB_MS + RUNNER_MARGIN_MS).toBeLessThanOrEqual(RUNNER_MAX_DURATION_MS);
 
     // Past the deadline from the start: nothing is claimed at all.
     clock = lastClaimAt(0) + 1;

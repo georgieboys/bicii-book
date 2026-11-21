@@ -502,6 +502,47 @@ describe("unused signatures and waiting requests (audit A-71, A-73)", () => {
       expect(await waiting()).toBe(before);
     });
   });
+
+  it("a request on a booking already flagged counts in Health and records no payment flag (audit 2026-11-22)", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const rider = await makeRider(tx);
+      const bookingId = await paidBooking(tx, rider, sale);
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      const waiting = () =>
+        scalar<string>(
+          tx,
+          "select public.adventure_health() ->> 'cancellations_requested_30d'",
+        ).then(Number);
+      const before = await waiting();
+      await tx.query("reset role");
+      await tx.query("select private.flag_adventure_booking($1, 'Paid twice', null, null)", [
+        bookingId,
+      ]);
+      await actAs(tx, customerClaims(rider.authUserId));
+      await tx.query("select public.request_my_adventure_cancellation($1, 'Moving abroad')", [
+        bookingId,
+      ]);
+      await tx.query("reset role");
+      expect(
+        await scalar<string>(
+          tx,
+          "select attention_reason from public.adventure_bookings where id = $1",
+          [bookingId],
+        ),
+      ).toBe("Paid twice");
+      expect(
+        await scalar<number>(
+          tx,
+          "select count(*)::int from public.adventure_booking_events where booking_id = $1 and kind = 'payment_attention'",
+          [bookingId],
+        ),
+      ).toBe(1);
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      expect(await waiting()).toBe(before + 1);
+    });
+  });
 });
 
 describe("refunds (D212)", () => {

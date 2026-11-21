@@ -131,7 +131,7 @@ export default async function BuildPackagesPage({
                         {!p.archived ? (
                           <EditBuildPackageButton pkg={p} services={serviceChoices} />
                         ) : null}
-                        {kind === "full_build" && !p.archived ? (
+                        {kind === "full_build" && (!p.archived || p.publishOnline) ? (
                           <ShopifyPackageButton
                             id={p.id}
                             online={p.publishOnline}

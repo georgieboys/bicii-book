@@ -51,8 +51,10 @@ second owner or emergency access route, MFA recovery custody, billing
 owner, cost limits, and an access review. Who becomes the product
 administrator and the technical operator is an owner question
 ([PRODUCT.md](PRODUCT.md#open-assumptions-and-owner-questions), question 5).
-Branch protection on `main` could not be read (HTTP 403;
-[R-010](RISKS.md#r-010--e2e-is-not-a-required-check-and-branch-protection-is-unverified)).
+`main` has no branch protection or ruleset (verified 2026-11-22: the API
+answers "Branch not protected";
+[R-010](RISKS.md#r-010--e2e-is-not-a-required-check-and-branch-protection-is-unverified)):
+a direct push or a merge with red checks is possible until the owner adds one.
 
 This repository is public: never record credentials, recovery codes, hosted
 URLs or keys here. When hosted projects exist, their secrets go into the
@@ -424,14 +426,13 @@ staging project, the code-only email templates and Auth's rate limits
 
 ## Releases
 
-None yet. The intended order, from
-[RUNBOOK "Vercel environment setup"](RUNBOOK.md#vercel-environment-setup)
-step 5, is: `supabase db push` to staging, check a preview, `db push` to
-production, then promote or merge to `main`; migrations stay backward
-compatible with the running app. This order has never been exercised.
-Required checks before a release: `check`, `test (unit + db)` and `build`
-green, and `e2e` (label) green. Identifying the deployed commit: not
-applicable until a Vercel project exists.
+Production has run on Vercel since 2026-10-12; there is no staging. A
+release is a merge to `main`: CI runs, Vercel deploys the app once its own
+build finishes, and `migrate.yml` applies new migrations to production
+after CI on `main` is green. Required checks before merging: `check`,
+`test (unit + db)` and `build` green, and `e2e` (label) for risky changes.
+The deployed commit is the production deployment's commit in the Vercel
+project (Deployments, "Production"); NOW.md records each release.
 
 A merge to `main` runs CI; `migrate.yml` applies new migrations only after
 CI is green (about 4 minutes), while Vercel deploys the app as soon as its

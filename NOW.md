@@ -11,6 +11,22 @@ statement timeouts, and a failed `migrate.yml` opens an issue (A-12); the PR
 template and RUNBOOK describe the real release flow (A-32). Owner items
 remain (see the audit's owner list).
 Before that,
+Updated: 2026-11-22 SGT (audit batch 3, database; branch `fix/audit-db`,
+migrations `20261122000500` to `20261122001100`; merge after PRs #108 and
+#109). From the 2026-11-13 audit: a non-admin can no longer reactivate
+someone holding access they cannot grant (A-06); a stalled integration job
+ends in needs attention after its attempts, and a deferred stock push is no
+longer restarted by a newer change (A-17, A-19); booking emails use the
+adventure outbox design: claim tokens, attempts counted on results,
+releases, late successes kept (A-10, A-20, R-100), and the migration makes
+rows given up in the last day due again; a purchase order with customer
+indent parts ordered on it cannot be cancelled or cut below them (A-21); a
+customer with open work cannot be archived (A-22); a customer's online
+cancellation of a staff-made booking alerts the shop (A-23); staff can put
+into the public bucket only copies of recorded internal photos (A-24).
+Held back for the owner: A-04 (online stock held for unrecorded paid
+orders changes D83).
+Before that,
 Updated: 2026-11-22 SGT (audit batch 2, Adventures; branch
 `fix/audit-adventures`, migration `20261122000400`, merge after batch 1's
 PR #108 so the migrations apply in order). An earlier tracker hire sold

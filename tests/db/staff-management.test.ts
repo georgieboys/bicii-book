@@ -3,6 +3,8 @@
  *
  *   create_staff(auth_user_id, display_name, email, role)  A or P(manage_staff); only A creates A
  *   staff_roster()                                         A or P(manage_staff)
+ *   set_staff_active(target, true)                         A; P(manage_staff) not A only
+ *                                                          within the ceiling (audit A-06)
  */
 import { randomUUID } from "node:crypto";
 
@@ -10,7 +12,17 @@ import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { AUTH_USER, STAFF, STAFF_EMAIL } from "../fixtures/ids";
-import { actAs, asAnon, asAuthUser, asStaff, connect, inTransaction, staffClaims } from "./harness";
+import {
+  actAs,
+  asAnon,
+  asAuthUser,
+  asStaff,
+  connect,
+  inTransaction,
+  scalar,
+  staffClaims,
+} from "./harness";
+import { failsWith } from "./workshop-fixtures";
 
 let conn: pg.Client;
 
@@ -283,5 +295,87 @@ describe("staff_roster", () => {
     await expect(
       asAnon(conn, (tx) => tx.query("select * from public.staff_roster()")),
     ).rejects.toMatchObject({ code: "42501" });
+  });
+});
+
+describe("set_staff_active reactivation", () => {
+  const grant = (tx: pg.Client, staffId: string, permission: string) =>
+    tx.query("insert into public.staff_permissions (staff_id, permission) values ($1, $2)", [
+      staffId,
+      permission,
+    ]);
+  /** Back to the superuser with no session, as during setup. */
+  const owner = async (tx: pg.Client) => {
+    await tx.query("reset role");
+    await tx.query("select set_config('request.jwt.claims', '', true)");
+  };
+  const isActive = async (tx: pg.Client, staffId: string) => {
+    await owner(tx);
+    return scalar<boolean>(tx, "select active from public.staff where id = $1", [staffId]);
+  };
+
+  it("refuses a non-admin manage_staff holder reactivating someone with access they cannot grant (42501); the admin still can", async () => {
+    await inTransaction(conn, async (tx) => {
+      // Marcus (mechanic1) already holds view_costs; the admin also gave him
+      // manage_staff, then he was deactivated. Nur (mechanic2) holds only
+      // manage_staff.
+      await grant(tx, STAFF.mechanic1, "manage_staff");
+      await grant(tx, STAFF.mechanic2, "manage_staff");
+      await tx.query("update public.staff set active = false where id = $1", [STAFF.mechanic1]);
+
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      await failsWith(
+        tx,
+        () => tx.query("select public.set_staff_active($1, true)", [STAFF.mechanic1]),
+        { code: "42501" },
+      );
+      expect(await isActive(tx, STAFF.mechanic1)).toBe(false);
+
+      // Holding view_costs too is not enough: manage_staff is never delegated.
+      await owner(tx);
+      await grant(tx, STAFF.mechanic2, "view_costs");
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      await failsWith(
+        tx,
+        () => tx.query("select public.set_staff_active($1, true)", [STAFF.mechanic1]),
+        { code: "42501" },
+      );
+      expect(await isActive(tx, STAFF.mechanic1)).toBe(false);
+
+      await actAs(tx, staffClaims(AUTH_USER.admin));
+      expect(
+        await scalar(tx, "select (public.set_staff_active($1, true)).active", [STAFF.mechanic1]),
+      ).toBe(true);
+    });
+  });
+
+  it("lets a non-admin manage_staff holder reactivate a mechanic whose exceptions they hold", async () => {
+    await inTransaction(conn, async (tx) => {
+      // Marcus holds only view_costs; Nur holds manage_staff and view_costs.
+      await grant(tx, STAFF.mechanic2, "manage_staff");
+      await grant(tx, STAFF.mechanic2, "view_costs");
+      await tx.query("update public.staff set active = false where id = $1", [STAFF.mechanic1]);
+
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      expect(
+        await scalar(tx, "select (public.set_staff_active($1, true)).active", [STAFF.mechanic1]),
+      ).toBe(true);
+    });
+  });
+
+  it("refuses a holder without the target's exception (42501)", async () => {
+    await inTransaction(conn, async (tx) => {
+      // Marcus holds view_costs, which Nur (manage_staff only) cannot grant.
+      await grant(tx, STAFF.mechanic2, "manage_staff");
+      await tx.query("update public.staff set active = false where id = $1", [STAFF.mechanic1]);
+
+      await actAs(tx, staffClaims(AUTH_USER.mechanic2));
+      await failsWith(
+        tx,
+        () => tx.query("select public.set_staff_active($1, true)", [STAFF.mechanic1]),
+        { code: "42501" },
+      );
+      expect(await isActive(tx, STAFF.mechanic1)).toBe(false);
+    });
   });
 });

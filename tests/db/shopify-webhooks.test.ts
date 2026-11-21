@@ -2565,6 +2565,74 @@ describe.skipIf(!isolatedDatabase())("Retry policy (D87)", () => {
     });
   });
 
+  it("a stalled job out of attempts is never reclaimed: it needs attention and its event is failed (A-17)", async () => {
+    await inTx(async (tx) => {
+      const stalledMessage = "The last runs did not finish. Retry, or dismiss with a reason.";
+      const exhausted = await deliver(
+        tx,
+        "refunds/create",
+        refundFor(nextShopifyId(), { amount: "5.00" }),
+      );
+      const spare = await deliver(
+        tx,
+        "refunds/create",
+        refundFor(nextShopifyId(), { amount: "6.00" }),
+      );
+      const [eventJob] = await jobsOf(tx, exhausted.event_id);
+      const [spareJob] = await jobsOf(tx, spare.event_id);
+      const { productId } = await quantityProduct(tx);
+      const syncJob = randomUUID();
+      await readAsOwner(tx, async () => {
+        await tx.query(
+          `update public.integration_retry_queue
+              set status = 'running', locked_at = now() - interval '11 minutes',
+                  attempts = case when id = $1 then 8 else 7 end
+            where id = any($2::uuid[])`,
+          [eventJob.id, [eventJob.id, spareJob.id]],
+        );
+        await tx.query(
+          `insert into public.integration_retry_queue (id, kind, product_id, status, attempts, locked_at)
+           values ($1, 'product_sync', $2, 'running', 8, now() - interval '11 minutes')`,
+          [syncJob, productId],
+        );
+      });
+
+      await actAs(tx, SERVICE);
+      const { rows } = await tx.query<{ id: string; attempts: number }>(
+        "select id, attempts from public.claim_integration_jobs(50)",
+      );
+      const claimed = rows.map((r) => r.id);
+      expect(claimed).not.toContain(eventJob.id);
+      expect(claimed).not.toContain(syncJob);
+      // A stalled job with an attempt left is still reclaimed.
+      expect(rows.find((r) => r.id === spareJob.id)?.attempts).toBe(8);
+
+      for (const id of [eventJob.id, syncJob]) {
+        expect(await jobRow(tx, id)).toMatchObject({
+          status: "needs_attention",
+          attempts: 8,
+          last_error_code: "integration_job_stalled",
+          last_error: stalledMessage,
+        });
+      }
+      expect(await eventRow(tx, exhausted.event_id)).toMatchObject({
+        status: "failed",
+        last_error_code: "integration_job_stalled",
+        last_error: stalledMessage,
+      });
+      expect(await failedRowsFor(tx, [eventJob.id, syncJob])).toEqual(
+        expect.arrayContaining([eventJob.id, syncJob]),
+      );
+
+      // A later claim leaves it alone.
+      await actAs(tx, SERVICE);
+      expect(
+        (await tx.query("select id from public.claim_integration_jobs(5, $1)", [eventJob.id])).rows,
+      ).toEqual([]);
+      expect((await jobRow(tx, eventJob.id)).status).toBe("needs_attention");
+    });
+  });
+
   it("two concurrent claimers never get the same job", async (ctx) => {
     if (!isolatedDatabase()) ctx.skip();
     const ids: string[] = [];

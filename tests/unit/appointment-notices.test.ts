@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   appointmentNoticeEmail,
   noticeFromRow,
+  NOTICES_PER_RUN,
   noticeWhen,
   runAppointmentNotices,
   type AppointmentNotice,
   type NoticeDeps,
+  type NoticeOutcome,
 } from "@/lib/appointment-notices";
 import { bookingAlertsSchema } from "@/lib/schedule";
 
@@ -17,6 +19,7 @@ const STARTS = "2026-11-13T02:00:00Z";
 
 const base: AppointmentNotice = {
   id: ID(1),
+  claimToken: ID(99),
   kind: "booked",
   audience: "shop",
   recipient: "team@example.com",
@@ -137,46 +140,95 @@ describe("booking email wording (D163c)", () => {
   });
 });
 
-describe("the sending loop (D163d)", () => {
-  function fakes(results: Array<"ok" | "rejected" | "unavailable" | "throw">) {
-    const finished: Array<[string, boolean, string | null]> = [];
+describe("the sending loop (D163d, R-100)", () => {
+  function fakes(
+    results: Array<"ok" | "rejected" | "unavailable" | "throw">,
+    { sendMs = 0, failFinishFor = null as string | null } = {},
+  ) {
+    const finished: Array<[string, string, NoticeOutcome, string | null]> = [];
     const sent: Array<{ to: string; idempotencyKey: string; subject: string }> = [];
-    const notices = results.map((_, i) => ({ ...base, id: ID(10 + i), recipient: `p${i}@x.com` }));
+    const notices = results.map((_, i) => ({
+      ...base,
+      id: ID(10 + i),
+      claimToken: ID(50 + i),
+      recipient: `p${i}@x.com`,
+    }));
+    let clock = 0;
     let call = 0;
+    let claimedWith: number | null = null;
     const deps: NoticeDeps = {
-      claim: async (max) => notices.slice(0, max),
-      finish: async (id, ok, error) => {
-        finished.push([id, ok, error]);
+      claim: async (max) => {
+        claimedWith = max;
+        return notices.slice(0, max);
+      },
+      finish: async (notice, result, error) => {
+        if (notice.id === failFinishFor) throw new Error("database down");
+        finished.push([notice.id, notice.claimToken, result, error]);
       },
       send: async (message) => {
         sent.push(message);
+        clock += sendMs;
         const r = results[call++];
         if (r === "throw") throw new Error("network");
         return r === "ok" ? { ok: true } : { ok: false, reason: r, status: 503 };
       },
       adminOrigin: "https://admin.example.com",
+      now: () => clock,
     };
-    return { deps, finished, sent };
+    return { deps, finished, sent, claimedWith: () => claimedWith };
   }
 
-  it("sends each claimed email once, keyed by its id, and records each result", async () => {
+  it("sends each claimed email once, keyed by its id, and records each result under its claim", async () => {
     const { deps, finished, sent } = fakes(["ok", "unavailable", "throw"]);
-    expect(await runAppointmentNotices(deps)).toEqual({ claimed: 3, sent: 1, failed: 2 });
+    expect(await runAppointmentNotices(deps, { deadlineMs: 40_000 })).toEqual({
+      claimed: 3,
+      sent: 1,
+      failed: 2,
+      released: 0,
+    });
     expect(sent.map((m) => [m.to, m.idempotencyKey])).toEqual([
       ["p0@x.com", `appointment-notice-${ID(10)}`],
       ["p1@x.com", `appointment-notice-${ID(11)}`],
       ["p2@x.com", `appointment-notice-${ID(12)}`],
     ]);
     expect(finished).toEqual([
-      [ID(10), true, null],
-      [ID(11), false, "Email unavailable (503)"],
-      [ID(12), false, "Email unavailable"],
+      [ID(10), ID(50), "sent", null],
+      [ID(11), ID(51), "failed", "Email unavailable (503)"],
+      [ID(12), ID(52), "failed", "Email unavailable"],
     ]);
+  });
+
+  it("claims 5 by default, so five slow sends fit the function", async () => {
+    const { deps, claimedWith } = fakes(Array(20).fill("ok"));
+    const summary = await runAppointmentNotices(deps, { deadlineMs: 40_000 });
+    expect(NOTICES_PER_RUN).toBe(5);
+    expect(claimedWith()).toBe(5);
+    expect(summary.claimed).toBe(5);
+  });
+
+  it("with 10-second sends, starts none after the deadline and releases every email it did not reach", async () => {
+    const { deps, finished, sent } = fakes(Array(20).fill("unavailable"), { sendMs: 10_000 });
+    const summary = await runAppointmentNotices(deps, { max: 20, deadlineMs: 40_000 });
+    // Sends start at 0, 10, 20, 30 and 40 seconds; the rest are released.
+    expect(sent).toHaveLength(5);
+    expect(summary).toEqual({ claimed: 20, sent: 0, failed: 5, released: 15 });
+    // Every claimed row has a recorded outcome: none is left claimed but untried.
+    expect(finished.map(([id]) => id)).toEqual(Array.from({ length: 20 }, (_, i) => ID(10 + i)));
+    expect(finished.slice(5).every(([, , result, error]) => result === "released" && !error)).toBe(
+      true,
+    );
+  });
+
+  it("a result that cannot be written does not stop the others", async () => {
+    const { deps, finished } = fakes(["ok", "ok"], { failFinishFor: ID(10) });
+    expect(await runAppointmentNotices(deps, { deadlineMs: 40_000 })).toMatchObject({ sent: 2 });
+    expect(finished).toEqual([[ID(11), ID(51), "sent", null]]);
   });
 
   it("maps a claimed row, filling what the database left empty", () => {
     const n = noticeFromRow({
       id: ID(1),
+      claim_token: ID(3),
       kind: "cancelled",
       audience: "customer",
       recipient: "a@b.co",
@@ -197,6 +249,7 @@ describe("the sending loop (D163d)", () => {
       timezone: null,
     });
     expect(n).toMatchObject({
+      claimToken: ID(3),
       kind: "cancelled",
       audience: "customer",
       appointmentType: "Appointment",

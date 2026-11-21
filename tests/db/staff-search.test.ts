@@ -46,7 +46,7 @@ import {
   UNIT_SHORT_ID,
   WORK_ORDER,
 } from "../fixtures/ids";
-import { customerClaims, linkCustomerLogin } from "./customer-fixtures";
+import { archiveCustomerUnguarded, customerClaims, linkCustomerLogin } from "./customer-fixtures";
 import {
   actAs,
   asAnon,
@@ -597,9 +597,7 @@ describe("query handling", () => {
 
   it("leaves out archived customers and bikes", async () => {
     await inTransaction(conn, async (tx) => {
-      await tx.query("update public.customers set archived_at = now() where id = $1", [
-        CUSTOMER.tan,
-      ]);
+      await archiveCustomerUnguarded(tx, CUSTOMER.tan);
       await tx.query("update public.bikes set archived_at = now() where id = $1", [BIKE.tanTarmac]);
       await actAs(tx, staffClaims(AUTH_USER.mechanic2));
       expect(ids(await search(tx, "tan wei ming", ["customer"]))).toEqual([]);
@@ -611,9 +609,7 @@ describe("query handling", () => {
 
   it("with archived = true searches archived records only, matching exactly as for active ones", async () => {
     await inTransaction(conn, async (tx) => {
-      await tx.query("update public.customers set archived_at = now() where id = $1", [
-        CUSTOMER.tan,
-      ]);
+      await archiveCustomerUnguarded(tx, CUSTOMER.tan);
       await tx.query("update public.bikes set archived_at = now() where id = $1", [BIKE.tanTarmac]);
       await actAs(tx, staffClaims(AUTH_USER.mechanic2));
       const archived = (q: string, kinds: string[] | null = null) =>

@@ -14,6 +14,9 @@
  *   part_request_arrivals, indent_reservations, fit_part_request
  *                       receipts cover requests first requested first;
  *                       fitting adds one ordinary line (D146).
+ *   cancel_purchase_order, set_purchase_order_line (A-21)  refused
+ *                       while a job's ordered part has not arrived, or
+ *                       when a line would be cut below what jobs await.
  *   completed and closed jobs (R-082, D149)  an admin or manager cancels
  *                       an unfitted request on a collected or cancelled
  *                       job, with a reason; fit, order and withdraw are
@@ -63,7 +66,7 @@ import {
   sendQuote,
   setup,
 } from "./indent-fixtures";
-import { grantPurchasing, receive } from "./purchasing-fixtures";
+import { cancelPO, grantPurchasing, receive, setLine } from "./purchasing-fixtures";
 import { eventTypes, events, failsWith, ownerMode, setStatus, walkTo } from "./workshop-fixtures";
 
 let conn: pg.Client;
@@ -788,6 +791,96 @@ describe("arrival and fitting (D146, D140)", () => {
       ).toBe("service");
       const proposed = await proposePart(tx, { workOrderId: q.job.id, productId: q.productId });
       await failsWith(tx, () => fit(tx, proposed), p0001("part_request_not_approved"));
+    });
+  });
+});
+
+describe("purchase orders customer jobs wait on (A-21)", () => {
+  /** quoted() approved and ordered (2 units), plus a second job's 1 unit on the same line. */
+  async function twoJobsOnOneLine(tx: pg.Client) {
+    const q = await quoted(tx);
+    await actAs(tx, ANON);
+    await answerAll(tx, q.token);
+    await actAs(tx, ADMIN);
+    const other = await newJob(tx);
+    const later = await proposePart(tx, {
+      workOrderId: other.id,
+      productId: q.productId,
+      quantity: 1,
+    });
+    const token = await sendQuote(tx, { workOrderId: other.id, requestIds: [later] });
+    await actAs(tx, ANON);
+    await answerAll(tx, token);
+    await actAs(tx, ADMIN);
+    const poId = await orderParts(tx, [q.partId], q.supplierId);
+    await orderParts(tx, [later], q.supplierId);
+    const lineId = await scalar<string>(
+      tx,
+      "select id from public.purchase_order_lines where purchase_order_id = $1",
+      [poId],
+    );
+    return { ...q, other, later, poId, lineId };
+  }
+
+  it("refuses to cancel the order until every job's ordered part has arrived or is settled", async () => {
+    await inTransaction(conn, async (tx) => {
+      const t = await twoJobsOnOneLine(tx);
+      await failsWith(tx, () => cancelPO(tx, t.poId), {
+        ...p0001("purchase_order_has_indent_requests"),
+        detail: expect.stringContaining(`${t.job.job_number}, ${t.other.job_number}`),
+      });
+
+      // Two of three arrive: the first job's are covered, the later one still waits.
+      await tx.query("select public.submit_purchase_order($1)", [t.poId]);
+      await receive(tx, {
+        poId: t.poId,
+        lines: [{ lineId: t.lineId, quantity: 2, locationId: LOCATION.shopFloor }],
+      });
+      await failsWith(tx, () => cancelPO(tx, t.poId), {
+        ...p0001("purchase_order_has_indent_requests"),
+        detail: expect.not.stringContaining(t.job.job_number),
+      });
+      expect(await requestStatus(tx, t.later)).toBe("ordered");
+
+      // The later job's part is cancelled on the job: the order can go.
+      await tx.query("select public.cancel_part_request($1, $2)", [t.later, "Supplier can't"]);
+      expect((await cancelPO(tx, t.poId)).status).toBe("cancelled");
+      expect((await cancelPO(tx, t.poId)).status).toBe("cancelled");
+      expect(await requestStatus(tx, t.partId)).toBe("ordered");
+    });
+  });
+
+  it("refuses to lower a line below what the waiting jobs still need; raising and other lines are unaffected", async () => {
+    await inTransaction(conn, async (tx) => {
+      const t = await twoJobsOnOneLine(tx);
+      const line = (quantity: number) =>
+        setLine(tx, {
+          id: t.lineId,
+          poId: t.poId,
+          productId: t.productId,
+          quantity,
+          cost: "70.00",
+        });
+      expect((await line(5)).quantity_ordered).toBe(5);
+      expect((await line(3)).quantity_ordered).toBe(3);
+      await failsWith(tx, () => line(2), {
+        ...p0001("purchase_order_has_indent_requests"),
+        detail: expect.stringContaining("3"),
+      });
+
+      // The later job's part cancelled: the first job's 2 are the floor.
+      await tx.query("select public.cancel_part_request($1, $2)", [t.later, "Supplier can't"]);
+      expect((await line(2)).quantity_ordered).toBe(2);
+      await failsWith(tx, () => line(1), p0001("purchase_order_has_indent_requests"));
+
+      // Once they have arrived the line is no longer held for the jobs.
+      await tx.query("select public.submit_purchase_order($1)", [t.poId]);
+      await line(4);
+      await receive(tx, {
+        poId: t.poId,
+        lines: [{ lineId: t.lineId, quantity: 2, locationId: LOCATION.shopFloor }],
+      });
+      expect((await line(2)).quantity_ordered).toBe(2);
     });
   });
 });

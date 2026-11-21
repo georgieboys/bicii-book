@@ -180,6 +180,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   staff_role_changed: "Someone changed their role in the meantime. Reload and try again.",
   // Customers and bikes (Phase 1)
   customer_archived: "That customer is archived. Unarchive them first.",
+  // A-22: customers_guard_archive.
+  customer_has_open_work:
+    "This customer still has an open job, an upcoming booking, an open quote or payment link, or a consignor record. Close those before archiving.",
   bike_archived: "That bike is archived. Unarchive it before changing its owner or stocking it.",
   bike_short_id_immutable: "A bike keeps its ID for life.",
   bike_history_append_only: "Bike ownership history cannot be changed.",
@@ -515,6 +518,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "This order is closed: it has been fully received or cancelled. Extra units go on a new order.",
   purchase_order_not_submitted: "Submit the order before receiving against it.",
   purchase_order_needs_lines: "An order needs at least one line. Add one, or cancel the order.",
+  purchase_order_has_indent_requests:
+    "Customer jobs are waiting for parts on this order. Fit or cancel those parts on the jobs first.",
   purchase_line_conflict: "That line clashes with another one. Refresh the order and try again.",
   purchase_line_below_received:
     "More than that has already been received. The ordered quantity can't go below it.",
@@ -1257,6 +1262,7 @@ export const CHECK_ERRORS: Record<string, string> = {
   // Booking emails (D163). Only the RPCs and the sender write these.
   shop_settings_booking_alert_staff_ids_check: "Choose at most 10 staff members.",
   shop_settings_booking_alert_emails_check: "List at most 10 other addresses.",
+  appointment_notices_claim: "A claimed email needs its claim token and time.",
   appointment_notices_cancelled_by: "Only a cancellation email says who cancelled.",
   appointment_notices_reason_shop_only: "Only the shop's cancellation alert carries a reason.",
   appointment_notices_sent_at: "Only a sent email has a sent time.",

@@ -297,6 +297,10 @@ and `bicii-prod`. The owner creates them; agents never see production keys.
    `media-public` has no select policy for anon on purpose (public URLs
    need none; one would let anyone list the bucket): if the Supabase
    advisor or a dashboard prompt offers to add "public read" there, don't.
+   Staff can write to `media-public` only the copy of a recorded internal
+   photo (the visibility move; `20261122001100_audit_public_bucket`):
+   a manual upload there through the dashboard as staff is refused by
+   design.
    Leftover objects from a failed Storage cleanup are removed by the app
    whenever the record is shown (`attachment_stray_objects`); to look for
    any by hand, as an admin in the SQL editor: `select o.bucket_id, o.name
@@ -777,7 +781,7 @@ Staff bookings send nothing.
    only):
 
    ```sql
-   select n.kind, n.audience, n.status, n.attempts, n.last_error,
+   select n.kind, n.audience, n.status, n.attempts, n.claims, n.last_error,
           n.created_at, n.sent_at
    from private.appointment_notices n
    order by n.created_at desc
@@ -786,14 +790,18 @@ Staff bookings send nothing.
 
    `pending` with attempts 0 for more than a couple of minutes means the
    cron is not running or email is off; `failed` means five attempts
-   failed (`last_error` gives Resend's reason and status).
+   failed (`last_error` gives Resend's reason and status), or "No result
+   was recorded after 15 claims" (the sender kept stopping before it
+   recorded anything: look at the cron's logs). A run sends at most 5
+   emails and releases the ones it did not reach by 40 seconds, so a
+   backlog drains 5 a minute.
 5. Put a failed email back in the queue, once the cause is fixed (owner,
    SQL editor; the notice id from the query above with `n.id` added):
 
    ```sql
    update private.appointment_notices
-   set status = 'pending', attempts = 0, next_attempt_at = now(),
-       last_error = null
+   set status = 'pending', attempts = 0, claims = 0, next_attempt_at = now(),
+       claimed_until = null, claim_token = null, last_error = null
    where id = '<notice id>' and status = 'failed';
    ```
 
@@ -1045,7 +1053,11 @@ Logs: every webhook logs `{correlationId, topic, webhookId, eventId,
 duplicate, status, outcome}` and every sync `{correlationId, productId,
 jobId, mode, outcome, durationMs}`; the correlation id is stored on the
 event row. A job whose result could not be stored stays `running` and is
-reclaimed after 10 minutes.
+reclaimed after 10 minutes, at most until its attempts run out (8 by
+default); then it needs attention with "The last runs did not finish"
+(code `integration_job_stalled`, its event failed). Check the function
+logs for the timeout or crash, fix it, then Retry (three more attempts)
+or Dismiss with a reason.
 
 ### Shopify: resolving problems
 

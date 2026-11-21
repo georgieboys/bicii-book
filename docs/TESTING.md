@@ -540,7 +540,13 @@ review, on `feat/staff-roles` in the second worktree, database
   (`record-sheets.test.tsx`, actions mocked); the product sheet's frame
   grade (D260) offered only for frames, its base price put in with **Use
   it**, and the chosen grade kept and sent again after a failed save
-  (`product-sheet.test.tsx`, actions mocked). Build extras (D261): the build card
+  (`product-sheet.test.tsx`, actions mocked); stale edit sheets (audit
+  A-11, `stale-edit.test.ts`, a fake client): `updateProduct`,
+  `updateUnit` and `updateCustomer` filter the update on the
+  `expectedUpdatedAt` the sheet opened with, refuse with "This changed
+  since you opened it…" when no row comes back but the row exists, keep
+  the not-found message when it is gone, and the edit schemas require the
+  field. Build extras (D261): the build card
   lists extras apart under "Extras, charged on top" with their total and
   moves a part either way, with nothing to press on a closed job; Add part
   offers **Charge on top of the build package** only on a job with a

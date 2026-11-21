@@ -190,7 +190,14 @@ describe("inventory action schemas", () => {
   });
 
   it("edits units and writes them off with a required reason", () => {
-    expect(updateUnitSchema.parse({ id: ID, condition: " As new ", unitCost: "" })).toMatchObject({
+    expect(
+      updateUnitSchema.parse({
+        id: ID,
+        expectedUpdatedAt: "2026-11-22T02:00:00.123456+00:00",
+        condition: " As new ",
+        unitCost: "",
+      }),
+    ).toMatchObject({
       condition: "As new",
       unitCost: null,
       serialNumber: null,

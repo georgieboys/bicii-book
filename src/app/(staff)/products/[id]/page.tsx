@@ -222,6 +222,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                   active: product.active,
                   trackingType: product.trackingType,
                   frameGrade: product.frameGrade,
+                  updatedAt: product.updatedAt,
                 }}
                 frameGrades={frameGrades}
                 categories={

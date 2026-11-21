@@ -20,6 +20,17 @@ import { REASON_MAX_LENGTH } from "@/lib/reasons";
 
 const MAX_MONEY = new Decimal("9999999.99");
 
+/**
+ * An edit sheet's hidden copy of the row's updated_at when it opened; the
+ * update applies only while it still matches (audit A-11). Sent back as
+ * the database gave it, never reparsed, so the comparison is exact.
+ */
+export const expectedUpdatedAt = z
+  .string({ error: "Close the sheet and open it again." })
+  .trim()
+  .min(1, { error: "Close the sheet and open it again." })
+  .max(64, { error: "Close the sheet and open it again." });
+
 /** A required amount of 0 or more, to a fixed-point string. */
 export const money = (what: string) =>
   z
@@ -170,6 +181,7 @@ export const createUniqueItemSchema = z.object({
 
 export const updateProductSchema = z.object({
   id: z.guid({ error: "Unknown product." }),
+  expectedUpdatedAt,
   ...productFields,
 });
 
@@ -181,6 +193,7 @@ export const addUnitSchema = z.object({
 
 export const updateUnitSchema = z.object({
   id: z.guid({ error: "Unknown unit." }),
+  expectedUpdatedAt,
   serialNumber: text(100, "serial number"),
   condition: text(500, "condition"),
   unitSalePrice: optionalMoney("sale price"),

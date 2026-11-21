@@ -3868,6 +3868,18 @@ listed in `tests/fixtures/api-surface.ts` and tested for: own rows only,
 no staff-only column in the result keys, another customer's id returns
 nothing, anon is refused (`customer-access.test.ts` is the template).
 
+**Stale edit sheets (audit A-11).** The Admin's Edit customer, product
+Edit details and unit Edit details sheets write every field they show
+through the plain RLS updates above (`updateCustomer`, `updateProduct`,
+`updateUnit`). Each sheet carries the row's `updated_at` from when it
+opened as a hidden `expectedUpdatedAt`, and the update adds
+`updated_at = expectedUpdatedAt` (the `*_set_updated_at` triggers move it
+on every write). No row back while the row still exists means it changed
+since the sheet opened: the save is refused with "This changed since you
+opened it. Close the sheet and open it again." and nothing is written, so
+a stale sheet cannot revert a newer price, cost or contact detail. Any
+write to the row counts, including a unit's status change by an RPC.
+
 **Customer job projection (Phase 3, shown in Phase 11; PLAN D8, D17).**
 The four `my_work_order*` RPCs follow the pattern above. Which jobs: those
 where the caller is `work_orders.customer_id`, whoever owns the bike now (a

@@ -5,7 +5,7 @@ import { DbError, constraintOf, unwrap } from "@/lib/db-errors";
 import { customerLabel } from "@/lib/people";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
-import { DomainError } from "./errors";
+import { DomainError, STALE_EDIT } from "./errors";
 import type { ListPage } from "./list";
 
 /**
@@ -202,15 +202,30 @@ export async function createCustomer(
   return { id: data.id };
 }
 
+/**
+ * Saves every field of the edit sheet, but only while the customer's
+ * updated_at is still the one the sheet opened with: a stale sheet is
+ * refused (STALE_EDIT) instead of silently reverting newer contact details
+ * (audit A-11).
+ */
 export async function updateCustomer(
   supabase: ServerSupabase,
   id: string,
   input: CustomerInput,
+  expectedUpdatedAt: string,
 ): Promise<void> {
   const row = unwrap(
-    await supabase.from("customers").update(toRow(input)).eq("id", id).select("id").maybeSingle(),
+    await supabase
+      .from("customers")
+      .update(toRow(input))
+      .eq("id", id)
+      .eq("updated_at", expectedUpdatedAt)
+      .select("id")
+      .maybeSingle(),
   );
-  if (!row) throw new DomainError(NOT_FOUND);
+  if (row) return;
+  const exists = unwrap(await supabase.from("customers").select("id").eq("id", id).maybeSingle());
+  throw new DomainError(exists ? STALE_EDIT : NOT_FOUND);
 }
 
 /**

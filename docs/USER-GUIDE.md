@@ -799,6 +799,11 @@ while an approved or ordered item is neither fitted nor cancelled:
   rating." Saving queues the Shopify update. A product in a group shows no
   grade on Shopify (its listing is the group's). Say it with the build when
   selling ("a B++ frame with a Classic+ build").
+- If saving **Edit details** (a product or a unit) or **Edit customer**
+  says "This changed since you opened it. Close the sheet and open it
+  again.", someone else (or a sale, a stock action or a sync) changed the
+  record while the sheet was open. Nothing was saved: close the sheet,
+  open it again to see the current values, and make your change again.
 - Consigned items (owned by someone else) are not added here: use
   [Receive a consigned item](#receive-a-consigned-item). If they were
   added here by mistake, do not archive the product or count its stock

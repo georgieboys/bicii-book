@@ -18,7 +18,7 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 import type { WorkOrderStatus } from "@/lib/workshop";
 
 import { listPhotos, type Photo } from "./attachments";
-import { DomainError } from "./errors";
+import { DomainError, STALE_EDIT } from "./errors";
 import type { ListPage } from "./list";
 import { staffSearch } from "./search";
 import { staffNames } from "@/lib/domain/staff-directory";
@@ -859,6 +859,8 @@ export type UnitDetail = {
   soldAt: string | null;
   archivedAt: string | null;
   createdAt: string;
+  /** The edit sheet sends it back as expectedUpdatedAt (audit A-11). */
+  updatedAt: string;
   product: {
     id: string;
     shortId: string;
@@ -886,7 +888,7 @@ export type UnitDetail = {
 };
 
 const UNIT_COLUMNS =
-  "id, short_id, status, ownership_type, serial_number, condition, internal_notes, sale_price, sold_at, archived_at, created_at, product:products(id, short_id, name, sku, currency, archived_at, publication_status), location:locations(id, name, active), bike:bikes!inventory_units_bike_id_fkey(id, short_id, brand, model, variant)";
+  "id, short_id, status, ownership_type, serial_number, condition, internal_notes, sale_price, sold_at, archived_at, created_at, updated_at, product:products(id, short_id, name, sku, currency, archived_at, publication_status), location:locations(id, name, active), bike:bikes!inventory_units_bike_id_fkey(id, short_id, brand, model, variant)";
 
 /** One unit with its product, location, bike, job, movements, history and photos; null if unknown. */
 export async function getUnit(
@@ -944,6 +946,7 @@ export async function getUnit(
     soldAt: row.sold_at,
     archivedAt: row.archived_at,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     product: {
       id: row.product.id,
       shortId: row.product.short_id,
@@ -1063,11 +1066,18 @@ export async function createProduct(
   return { id };
 }
 
-/** Edits a product's details; its tracking type, P- number and publication never change here. */
+/**
+ * Edits a product's details; its tracking type, P- number and publication
+ * never change here. The sheet sends every field, so the write applies only
+ * while the row's updated_at is still the one the sheet opened with
+ * (`expectedUpdatedAt`): a stale sheet is refused (STALE_EDIT) instead of
+ * silently reverting a newer price or cost (audit A-11).
+ */
 export async function updateProduct(
   supabase: ServerSupabase,
   id: string,
   input: ProductInput,
+  expectedUpdatedAt: string,
 ): Promise<void> {
   const { data, error } = await supabase
     .from("products")
@@ -1076,10 +1086,13 @@ export async function updateProduct(
       ...(input.cost !== null ? { default_direct_cost: input.cost as unknown as number } : {}),
     })
     .eq("id", id)
+    .eq("updated_at", expectedUpdatedAt)
     .select("id")
     .maybeSingle();
   if (error) rethrowFields(new DbError(error), PRODUCT_FIELDS);
-  if (!data) throw new DomainError(PRODUCT_NOT_FOUND);
+  if (data) return;
+  const exists = unwrap(await supabase.from("products").select("id").eq("id", id).maybeSingle());
+  throw new DomainError(exists ? STALE_EDIT : PRODUCT_NOT_FOUND);
 }
 
 /**
@@ -1205,11 +1218,16 @@ export type UnitEdit = {
   internalNotes: string | null;
 };
 
-/** Edits a unit's details under RLS (manage_inventory); status, location and bike change only through RPCs. */
+/**
+ * Edits a unit's details under RLS (manage_inventory); status, location and
+ * bike change only through RPCs. Applied only while the unit's updated_at is
+ * still `expectedUpdatedAt`, as updateProduct (audit A-11).
+ */
 export async function updateUnit(
   supabase: ServerSupabase,
   id: string,
   input: UnitEdit,
+  expectedUpdatedAt: string,
 ): Promise<void> {
   const { data, error } = await supabase
     .from("inventory_units")
@@ -1221,10 +1239,15 @@ export async function updateUnit(
       ...(input.cost !== null ? { direct_cost: input.cost as unknown as number } : {}),
     })
     .eq("id", id)
+    .eq("updated_at", expectedUpdatedAt)
     .select("id")
     .maybeSingle();
   if (error) rethrowFields(new DbError(error), UNIT_FIELDS);
-  if (!data) throw new DomainError(UNIT_NOT_FOUND);
+  if (data) return;
+  const exists = unwrap(
+    await supabase.from("inventory_units").select("id").eq("id", id).maybeSingle(),
+  );
+  throw new DomainError(exists ? STALE_EDIT : UNIT_NOT_FOUND);
 }
 
 /**

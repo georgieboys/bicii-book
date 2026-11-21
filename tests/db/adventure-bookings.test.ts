@@ -320,6 +320,28 @@ describe("payments outside the checkout (audit A-41, A-42)", () => {
       ).toBe("confirmed");
     });
   });
+
+  it("an old page on a cancelled booking is read back too (audit 2026-11-22)", async () => {
+    await inTransaction(conn, async (tx) => {
+      const sale = await offerOn125(tx);
+      await openSales(tx);
+      const p = await prepare(tx, await makeRider(tx), sale);
+      const sid = `cs_test_${tag()}`;
+      await record(tx, p, sid);
+      await tx.query("reset role");
+      await tx.query(
+        "update public.adventure_payments set stripe_session_expires_at = now() - interval '2 hours' where id = $1",
+        [p.payment_id],
+      );
+      await tx.query(
+        "update public.adventure_bookings set status = 'cancelled', cancelled_at = now() where id = $1",
+        [p.booking_id],
+      );
+      await actAs(tx, SERVICE);
+      const stale = await tx.query("select * from public.stale_adventure_payments(20)");
+      expect(stale.rows).toContainEqual({ payment_id: p.payment_id, session_id: sid });
+    });
+  });
 });
 
 describe("preparing a checkout (handoff P07, P08, C01, C02)", () => {

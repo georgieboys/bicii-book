@@ -78,7 +78,7 @@ const fit = (tx: pg.Client, workOrderId: string) =>
 
 async function setExtra(tx: pg.Client, lineId: string, extra: boolean) {
   const { rows } = await tx.query<{ price: string; list: string | null }>(
-    `select (r).unit_sale_price_snapshot::text as price, (r).unit_list_price_snapshot::text as list
+    `select (r).unit_sale_price::text as price, (r).unit_list_price::text as list
        from (select public.set_build_line_extra($1, $2) r) s`,
     [lineId, extra],
   );
@@ -299,6 +299,35 @@ describe.skipIf(!isolatedDatabase())("build extras (D261)", () => {
       );
       const byType = Object.fromEntries(rows.map((r) => [r.line_type, r.total]));
       expect(byType).toEqual({ inventory: "330.00", service: "180.00" });
+      await actAs(tx, ADMIN);
+    }));
+
+  it("repricing and marking return no cost, yield, Cult Commons or payout (audit 2026-11-22)", () =>
+    inTx(async (tx) => {
+      const pkg = await makePackage(tx);
+      const part = await stockedPart(tx, "300.00");
+      const job = await newJob(tx);
+      await setBuild(tx, job.id, pkg);
+      const added = await addPart(tx, { workOrderId: job.id, productId: part });
+      await actAs(tx, MECHANIC1);
+      const keys = async (sql: string, args: unknown[]) =>
+        Object.keys((await tx.query<{ j: object }>(sql, args)).rows[0].j).sort();
+      const expected = ["currency", "line_id", "sale_total", "unit_list_price", "unit_sale_price"];
+      expect(
+        await keys("select to_jsonb(r) j from public.reprice_build_line($1, 250) r", [
+          added.line_id,
+        ]),
+      ).toEqual(expected);
+      expect(
+        await keys("select to_jsonb(r) j from public.reprice_build_line($1, 250) r", [
+          added.line_id,
+        ]),
+      ).toEqual(expected);
+      expect(
+        await keys("select to_jsonb(r) j from public.set_build_line_extra($1, true) r", [
+          added.line_id,
+        ]),
+      ).toEqual(expected);
       await actAs(tx, ADMIN);
     }));
 });

@@ -11,7 +11,8 @@ vi.mock("server-only", () => ({}));
 
 const { haversineKm, parseFit, parseGpx, readTrack, TrackError, MAX_POINTS } =
   await import("@/lib/adventures/tracks");
-const { runAdventureParse } = await import("@/lib/integrations/adventures/parse-worker");
+const { runAdventureParse, OUT_OF_RANGE } =
+  await import("@/lib/integrations/adventures/parse-worker");
 const { handleAdventureWork } = await import("@/lib/integrations/adventures/work-cron");
 const { FitEncoder, FitBaseType } = await import("fit-file-parser");
 
@@ -264,6 +265,66 @@ describe("the parse worker", () => {
       },
     );
     expect(released).toEqual(["f9"]);
+  });
+});
+
+describe("the parse worker and the database's refusals (audit 2026-11-22)", () => {
+  function worker(refuse: string) {
+    const finished: Array<Record<string, unknown>> = [];
+    const released: string[] = [];
+    const queue = [
+      { file_id: "f1", storage_path: "b/1.gpx" },
+      { file_id: "f2", storage_path: "b/2.gpx" },
+    ];
+    const supabase = {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        if (name === "claim_adventure_parse_jobs") {
+          const next = queue.shift();
+          return {
+            data: next ? [{ ...next, original_name: next.storage_path, attempts: 1 }] : [],
+            error: null,
+          };
+        }
+        if (name === "release_adventure_parse") {
+          released.push(args.file_id as string);
+          return { data: null, error: null };
+        }
+        finished.push(args);
+        if (args.ok === true && args.file_id === "f1")
+          return { data: null, error: { code: refuse } };
+        return { data: null, error: null };
+      },
+      storage: {
+        from: () => ({
+          download: () => Promise.resolve({ data: new Blob([TRACK]), error: null }),
+        }),
+      },
+    };
+    return {
+      deps: { supabase: supabase as never, log: pino({ level: "silent" }), now: () => 0 },
+      finished,
+      released,
+    };
+  }
+
+  it("records a file whose result is out of range as unreadable, and moves on", async () => {
+    const { deps, finished, released } = worker("22003");
+    expect(await runAdventureParse(deps, { max: 3, deadlineMs: 1 })).toEqual({
+      claimed: 2,
+      parsed: 1,
+      failed: 1,
+      errored: 0,
+    });
+    expect(released).toEqual([]);
+    expect(finished[1]).toMatchObject({ file_id: "f1", ok: false, error: OUT_OF_RANGE });
+    expect(finished[2]).toMatchObject({ file_id: "f2", ok: true });
+  });
+
+  it("still gives the attempt back when the database is unavailable", async () => {
+    const { deps, released } = worker("57P01");
+    const summary = await runAdventureParse(deps, { max: 3, deadlineMs: 1 });
+    expect(summary).toMatchObject({ errored: 1, parsed: 1 });
+    expect(released).toEqual(["f1"]);
   });
 });
 

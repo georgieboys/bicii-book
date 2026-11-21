@@ -12,6 +12,26 @@ CSV neutralises formulas behind leading spaces (A-30); the booking-email
 cron route has tests (A-31); a Content-Security-Policy-Report-Only header
 ships, not yet enforced (A-25).
 Before that,
+Updated: 2026-11-22 SGT (audit batch 2, Adventures; branch
+`fix/audit-adventures`, migration `20261122000400`, merge after batch 1's
+PR #108 so the migrations apply in order). An earlier tracker hire sold
+after a later one is now checked through its own return and grace days; a
+stale payment page on a replaced or cancelled booking is read back; a
+rider's cancellation request no longer emails a false payment alert and
+always counts in Health; a ride file whose result the database refuses is
+marked unreadable instead of blocking the parse queue.
+Before that,
+Updated: 2026-11-22 SGT (backend audit, local-only `AUDIT-2026-11-22.md`;
+batch 1 on branch `fix/audit-builds`, migration `20261122000300`). Build
+RPCs no longer return line costs to staff without cost access; linking a
+paid online build to a job that already has the package takes the price
+paid; a package's own-frame and donor variants are never "unmapped" or
+linkable to a product; a package on Shopify must be taken off before it is
+archived; the Shopify runner's budget covers seven calls a job (90 s
+routes); E2E blanks local Shopify and email keys; CI refuses a new
+migration dated before main's newest. Build extras (D261, PR #107) are
+live: migrations applied by `migrate.yml`, objects checked in production.
+Before that,
 Updated: 2026-11-22 SGT (build extras, D261, ADR-028 amendment; branch
 `feat/build-extras`, migrations `20261122000100` and `20261122000200` apply
 by `migrate.yml` on merge). On a job with a build package, a part (shop

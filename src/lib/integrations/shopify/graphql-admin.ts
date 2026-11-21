@@ -16,7 +16,7 @@ import { SHOPIFY_API_VERSION, SHOPIFY_TIMEOUT_MS } from "./config";
  * (config.ts), authenticated with an Admin API access token: a legacy
  * custom app's fixed token, or one a Dev Dashboard app's client ID and
  * secret are exchanged for (access-token.ts), fetched again once after a
- * 401 (D84, D83; ADR-020). Every call is one POST with a 15 s timeout.
+ * 401 (D84, D83; ADR-020). Every call is one POST with a 10 s timeout (SHOPIFY_TIMEOUT_MS).
  *
  * Error mapping (D87): HTTP 401/403 -> shopify_auth_failed (a person must
  * fix the token; not retriable); 429, a THROTTLED GraphQL error, 5xx,

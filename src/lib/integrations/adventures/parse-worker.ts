@@ -24,6 +24,10 @@ export type ParseWorkerDeps = {
 
 export type ParseSummary = { claimed: number; parsed: number; failed: number; errored: number };
 
+/** What the rider reads when the file's ride data is out of range. */
+export const OUT_OF_RANGE =
+  "This file's ride data is out of range (its distance or times). Export it again or ask BICII for help.";
+
 /** How long a ride file's download may take before the attempt is given back. */
 export const DOWNLOAD_TIMEOUT_MS = 20_000;
 
@@ -100,7 +104,27 @@ export async function runAdventureParse(
             }
           : {},
       });
-      if (finished.error) throw finished.error;
+      if (finished.error) {
+        // The database refused what was read from the file (a distance or a
+        // time out of range: SQLSTATE class 22 or 23). That is the file's
+        // fault, so it is recorded as unreadable instead of being given back
+        // and claimed again for ever (audit 2026-11-22).
+        if (result.ok && /^2[23]/.test(finished.error.code ?? "")) {
+          const refused = await deps.supabase.rpc("finish_adventure_parse", {
+            file_id: job.file_id,
+            ok: false,
+            error: OUT_OF_RANGE,
+            sha256,
+            parser_version: PARSER_VERSION,
+            track: {},
+          });
+          if (refused.error) throw refused.error;
+          summary.failed += 1;
+          log.warn({ code: finished.error.code }, "adventure file out of range");
+          continue;
+        }
+        throw finished.error;
+      }
       if (result.ok) summary.parsed += 1;
       else summary.failed += 1;
       log.info({ outcome: result.ok ? "parsed" : "unreadable" }, "adventure file parsed");

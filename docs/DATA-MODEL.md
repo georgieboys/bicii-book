@@ -3745,7 +3745,10 @@ Suspense boundary.
   live counter payment, or a completed or ready status, so its figures
   equal the job card; shop-currency jobs only; its three groups are
   disjoint, and a job's amounts add up to `net_paid` until it is collected
-  and to `held_over_total` after.
+  and to `held_over_total` after. It has no row cap, so the Admin reads it
+  in pages of 1,000 (`.range()`, PostgREST's max-rows; the function orders
+  by group, then job number) and the `payments_held` export refuses more
+  than 50,000 rows.
 - Indexes (`period-reports.test.ts` "Report queries are indexed"):
   `payments_paid_at_idx` (`paid_at`, where set),
   `payment_refunds_stripe_created_idx` (`stripe_created_at`),

@@ -9,7 +9,9 @@ import {
   readSaleDay,
   readSaleRange,
   refundableAmount,
+  SALE_QUANTITY_MESSAGE,
   saleDayRange,
+  saleQuantity,
   saleRange,
   saleStatusLabel,
   saleStatusTone,
@@ -275,5 +277,34 @@ describe("sales form schemas", () => {
     expect(priceInput("1,000")).toBe("1000.00");
     expect(priceInput("0")).toBe("0.00");
     expect(priceInput("abc")).toBeNull();
+  });
+});
+
+describe("saleQuantity (the sale sheet's Quantity field)", () => {
+  it("reads a whole number of 1 or more, spaces around it allowed", () => {
+    expect(saleQuantity("1")).toBe(1);
+    expect(saleQuantity(" 12 ")).toBe(12);
+    expect(saleQuantity("007")).toBe(7);
+  });
+
+  it("refuses anything that is not only digits, and 0, instead of reading a different number", () => {
+    for (const text of [
+      "",
+      " ",
+      "0",
+      "00",
+      "1.5",
+      "2x",
+      "1e3",
+      "12 3",
+      "-1",
+      "+1",
+      "1,000",
+      "Infinity",
+    ]) {
+      expect(saleQuantity(text)).toBeNull();
+    }
+    expect(saleQuantity("99999999999999999999")).toBeNull();
+    expect(SALE_QUANTITY_MESSAGE).toBe("Enter a whole number, like 1.");
   });
 });

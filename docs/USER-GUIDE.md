@@ -703,8 +703,9 @@ while an approved or ordered item is neither fitted nor cancelled:
   SKU or U-/P-/C- number under **Add item** and choose a result (each
   shows where it is, how many and the price; consigned ones show
   "Consigned · <consignor>"). The **Price** is the selling price; change
-  it if you agreed another. For several, set **Quantity** (up to what is
-  there). **Add item** adds more. Choose the **Customer** if they are on
+  it if you agreed another. For several, set **Quantity** (a whole
+  number, up to what is there; "1.5" or "2x" is marked and **Record
+  sale** stays off). **Add item** adds more. Choose the **Customer** if they are on
   file (empty is a walk-in); someone new can be added from the list
   (**New customer "…"**) without leaving the sale. **Sold earlier?** lets you enter when it was
   sold (not in the future, and not before the item came into the shop:

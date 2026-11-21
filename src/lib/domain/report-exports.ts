@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getAllPaymentItemsForExport, getPaymentsHeld } from "@/lib/domain/payment-reports";
-import { ExportError } from "@/lib/domain/period-reports";
+import { EXPORT_MAX_ROWS, ExportError } from "@/lib/domain/period-reports";
 import {
   getActivityByMechanic,
   getAllBreakdownForExport,
@@ -119,6 +119,6 @@ export const EXPORT_FETCHERS: {
     return getAllPaymentItemsForExport(supabase, { from: q.from, to: q.to });
   },
   async payments_held(supabase) {
-    return getPaymentsHeld(supabase);
+    return getPaymentsHeld(supabase, { max: EXPORT_MAX_ROWS });
   },
 };

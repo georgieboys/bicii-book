@@ -20,7 +20,7 @@ import type { ActionResult } from "@/lib/actions";
 import { fromShopLocal, toShopLocal } from "@/lib/dates";
 import type { SaleableRow, SaleLineInput } from "@/lib/domain/sales";
 import { formatMoney, lineTotal, parseMoney, sumMoney } from "@/lib/money";
-import { priceWarnings, previewSale } from "@/lib/sales";
+import { SALE_QUANTITY_MESSAGE, priceWarnings, previewSale, saleQuantity } from "@/lib/sales";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
@@ -257,7 +257,7 @@ function RecordSaleSheet({
         if (row.kind === "unit") return all;
         return all.map((l) =>
           l.row.key === row.key
-            ? { ...l, quantity: String(Math.min((Number(l.quantity) || 0) + 1, row.onHand)) }
+            ? { ...l, quantity: String(Math.min((saleQuantity(l.quantity) ?? 0) + 1, row.onHand)) }
             : l,
         );
       }
@@ -270,8 +270,7 @@ function RecordSaleSheet({
 
   const qtyOf = (l: Line) => {
     if (l.row.kind === "unit") return 1;
-    const n = Number.parseInt(l.quantity, 10);
-    return Number.isFinite(n) && n >= 1 ? n : null;
+    return saleQuantity(l.quantity);
   };
   const priceOf = (l: Line) => (l.price.trim() === "" ? null : parseMoney(l.price));
   const priced = lines.map((l) => ({ line: l, qty: qtyOf(l), price: priceOf(l) }));
@@ -495,9 +494,11 @@ function RecordSaleSheet({
                         label="Quantity"
                         required
                         error={
-                          qty !== null && qty > row.onHand
-                            ? `Only ${row.onHand} at ${row.locationName}.`
-                            : undefined
+                          line.quantity.trim() !== "" && qty === null
+                            ? SALE_QUANTITY_MESSAGE
+                            : qty !== null && qty > row.onHand
+                              ? `Only ${row.onHand} at ${row.locationName}.`
+                              : undefined
                         }
                       >
                         <NumberInput

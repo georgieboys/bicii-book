@@ -1889,6 +1889,8 @@ URLs, or customer data in this file.
   show the same caps: "Showing the N most urgent of M" on Exceptions and
   "Showing the first 1,000. Choose a product to see the rest." on
   Reconciliation (the bench's 3,008 units reach it on Everything).
+  `payments_held` reads `report_payments_held` in pages of 1,000 and
+  answers 413 above 50,000 jobs.
 - Workaround or containment: export a shorter range, or the breakdown
   instead of the lines; retry after a 409. For the snapshots, fix the most
   urgent exceptions first, or export Problems only or one product. The
@@ -3241,7 +3243,9 @@ URLs, or customer data in this file.
   the shop about their bookings, which the privacy notice should say
   ([R-016](#r-016--no-retention-or-deletion-policy-for-customer-personal-data)).
 - Evidence and confidence: high for the mechanism
-  (`tests/db/appointment-notices.test.ts`, `tests/unit/appointment-notices.test.ts`);
+  (`tests/db/appointment-notices.test.ts`, `tests/unit/appointment-notices.test.ts`;
+  the route's bearer check, "off" branch and 500 path in
+  `tests/unit/appointment-notices-route.test.ts`);
   delivery in production is checked in
   [RUNBOOK "Booking emails"](RUNBOOK.md#booking-emails).
 - Workaround or containment: RUNBOOK "Booking emails" lists failed emails

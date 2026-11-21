@@ -36,6 +36,7 @@ import { isOpenStatus, WORK_ORDER_STATUSES, type WorkOrderStatus } from "@/lib/w
 
 import { DomainError } from "./errors";
 import { rethrowOnField } from "./lines";
+import { readAllPages } from "./paging";
 import { staffDirectory } from "@/lib/domain/staff-directory";
 
 /**
@@ -589,15 +590,19 @@ export async function loadSchedule(
   }
   const start = dayStart(from);
   const end = dayStart(shiftShopDay(from, days));
-  const [config, appointmentsResult, typesResult] = await Promise.all([
+  const [config, appointmentRows, typesResult] = await Promise.all([
     loadConfig(supabase, start, end),
-    supabase
-      .from("appointments")
-      .select("id, starts_at, ends_at, capacity_units, status")
-      .lt("starts_at", end.toISOString())
-      .gt("ends_at", start.toISOString())
-      .not("status", "in", "(cancelled,no_show)")
-      .limit(5000),
+    readAllPages((first, last) =>
+      supabase
+        .from("appointments")
+        .select("id, starts_at, ends_at, capacity_units, status")
+        .lt("starts_at", end.toISOString())
+        .gt("ends_at", start.toISOString())
+        .not("status", "in", "(cancelled,no_show)")
+        .order("starts_at")
+        .order("id")
+        .range(first, last),
+    ),
     supabase
       .from("appointment_types")
       .select("id, name, description, duration_minutes, capacity_units, public, active, sort_order")
@@ -610,7 +615,7 @@ export async function loadSchedule(
     days,
     asOf: new Date().toISOString(),
     ...config,
-    appointments: (unwrap(appointmentsResult) ?? []).map((a) => ({
+    appointments: appointmentRows.map((a) => ({
       id: a.id,
       startsAt: a.starts_at,
       endsAt: a.ends_at,

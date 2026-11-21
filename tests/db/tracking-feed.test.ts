@@ -243,7 +243,7 @@ describe("Start Ride and Finish Ride (D189; T06-T08)", () => {
     await inTransaction(conn, async (tx) => {
       const { sale, days, devices } = await setup(tx, 1);
       const noTracker = await makeRider(tx);
-      const p = await checkout(tx, noTracker, sale, days[2], days[3]);
+      const p = await checkout(tx, noTracker, sale, days[4], days[5]);
       await pay(tx, p);
       await actAs(tx, customerClaims(noTracker.authUserId));
       await failsWith(

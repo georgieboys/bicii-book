@@ -242,7 +242,7 @@ describe("issue, replace and return (D188; C11)", () => {
         days,
         devices: [d1, d2],
       } = await setup(tx, 2);
-      const unpaid = await checkout(tx, await makeRider(tx), sale, days[2], days[3]);
+      const unpaid = await checkout(tx, await makeRider(tx), sale, days[4], days[5]);
       const hire = await paidHire(tx, sale, days[0], days[1]);
       const other = await paidHire(tx, sale, days[0], days[1]);
 

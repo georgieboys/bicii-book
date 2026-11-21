@@ -13202,9 +13202,9 @@ export type Database = {
       };
       build_line_result: {
         line_id: string | null;
-        unit_sale_price: number | null;
-        unit_list_price: number | null;
-        sale_total: number | null;
+        unit_sale_price: unknown;
+        unit_list_price: unknown;
+        sale_total: unknown;
         currency: string | null;
       };
       consignment_item_result: {

@@ -90,7 +90,11 @@ URLs, or customer data in this file.
   they do not include Storage objects.
 - Workaround or containment: until real records are entered, the owner's
   test data can be lost without harm; keep it that way until a restore has
-  been exercised.
+  been exercised. One alert exists: a failed `migrate.yml` run opens a
+  GitHub issue naming the commit and the pending files, and new migrations
+  start with `set local lock_timeout` / `statement_timeout` so a blocked
+  one fails fast ([RUNBOOK "A migration failed half way"](RUNBOOK.md#a-migration-failed-half-way)).
+  Not exercised on a real failure yet.
 - Next action: before staff enter real records, confirm the daily backups
   in the Supabase dashboard, decide how Storage is copied, exercise a
   restore into a separate project, and name an alert recipient.

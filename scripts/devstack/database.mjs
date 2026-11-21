@@ -14,6 +14,7 @@ import {
   GATEWAY_URL,
   JWT_SECRET,
   PATHS,
+  assertLocalDatabase,
   databaseName,
   requireCache,
   withDatabase,
@@ -42,6 +43,7 @@ function quoteIdent(name) {
  * @param {{ template?: string }} [options]
  */
 export async function recreateDatabase(url, { template } = {}) {
+  assertLocalDatabase(url);
   const name = databaseName(url);
   await withClient(withDatabase(url, "postgres"), async (c) => {
     await c.query(`drop database if exists ${quoteIdent(name)} with (force)`);
@@ -53,6 +55,7 @@ export async function recreateDatabase(url, { template } = {}) {
 
 /** @param {string} url */
 export async function dropDatabase(url) {
+  assertLocalDatabase(url);
   const name = databaseName(url);
   await withClient(withDatabase(url, "postgres"), (c) =>
     c.query(`drop database if exists ${quoteIdent(name)} with (force)`),
@@ -69,6 +72,7 @@ export async function databaseExists(url) {
 }
 
 export async function applyRoles(url) {
+  assertLocalDatabase(url);
   const sql = readFileSync(PATHS.rolesSql, "utf8");
   await withClient(url, async (c) => {
     // Role DDL notices ("already a member") are expected on re-runs.
@@ -339,6 +343,7 @@ export async function applySeed(url, file = PATHS.seedSql) {
  * @param {{ seed?: boolean, onStep?: (step: string) => void }} [options]
  */
 export async function buildDatabase(url, { seed = true, onStep = () => {} } = {}) {
+  assertLocalDatabase(url);
   requireCache("auth", "node24", "storage");
   onStep(`create database ${databaseName(url)}`);
   await recreateDatabase(url);

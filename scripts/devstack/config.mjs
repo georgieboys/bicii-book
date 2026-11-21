@@ -122,6 +122,37 @@ export function withLogin(url, user, password = SERVICE_ROLE_PASSWORD) {
   return u.toString();
 }
 
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+/**
+ * Refuse to touch a database that is not on this machine. Everything that
+ * creates, drops, resets or migrates a database calls this before it
+ * connects, because the scripts read only the shell environment and a
+ * DATABASE_URL or PG* variable left over from a session against a hosted
+ * project would otherwise retarget them. Allowed: loopback hosts and unix
+ * sockets; any other host only with BICII_ALLOW_REMOTE_DB=1; a Supabase
+ * hosted address never.
+ * @param {string} url
+ * @param {Record<string, string | undefined>} [env]
+ */
+export function assertLocalDatabase(url, env = process.env) {
+  const u = new URL(url);
+  // libpq's ?host= wins over the authority; a path there is a unix socket.
+  const host = (u.searchParams.get("host") ?? u.hostname).toLowerCase();
+  if (host === "" || host.startsWith("/")) return;
+  if (/\.supabase\.(co|com)$/.test(host)) {
+    throw new Error(
+      `refusing to touch ${redact(url)}: a hosted Supabase database is never a devstack or test target`,
+    );
+  }
+  if (LOCAL_HOSTS.has(host)) return;
+  if (env.BICII_ALLOW_REMOTE_DB === "1") return;
+  throw new Error(
+    `refusing to touch ${redact(url)}: not a local database. ` +
+      "Unset DATABASE_URL / PGHOST, or set BICII_ALLOW_REMOTE_DB=1 for a disposable server.",
+  );
+}
+
 /** @param {string} url */
 export function databaseName(url) {
   return decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));

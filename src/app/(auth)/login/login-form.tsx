@@ -21,6 +21,7 @@ import {
   formatCountdown,
   resendSecondsLeft,
 } from "@/lib/auth/otp";
+import { clearSignedInDeviceData } from "@/lib/device-data";
 
 import { signInStep, type LoginState } from "./actions";
 
@@ -34,6 +35,13 @@ export function LoginForm({ next }: { next?: string }) {
   const [state, formAction] = useActionState<LoginState, FormData>(signInStep, null);
   const emailRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
+
+  // Nobody is signed in here: remove what the device kept for the last
+  // person (the intake draft, recent searches), which also covers a session
+  // that expired or was revoked without "Sign out".
+  useEffect(() => {
+    clearSignedInDeviceData();
+  }, []);
 
   // Focus follows the step: the Code field when step 2 opens or a code is
   // refused, the Email field after an error there or "Use a different email".

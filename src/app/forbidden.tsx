@@ -1,7 +1,6 @@
-import { signOut } from "@/app/(auth)/login/actions";
+import { SignOutButton } from "@/components/shell/sign-out-button";
 import { StatusScreen } from "@/components/shell/status-screen";
 import { ButtonLink } from "@/components/ui/button";
-import { SubmitButton } from "@/components/ui/submit-button";
 
 /** 403: signed in, but not active staff or missing a permission (requireStaff). */
 export default function Forbidden() {
@@ -12,11 +11,7 @@ export default function Forbidden() {
       actions={
         <>
           <ButtonLink href="/">Go to Today</ButtonLink>
-          <form action={signOut}>
-            <SubmitButton variant="outline" pendingLabel="Signing out…">
-              Sign out
-            </SubmitButton>
-          </form>
+          <SignOutButton />
         </>
       }
     >

@@ -519,7 +519,9 @@ private.sign_in_attempts               -- counters, not history
 - Keys hold SHA-256 digests of the client address (IPv6 per /64) and of
   the lower-cased email, never either in clear. The app
   (`src/lib/auth/sign-in-limits.ts`, `src/lib/admin/sign-in-throttle.ts`)
-  builds them, holds the limits and decides.
+  builds them, holds the limits and decides. It counts the client's
+  bucket first and the email's only while the client is under its limit,
+  so a client past its limit adds nothing to any email's counter.
 
 ## 2. Customers, bikes, attachments
 

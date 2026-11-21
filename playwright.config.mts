@@ -84,6 +84,13 @@ export default defineConfig({
       STRIPE_ADAPTER: "fake",
       // Blank (env.ts reads it as unset), so a key in .env.local never meets the fake.
       STRIPE_SECRET_KEY: "",
+      // A developer's .env.local may hold real Shopify and email keys; the fake
+      // adapter refuses them (env.ts), and E2E never sends email.
+      SHOPIFY_CLIENT_ID: "",
+      SHOPIFY_CLIENT_SECRET: "",
+      SHOPIFY_ADMIN_TOKEN: "",
+      RESEND_API_KEY: "",
+      EMAIL_FROM: "",
       STRIPE_WEBHOOK_SECRET: STRIPE_TEST_WEBHOOK_SECRET,
       ADMIN_ORIGIN: baseURL,
       // The suite signs in hundreds of times from one address, past the

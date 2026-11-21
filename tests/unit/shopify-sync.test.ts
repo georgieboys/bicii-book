@@ -130,24 +130,25 @@ describe("runProductSync", () => {
       apiVersion: fake.apiVersion,
       locationId: LOCATION,
     }).hash;
-    expect(recorded()).toEqual([
-      {
-        product_id: PRODUCT_ID,
-        job_id: job().id,
-        outcome: "pushed",
-        shopify_product_id: IDS.productId,
-        shopify_variant_id: IDS.variantId,
-        shopify_inventory_item_id: IDS.inventoryItemId,
-        shopify_location_id: LOCATION,
-        pushed_quantity: 50,
-        pushed_price: "12.00",
-        desired_hash: hash,
-        api_version: fake.apiVersion,
-        error_code: null,
-        error_message: null,
-        retriable: null,
-      },
-    ]);
+    const push = {
+      product_id: PRODUCT_ID,
+      job_id: job().id,
+      outcome: "pushed",
+      shopify_product_id: IDS.productId,
+      shopify_variant_id: IDS.variantId,
+      shopify_inventory_item_id: IDS.inventoryItemId,
+      shopify_location_id: LOCATION,
+      pushed_quantity: 50,
+      pushed_price: "12.00",
+      desired_hash: hash,
+      api_version: fake.apiVersion,
+      error_code: null,
+      error_message: null,
+      retriable: null,
+    };
+    // A-09: the ids and quantity are kept before publishing, without the
+    // hash or the job; the push with both follows the publish.
+    expect(recorded()).toEqual([{ ...push, job_id: null, desired_hash: null }, push]);
   });
 
   it("asks Shopify for its location only when none is stored", async () => {
@@ -339,8 +340,84 @@ describe("runProductSync", () => {
       "publish",
     ]);
     expect(fake.quantities.get(IDS.inventoryItemId)).toBe(50);
-    expect(recorded()).toHaveLength(1);
-    expect(recorded()[0]).toMatchObject({ outcome: "failed", retriable: false });
+    expect(recorded()).toHaveLength(2);
+    expect(recorded()[1]).toMatchObject({
+      outcome: "failed",
+      job_id: job().id,
+      error_code: "shopify_auth_failed",
+      retriable: false,
+    });
+  });
+
+  it("A-09: a refused publish on a first push keeps the ids and quantity", async () => {
+    const { fake, deps, recorded } = harness(state());
+    fake.failNext(
+      new ShopifyError("shopify_user_error", false, "Shopify refused the change: no channel"),
+      "publish",
+    );
+    const result = await runProductSync(job(), deps);
+    expect(result).toMatchObject({ outcome: "failed", code: "shopify_user_error" });
+    expect(recorded()).toEqual([
+      expect.objectContaining({
+        outcome: "pushed",
+        job_id: null,
+        shopify_product_id: IDS.productId,
+        shopify_variant_id: IDS.variantId,
+        shopify_inventory_item_id: IDS.inventoryItemId,
+        pushed_quantity: 50,
+        desired_hash: null,
+      }),
+      expect.objectContaining({ outcome: "failed", job_id: job().id, retriable: false }),
+    ]);
+  });
+
+  it("A-09: a throttled publish is retried, pushing by id with the kept quantity", async () => {
+    const first = harness(state());
+    first.fake.failNext(
+      new ShopifyError("shopify_throttled", true, "Shopify is busy. It will try again."),
+      "publish",
+    );
+    await runProductSync(job(), first.deps);
+    expect(first.recorded()[1]).toMatchObject({ outcome: "failed", retriable: true });
+
+    // The retry reads what the first run kept (no hash, so not "unchanged").
+    const kept = state({
+      shopify_origin: "bicii",
+      shopify_product_id: IDS.productId,
+      shopify_variant_id: IDS.variantId,
+      shopify_inventory_item_id: IDS.inventoryItemId,
+      last_pushed_quantity: 50,
+      last_desired_hash: null,
+    });
+    const retry = harness(kept);
+    retry.fake.seedProduct(IDS, 50, "bicii-p-000032");
+    retry.fake.calls.length = 0;
+    const result = await runProductSync(job("shopify_throttled"), retry.deps);
+    expect(result.outcome).toBe("pushed");
+    expect(retry.fake.calls.map((c) => c.kind)).toEqual([
+      "productSet",
+      "inventorySetQuantities",
+      "publish",
+    ]);
+    expect(retry.fake.calls[0]).toMatchObject({ productId: IDS.productId });
+    expect(retry.fake.calls[1]).toMatchObject({ quantity: 50, compareQuantity: 50 });
+    expect(retry.fake.products.get(IDS.productId)?.published).toBe(true);
+    expect(retry.recorded().at(-1)).toMatchObject({
+      outcome: "pushed",
+      job_id: job().id,
+      desired_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
+    });
+  });
+
+  it("A-09: an ids conflict found before publishing needs a person and publishes nothing", async () => {
+    const { fake, deps, recorded } = harness(state(), {
+      code: "P0001",
+      message: "shopify_ids_conflict",
+    });
+    const result = await runProductSync(job(), deps);
+    expect(result).toMatchObject({ outcome: "failed", code: "shopify_ids_conflict" });
+    expect(fake.calls.map((c) => c.kind)).not.toContain("publish");
+    expect(recorded().at(-1)).toMatchObject({ outcome: "failed", retriable: false });
   });
 
   it("records userErrors as needing a person", async () => {

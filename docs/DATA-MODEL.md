@@ -519,7 +519,9 @@ private.sign_in_attempts               -- counters, not history
 - Keys hold SHA-256 digests of the client address (IPv6 per /64) and of
   the lower-cased email, never either in clear. The app
   (`src/lib/auth/sign-in-limits.ts`, `src/lib/admin/sign-in-throttle.ts`)
-  builds them, holds the limits and decides.
+  builds them, holds the limits and decides. It counts the client's
+  bucket first and the email's only while the client is under its limit,
+  so a client past its limit adds nothing to any email's counter.
 
 ## 2. Customers, bikes, attachments
 
@@ -3519,8 +3521,12 @@ D81, D83, D84, D86, D87):
   re-queue dismisses this job and pushes the queued one's next attempt out
   instead (one queued per product); a deferral also hands the queued one
   its code and message, so the wait is taken once (audit A-19,
-  `20261122000600_audit_integration_queue`). `job_id` may be NULL; a job closed
-  meanwhile is left closed; an unknown outcome is 22023.
+  `20261122000600_audit_integration_queue`). `job_id` may be NULL; a job
+  closed meanwhile is left closed; an unknown outcome is 22023. `failed`
+  never clears the ids, quantity or hash: before publishing an ACTIVE
+  product to the Online Store the runner records `pushed` with `job_id` and
+  `desired_hash` NULL, so a refused or throttled publish then fails the
+  job but keeps what landed, and the retry pushes again by id (A-09).
 - **Settings** (`set_shopify_settings`, admin): the only editor of the row
   and of `storefront_url` (https or NULL, trailing slashes trimmed);
   creates the row when absent; the online location must exist (P0002) and,
@@ -3794,7 +3800,10 @@ Suspense boundary.
   live counter payment, or a completed or ready status, so its figures
   equal the job card; shop-currency jobs only; its three groups are
   disjoint, and a job's amounts add up to `net_paid` until it is collected
-  and to `held_over_total` after.
+  and to `held_over_total` after. It has no row cap, so the Admin reads it
+  in pages of 1,000 (`.range()`, PostgREST's max-rows; the function orders
+  by group, then job number) and the `payments_held` export refuses more
+  than 50,000 rows.
 - Indexes (`period-reports.test.ts` "Report queries are indexed"):
   `payments_paid_at_idx` (`paid_at`, where set),
   `payment_refunds_stripe_created_idx` (`stripe_created_at`),
@@ -3917,6 +3926,18 @@ listed in `tests/fixtures/api-surface.ts` and tested for: own rows only,
 no staff-only column in the result keys, another customer's id returns
 nothing, anon is refused (`customer-access.test.ts` is the template).
 
+**Stale edit sheets (audit A-11).** The Admin's Edit customer, product
+Edit details and unit Edit details sheets write every field they show
+through the plain RLS updates above (`updateCustomer`, `updateProduct`,
+`updateUnit`). Each sheet carries the row's `updated_at` from when it
+opened as a hidden `expectedUpdatedAt`, and the update adds
+`updated_at = expectedUpdatedAt` (the `*_set_updated_at` triggers move it
+on every write). No row back while the row still exists means it changed
+since the sheet opened: the save is refused with "This changed since you
+opened it. Close the sheet and open it again." and nothing is written, so
+a stale sheet cannot revert a newer price, cost or contact detail. Any
+write to the row counts, including a unit's status change by an RPC.
+
 **Customer job projection (Phase 3, shown in Phase 11; PLAN D8, D17).**
 The four `my_work_order*` RPCs follow the pattern above. Which jobs: those
 where the caller is `work_orders.customer_id`, whoever owns the bike now (a
@@ -3998,7 +4019,7 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `update_work_order(work_order_id, requested_work = null, intake_notes = null, internal_notes = null, completion_notes = null)` → `work_orders` | S | Null keeps, '' clears (requested work cannot be cleared: `requested_work_required`); no-op when unchanged; one `details_changed` event. Any status. |
 | `add_work_order_note(note_id, work_order_id, kind work_order_note_kind, body)` → `work_order_events` | S | Locks the job; replay by `note_id` first (same job → that event; else `note_conflict`); `note_added` / `diagnosis_added` with `{note_id, body}` (1..5000; `note_required`, `note_too_long`). Any status. |
 | `set_approval_flag(work_order_id, flagged, note = null)` → `work_orders` | S | Internal flag (SPEC §7.1); note null keeps the stored one, '' clears it; `work_order_closed`; replay no-op; `approval_flagged` event. |
-| `propose_part(request_id, work_order_id, product_id, quantity int = 1, unit_sale_price = null, expected_unit_cost = null, supplier_id = null)` → uuid | S (cost or supplier: view_costs or manage_purchasing, else 42501) | D140: locks the job; replay by `request_id` (another job, kind or product → `part_request_conflict`); open job; `quantity_invalid` (1–999); `product_archived`, `product_inactive`, `indent_product_invalid` (not shop-owned and quantity-tracked, D62), `currency_mismatch`; price defaults to `private.selling_price` (`part_price_missing`); `supplier_unavailable`; event `part_requested`. No movement, no line |
+| `propose_part(request_id, work_order_id, product_id, quantity int = 1, unit_sale_price = null, expected_unit_cost = null, supplier_id = null)` → uuid | S (cost or supplier: view_costs or manage_purchasing, else 42501) | D140: locks the job; replay by `request_id` (another job, kind or product → `part_request_conflict`); open job; `quantity_invalid` (1–999); `product_archived`, `product_inactive`, `indent_product_invalid` (not shop-owned and quantity-tracked, D62), `currency_mismatch`; price defaults to `private.selling_price` (`part_price_missing`); `supplier_unavailable`; event `part_requested`. No movement, no line. The Admin's new-product path inserts the product first; when this refuses, the action archives the product that call inserted, never a replayed one, and the sheet's next submit uses a fresh product id (audit A-87) |
 | `propose_service(request_id, work_order_id, service_id, quantity line_quantity = 1, unit_sale_price = null)` → uuid | S | D140: as above for a catalogue service (`service_unavailable`); price defaults to the service's |
 | `cancel_part_request(request_id, reason)` → uuid | S; on a collected or cancelled job A or M (D149) | Locks the job; replay: a cancelled request is returned (any job, anyone); on a collected or cancelled job `work_order_closed` unless an active admin or manager (`private.can_record_refunds()`; `20261014000700`), for whom a quoted request first withdraws the job's open quote (event `quote_withdrawn`, its other items → proposed); otherwise `part_request_quoted` (withdraw the quote first); `part_request_fitted`; `reason_required`, `reason_too_long` (a refusal withdraws nothing); an ordered part stays on its purchase order; event `part_request_cancelled` `{request_id, description, reason, was}` (`was` the status before any withdrawal). Never moves the job, so D149b's guard does not apply; on a job that leaves the open statuses the AFTER trigger has already withdrawn any open quote (`20261014000900`) |
 | `send_quote(quote_id, work_order_id, request_ids uuid[], channel quote_channel, valid_days int = 7)` → text | S | D141: locks the job; `quote_already_sent` for a known id (the token cannot be shown again); open job; `quote_validity_invalid` (1–30), `quote_items_invalid` (1–50 distinct); withdraws the job's open quote first; `part_request_not_proposed`; returns the 43-character base64url token of 32 random bytes and stores only its SHA-256; items snapshot; requests → quoted; event `quote_sent` |

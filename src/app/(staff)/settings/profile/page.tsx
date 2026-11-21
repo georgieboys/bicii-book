@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 
-import { signOut } from "@/app/(auth)/login/actions";
 import { ExtraAccessBadge, RoleBadge } from "@/components/domain/role-badge";
+import { SignOutButton } from "@/components/shell/sign-out-button";
 import { Card } from "@/components/ui/card";
 import { CheckIcon, SignOutIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { SubmitButton } from "@/components/ui/submit-button";
 import {
   PERMISSION_LABELS,
   ROLE_DESCRIPTIONS,
@@ -96,15 +95,7 @@ export default async function ProfilePage() {
           </ul>
         )}
       </Card>
-      <form action={signOut}>
-        <SubmitButton
-          variant="outline"
-          icon={<SignOutIcon className="size-5" />}
-          pendingLabel="Signing out…"
-        >
-          Sign out
-        </SubmitButton>
-      </form>
+      <SignOutButton icon={<SignOutIcon className="size-5" />} />
     </>
   );
 }

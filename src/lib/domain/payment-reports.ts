@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { DbError, unwrap } from "@/lib/db-errors";
+import { readAllPages } from "@/lib/domain/paging";
 import { EXPORT_MAX_ROWS, ExportError, withOneRetry } from "@/lib/domain/period-reports";
 import { hrefForRecord } from "@/lib/ids";
 import { toMoneyString } from "@/lib/money";
@@ -216,12 +217,25 @@ export function toHeldJob(r: HeldRpcRow): HeldJob | null {
   };
 }
 
+export const HELD_TOO_LARGE_MESSAGE = `This export stops at ${EXPORT_MAX_ROWS.toLocaleString("en-SG")} jobs.`;
+
 /**
  * Customer money held on jobs NOW (D154c), whatever period is chosen: the
  * three groups in report_payments_held's order (group, then job number),
- * from the job card's own totals.
+ * from the job card's own totals. Read in pages, since PostgREST caps a
+ * response. With `max` (the export), more than `max` rows is refused
+ * (ExportError 'too_large') rather than written short.
  */
-export async function getPaymentsHeld(supabase: ServerSupabase): Promise<HeldJob[]> {
-  const rows = (unwrap(await supabase.rpc("report_payments_held")) ?? []) as HeldRpcRow[];
+export async function getPaymentsHeld(
+  supabase: ServerSupabase,
+  { max }: { max?: number } = {},
+): Promise<HeldJob[]> {
+  const rows = (await readAllPages(
+    (from, to) => supabase.rpc("report_payments_held").range(from, to),
+    max,
+  )) as HeldRpcRow[];
+  if (max !== undefined && rows.length > max) {
+    throw new ExportError("too_large", HELD_TOO_LARGE_MESSAGE);
+  }
   return rows.map(toHeldJob).filter((r): r is HeldJob => r !== null);
 }

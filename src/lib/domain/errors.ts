@@ -16,3 +16,10 @@ export class DomainError extends Error {
     this.name = "DomainError";
   }
 }
+
+/**
+ * An edit sheet's save found the row changed after the sheet opened (its
+ * updated_at no longer matches), so writing every field back would undo
+ * someone else's change (A-11). Nothing was written.
+ */
+export const STALE_EDIT = "This changed since you opened it. Close the sheet and open it again.";

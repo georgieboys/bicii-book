@@ -35,13 +35,23 @@ const COUNTER = "22222222-3333-4444-8555-000000000001";
 type Result = { data: unknown; error: { code: string; message: string } | null };
 type Call = { name: string; args: Record<string, unknown> | undefined };
 
-/** A client whose rpc answers from `answer(name, args)` and records each call. */
+/**
+ * A client whose rpc answers from `answer(name, args)` and records each
+ * call; `.range(from, to)` on it (a paged read) answers that slice.
+ */
 function clientWith(answer: (name: string, args?: Record<string, unknown>) => Result) {
   const calls: Call[] = [];
   const client = {
     rpc(name: string, args?: Record<string, unknown>) {
       calls.push({ name, args });
-      return Promise.resolve(answer(name, args));
+      return Object.assign(Promise.resolve(answer(name, args)), {
+        range: (from: number, to: number) => {
+          const r = answer(name, args);
+          return Promise.resolve(
+            Array.isArray(r.data) ? { ...r, data: r.data.slice(from, to + 1) } : r,
+          );
+        },
+      });
     },
   };
   return { supabase: client as unknown as ServerSupabase, calls };

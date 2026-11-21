@@ -1202,16 +1202,21 @@ URLs, or customer data in this file.
   per-IP limit, which counts the Admin's server. The per-client limits
   rely on the host setting the client's address in `x-forwarded-for` and
   overwriting what the client sent (Vercel does; another host might not).
+  Since 2026-11-22 a client past its own limit is refused before the
+  per-email counter is touched (`checkSignInAttempt` counts the two
+  buckets in two calls, as `link-throttle.ts` does), so one client alone
+  can no longer use up someone's per-email allowance; many clients
+  together still can.
 - Evidence and confidence: high for the design (`src/lib/auth/sign-in-limits.ts`,
-  `tests/unit/sign-in-limits.test.ts`, `tests/db/sign-in-throttle.test.ts`);
-  never observed in use.
+  `tests/unit/sign-in-limits.test.ts`, `tests/unit/sign-in-throttle.test.ts`,
+  `tests/db/sign-in-throttle.test.ts`); never observed in use.
 - Why accepted: MVP; the window is short and staff can ask an admin.
 - Workaround or containment: Auth's hosted per-IP limits sized well above
   the Admin's (RUNBOOK); logs show `auth.request_code` warnings.
 - Next action: revisit if it is ever observed, or before moving off
   Vercel.
 - Revisit trigger: a report of locked-out staff; a hosting change.
-- Last checked: 2026-10-06.
+- Last checked: 2026-11-22.
 
 ## R-039 — Hosted email delivery and Auth settings are unverified
 
@@ -1898,6 +1903,8 @@ URLs, or customer data in this file.
   show the same caps: "Showing the N most urgent of M" on Exceptions and
   "Showing the first 1,000. Choose a product to see the rest." on
   Reconciliation (the bench's 3,008 units reach it on Everything).
+  `payments_held` reads `report_payments_held` in pages of 1,000 and
+  answers 413 above 50,000 jobs.
 - Workaround or containment: export a shorter range, or the breakdown
   instead of the lines; retry after a 409. For the snapshots, fix the most
   urgent exceptions first, or export Problems only or one product. The
@@ -3255,7 +3262,9 @@ URLs, or customer data in this file.
   the shop about their bookings, which the privacy notice should say
   ([R-016](#r-016--no-retention-or-deletion-policy-for-customer-personal-data)).
 - Evidence and confidence: high for the mechanism
-  (`tests/db/appointment-notices.test.ts`, `tests/unit/appointment-notices.test.ts`);
+  (`tests/db/appointment-notices.test.ts`, `tests/unit/appointment-notices.test.ts`;
+  the route's bearer check, "off" branch and 500 path in
+  `tests/unit/appointment-notices-route.test.ts`);
   delivery in production is checked in
   [RUNBOOK "Booking emails"](RUNBOOK.md#booking-emails).
 - Workaround or containment: RUNBOOK "Booking emails" lists failed emails

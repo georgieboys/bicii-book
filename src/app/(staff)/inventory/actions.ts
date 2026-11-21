@@ -67,7 +67,7 @@ function requireCost(staff: Staff, costs: Record<string, string | null>): void {
   );
 }
 
-const productInput = (input: z.output<typeof updateProductSchema>) => ({
+const productInput = (input: Omit<z.output<typeof updateProductSchema>, "expectedUpdatedAt">) => ({
   name: input.name,
   sku: input.sku,
   brand: input.brand,
@@ -133,7 +133,7 @@ export const updateProduct = staffAction(
   { name: "inventory.update_product", permission: "manage_inventory" },
   async (input, { supabase, staff }) => {
     requireCost(staff, { cost: input.cost });
-    await updateOneProduct(supabase, input.id, productInput(input));
+    await updateOneProduct(supabase, input.id, productInput(input), input.expectedUpdatedAt);
     refresh();
     return null;
   },
@@ -177,13 +177,18 @@ export const updateUnit = staffAction(
   { name: "inventory.update_unit", permission: "manage_inventory" },
   async (input, { supabase, staff }) => {
     requireCost(staff, { unitCost: input.unitCost });
-    await updateOneUnit(supabase, input.id, {
-      serialNumber: input.serialNumber,
-      condition: input.condition,
-      salePrice: input.unitSalePrice,
-      cost: input.unitCost,
-      internalNotes: input.internalNotes,
-    });
+    await updateOneUnit(
+      supabase,
+      input.id,
+      {
+        serialNumber: input.serialNumber,
+        condition: input.condition,
+        salePrice: input.unitSalePrice,
+        cost: input.unitCost,
+        internalNotes: input.internalNotes,
+      },
+      input.expectedUpdatedAt,
+    );
     refresh();
     return null;
   },

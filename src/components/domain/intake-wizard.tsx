@@ -119,9 +119,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
   return <Wizard {...props} />;
 }
 
-function freshDraft(preset: IntakeWizardProps["preset"]): IntakeDraft {
+function freshDraft(preset: IntakeWizardProps["preset"], staffId: string): IntakeDraft {
   return {
-    v: 1,
+    v: 2,
+    staffId,
     startedAt: new Date().toISOString(),
     workOrderId: newId(),
     step: preset.customer ? (preset.bike ? 2 : 1) : 0,
@@ -144,9 +145,10 @@ const BIKES_FAILED = "The bikes could not be loaded. Check the connection and tr
 function Wizard({ me, staff, services, viewCosts, ccRate, preset, currency }: IntakeWizardProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [draft, setDraft] = useState<IntakeDraft>(() => freshDraft(preset));
-  // A draft left on this device: offered back before anything else.
-  const [offer, setOffer] = useState<IntakeDraft | null>(() => readDraft());
+  const [draft, setDraft] = useState<IntakeDraft>(() => freshDraft(preset, me.id));
+  // A draft this staff member left on this device in the last 24 hours:
+  // offered back before anything else.
+  const [offer, setOffer] = useState<IntakeDraft | null>(() => readDraft(me.id));
   const [bikes, setBikes] = useState<BikesState | null>(null);
   const [customerSheet, setCustomerSheet] = useState(false);
   const [bikeSheet, setBikeSheet] = useState(false);

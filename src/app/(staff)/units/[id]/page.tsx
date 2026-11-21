@@ -162,6 +162,7 @@ export default async function UnitPage({ params, searchParams }: PageProps<"/uni
                 ...(viewCosts ? { cost: unit.cost ?? null } : {}),
                 internalNotes: unit.internalNotes,
                 consigned,
+                updatedAt: unit.updatedAt,
               }}
               viewCosts={viewCosts}
             />

@@ -26,6 +26,8 @@ export type CustomerFields = {
   email: string | null;
   phone: string | null;
   internalNotes: string | null;
+  /** The row's updated_at when the sheet opened; the save is refused if it moved (audit A-11). */
+  updatedAt: string;
 };
 
 type State = ActionResult<unknown> | null;
@@ -112,7 +114,8 @@ function CustomerSheetBody({
   const formRef = useFocusFirstInvalid(state);
   const errors = state && !state.ok ? state.fieldErrors : undefined;
   const values = state && !state.ok ? state.values : undefined;
-  const value = (key: keyof Omit<CustomerFields, "id">) => values?.[key] ?? customer?.[key] ?? "";
+  const value = (key: keyof Omit<CustomerFields, "id" | "updatedAt">) =>
+    values?.[key] ?? customer?.[key] ?? "";
 
   return (
     <Sheet
@@ -139,6 +142,9 @@ function CustomerSheetBody({
         noValidate
       >
         <input type="hidden" name="id" value={id} />
+        {customer ? (
+          <input type="hidden" name="expectedUpdatedAt" value={customer.updatedAt} />
+        ) : null}
         {state && !state.ok ? (
           <p role="alert" className="text-sm font-medium text-danger-deep">
             {state.error}

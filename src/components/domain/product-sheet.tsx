@@ -56,6 +56,8 @@ export type ProductFields = {
   trackingType: TrackingType;
   /** D260: the frame's grade, or null. */
   frameGrade: string | null;
+  /** The row's updated_at when the sheet opened; the save is refused if it moved (audit A-11). */
+  updatedAt: string;
 };
 
 /**
@@ -336,6 +338,9 @@ function ProductSheetBody({
         noValidate
       >
         <input type="hidden" name="id" value={id} />
+        {product ? (
+          <input type="hidden" name="expectedUpdatedAt" value={product.updatedAt} />
+        ) : null}
         {state && !state.ok ? (
           <p role="alert" className="text-sm font-medium text-danger-deep">
             {state.error}

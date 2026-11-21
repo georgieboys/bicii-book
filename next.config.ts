@@ -23,6 +23,55 @@ function projectRoot(): string {
   return root;
 }
 
+/**
+ * The Supabase project's origin and its Realtime websocket, read from
+ * NEXT_PUBLIC_SUPABASE_URL when the config loads (build time). Missing or
+ * malformed, the policy names no Supabase source.
+ */
+function supabaseSources(): { origin: string[]; connect: string[] } {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!raw) return { origin: [], connect: [] };
+  try {
+    const url = new URL(raw);
+    const ws = url.protocol === "http:" ? "ws:" : "wss:";
+    return { origin: [url.origin], connect: [url.origin, `${ws}//${url.host}`] };
+  } catch {
+    return { origin: [], connect: [] };
+  }
+}
+
+/**
+ * The Content-Security-Policy, sent as Report-Only for now
+ * (docs/OPERATIONS.md "Content Security Policy"): browsers log what it would
+ * block without blocking it. Next's own inline scripts and styles need
+ * 'unsafe-inline' under a static header (a nonce needs a per-request policy
+ * in src/proxy.ts); React needs 'unsafe-eval' in development only. Photos
+ * are blob:/data: previews and Supabase Storage URLs. Stripe Checkout is a
+ * top-level navigation and needs no source, except form-action for a form
+ * posted before hydration that the server redirects there.
+ */
+function contentSecurityPolicy(): string {
+  const supabase = supabaseSources();
+  const dev = process.env.NODE_ENV === "development";
+  const directives: string[][] = [
+    ["default-src", "'self'"],
+    ["script-src", "'self'", "'unsafe-inline'", ...(dev ? ["'unsafe-eval'"] : [])],
+    ["style-src", "'self'", "'unsafe-inline'"],
+    ["img-src", "'self'", "blob:", "data:", ...supabase.origin],
+    ["font-src", "'self'"],
+    ["connect-src", "'self'", ...supabase.connect],
+    ["media-src", "'self'", "blob:"],
+    ["worker-src", "'self'"],
+    ["manifest-src", "'self'"],
+    ["frame-src", "'none'"],
+    ["object-src", "'none'"],
+    ["base-uri", "'self'"],
+    ["form-action", "'self'", "https://checkout.stripe.com"],
+    ["frame-ancestors", "'none'"],
+  ];
+  return directives.map((d) => d.join(" ")).join("; ");
+}
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
@@ -34,6 +83,8 @@ const securityHeaders = [
     value:
       "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), display-capture=()",
   },
+  // Not enforced yet: browsers report what it would block (audit A-25).
+  { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy() },
 ];
 
 /** A page whose path carries a link token: no referrer, not indexed, never cached. */

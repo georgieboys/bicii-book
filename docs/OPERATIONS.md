@@ -424,6 +424,35 @@ staging project, the code-only email templates and Auth's rate limits
 - [CI](RUNBOOK.md#ci): the `e2e` label exists and has run on PRs #2 to #7;
   required checks on `main` are unverified (R-010).
 
+### Content Security Policy
+
+Every page sends `Content-Security-Policy-Report-Only`, built in
+`next.config.ts` when the app builds: scripts, styles, fonts and workers
+from the app itself (inline allowed, as Next's static-header setup needs),
+images from the app, `blob:`, `data:` and the Supabase origin, connections
+to the app and to the Supabase origin and its websocket (both from
+`NEXT_PUBLIC_SUPABASE_URL`, so a changed project needs a rebuild), forms to
+the app and Stripe Checkout, no frames, no plugins, `base-uri 'self'`, and
+`frame-ancestors 'none'`. Report-only means a browser blocks nothing: it
+writes each would-be violation to the console. `/sw.js` keeps its own
+enforcing policy.
+
+- **Watching:** there is no report endpoint. Open the browser's developer
+  console on a preview or production deploy and look for "Content Security
+  Policy" / "[Report Only]" messages while doing the flows that load or send
+  something unusual: sign in, scan a QR label (camera), add and view photos
+  (job, product, adventure review, build package), print a label or sheet,
+  open a quote and a payment link and go to Stripe Checkout and back, and
+  the Shopify and reports screens. Note each blocked URL and directive.
+- **When to enforce:** after one deploy in which those flows show no
+  report, or each report is fixed by adding the source in
+  `contentSecurityPolicy()`. Then rename the header key to
+  `Content-Security-Policy` in the same file, update
+  `tests/unit/csp-header.test.ts`, and repeat the pass on the preview
+  before merging. Dropping `'unsafe-inline'` from `script-src` needs a
+  per-request nonce in `src/proxy.ts` and dynamic rendering (the Next.js
+  CSP guide in `node_modules/next/dist/docs/`), a larger change.
+
 ## Releases
 
 Production has run on Vercel since 2026-10-12; there is no staging. A

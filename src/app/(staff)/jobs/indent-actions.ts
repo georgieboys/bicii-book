@@ -19,7 +19,7 @@ import {
   sendQuote,
   withdrawQuote,
 } from "@/lib/domain/indent";
-import { createProduct } from "@/lib/domain/inventory";
+import { createProduct, setProductArchived } from "@/lib/domain/inventory";
 import { listSuppliers } from "@/lib/domain/suppliers";
 import { QUOTE_DAYS, quotePath } from "@/lib/indent";
 import { quoteEmailEnabled, sendQuoteEmail } from "@/lib/integrations/email/quote";
@@ -117,15 +117,18 @@ const proposePartSchema = z
 /**
  * Propose an indent part (D140): an existing product, or a new one created
  * here first (Manage inventory: internal, counted by quantity, with its
- * price and, for cost holders, the expected cost as its cost).
+ * price and, for cost holders, the expected cost as its cost). The two
+ * writes are separate, so when the proposal is refused the product this call
+ * inserted is archived again (A-87); a replayed product is left as it is.
  */
 export const proposePartAction = staffAction(
   proposePartSchema,
   { name: "indent.propose_part" },
-  async (input, { supabase, staff }) => {
+  async (input, { supabase, staff, log }) => {
     const purchaseData =
       hasPermission(staff, "view_costs") || hasPermission(staff, "manage_purchasing");
     let productId = input.productId;
+    let created = false;
     if (productId === null) {
       if (!hasPermission(staff, "manage_inventory")) {
         throw new ActionError(
@@ -136,7 +139,7 @@ export const proposePartAction = staffAction(
         );
       }
       if (input.newProductId === null) throw new ActionError("Open the form again.");
-      ({ id: productId } = await createProduct(supabase, input.newProductId, {
+      ({ id: productId, created } = await createProduct(supabase, input.newProductId, {
         trackingType: "quantity",
         name: input.newName,
         sku: null,
@@ -150,15 +153,26 @@ export const proposePartAction = staffAction(
         frameGrade: null,
       }));
     }
-    const id = await proposePart(supabase, {
-      requestId: input.requestId,
-      workOrderId: input.workOrderId,
-      productId,
-      quantity: input.quantity,
-      unitSalePrice: input.unitSalePrice,
-      expectedUnitCost: purchaseData ? input.expectedUnitCost : null,
-      supplierId: purchaseData ? input.supplierId : null,
-    });
+    let id: string;
+    try {
+      id = await proposePart(supabase, {
+        requestId: input.requestId,
+        workOrderId: input.workOrderId,
+        productId,
+        quantity: input.quantity,
+        unitSalePrice: input.unitSalePrice,
+        expectedUnitCost: purchaseData ? input.expectedUnitCost : null,
+        supplierId: purchaseData ? input.supplierId : null,
+      });
+    } catch (err) {
+      if (created) {
+        // No stray catalogue product; the proposal's own error still reaches the sheet.
+        await setProductArchived(supabase, productId, true).catch((archiveErr: unknown) =>
+          log.error({ err: archiveErr, productId }, "indent.propose_part: archive failed"),
+        );
+      }
+      throw err;
+    }
     refresh();
     return { id };
   },

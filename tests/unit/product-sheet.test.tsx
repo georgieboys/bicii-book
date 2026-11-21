@@ -39,6 +39,7 @@ const frame = (overrides: Partial<ProductFields> = {}): ProductFields => ({
   active: true,
   trackingType: "unique",
   frameGrade: null,
+  updatedAt: "2026-11-22T02:00:00.123456+00:00",
   ...overrides,
 });
 

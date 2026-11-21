@@ -99,7 +99,9 @@ managers.
 - Success looks like: the job page with its J- number, the photos, the
   people and the totals; its timeline starts "Checked in as J-…".
 - If it fails: an interrupted intake offers "Continue the intake you
-  started at …" (**Continue** or **Discard**). "Say what the customer
+  started at …" (**Continue** or **Discard**) to the person who started
+  it, on the same device, for 24 hours; signing out removes it, and your
+  recent searches, from the device. "Say what the customer
   wants done." means Requested work is empty. "That bike belongs to someone
   else. Transfer it to this customer first." "That customer is archived.
   Unarchive them before checking in a bike."
@@ -703,8 +705,9 @@ while an approved or ordered item is neither fitted nor cancelled:
   SKU or U-/P-/C- number under **Add item** and choose a result (each
   shows where it is, how many and the price; consigned ones show
   "Consigned · <consignor>"). The **Price** is the selling price; change
-  it if you agreed another. For several, set **Quantity** (up to what is
-  there). **Add item** adds more. Choose the **Customer** if they are on
+  it if you agreed another. For several, set **Quantity** (a whole
+  number, up to what is there; "1.5" or "2x" is marked and **Record
+  sale** stays off). **Add item** adds more. Choose the **Customer** if they are on
   file (empty is a walk-in); someone new can be added from the list
   (**New customer "…"**) without leaving the sale. **Sold earlier?** lets you enter when it was
   sold (not in the future, and not before the item came into the shop:
@@ -799,6 +802,11 @@ while an approved or ordered item is neither fitted nor cancelled:
   rating." Saving queues the Shopify update. A product in a group shows no
   grade on Shopify (its listing is the group's). Say it with the build when
   selling ("a B++ frame with a Classic+ build").
+- If saving **Edit details** (a product or a unit) or **Edit customer**
+  says "This changed since you opened it. Close the sheet and open it
+  again.", someone else (or a sale, a stock action or a sync) changed the
+  record while the sheet was open. Nothing was saved: close the sheet,
+  open it again to see the current values, and make your change again.
 - Consigned items (owned by someone else) are not added here: use
   [Receive a consigned item](#receive-a-consigned-item). If they were
   added here by mistake, do not archive the product or count its stock

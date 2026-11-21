@@ -75,6 +75,7 @@ export default async function CustomerPage({ params }: PageProps<"/customers/[id
                 email: customer.email,
                 phone: customer.phone,
                 internalNotes: customer.internalNotes,
+                updatedAt: customer.updatedAt,
               }}
             />
           </>

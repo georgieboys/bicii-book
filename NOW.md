@@ -11,6 +11,18 @@ statement timeouts, and a failed `migrate.yml` opens an issue (A-12); the PR
 template and RUNBOOK describe the real release flow (A-32). Owner items
 remain (see the audit's owner list).
 Before that,
+Updated: 2026-11-22 SGT (audit batch 4, app; branch `fix/audit-app`, no
+migration). A proposed part's new product is archived when the proposal
+is refused (A-87); a client over its sign-in limit no longer spends an
+email's bucket, and sign-out clears the intake draft and recent searches
+(A-08, A-27); a failed Online Store publish keeps the push result (A-09);
+edit sheets refuse to overwrite a row changed since they opened (A-11);
+long reads page past 1,000 rows and the held-money export refuses rather
+than truncates (A-28); the sale sheet takes whole quantities only (A-29);
+CSV neutralises formulas behind leading spaces (A-30); the booking-email
+cron route has tests (A-31); a Content-Security-Policy-Report-Only header
+ships, not yet enforced (A-25).
+Before that,
 Updated: 2026-11-22 SGT (audit batch 3, database; branch `fix/audit-db`,
 migrations `20261122000500` to `20261122001100`; merge after PRs #108 and
 #109). From the 2026-11-13 audit: a non-admin can no longer reactivate

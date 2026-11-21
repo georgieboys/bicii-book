@@ -48,7 +48,7 @@ import { depositBlockedIds, depositStates, type DepositState } from "@/lib/payme
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 import { newId } from "@/lib/uuid";
 import type { WorkOrderStatus } from "@/lib/workshop";
-import { callAction } from "@/lib/call-action";
+import { callAction, UNREACHABLE } from "@/lib/call-action";
 
 import { CopyText } from "./copy-text";
 import { CancelSheet, DepositBadge, FitSheet } from "./indent-sheets";
@@ -418,7 +418,7 @@ function ProposePartSheet({
 }) {
   const { toast } = useToast();
   const [requestId] = useState(newId);
-  const [newProductId] = useState(newId);
+  const [newProductId, setNewProductId] = useState(newId);
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [picked, setPicked] = useState<ProductPick | null>(null);
   const [quantity, setQuantity] = useState("1");
@@ -461,6 +461,8 @@ function ProposePartSheet({
         }),
       );
       setResult(r);
+      // A refusal archived any product it created (A-87): a retry creates a fresh one.
+      if (!r.ok && r.error !== UNREACHABLE) setNewProductId(newId());
       if (r.ok) {
         toast({ title: "Part proposed. Send a quote when you're ready.", tone: "success" });
         onClose();

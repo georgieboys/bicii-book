@@ -374,6 +374,31 @@ describe("createGraphqlShopifyAdmin", () => {
     expect(e).toMatchObject({ code: "shopify_user_error", retriable: false });
   });
 
+  it("looks the publication up again after a failed publish (A-09)", async () => {
+    const { admin, sent } = adminWith(
+      ok({
+        publications: { nodes: [{ id: "gid://shopify/Publication/1001", name: "Online Store" }] },
+      }),
+      ok({ publishablePublish: { userErrors: [{ field: ["input"], message: "Not found" }] } }),
+      ok({
+        publications: { nodes: [{ id: "gid://shopify/Publication/1002", name: "Online Store" }] },
+      }),
+      ok({ publishablePublish: { userErrors: [] } }),
+    );
+    await caught(admin.publishToOnlineStore(PRODUCT));
+    await admin.publishToOnlineStore(PRODUCT);
+    expect(sent.map((s) => s.body.query.match(/(query|mutation) (\w+)/)?.[2])).toEqual([
+      "BiciiPublications",
+      "BiciiPublish",
+      "BiciiPublications",
+      "BiciiPublish",
+    ]);
+    expect(sent[3].body.variables).toEqual({
+      id: PRODUCT,
+      input: [{ publicationId: "gid://shopify/Publication/1002" }],
+    });
+  });
+
   it("maps a missing publications scope to an access refusal naming the scopes", async () => {
     // Shopify's exact answer without read_publications (live store, 2026-11-13).
     const { admin } = adminWith(

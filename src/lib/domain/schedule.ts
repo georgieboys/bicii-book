@@ -24,6 +24,7 @@ import { WEEKDAYS } from "@/lib/schedule";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
 import { DomainError } from "./errors";
+import { readAllPages } from "./paging";
 
 /**
  * The shop's schedule configuration (SPEC §6; DATA-MODEL §3, §15; PLAN D2,
@@ -194,21 +195,24 @@ type HoldingRow = {
   status: AppointmentStatus;
 };
 
-/** Appointments overlapping [from, to) that hold capacity (not cancelled, not no-show). */
+/**
+ * Appointments overlapping [from, to) that hold capacity (not cancelled,
+ * not no-show), every one: read in pages, since PostgREST caps a response.
+ */
 async function holdingBetween(
   supabase: ServerSupabase,
   from: string,
   to: string | null,
 ): Promise<HoldingRow[]> {
-  let query = supabase
-    .from("appointments")
-    .select("id, starts_at, ends_at, capacity_units, status")
-    .gt("ends_at", from)
-    .not("status", "in", "(cancelled,no_show)")
-    .order("starts_at")
-    .limit(5000);
-  if (to) query = query.lt("starts_at", to);
-  return unwrap(await query) ?? [];
+  return readAllPages((first, last) => {
+    let query = supabase
+      .from("appointments")
+      .select("id, starts_at, ends_at, capacity_units, status")
+      .gt("ends_at", from)
+      .not("status", "in", "(cancelled,no_show)");
+    if (to) query = query.lt("starts_at", to);
+    return query.order("starts_at").order("id").range(first, last);
+  });
 }
 
 /**

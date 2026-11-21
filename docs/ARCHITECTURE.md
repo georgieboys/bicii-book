@@ -280,7 +280,10 @@ Publish online toggle and sync status on the product page in step 4
    and E2E).
 5. **Record the outcome.** `record_product_sync_result`: `pushed` (ids,
    handle, what was pushed), `unchanged`, `deferred` (two minutes, no
-   attempt used) or `failed` (backoff or needs attention, D87). The status
+   attempt used) or `failed` (backoff or needs attention, D87). An ACTIVE
+   product's ids and quantity are recorded (no hash, no job) before its
+   Online Store publish, so a failed publish keeps them; the publication
+   id is looked up again after a failed publish. The status
    staff see (`reporting.shopify_sync_status`) and the public Buy-online
    link (`reporting.public_items.buy_online_url`, D84) follow it.
 

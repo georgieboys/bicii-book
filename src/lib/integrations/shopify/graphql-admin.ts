@@ -468,11 +468,17 @@ export function createGraphqlShopifyAdmin({
         }
         onlineStorePublicationId = store.id as string;
       }
-      const data = await call(PUBLISH_MUTATION, {
-        id: productId,
-        input: [{ publicationId: onlineStorePublicationId }],
-      });
-      throwUserErrors(userErrorsOf(payloadOf(data, "publishablePublish")));
+      try {
+        const data = await call(PUBLISH_MUTATION, {
+          id: productId,
+          input: [{ publicationId: onlineStorePublicationId }],
+        });
+        throwUserErrors(userErrorsOf(payloadOf(data, "publishablePublish")));
+      } catch (e) {
+        // A-09: look the publication up again next time, in case it changed.
+        onlineStorePublicationId = null;
+        throw e;
+      }
     },
   };
 }

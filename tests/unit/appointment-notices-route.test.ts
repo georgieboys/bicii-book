@@ -26,6 +26,7 @@ vi.mock("@/lib/integrations/email/resend", async (importOriginal) => ({
 
 const { handleAppointmentNoticesRequest } =
   await import("@/lib/integrations/notifications/appointments");
+const { NOTICES_PER_RUN } = await import("@/lib/appointment-notices");
 
 const SECRET = "cron-secret-1";
 const req = (authorization?: string, method = "GET") =>
@@ -73,7 +74,7 @@ describe("handleAppointmentNoticesRequest", () => {
       expect(await res.json()).toMatchObject({ status: "ran", claimed: 0 });
     }
     expect(createServiceClient).toHaveBeenCalledTimes(2);
-    expect(rpc).toHaveBeenCalledWith("claim_appointment_notices", { max_count: 20 });
+    expect(rpc).toHaveBeenCalledWith("claim_appointment_notices", { max_count: NOTICES_PER_RUN });
   });
 
   it("without CRON_SECRET, runs without a header", async () => {

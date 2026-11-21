@@ -12,7 +12,8 @@ import { shopifyHandle } from "./ids";
  * price is product_sync_state.sale_price (Postgres, private.selling_price
  * through private.shopify_online_price) passed through as its decimal
  * string; the quantity is the ledger's available quantity at the online
- * location when the product is effectively online, else 0.
+ * location less the units on paid online orders not recorded yet (A-04),
+ * floored at 0, when the product is effectively online, else 0.
  *
  *   full          a BICII-created product (origin 'bicii' or not pushed
  *                 yet): productSet with title, vendor, plain-text
@@ -108,7 +109,11 @@ export function buildDesiredState(state: SyncState, options: DesiredStateOptions
   const mode = state.shopify_origin === "external" ? "variant_only" : "full";
   const effective = state.effective_online === true;
   const price = moneyText(state.sale_price);
-  const quantity = effective ? Math.max(0, state.available_quantity ?? 0) : 0;
+  // A-04: units on paid online orders BICII has not recorded yet are
+  // already off Shopify's count; pushing the ledger's would sell them again.
+  const quantity = effective
+    ? Math.max(0, (state.available_quantity ?? 0) - (state.unrecorded_online_quantity ?? 0))
+    : 0;
 
   // Refusals matter only while the product is meant to be live: a product
   // being unpublished is still drafted (or set to 0) whatever its prices.

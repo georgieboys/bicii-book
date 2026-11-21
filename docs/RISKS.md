@@ -1488,6 +1488,15 @@ URLs, or customer data in this file.
   change is queued during the run: the successor inherits the deferral's
   code and overwrites (audit A-19, `20261122000600_audit_integration_queue`;
   test in `tests/db/shopify-sync.test.ts`).
+  A-04 (2026-11-22): an order that needs attention (for example a mixed
+  order with an unlinked line) is not in flight, so the overwrite after
+  the deferral used to put its units back on sale in Shopify.
+  `product_sync_state.unrecorded_online_quantity` now holds back the
+  variant's units on pending or failed orders/paid events, at any age,
+  until the order is recorded or dismissed, and recording or dismissing it queues the product's sync again (D262; tests/db/shopify-sync.test.ts,
+  tests/unit/shopify-desired-state.test.ts). Residual: a unit sold by hand
+  while its order still needs attention is held back twice until the
+  order is dismissed (the RUNBOOK says to dismiss it right after).
 - Next action: kept as built in step 3 (no database change); revisit the
   in-flight scope (only orders naming the product's variant) and the
   per-order deferral (compare with Shopify's count less the order just

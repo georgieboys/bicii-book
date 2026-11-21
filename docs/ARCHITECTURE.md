@@ -266,7 +266,9 @@ Publish online toggle and sync status on the product page in step 4
    `productSet` (DRAFT at quantity 0 when not effectively online); a
    product linked to a Shopify-made product gets only its variant's price
    (`productVariantsBulkUpdate`) and inventory level, never productSet
-   (D84). The price is `sale_price` as Postgres computed it. No adapter →
+   (D84). The price is `sale_price` as Postgres computed it; the quantity
+   is the available quantity less the units on paid online orders not
+   recorded yet (`unrecorded_online_quantity`, A-04). No adapter →
    failed, retried; a missing price or a unit priced differently → failed,
    a person acts; the same hash as the last push → `unchanged` with no
    Shopify call; an order in flight → `deferred` with no call. The

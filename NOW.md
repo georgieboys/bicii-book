@@ -1,5 +1,12 @@
 # Current state
 
+Updated: 2026-11-22 SGT (D262, online stock holds, audit A-04; branch
+`fix/a04-online-holds`, migration `20261122001200`). A paid Shopify order
+BICII has not recorded keeps its units off sale online: the sync pushes the
+ledger less the units on such orders (one delivery per order, at any age),
+and recording, skipping or dismissing the order queues the product's sync
+again. Amends D83 (ADR-020 amendment 2026-11-22).
+Before that,
 Updated: 2026-11-22 SGT (audit batch 5, operations; branch
 `fix/audit-ops`, no migration). Devstack and test scripts refuse any
 non-local database (A-14); the purchasing seed test no longer depends on

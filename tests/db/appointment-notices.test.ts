@@ -4,8 +4,9 @@
  * one shop alert for each chosen staff member (active, by staff id) and
  * each listed address, and one confirmation to the customer's email. A
  * customer's own cancellation queues a shop alert (with their reason) and
- * a confirmation to them; a cancellation by staff queues only the
- * customer's email. Staff bookings queue nothing. The Admin's sender claims
+ * a confirmation to them, whoever made the booking; a cancellation of an
+ * online booking by staff queues only the customer's email. Staff bookings
+ * queue nothing otherwise. The Admin's sender claims
  * due rows and records each result (service_role only); nobody else reads
  * the outbox.
  */
@@ -205,6 +206,44 @@ describe("booking emails are queued with the booking (D163)", () => {
           attempts: 0,
         },
       ]);
+    });
+  });
+
+  it("a customer's online cancellation of a booking staff made alerts the shop too; staff cancelling one sends nothing", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { day, typeId, customerId, authUserId, address } = await onlineCustomer(tx);
+      await actAs(tx, ADMIN);
+      await setRecipients(tx, [], ["team@example.com"]);
+      const byStaff = await book(tx, { customerId, typeId, startsAt: sgt(day, "13:00") });
+      const alsoByStaff = await book(tx, { customerId, typeId, startsAt: sgt(day, "17:00") });
+      expect(await notices(tx, byStaff.id)).toEqual([]);
+
+      await actAs(tx, customerClaims(authUserId));
+      await cancelMine(tx, byStaff.id, "Bike already fixed");
+      expect(await notices(tx, byStaff.id)).toEqual([
+        {
+          kind: "cancelled",
+          audience: "customer",
+          recipient: address,
+          cancelled_by: "customer",
+          reason: null,
+          status: "pending",
+          attempts: 0,
+        },
+        {
+          kind: "cancelled",
+          audience: "shop",
+          recipient: "team@example.com",
+          cancelled_by: "customer",
+          reason: "Bike already fixed",
+          status: "pending",
+          attempts: 0,
+        },
+      ]);
+
+      await actAs(tx, ADMIN);
+      await cancel(tx, alsoByStaff.id, "Customer phoned");
+      expect(await notices(tx, alsoByStaff.id)).toEqual([]);
     });
   });
 

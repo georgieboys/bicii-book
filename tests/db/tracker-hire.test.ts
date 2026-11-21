@@ -156,10 +156,11 @@ describe("hire at checkout (D186, D187)", () => {
     await inTransaction(conn, async (tx) => {
       const { sale, days } = await setup(tx, 1);
       await checkout(tx, await makeRider(tx), sale, days[2], days[4]);
+      const earlier = await makeRider(tx);
       // Returns on the day the later hire collects: refused, as the reverse is.
       await failsWith(
         tx,
-        () => checkout(tx, await makeRider(tx), sale, days[0], days[2]),
+        () => checkout(tx, earlier, sale, days[0], days[2]),
         refused("adventure_trackers_unavailable"),
       );
     });

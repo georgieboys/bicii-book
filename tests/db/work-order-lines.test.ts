@@ -25,6 +25,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { AUTH_USER, STAFF } from "../fixtures/ids";
 import { JOB_FIXTURES, LINE_FIXTURES } from "../fixtures/cult-commons";
+import { archiveCustomerUnguarded } from "./customer-fixtures";
 import {
   actAs,
   asAnon,
@@ -211,9 +212,8 @@ describe.skipIf(!isolatedDatabase())("snapshots", () => {
       await tx.query("select public.set_service_archived($1, true)", [serviceId]);
       await ownerMode(tx);
       await tx.query("update public.bikes set archived_at = now() where id = $1", [ids.bikeId]);
-      await tx.query("update public.customers set archived_at = now() where id = $1", [
-        ids.customerId,
-      ]);
+      // The job is still open, so only the owner can archive (A-22).
+      await archiveCustomerUnguarded(tx, ids.customerId);
       await actAs(tx, MECHANIC2);
       const { rows } = await tx.query(
         `select s.name as service, s.archived_at is not null as service_archived,

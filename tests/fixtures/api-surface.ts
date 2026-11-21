@@ -683,8 +683,9 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.prepare_balance_checkout(text)",
   "public.record_balance_checkout(uuid, uuid, bigint, jsonb)",
   // Booking emails (D163): the Admin's sender (src/lib/integrations/notifications/)
+  // claims due emails under a claim token and records each result with it (R-100)
   "public.claim_appointment_notices(integer)",
-  "public.finish_appointment_notice(uuid, boolean, text)",
+  "public.finish_appointment_notice(uuid, uuid, text, text)",
   // Adventures Phase B (D167): the Admin's checkout endpoint records the
   // Checkout Session it created for an adventure payment
   "public.record_adventure_checkout(uuid, jsonb)",

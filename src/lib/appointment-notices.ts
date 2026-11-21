@@ -18,6 +18,8 @@ import { SHOP_LOCALE, SHOP_TIME_ZONE } from "@/lib/dates";
 
 export type AppointmentNotice = {
   id: string;
+  /** The claim this run holds; its result is recorded under it (R-100). */
+  claimToken: string;
   kind: "booked" | "cancelled";
   audience: "shop" | "customer";
   recipient: string;
@@ -200,6 +202,7 @@ export function appointmentNoticeEmail(
 /** A row of claim_appointment_notices as the sender uses it. */
 export type AppointmentNoticeRow = {
   id: string | null;
+  claim_token: string | null;
   kind: "booked" | "cancelled" | null;
   audience: "shop" | "customer" | null;
   recipient: string | null;
@@ -223,6 +226,7 @@ export type AppointmentNoticeRow = {
 export function noticeFromRow(row: AppointmentNoticeRow): AppointmentNotice {
   return {
     id: row.id ?? "",
+    claimToken: row.claim_token ?? "",
     kind: row.kind ?? "booked",
     audience: row.audience ?? "shop",
     recipient: row.recipient ?? "",
@@ -247,10 +251,17 @@ export function noticeFromRow(row: AppointmentNoticeRow): AppointmentNotice {
 export type NoticeSendResult =
   { ok: true } | { ok: false; reason: "rejected" | "unavailable"; status?: number };
 
+/**
+ * What finish_appointment_notice records: `sent`, `failed` (a send was
+ * tried and refused or timed out; uses an attempt) or `released` (the run
+ * did not get to it; uses nothing).
+ */
+export type NoticeOutcome = "sent" | "failed" | "released";
+
 /** What the sending loop needs; the integration passes the database and Resend. */
 export type NoticeDeps = {
   claim: (max: number) => Promise<AppointmentNotice[]>;
-  finish: (id: string, ok: boolean, error: string | null) => Promise<void>;
+  finish: (notice: AppointmentNotice, result: NoticeOutcome, error: string | null) => Promise<void>;
   send: (message: {
     to: string;
     subject: string;
@@ -259,43 +270,70 @@ export type NoticeDeps = {
     idempotencyKey: string;
   }) => Promise<NoticeSendResult>;
   adminOrigin: string | null;
+  now: () => number;
 };
 
-export type NoticeRunSummary = { claimed: number; sent: number; failed: number };
+export type NoticeRunSummary = { claimed: number; sent: number; failed: number; released: number };
 
 /**
- * Claims due booking emails and sends each once (D163d). The notice id is
- * Resend's idempotency key, so a send that succeeded but was not recorded
- * is not doubled on its retry. A failure is recorded with Resend's reason
- * and status only, never the address.
+ * At most this many emails a run: five sends at Resend's 10-second timeout
+ * fit the route's 60 seconds (R-100).
  */
-export async function runAppointmentNotices(deps: NoticeDeps, max = 20): Promise<NoticeRunSummary> {
-  const notices = await deps.claim(max);
-  let sent = 0;
-  let failed = 0;
+export const NOTICES_PER_RUN = 5;
+
+/** No send starts this long after the run began; the rest are released. */
+export const NOTICE_RUN_BUDGET_MS = 40_000;
+
+/**
+ * Claims due booking emails and sends each once (D163d) until `deadlineMs`;
+ * the emails it did not reach are released without using an attempt. The
+ * notice id is Resend's idempotency key, so a send that succeeded but was
+ * not recorded is not doubled on its retry. A failure is recorded with
+ * Resend's reason and status only, never the address. A failed write of one
+ * result does not stop the others; that row's claim lapses and it is tried
+ * again.
+ */
+export async function runAppointmentNotices(
+  deps: NoticeDeps,
+  options: { max?: number; deadlineMs: number },
+): Promise<NoticeRunSummary> {
+  const summary: NoticeRunSummary = { claimed: 0, sent: 0, failed: 0, released: 0 };
+  const notices = await deps.claim(options.max ?? NOTICES_PER_RUN);
+  summary.claimed = notices.length;
+  const record = async (n: AppointmentNotice, result: NoticeOutcome, error: string | null) => {
+    try {
+      await deps.finish(n, result, error);
+    } catch {
+      // Left claimed: the claim lapses and the row is tried again.
+    }
+  };
   for (const notice of notices) {
-    const email = appointmentNoticeEmail(notice, deps.adminOrigin);
+    if (deps.now() > options.deadlineMs) {
+      await record(notice, "released", null);
+      summary.released += 1;
+      continue;
+    }
     let result: NoticeSendResult;
     try {
       result = await deps.send({
         to: notice.recipient,
-        ...email,
+        ...appointmentNoticeEmail(notice, deps.adminOrigin),
         idempotencyKey: `appointment-notice-${notice.id}`,
       });
     } catch {
       result = { ok: false, reason: "unavailable" };
     }
     if (result.ok) {
-      await deps.finish(notice.id, true, null);
-      sent += 1;
+      await record(notice, "sent", null);
+      summary.sent += 1;
     } else {
-      await deps.finish(
-        notice.id,
-        false,
+      await record(
+        notice,
+        "failed",
         `Email ${result.reason}${result.status ? ` (${result.status})` : ""}`,
       );
-      failed += 1;
+      summary.failed += 1;
     }
   }
-  return { claimed: notices.length, sent, failed };
+  return summary;
 }

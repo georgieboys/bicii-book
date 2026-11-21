@@ -4,10 +4,13 @@
  * one shop alert for each chosen staff member (active, by staff id) and
  * each listed address, and one confirmation to the customer's email. A
  * customer's own cancellation queues a shop alert (with their reason) and
- * a confirmation to them; a cancellation by staff queues only the
- * customer's email. Staff bookings queue nothing. The Admin's sender claims
- * due rows and records each result (service_role only); nobody else reads
- * the outbox.
+ * a confirmation to them, whoever made the booking; a cancellation of an
+ * online booking by staff queues only the customer's email. Staff bookings
+ * queue nothing otherwise. The Admin's sender claims due rows under a claim
+ * token and records each result with it (service_role only); nobody else
+ * reads the outbox. An attempt counts when a result is recorded, an
+ * unreached row is released, and a late success is recorded even after the
+ * row was given up (R-100).
  */
 import { randomUUID } from "node:crypto";
 
@@ -208,6 +211,44 @@ describe("booking emails are queued with the booking (D163)", () => {
     });
   });
 
+  it("a customer's online cancellation of a booking staff made alerts the shop too; staff cancelling one sends nothing", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { day, typeId, customerId, authUserId, address } = await onlineCustomer(tx);
+      await actAs(tx, ADMIN);
+      await setRecipients(tx, [], ["team@example.com"]);
+      const byStaff = await book(tx, { customerId, typeId, startsAt: sgt(day, "13:00") });
+      const alsoByStaff = await book(tx, { customerId, typeId, startsAt: sgt(day, "17:00") });
+      expect(await notices(tx, byStaff.id)).toEqual([]);
+
+      await actAs(tx, customerClaims(authUserId));
+      await cancelMine(tx, byStaff.id, "Bike already fixed");
+      expect(await notices(tx, byStaff.id)).toEqual([
+        {
+          kind: "cancelled",
+          audience: "customer",
+          recipient: address,
+          cancelled_by: "customer",
+          reason: null,
+          status: "pending",
+          attempts: 0,
+        },
+        {
+          kind: "cancelled",
+          audience: "shop",
+          recipient: "team@example.com",
+          cancelled_by: "customer",
+          reason: "Bike already fixed",
+          status: "pending",
+          attempts: 0,
+        },
+      ]);
+
+      await actAs(tx, ADMIN);
+      await cancel(tx, alsoByStaff.id, "Customer phoned");
+      expect(await notices(tx, alsoByStaff.id)).toEqual([]);
+    });
+  });
+
   it("a cancellation without a reason carries none; a staff cancellation only tells the customer", async () => {
     await inTransaction(conn, async (tx) => {
       const { day, typeId, authUserId, address } = await onlineCustomer(tx);
@@ -283,9 +324,10 @@ describe("who sets the recipients (D163b)", () => {
   });
 });
 
-describe("the sender's claim and result (service_role only)", () => {
+describe("the sender's claim and result (service_role only; R-100)", () => {
   type Claimed = {
     id: string;
+    claim_token: string;
     kind: string;
     audience: string;
     recipient: string;
@@ -297,12 +339,58 @@ describe("the sender's claim and result (service_role only)", () => {
     public_site_url: string | null;
   };
 
+  type Outcome = "sent" | "failed" | "released";
+
   const claim = (tx: pg.Client, max = 10) =>
     tx
       .query<Claimed>("select * from public.claim_appointment_notices($1)", [max])
       .then((r) => r.rows);
-  const finish = (tx: pg.Client, id: string, ok: boolean, error: string | null = null) =>
-    tx.query("select public.finish_appointment_notice($1, $2, $3)", [id, ok, error]);
+  const claimOne = async (tx: pg.Client, id: string) =>
+    (await claim(tx, 20)).find((c) => c.id === id);
+  const finish = (
+    tx: pg.Client,
+    id: string,
+    token: string,
+    result: Outcome,
+    error: string | null = null,
+  ) =>
+    scalar<boolean>(tx, "select public.finish_appointment_notice($1, $2, $3, $4)", [
+      id,
+      token,
+      result,
+      error,
+    ]);
+
+  type Row = {
+    status: string;
+    attempts: number;
+    claims: number;
+    claimed: boolean;
+    last_error: string | null;
+    sent: boolean;
+  };
+  /** One outbox row's sending state, read as the owner. */
+  const row = (tx: pg.Client, id: string) =>
+    readAsOwner(tx, async () => {
+      const { rows } = await tx.query<Row>(
+        `select status::text, attempts, claims, claim_token is not null as claimed, last_error,
+                sent_at is not null as sent
+           from private.appointment_notices where id = $1`,
+        [id],
+      );
+      return rows[0];
+    });
+  /** Makes the row due again and lets its claim lapse (time stands still in a transaction). */
+  const lapse = (tx: pg.Client, id: string) =>
+    readAsOwner(tx, () =>
+      tx.query(
+        `update private.appointment_notices
+            set next_attempt_at = least(next_attempt_at, now() - interval '1 second'),
+                claimed_until = case when claimed_until is not null then now() - interval '1 second' end
+          where id = $1`,
+        [id],
+      ),
+    );
 
   async function queued(tx: pg.Client) {
     const { day, typeId, authUserId } = await onlineCustomer(tx);
@@ -310,64 +398,66 @@ describe("the sender's claim and result (service_role only)", () => {
     await setRecipients(tx, [], ["team@example.com"]);
     await actAs(tx, customerClaims(authUserId));
     const appt = await bookMine(tx, { typeId, startsAt: sgt(day, "09:30"), customerNote: "Hi" });
-    return appt.id;
+    const id = await readAsOwner(tx, () =>
+      scalar<string>(
+        tx,
+        "select id::text from private.appointment_notices where appointment_id = $1 and audience = 'shop'",
+        [appt.id],
+      ),
+    );
+    return { appointmentId: appt.id, id };
   }
 
-  it("claims each due email once with what it needs, and records sent", async () => {
+  it("claims each due email once with what it needs and a claim token, and records sent", async () => {
     await inTransaction(conn, async (tx) => {
-      const appointmentId = await queued(tx);
+      const { appointmentId, id } = await queued(tx);
       await actAs(tx, SERVICE);
       const first = (await claim(tx, 50)).filter((c) => c.recipient === "team@example.com");
       expect(first).toHaveLength(1);
       expect(first[0]).toMatchObject({
+        id,
         kind: "booked",
         audience: "shop",
-        attempts: 1,
+        // Claiming uses no attempt.
+        attempts: 0,
         customer_name: "Alex Rider",
         customer_first_name: "Alex",
         customer_note: "Hi",
       });
+      expect(first[0].claim_token).toMatch(/^[0-9a-f-]{36}$/);
       expect(first[0].appointment_type).toMatch(/^Tune-up /);
       // Claimed rows are not handed out again while claimed.
       expect((await claim(tx, 50)).filter((c) => c.recipient === "team@example.com")).toEqual([]);
 
-      await finish(tx, first[0].id, true);
-      const sent = (await notices(tx, appointmentId)).find(
-        (n) => n.recipient === "team@example.com",
-      );
-      expect(sent).toMatchObject({ status: "sent", attempts: 1 });
-      // Finishing again changes nothing.
-      await finish(tx, first[0].id, false, "late");
+      expect(await finish(tx, id, first[0].claim_token, "sent")).toBe(true);
       expect(
         (await notices(tx, appointmentId)).find((n) => n.recipient === "team@example.com"),
-      ).toMatchObject({ status: "sent" });
+      ).toMatchObject({ status: "sent", attempts: 0 });
+      expect(await row(tx, id)).toMatchObject({ claimed: false, sent: true, last_error: null });
+      // Finishing again changes nothing.
+      expect(await finish(tx, id, first[0].claim_token, "failed", "late")).toBe(false);
+      expect(await row(tx, id)).toMatchObject({ status: "sent", attempts: 0 });
     });
   });
 
-  it("a failure waits and retries; the fifth failure gives up", async () => {
+  it("a failure counts an attempt, waits and retries; the fifth failure gives up", async () => {
     await inTransaction(conn, async (tx) => {
-      const appointmentId = await queued(tx);
-      const id = await readAsOwner(tx, () =>
-        scalar<string>(
-          tx,
-          "select id::text from private.appointment_notices where appointment_id = $1 and audience = 'shop'",
-          [appointmentId],
-        ),
-      );
+      const { id } = await queued(tx);
       await actAs(tx, SERVICE);
       for (let attempt = 1; attempt <= 5; attempt += 1) {
         // Make it due again (the backoff would otherwise hold it).
-        await readAsOwner(tx, () =>
-          tx.query(
-            "update private.appointment_notices set next_attempt_at = now() - interval '1 second' where id = $1",
-            [id],
-          ),
-        );
-        const claimed = (await claim(tx, 50)).find((c) => c.id === id);
-        expect(claimed?.attempts).toBe(attempt);
-        await finish(tx, id, false, "Resend unavailable (503)");
-        const row = (await notices(tx, appointmentId)).find((n) => n.audience === "shop");
-        expect(row?.status).toBe(attempt < 5 ? "pending" : "failed");
+        await lapse(tx, id);
+        const claimed = await claimOne(tx, id);
+        expect(claimed?.attempts).toBe(attempt - 1);
+        expect(
+          await finish(tx, id, claimed!.claim_token, "failed", "Resend unavailable (503)"),
+        ).toBe(true);
+        expect(await row(tx, id)).toMatchObject({
+          status: attempt < 5 ? "pending" : "failed",
+          attempts: attempt,
+          claimed: false,
+          last_error: "Resend unavailable (503)",
+        });
       }
       const later = await readAsOwner(tx, () =>
         scalar<boolean>(
@@ -380,13 +470,114 @@ describe("the sender's claim and result (service_role only)", () => {
     });
   });
 
+  it("claims that lapse without a result use no attempt (A-10)", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { id } = await queued(tx);
+      await actAs(tx, SERVICE);
+      for (let i = 1; i <= 6; i += 1) {
+        await lapse(tx, id);
+        const claimed = await claimOne(tx, id);
+        expect(claimed?.attempts).toBe(0);
+      }
+      // Before R-100 the sixth claim marked the row failed; now it is still
+      // pending, claimed, with no attempt used.
+      expect(await row(tx, id)).toMatchObject({
+        status: "pending",
+        attempts: 0,
+        claims: 6,
+        claimed: true,
+      });
+    });
+  });
+
+  it("only the current claim's result is recorded; a stale token is a no-op", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { id } = await queued(tx);
+      await actAs(tx, SERVICE);
+      const stale = (await claimOne(tx, id))!.claim_token;
+      await lapse(tx, id);
+      const current = (await claimOne(tx, id))!.claim_token;
+      expect(current).not.toBe(stale);
+
+      for (const result of ["sent", "failed", "released"] as const) {
+        expect(await finish(tx, id, stale, result, "old run")).toBe(false);
+      }
+      expect(await row(tx, id)).toMatchObject({
+        status: "pending",
+        attempts: 0,
+        claims: 2,
+        claimed: true,
+        last_error: null,
+      });
+      expect(await finish(tx, id, randomUUID(), "sent")).toBe(false);
+
+      expect(await finish(tx, id, current, "sent")).toBe(true);
+      expect(await row(tx, id)).toMatchObject({ status: "sent", sent: true });
+    });
+  });
+
+  it("an email the run did not reach is released: no attempt, the claim given back, due at once", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { id } = await queued(tx);
+      await actAs(tx, SERVICE);
+      const claimed = await claimOne(tx, id);
+      expect(await finish(tx, id, claimed!.claim_token, "released")).toBe(true);
+      expect(await row(tx, id)).toMatchObject({
+        status: "pending",
+        attempts: 0,
+        claims: 0,
+        claimed: false,
+      });
+      // Released again under the same token: nothing to release.
+      expect(await finish(tx, id, claimed!.claim_token, "released")).toBe(false);
+      // Due at once, without waiting for a backoff or a lapsed claim.
+      expect((await claimOne(tx, id))?.attempts).toBe(0);
+
+      await failsWith(tx, () => finish(tx, id, claimed!.claim_token, "bounced" as Outcome), {
+        code: "22023",
+      });
+    });
+  });
+
+  it("15 unanswered claims give up, and a success arriving after that is still recorded (A-20)", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { id } = await queued(tx);
+      await actAs(tx, SERVICE);
+      const token = (await claimOne(tx, id))!.claim_token;
+      // The fifteenth claim, its send still in flight when the claim lapses.
+      await readAsOwner(tx, () =>
+        tx.query(
+          "update private.appointment_notices set claims = 15, claimed_until = now() - interval '1 second' where id = $1",
+          [id],
+        ),
+      );
+      expect(await claimOne(tx, id)).toBeUndefined();
+      expect(await row(tx, id)).toMatchObject({
+        status: "failed",
+        attempts: 0,
+        last_error: "No result was recorded after 15 claims.",
+      });
+
+      // The send then succeeds: the delivered email is recorded as sent.
+      expect(await finish(tx, id, token, "sent")).toBe(true);
+      expect(await row(tx, id)).toMatchObject({
+        status: "sent",
+        sent: true,
+        claimed: false,
+        last_error: null,
+      });
+    });
+  });
+
   it("no API role but service_role may claim or finish, and none reads the outbox", async () => {
     await inTransaction(conn, async (tx) => {
-      const appointmentId = await queued(tx);
+      const { appointmentId } = await queued(tx);
       for (const claims of [ADMIN, { role: "anon" as const }]) {
         await actAs(tx, claims);
         await failsWith(tx, () => claim(tx), { code: "42501" });
-        await failsWith(tx, () => finish(tx, randomUUID(), true), { code: "42501" });
+        await failsWith(tx, () => finish(tx, randomUUID(), randomUUID(), "sent"), {
+          code: "42501",
+        });
         await failsWith(
           tx,
           () =>

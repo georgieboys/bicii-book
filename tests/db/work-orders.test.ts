@@ -28,6 +28,7 @@ import { WORK_ORDER_STATUSES, transitionRule, type WorkOrderStatus } from "@/lib
 
 import { AUTH_USER, STAFF } from "../fixtures/ids";
 import {
+  archiveCustomerUnguarded,
   attachmentPath,
   customerClaims,
   linkCustomerLogin,
@@ -233,9 +234,8 @@ describe.skipIf(!isolatedDatabase())("check-in: create_work_order", () => {
         other,
       ]);
       await ownerMode(tx);
-      await tx.query("update public.customers set archived_at = now() where id = $1", [
-        ids.customerId,
-      ]);
+      // The job is still open, so only the owner can archive (A-22).
+      await archiveCustomerUnguarded(tx, ids.customerId);
       await actAs(tx, ADMIN);
       const before = await events(tx, id);
       const replay = await createWorkOrder(tx, { id, ...ids });

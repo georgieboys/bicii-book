@@ -197,9 +197,14 @@ export function permissionChangeBlocker(
  * Why `actor` may not deactivate or reactivate `target`, or null when they
  * may. Mirrors set_staff_active (D93): an admin acts on anyone but
  * themselves; anyone else needs manage_staff and acts on mechanics only;
- * nobody deactivates themselves.
+ * nobody deactivates themselves. Reactivating restores the target's kept
+ * exceptions, so anyone but an admin reactivates only someone whose
+ * exceptions they could grant: never manage_staff, only what they hold.
  */
-export function accessChangeBlocker(actor: Actor, target: Target): string | null {
+export function accessChangeBlocker(
+  actor: Actor,
+  target: Target & { active?: boolean; grantedPermissions?: readonly PermissionKey[] },
+): string | null {
   if (!actor.active) return "Only active staff can change access.";
   // require_permission('manage_staff') unless private.is_admin().
   if (actor.role !== "admin" && !hasPermission(actor, "manage_staff")) {
@@ -210,6 +215,14 @@ export function accessChangeBlocker(actor: Actor, target: Target): string | null
   // target.role <> 'mechanic' and not caller_is_admin.
   if (target.role !== "mechanic" && actor.role !== "admin") {
     return "Only an admin changes an admin's or a manager's access.";
+  }
+  // Reactivating, not caller_is_admin, and an exception the caller cannot grant.
+  if (
+    target.active === false &&
+    actor.role !== "admin" &&
+    (target.grantedPermissions ?? []).some((p) => p === "manage_staff" || !hasPermission(actor, p))
+  ) {
+    return "Only an admin reactivates someone with access you can't grant.";
   }
   return null;
 }

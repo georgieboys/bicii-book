@@ -17,7 +17,7 @@ import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { AUTH_USER, BIKE, BIKE_SHORT_ID, CUSTOMER, STAFF } from "../fixtures/ids";
-import { customerClaims, linkCustomerLogin } from "./customer-fixtures";
+import { archiveCustomerUnguarded, customerClaims, linkCustomerLogin } from "./customer-fixtures";
 import {
   actAs,
   asAnon,
@@ -178,14 +178,24 @@ describe("customers", () => {
 
   it("staff edit and archive customers but cannot delete them", async () => {
     await asStaff(conn, STAFF.mechanic2, async (tx) => {
-      await tx.query(
-        "update public.customers set phone = '+65 9999 0000', archived_at = now() where id = $1",
-        [CUSTOMER.chloe],
-      );
-      const row = await tx.query("select phone, archived_at from public.customers where id = $1", [
+      await tx.query("update public.customers set phone = '+65 9999 0000' where id = $1", [
         CUSTOMER.chloe,
       ]);
-      expect(row.rows[0].phone).toBe("+65 9999 0000");
+      const { rows } = await tx.query<{ id: string }>(
+        "insert into public.customers (display_name) values ('Archive Me') returning id",
+      );
+      await tx.query(
+        "update public.customers set phone = '+65 9999 0001', archived_at = now() where id = $1",
+        [rows[0].id],
+      );
+      const chloe = await tx.query("select phone from public.customers where id = $1", [
+        CUSTOMER.chloe,
+      ]);
+      expect(chloe.rows[0].phone).toBe("+65 9999 0000");
+      const row = await tx.query("select phone, archived_at from public.customers where id = $1", [
+        rows[0].id,
+      ]);
+      expect(row.rows[0].phone).toBe("+65 9999 0001");
       expect(row.rows[0].archived_at).not.toBeNull();
     });
     await expect(
@@ -335,9 +345,7 @@ describe("bikes", () => {
 
   createsBikes("cannot be given to an archived customer", async () => {
     await inTransaction(conn, async (tx) => {
-      await tx.query("update public.customers set archived_at = now() where id = $1", [
-        CUSTOMER.chloe,
-      ]);
+      await archiveCustomerUnguarded(tx, CUSTOMER.chloe);
       await actAs(tx, staffClaims(AUTH_USER.mechanic1));
       await expect(
         tx.query("insert into public.bikes (customer_id, brand, model) values ($1, 'X', 'Y')", [
@@ -487,9 +495,7 @@ describe("transfer_bike_ownership", () => {
 
   it("refuses archived customers and archived bikes", async () => {
     await inTransaction(conn, async (tx) => {
-      await tx.query("update public.customers set archived_at = now() where id = $1", [
-        CUSTOMER.chloe,
-      ]);
+      await archiveCustomerUnguarded(tx, CUSTOMER.chloe);
       await actAs(tx, staffClaims(AUTH_USER.mechanic1));
       await expect(transfer(tx, BIKE.tanTarmac, CUSTOMER.chloe, "Sold")).rejects.toMatchObject({
         code: "P0001",

@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  NOTICE_RUN_BUDGET_MS,
   noticeFromRow,
   runAppointmentNotices,
   type AppointmentNoticeRow,
@@ -19,35 +20,43 @@ import { createServiceClient } from "@/lib/supabase/service";
  * them through Resend. Off while RESEND_API_KEY or EMAIL_FROM is unset: the
  * rows wait. The route needs no secret while CRON_SECRET is unset, because
  * it only sends what the database has already queued, each once; with
- * CRON_SECRET set it asks for it, as the integration cron does.
+ * CRON_SECRET set it asks for it, as the integration cron does. A run
+ * claims at most 5 emails, starts no send after 40 seconds (the route's
+ * maxDuration is 60) and releases the emails it did not reach (R-100).
  */
 export async function sendDueAppointmentNotices(
   correlationId = newRequestId(),
+  deadlineMs = Date.now() + NOTICE_RUN_BUDGET_MS,
 ): Promise<({ status: "ran" } & NoticeRunSummary) | { status: "off" }> {
   const env = getServerEnv();
   const config = emailConfig(env);
   if (!config) return { status: "off" };
   const supabase = createServiceClient({ correlationId });
-  const summary = await runAppointmentNotices({
-    claim: async (max) => {
-      const { data, error } = await supabase.rpc("claim_appointment_notices", { max_count: max });
-      if (error) throw new Error(`claim_appointment_notices failed: ${error.code}`);
-      return ((data ?? []) as AppointmentNoticeRow[]).map(noticeFromRow);
+  const summary = await runAppointmentNotices(
+    {
+      claim: async (max) => {
+        const { data, error } = await supabase.rpc("claim_appointment_notices", { max_count: max });
+        if (error) throw new Error(`claim_appointment_notices failed: ${error.code}`);
+        return ((data ?? []) as AppointmentNoticeRow[]).map(noticeFromRow);
+      },
+      finish: async (notice, result, message) => {
+        const { error } = await supabase.rpc("finish_appointment_notice", {
+          notice_id: notice.id,
+          claim_token: notice.claimToken,
+          result,
+          error: message ?? undefined,
+        });
+        if (error) throw new Error(`finish_appointment_notice failed: ${error.code}`);
+      },
+      send: async (message) => {
+        const result = await sendEmail(config, message);
+        return result.ok ? { ok: true } : result;
+      },
+      adminOrigin: env.ADMIN_ORIGIN ?? null,
+      now: Date.now,
     },
-    finish: async (id, ok, message) => {
-      const { error } = await supabase.rpc("finish_appointment_notice", {
-        notice_id: id,
-        ok,
-        error: message ?? undefined,
-      });
-      if (error) throw new Error(`finish_appointment_notice failed: ${error.code}`);
-    },
-    send: async (message) => {
-      const result = await sendEmail(config, message);
-      return result.ok ? { ok: true } : result;
-    },
-    adminOrigin: env.ADMIN_ORIGIN ?? null,
-  });
+    { deadlineMs },
+  );
   return { status: "ran", ...summary };
 }
 
@@ -57,6 +66,7 @@ function respond(status: number, body: unknown): Response {
 
 /** GET (the Vercel cron) or POST: send what is due. */
 export async function handleAppointmentNoticesRequest(request: Request): Promise<Response> {
+  const deadlineMs = Date.now() + NOTICE_RUN_BUDGET_MS;
   const correlationId = newRequestId();
   const log = child(correlationId, { route: "cron", job: "appointment-notices" });
   const secret = getServerEnv().CRON_SECRET;
@@ -65,10 +75,15 @@ export async function handleAppointmentNoticesRequest(request: Request): Promise
     return respond(401, { error: "unauthorized" });
   }
   try {
-    const result = await sendDueAppointmentNotices(correlationId);
+    const result = await sendDueAppointmentNotices(correlationId, deadlineMs);
     if (result.status === "ran" && result.claimed > 0) {
       log.info(
-        { claimed: result.claimed, sent: result.sent, failed: result.failed },
+        {
+          claimed: result.claimed,
+          sent: result.sent,
+          failed: result.failed,
+          released: result.released,
+        },
         "booking emails sent",
       );
     }

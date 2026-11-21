@@ -1,5 +1,14 @@
 # Current state
 
+Updated: 2026-11-22 SGT (audit batch 2, Adventures; branch
+`fix/audit-adventures`, migration `20261122000400`, merge after batch 1's
+PR #108 so the migrations apply in order). An earlier tracker hire sold
+after a later one is now checked through its own return and grace days; a
+stale payment page on a replaced or cancelled booking is read back; a
+rider's cancellation request no longer emails a false payment alert and
+always counts in Health; a ride file whose result the database refuses is
+marked unreadable instead of blocking the parse queue.
+Before that,
 Updated: 2026-11-22 SGT (backend audit, local-only `AUDIT-2026-11-22.md`;
 batch 1 on branch `fix/audit-builds`, migration `20261122000300`). Build
 RPCs no longer return line costs to staff without cost access; linking a

@@ -1613,8 +1613,8 @@ URLs, or customer data in this file.
   that scheduler a retry backing off a minute, a deferred stock push
   (D83) or a refund waiting for its order can wait until the next
   webhook, staff action or the daily run. A runner claims a job only
-  while that job's worst case (four Shopify calls at the 10 s timeout plus
-  5 s) still ends 5 s before the function's `maxDuration` (60 s), so a
+  while that job's worst case (seven Shopify calls at the 10 s timeout plus
+  5 s) still ends 5 s before the function's `maxDuration` (90 s), so a
   slow Shopify no longer runs a claimed job past the limit
   (`tests/unit/shopify-cron-route.test.ts` "the runner's time budget").
   If the platform stops the function anyway, or a runner cannot store a

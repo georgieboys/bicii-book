@@ -11081,36 +11081,10 @@ export type Database = {
       };
       reprice_build_line: {
         Args: { line_id: string; unit_sale_price: unknown };
-        Returns: {
-          consignment_item_id: string | null;
-          consignor_payout_snapshot: number | null;
-          cost_pending: boolean;
-          cost_total: number | null;
-          created_at: string;
-          created_by: string | null;
-          cult_commons_rate_snapshot: number;
-          cult_commons_share: number | null;
-          currency: string;
-          description_snapshot: string;
-          id: string;
-          line_type: Database["public"]["Enums"]["line_type"];
-          quantity: number;
-          sale_total: number | null;
-          source_inventory_unit_id: string | null;
-          source_product_id: string | null;
-          source_service_id: string | null;
-          unit_direct_cost_snapshot: number;
-          unit_list_price_snapshot: number | null;
-          unit_sale_price_snapshot: number;
-          void_reason: string | null;
-          voided_at: string | null;
-          voided_by: string | null;
-          work_order_id: string;
-          yield_total: number | null;
-        };
+        Returns: Database["public"]["CompositeTypes"]["build_line_result"];
         SetofOptions: {
           from: "*";
-          to: "work_order_line_items";
+          to: "build_line_result";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -11716,36 +11690,10 @@ export type Database = {
       };
       set_build_line_extra: {
         Args: { extra: boolean; line_id: string };
-        Returns: {
-          consignment_item_id: string | null;
-          consignor_payout_snapshot: number | null;
-          cost_pending: boolean;
-          cost_total: number | null;
-          created_at: string;
-          created_by: string | null;
-          cult_commons_rate_snapshot: number;
-          cult_commons_share: number | null;
-          currency: string;
-          description_snapshot: string;
-          id: string;
-          line_type: Database["public"]["Enums"]["line_type"];
-          quantity: number;
-          sale_total: number | null;
-          source_inventory_unit_id: string | null;
-          source_product_id: string | null;
-          source_service_id: string | null;
-          unit_direct_cost_snapshot: number;
-          unit_list_price_snapshot: number | null;
-          unit_sale_price_snapshot: number;
-          void_reason: string | null;
-          voided_at: string | null;
-          voided_by: string | null;
-          work_order_id: string;
-          yield_total: number | null;
-        };
+        Returns: Database["public"]["CompositeTypes"]["build_line_result"];
         SetofOptions: {
           from: "*";
-          to: "work_order_line_items";
+          to: "build_line_result";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -13251,6 +13199,13 @@ export type Database = {
         reason: string | null;
         public_site_url: string | null;
         timezone: string | null;
+      };
+      build_line_result: {
+        line_id: string | null;
+        unit_sale_price: number | null;
+        unit_list_price: number | null;
+        sale_total: number | null;
+        currency: string | null;
       };
       consignment_item_result: {
         item_id: string | null;

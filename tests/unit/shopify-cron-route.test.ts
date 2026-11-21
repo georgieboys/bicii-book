@@ -76,7 +76,7 @@ describe("handleCronRequest", () => {
 });
 
 describe("the route modules", () => {
-  it("run on Node with a 60 s budget and export only their method", async () => {
+  it("run on Node with a 90 s budget and export only their method", async () => {
     vi.doMock("@/lib/integrations/shopify/cron", () => ({
       handleCronRequest: async () => new Response("cron"),
     }));
@@ -86,13 +86,13 @@ describe("the route modules", () => {
     const cron = await import("@/app/api/cron/integrations/route");
     const webhooks = await import("@/app/api/shopify/webhooks/route");
     expect(cron.runtime).toBe("nodejs");
-    expect(cron.maxDuration).toBe(60);
+    expect(cron.maxDuration).toBe(90);
     // config's budget arithmetic assumes exactly this limit.
     expect(cron.maxDuration * 1000).toBe(RUNNER_MAX_DURATION_MS);
     expect(Object.keys(cron).sort()).toEqual(["GET", "maxDuration", "runtime"]);
     expect(await (await cron.GET(req())).text()).toBe("cron");
     expect(webhooks.runtime).toBe("nodejs");
-    expect(webhooks.maxDuration).toBe(60);
+    expect(webhooks.maxDuration).toBe(90);
     expect(Object.keys(webhooks).sort()).toEqual(["POST", "maxDuration", "runtime"]);
     expect(await (await webhooks.POST(req())).text()).toBe("webhook");
   });
@@ -133,7 +133,7 @@ describe("the runner's time budget (D87)", () => {
     // Claimed at 0, 4 and 8 s; at 12 s a job's worst case would end past 55 s.
     expect(claims).toEqual([0, 4_000, 8_000]);
     expect(summary).toMatchObject({ claimed: 3, done: 3 });
-    for (const at of claims) expect(at + MAX_JOB_MS + RUNNER_MARGIN_MS).toBeLessThanOrEqual(60_000);
+    for (const at of claims) expect(at + MAX_JOB_MS + RUNNER_MARGIN_MS).toBeLessThanOrEqual(RUNNER_MAX_DURATION_MS);
 
     // Past the deadline from the start: nothing is claimed at all.
     clock = lastClaimAt(0) + 1;

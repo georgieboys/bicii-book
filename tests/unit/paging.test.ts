@@ -197,7 +197,8 @@ describe("money held on jobs now (report_payments_held)", () => {
     }));
 
   it("reads every row in pages: 1,000 then 3 is 1,003, the page and the export alike", async () => {
-    const c = fakeClient(() => held(1003));
+    const all = held(1003);
+    const c = fakeClient(() => all);
     expect(await getPaymentsHeld(c.supabase)).toHaveLength(1003);
     expect(await EXPORT_FETCHERS.payments_held(c.supabase, {} as never)).toHaveLength(1003);
     expect(pagesOf(c.queries, "report_payments_held")).toEqual([
@@ -209,7 +210,8 @@ describe("money held on jobs now (report_payments_held)", () => {
   });
 
   it("the export refuses more than EXPORT_MAX_ROWS rather than writing it short", async () => {
-    const c = fakeClient(() => held(EXPORT_MAX_ROWS + 1));
+    const all = held(EXPORT_MAX_ROWS + 1);
+    const c = fakeClient(() => all);
     const refused = EXPORT_FETCHERS.payments_held(c.supabase, {} as never);
     await expect(refused).rejects.toBeInstanceOf(ExportError);
     await expect(refused).rejects.toMatchObject({ reason: "too_large" });
@@ -218,7 +220,8 @@ describe("money held on jobs now (report_payments_held)", () => {
   });
 
   it("exactly EXPORT_MAX_ROWS is written whole", async () => {
-    const c = fakeClient(() => held(EXPORT_MAX_ROWS));
+    const all = held(EXPORT_MAX_ROWS);
+    const c = fakeClient(() => all);
     expect(await EXPORT_FETCHERS.payments_held(c.supabase, {} as never)).toHaveLength(
       EXPORT_MAX_ROWS,
     );

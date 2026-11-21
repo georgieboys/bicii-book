@@ -264,6 +264,8 @@ export const addPartSchema = z
     quantity: partQuantity,
     locationId: optionalId("Choose a location."),
     unitSalePrice: optionalMoney("price"),
+    // D261: on a job with a build package, charge it on top of the package.
+    buildExtra: toggle,
   })
   .superRefine((v, ctx) => {
     if (v.unitId && v.quantity !== 1) {

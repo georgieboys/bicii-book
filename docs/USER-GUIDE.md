@@ -229,6 +229,18 @@ managers.
     difference goes to labour. The card then says **Adds up to the price**.
   - To change one part's price instead, **Reprice** on its row. The card
     shows how far the package is from its price until it adds up again.
+  - Something the customer adds on top (a consigned saddle, a used part
+    from the shop): add it with **Add part** and tick **Charge on top of
+    the build package**, or press **Charge on top** on its row in the
+    card. It moves to **Extras, charged on top**, keeps its own price (a
+    fitted part goes back to its shelf price) and **Fit parts to budget**
+    leaves it alone; the job's total is the package price plus the
+    extras. **Back in package** undoes it; fit again to price it in. A
+    consigned extra still owes its consignor when the job is completed.
+  - A one-off that isn't in stock and needs no SKU: in **Add part**, choose
+    **one-off line** (it carries what you searched for) or use **Add
+    manual line**. Manual lines are always charged on top of the package.
+    A consigned item is received under **Consignment** first.
   - **Change package** swaps it; **Take off** (with a reason) voids the
     labour line and puts repriced parts back to their shelf prices.
 - Success looks like: the job's total equals the package price; when the
@@ -238,6 +250,8 @@ managers.
   - "This package has a fixed price." Only "from" packages take a price.
   - "Give the job a build package first." Repricing needs a package.
   - "Only the build's parts and its labour line can be repriced."
+  - "Only a part from stock can be an extra. Services and manual lines are
+    already charged on top of the package."
   - "This job is completed or closed. Reopen it to change its lines."
 
 ### Sell a full build online with a frame

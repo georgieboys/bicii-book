@@ -139,3 +139,35 @@ package, harder to compare); a variant price computed in TypeScript (the
 money rule keeps it in Postgres); charging the strip as a second product in
 the cart (the customer could drop it).
 
+## Amendment 2026-11-22: extras charged on top of a build (D261)
+
+The owner, 2026-11-22: one-off items, from consignment or the shop, are
+added to builds on the fly. They usually have no SKU, and the customer pays
+for them on top of the package. Before this, a manual line was charged on
+top but took no stock and owed no consignor, while every part from stock
+was priced into the package by **Fit parts to budget**.
+
+1. **Extras.** A part on a job with a package can be marked an extra
+   (`work_order_build_extras`, written only by `set_build_line_extra`, any
+   active staff, open jobs only). Fitting leaves extras out and the summary
+   counts them apart, so the package still adds up to its price and the
+   extra is billed on top at its own price.
+2. **Its price.** Marking a fitted part puts it back at its shelf price (the
+   fitted price was a share of the package); staff may still reprice it.
+   Put back in the package, it keeps its price until the next fit. Taking
+   the package off drops the extras (the row cascades) and leaves their
+   prices alone.
+3. **Nothing else changes.** An extra is still an inventory line: it takes
+   stock or holds its unit, owes a consignor the agreed amount on
+   completion (D44) and counts as product revenue (D250).
+4. **One-offs with no stock record** stay manual lines, which were already
+   outside the package (D249). Add part links to one, carrying the search,
+   so a one-off never needs a product or a SKU.
+
+Considered: a flag column on `work_order_line_items` (the lines are
+immutable outside two narrow paths; a side table changes no line); creating
+a product and unit for every one-off from the job (a stock record that is
+consumed the moment it exists, for a figure the manual line already gives);
+an extra price above the shelf price (D249's rule is about the package's
+parts; an extra is the customer's own add-on at its own price).
+

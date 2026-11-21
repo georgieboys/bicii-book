@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 
 import { staffAction } from "@/lib/actions";
 import {
+  buildExtraSchema,
   clearJobBuildSchema,
   fitBuildSchema,
   jobBuildSchema,
@@ -15,6 +16,7 @@ import {
   fitBuildToBudget,
   linkBuildOrder,
   repriceBuildLine,
+  setBuildLineExtra,
   setJobBuild,
 } from "@/lib/domain/build-packages";
 
@@ -48,6 +50,17 @@ export const repriceBuildLineAction = staffAction(
   { name: "jobs.reprice_build_line" },
   async ({ lineId, price }, { supabase }) => {
     await repriceBuildLine(supabase, lineId, price);
+    refresh();
+    return null;
+  },
+);
+
+/** D261: charge a part on top of the package (extra) or put it back in. */
+export const setBuildLineExtraAction = staffAction(
+  buildExtraSchema,
+  { name: "jobs.set_build_extra" },
+  async ({ lineId, extra }, { supabase }) => {
+    await setBuildLineExtra(supabase, lineId, extra);
     refresh();
     return null;
   },

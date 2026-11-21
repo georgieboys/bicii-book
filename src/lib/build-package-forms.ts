@@ -83,6 +83,12 @@ export const repriceLineSchema = z.object({
   price: money("price"),
 });
 
+/** D261: a part charged on top of the package, or back in it. */
+export const buildExtraSchema = z.object({
+  lineId: z.guid({ error: "Unknown line." }),
+  extra: z.boolean(),
+});
+
 export const fitBuildSchema = z.object({
   workOrderId: z.guid({ error: "Unknown job." }),
 });

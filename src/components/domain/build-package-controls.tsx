@@ -13,6 +13,7 @@ import {
   fitBuildToBudgetAction,
   linkBuildOrderAction,
   repriceBuildLineAction,
+  setBuildLineExtraAction,
   setJobBuildAction,
 } from "@/app/(staff)/jobs/build-actions";
 import { Badge } from "@/components/ui/badge";
@@ -341,6 +342,9 @@ export type JobBuildView = {
   difference: string;
   currency: string;
   listPrices: Record<string, string>;
+  /** D261: the parts charged on top of the package. */
+  extraLineIds: string[];
+  extrasTotal: string;
 };
 
 export type FrameSource = "bicii_frame" | "own_frame" | "donor_bike";
@@ -456,6 +460,10 @@ export function JobBuildPanel({
 
   const money = (v: string | null) => (v === null ? "—" : formatMoney(v, build.currency));
   const fitted = Number(build.difference) === 0;
+  // D261: extras are charged on top at their own price, never fitted.
+  const extraIds = new Set(build.extraLineIds);
+  const inPackage = parts.filter((p) => !extraIds.has(p.id));
+  const extras = parts.filter((p) => extraIds.has(p.id));
   const rows: [string, string][] = [
     ["Package price", money(build.price)],
     ["Labour (service)", money(build.labourAmount)],
@@ -463,6 +471,9 @@ export function JobBuildPanel({
     ["Parts at shelf price", money(build.partsListTotal)],
     ["Parts now", money(build.partsTotal)],
     ["Labour now", money(build.labourTotal)],
+    ...(extras.length > 0
+      ? ([["Extras on top", money(build.extrasTotal)]] as [string, string][])
+      : []),
   ];
 
   return (
@@ -506,12 +517,12 @@ export function JobBuildPanel({
           </div>
         ))}
       </dl>
-      {parts.length > 0 ? (
+      {inPackage.length > 0 ? (
         <ul
           aria-label="Parts in the build"
           className="divide-y divide-hairline rounded-xl border border-hairline"
         >
-          {parts.map((part) => {
+          {inPackage.map((part) => {
             const list = build.listPrices[part.id] ?? part.unitSalePrice;
             const changed = list !== part.unitSalePrice;
             return (
@@ -527,11 +538,14 @@ export function JobBuildPanel({
                   {money(part.unitSalePrice)}
                 </span>
                 {open ? (
-                  <RepriceButton
-                    lineId={part.id}
-                    label={part.description}
-                    price={part.unitSalePrice}
-                  />
+                  <span className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <RepriceButton
+                      lineId={part.id}
+                      label={part.description}
+                      price={part.unitSalePrice}
+                    />
+                    <ExtraButton lineId={part.id} label={part.description} extra={false} />
+                  </span>
                 ) : null}
               </li>
             );
@@ -540,6 +554,42 @@ export function JobBuildPanel({
       ) : (
         <p className="text-sm text-dust-700">Add the parts the build uses as part lines above.</p>
       )}
+      {extras.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold">Extras, charged on top</p>
+          <ul
+            aria-label="Extras charged on top"
+            className="divide-y divide-hairline rounded-xl border border-hairline"
+          >
+            {extras.map((part) => (
+              <li key={part.id} className="flex min-h-12 items-center gap-3 px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1">
+                  {part.description}
+                  {Number(part.quantity) !== 1 ? ` × ${Number(part.quantity)}` : ""}
+                </span>
+                <span className="tabular-nums">{money(part.unitSalePrice)}</span>
+                {open ? (
+                  <span className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <RepriceButton
+                      lineId={part.id}
+                      label={part.description}
+                      price={part.unitSalePrice}
+                    />
+                    <ExtraButton lineId={part.id} label={part.description} extra />
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {open && parts.length > 0 ? (
+        <p className="text-sm text-dust-700">
+          A one-off the customer adds on top (a consigned saddle, a used part): add it as a part
+          above, then <span className="font-medium">Charge on top</span>. It keeps its own price and
+          stays out of the budget. Manual lines are already charged on top.
+        </p>
+      ) : null}
       {open ? (
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={fit} pending={pending} pendingLabel="Fitting…">
@@ -734,6 +784,41 @@ function ClearBuildSheet({ workOrderId, onClose }: { workOrderId: string; onClos
         </Field>
       </form>
     </Sheet>
+  );
+}
+
+/**
+ * D261: charge a part on top of the package (an extra, at its own price, a
+ * fitted part back at its shelf price) or put it back in the package.
+ */
+function ExtraButton({ lineId, label, extra }: { lineId: string; label: string; extra: boolean }) {
+  const { toast } = useToast();
+  const [pending, start] = useTransition();
+  const run = () =>
+    start(async () => {
+      const result = await callAction(() => setBuildLineExtraAction({ lineId, extra: !extra }));
+      toast(
+        result.ok
+          ? {
+              title: extra
+                ? `${label} is back in the package. Fit parts to budget to price it in.`
+                : `${label} is charged on top of the package.`,
+              tone: "success",
+            }
+          : { title: "Not changed", description: result.error, tone: "error" },
+      );
+    });
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={run}
+      pending={pending}
+      pendingLabel="Saving…"
+      aria-label={extra ? `Put ${label} back in the package` : `Charge ${label} on top`}
+    >
+      {extra ? "Back in package" : "Charge on top"}
+    </Button>
   );
 }
 

@@ -113,6 +113,8 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.clear_work_order_build(uuid, text)",
   "public.reprice_build_line(uuid, money_amount)",
   "public.fit_build_to_budget(uuid)",
+  // Build extras (D261)
+  "public.set_build_line_extra(uuid, boolean)",
   // Selling full builds online (D252, D255), with frame options (D257, D258)
   "public.record_build_package_push(uuid, text, text, text, text, money_amount)",
   "public.link_build_order(uuid, uuid, uuid, uuid)",
@@ -466,6 +468,7 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.build_packages": ["INSERT", "SELECT", "UPDATE"],
   "public.work_order_builds": ["SELECT"],
   "public.work_order_build_summary": ["SELECT"],
+  "public.work_order_build_extras": ["SELECT"],
   "public.build_orders": ["SELECT"],
   "public.frame_grades": ["SELECT", "UPDATE"],
   "public.work_order_totals_staff": ["SELECT"],

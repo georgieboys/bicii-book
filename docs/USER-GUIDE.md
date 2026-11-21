@@ -921,7 +921,10 @@ while an approved or ordered item is neither fitted nor cancelled:
   (a consigned or customer-owned product); "That product is already on
   this order. Change its line instead."; "An order needs at least one
   line." To stop an order, **Cancel order…** with a reason (D61): what was
-  already received stays in stock.
+  already received stays in stock. "Customer jobs are waiting for parts on
+  this order." means a job's indent part ordered on it has not arrived:
+  fit it from other stock or cancel the item on the job first; the same
+  message stops a line being cut below what those jobs still need.
 
 ### Receive a delivery
 

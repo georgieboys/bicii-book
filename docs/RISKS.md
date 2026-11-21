@@ -2499,7 +2499,12 @@ URLs, or customer data in this file.
     `receive_purchase`'s D63 check reads only receipt lines;
   - an ordered part later bought elsewhere has no clean path: it is
     refused (`part_request_ordered`), cancelling it keeps it on its
-    purchase order, and there is no "un-order";
+    purchase order, and there is no "un-order"; the other direction is
+    closed: a purchase order is not cancelled, nor a line cut, while a
+    job's ordered part on it has not arrived
+    (`purchase_order_has_indent_requests`, 2026-11-22 audit A-21,
+    `20261122000800`; `tests/db/indent-parts.test.ts`), so staff settle
+    the job's item first;
   - it sidesteps D152's deposit gate (Fit was never gated), and a request
     is all bought outside or all from stock: it cannot be split.
 - Evidence and confidence: high, by design and by test:

@@ -242,7 +242,8 @@ managers.
     manual line**. Manual lines are always charged on top of the package.
     A consigned item is received under **Consignment** first.
   - **Change package** swaps it; **Take off** (with a reason) voids the
-    labour line and puts repriced parts back to their shelf prices.
+    labour line and puts repriced parts back to their shelf prices (an
+    extra keeps its own price and becomes an ordinary part).
 - Success looks like: the job's total equals the package price; when the
   job is completed, the labour counts as service revenue and the parts as
   product revenue. The frame is sold separately at its full price.

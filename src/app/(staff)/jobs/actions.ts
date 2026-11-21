@@ -201,7 +201,16 @@ export const addPartToJob = staffAction(
     const result = await addPart(supabase, input);
     // D261: an extra on a build, charged on top of the package. A retry
     // replays the add (same line id) and marks it again.
-    if (input.buildExtra) await setBuildLineExtra(supabase, result.lineId, true);
+    if (input.buildExtra) {
+      try {
+        await setBuildLineExtra(supabase, result.lineId, true);
+      } catch {
+        refresh();
+        throw new ActionError(
+          "The part was added to the package, not charged on top. Press Charge on top on its row in the build card.",
+        );
+      }
+    }
     refresh();
     return result;
   },

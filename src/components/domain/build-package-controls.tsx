@@ -802,7 +802,7 @@ function ExtraButton({ lineId, label, extra }: { lineId: string; label: string; 
           ? {
               title: extra
                 ? `${label} is back in the package. Fit parts to budget to price it in.`
-                : `${label} is charged on top of the package.`,
+                : `${label} is charged on top of the package. Fit parts to budget to rebalance the rest.`,
               tone: "success",
             }
           : { title: "Not changed", description: result.error, tone: "error" },

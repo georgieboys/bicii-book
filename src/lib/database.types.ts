@@ -11714,7 +11714,6 @@ export type Database = {
         Args: { emails: string[]; staff_ids: string[] };
         Returns: undefined;
       };
-      set_consignment_settlement_alert_days: { Args: { p_days: number }; Returns: number };
       set_build_line_extra: {
         Args: { extra: boolean; line_id: string };
         Returns: {
@@ -11751,6 +11750,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      set_consignment_settlement_alert_days: { Args: { p_days: number }; Returns: number };
       set_default_label_template: {
         Args: { template_id: string };
         Returns: {

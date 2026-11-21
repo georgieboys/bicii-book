@@ -155,6 +155,8 @@ function AddPartSheet({
   const [locationId, setLocationId] = useState<string | null>(null);
   const [price, setPrice] = useState("");
   const [lastQuery, setLastQuery] = useState("");
+  // Controlled: React resets uncontrolled fields after a failed action.
+  const [buildExtra, setBuildExtra] = useState(false);
   const part = picked?.part ?? null;
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = await callAction(() => addPartToJob(prev, formData), formData);
@@ -430,6 +432,8 @@ function AddPartSheet({
               {hasBuild ? (
                 <Checkbox
                   name="buildExtra"
+                  checked={buildExtra}
+                  onChange={(e) => setBuildExtra(e.target.checked)}
                   label="Charge on top of the build package"
                   description="For a one-off the customer adds: it keeps its own price and stays out of the parts budget."
                 />

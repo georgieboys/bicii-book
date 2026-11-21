@@ -185,6 +185,9 @@ end;
 $$;
 
 
+comment on function public.clear_work_order_build(uuid, text) is
+  'D251, D261: active staff: take the package off an open job with a reason: repriced parts that are not extras go back to their list prices (an extra keeps its price), the labour line is voided and the extras are dropped with the package; build_cleared event. No package: returns the job id.';
+
 -- ---------------------------------------------------------------------------
 -- Fitting leaves the extras out (D249 otherwise unchanged)
 -- ---------------------------------------------------------------------------

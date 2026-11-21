@@ -204,8 +204,8 @@ event inspector and links under `/shopify`, Today's exception row)
    (`runJobById`), then up to 5 due jobs; `GET /api/cron/integrations`
    (Vercel cron every 5 minutes, bearer `CRON_SECRET`) runs up to 25. A
    claimed job always runs to its end, so each runner claims a job only
-   while that job's worst case (`MAX_JOB_MS`: four Shopify calls at the
-   10 s timeout plus 5 s) still ends 5 s before the routes' 60 s
+   while that job's worst case (`MAX_JOB_MS`: seven Shopify calls at the
+   10 s timeout plus 5 s) still ends 5 s before the routes' 90 s
    `maxDuration` (`lastClaimAt` in `config.ts`). A Server Action that
    runs a job after its committed write (Publish online, Sync now, Retry,
    link) treats that run as best effort (`after-commit.ts`): if it

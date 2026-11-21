@@ -347,7 +347,10 @@ describe.skipIf(!isolatedDatabase())("selling full builds online (D252-D256)", (
       const [order] = await buildOrdersOf(tx, result.sale_id!);
       expect(order.amount).toBe("700.00");
       await readAsOwner(tx, () =>
-        tx.query("update public.build_packages set archived_at = now() where id = $1", [pkg.id]),
+        tx.query(
+          "update public.build_packages set publish_online = false, archived_at = now() where id = $1",
+          [pkg.id],
+        ),
       );
       const job = await newJob(tx, MECHANIC1);
       await tx.query("select public.link_build_order($1, $2, $3)", [
@@ -580,5 +583,99 @@ describe.skipIf(!isolatedDatabase())("selling full builds online (D252-D256)", (
         shopify_own_frame_variant_id: null,
         shopify_donor_amount: null,
       });
+    }));
+
+  it("a job that already has the package takes the price paid when the order is linked (audit 2026-11-22)", () =>
+    inTx(async (tx) => {
+      const pkg = await onlinePackage(tx, { price: "785.00" });
+      const result = await deliverOrder(tx, [
+        { ...line(pkg.variant, "785.00"), discount: "85.00" },
+      ]);
+      const [order] = await buildOrdersOf(tx, result.sale_id!);
+      const job = await newJob(tx, MECHANIC1);
+      const labourLineId = randomUUID();
+      await tx.query("select public.set_work_order_build($1, $2, $3, null)", [
+        job.id,
+        pkg.id,
+        labourLineId,
+      ]);
+      await tx.query("select public.link_build_order($1, $2, $3)", [
+        order.id,
+        job.id,
+        randomUUID(),
+      ]);
+      const build = await tx.query(
+        "select price::text, labour_amount::text, labour_line_id from public.work_order_builds where work_order_id = $1",
+        [job.id],
+      );
+      expect(build.rows[0]).toEqual({
+        price: "700.00",
+        labour_amount: "180.00",
+        labour_line_id: labourLineId,
+      });
+      await tx.query("select public.fit_build_to_budget($1)", [job.id]);
+      const totals = await tx.query(
+        "select job_total::text, balance_due::text from public.work_order_payment_totals where work_order_id = $1",
+        [job.id],
+      );
+      expect(totals.rows[0]).toEqual({ job_total: "700.00", balance_due: "0.00" });
+      const events = await tx.query(
+        `select payload ->> 'previous_price' as previous from public.work_order_events
+          where work_order_id = $1 and event_type = 'build_set' order by created_at, id`,
+        [job.id],
+      );
+      expect(events.rows.at(-1)).toEqual({ previous: "785.00" });
+    }));
+
+  it("own-frame and donor package lines are not unmapped, and no product can take a package's variant (audit 2026-11-22)", () =>
+    inTx(async (tx) => {
+      const pkg = await onlinePackage(tx);
+      const result = await deliverOrder(tx, [
+        line(pkg.ownVariant, "1075.00"),
+        line(pkg.donorVariant, "1260.00"),
+        line(nextShopifyId(), "20.00"),
+      ]);
+      expect(result.error_code).toBe("shopify_variant_unmapped");
+      await ownerMode(tx);
+      const { rows } = await tx.query<{ n: number }>(
+        "select pg_catalog.jsonb_array_length(result -> 'unmapped_lines')::int as n from public.integration_events where id = $1",
+        [result.eventId],
+      );
+      expect(rows[0].n).toBe(1);
+      await actAs(tx, ADMIN);
+      const product = await onlineProduct(tx);
+      await readAsOwner(tx, () =>
+        tx.query(
+          "update public.products set shopify_product_id = null, shopify_variant_id = null where id = $1",
+          [product.productId],
+        ),
+      );
+      for (const variant of [pkg.variant, pkg.ownVariant, pkg.donorVariant]) {
+        await failsWith(
+          tx,
+          () =>
+            tx.query("select public.link_shopify_variant($1, $2, $3, 'Mapping')", [
+              product.productId,
+              String(nextShopifyId()),
+              String(variant),
+            ]),
+          { message: "shopify_ids_conflict" },
+        );
+      }
+    }));
+
+  it("a package on sale on Shopify is taken off before it can be archived (audit 2026-11-22)", () =>
+    inTx(async (tx) => {
+      const pkg = await onlinePackage(tx);
+      await failsWith(
+        tx,
+        () =>
+          tx.query("update public.build_packages set archived_at = now() where id = $1", [pkg.id]),
+        { message: "build_package_online" },
+      );
+      await tx.query(
+        "update public.build_packages set publish_online = false, archived_at = now() where id = $1",
+        [pkg.id],
+      );
     }));
 });

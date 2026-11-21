@@ -972,8 +972,8 @@ database that a real store also writes to.
 claims and runs up to 25 due jobs and returns
 `{claimed, done, failed, needsAttention, deferred}`. A claimed job always
 runs to its end, so a runner claims one only while that job's worst case
-(`MAX_JOB_MS`: four Shopify calls at the 10 s timeout plus 5 s, 45 s)
-still ends 5 s before the routes' `maxDuration` of 60 s, that is during
+(`MAX_JOB_MS`: seven Shopify calls at the 10 s timeout plus 5 s, 75 s)
+still ends 5 s before the routes' `maxDuration` of 90 s, that is during
 its first 10 s (`lastClaimAt` in `config.ts`). Every webhook also
 runs its own event's job and up to 5 due jobs after it has answered (the
 same claim window, counted from the request), and Publish online / Sync

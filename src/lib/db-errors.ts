@@ -341,6 +341,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   build_missing: "Give the job a build package first.",
   build_line_not_repriceable: "Only the build's parts and its labour line can be repriced.",
   build_line_voided: "That line is voided. Reload the job.",
+  build_package_online: "Take the package off Shopify before archiving it.",
   build_line_not_part:
     "Only a part from stock can be an extra. Services and manual lines are already charged on top of the package.",
   build_labour_line_voided: "The build's labour line was voided. Set the package again first.",

@@ -152,6 +152,20 @@ describe("hire at checkout (D186, D187)", () => {
     });
   });
 
+  it("an earlier hire sold after a later one is checked through its own return day (audit 2026-11-22)", async () => {
+    await inTransaction(conn, async (tx) => {
+      const { sale, days } = await setup(tx, 1);
+      await checkout(tx, await makeRider(tx), sale, days[2], days[4]);
+      const earlier = await makeRider(tx);
+      // Returns on the day the later hire collects: refused, as the reverse is.
+      await failsWith(
+        tx,
+        () => checkout(tx, earlier, sale, days[0], days[2]),
+        refused("adventure_trackers_unavailable"),
+      );
+    });
+  });
+
   it("the hire follows the booking: paid confirms it, an expired checkout releases it", async () => {
     await inTransaction(conn, async (tx) => {
       const { sale, days } = await setup(tx, 1);
@@ -228,7 +242,7 @@ describe("issue, replace and return (D188; C11)", () => {
         days,
         devices: [d1, d2],
       } = await setup(tx, 2);
-      const unpaid = await checkout(tx, await makeRider(tx), sale, days[2], days[3]);
+      const unpaid = await checkout(tx, await makeRider(tx), sale, days[4], days[5]);
       const hire = await paidHire(tx, sale, days[0], days[1]);
       const other = await paidHire(tx, sale, days[0], days[1]);
 

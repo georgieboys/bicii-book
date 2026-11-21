@@ -2059,6 +2059,23 @@ work_order_build_summary += extras_count, extras_total (appended; the parts
   parts are the live inventory lines that are not extras; clearing leaves
   an extra's price alone.
 
+Audit fixes 2026-11-22 (`20261122000300_audit_build_fixes.sql`):
+
+- `reprice_build_line` and `set_build_line_extra` return
+  `build_line_result` (line_id, unit_sale_price, unit_list_price,
+  sale_total, currency), never the line's cost, yield, Cult Commons or
+  payout (D14).
+- `link_build_order`: a job that already has the ordered package at
+  another price takes the price paid less any donor strip (labour
+  least(package labour, price), the labour line repriced, `build_set`
+  with `previous_price` and `build_order_id`); a voided labour line →
+  `build_labour_line_voided`.
+- `private.shopify_unmapped_lines` leaves out all three of a package's
+  variants; `link_shopify_variant` refuses a build package's product or
+  variant (`shopify_ids_conflict`).
+- `build_packages`: archiving a package with `publish_online` →
+  `build_package_online` (take it off Shopify first).
+
 ### Frame grades (D260)
 
 Built out of phase on 2026-11-20 (`20261120000200_frame_grades.sql`;
@@ -5316,6 +5333,7 @@ Migrations `20261114002500_audit_medium_bookings_enums.sql` and `20261114002600_
 - D223: `cancel_adventure_departure` (supported dates) refuses while a rider's tracker is out, releases each seat's tracker reservation (`cancelled`, "Supported date cancelled"), flags each paid booking, and writes `departure_cancelled` with `detail.kind`, which queues the email kind `supported_cancelled` for supported dates. `move_adventure_seat` accepts a paid booking whose last seat was left because its date was cancelled, and confirms its released reservation again for the new days. `adventure_bookings_move_seat` flags a supported booking confirmed with no open seat.
 - `apply_adventure_stripe_session` flags a payment on a cancelled booking as "Paid after the booking was cancelled.".
 - D224: `private.trackers_free` counts a reservation through `return_on + tracker_grace_days` (its first free day is the day after).
+- Audit 2026-11-22 (`20261122000400_audit_adventure_fixes.sql`): `trackers_free` also checks the hire being sold from `collect_on` through its own `return_on + tracker_grace_days`; `stale_adventure_payments` and Health's `payments_stale` include a pending payment whatever its booking's status (a replaced or cancelled booking's page is read back and, if paid, kept and flagged); `request_my_adventure_cancellation` flags the booking without a `payment_attention` event (an existing flag keeps its reason); Health's `cancellations_requested_30d` counts paid bookings with a request in 30 days and no `attention_cleared` since. The parse worker records a file whose result Postgres refuses (SQLSTATE class 22 or 23) as unreadable instead of giving its attempt back.
 - D225: `record_adventure_stripe_read(payment_id, object, correlation_id)` (service role) records a Checkout Session read from Stripe for the payment's own session and applies it through the dispatcher (`read_mismatch` otherwise). `stale_adventure_payments(max_rows)` (service role) expires `pending_payment` bookings older than a day that never had a session, and lists pending payments whose session expired over an hour ago. `adventure_health()` adds `payments_stale`.
 - D226: `return_adventure_tracker` closes the attempt's open ride window (and reattributes) when no other assignment of the hire is out.
 - D227: `correct_adventure_capture` refuses a withdrawn attempt or one with any review (`adventure_capture_decided`). `purge_unattributed_tracking` keeps messages recorded while their device had an assignment.

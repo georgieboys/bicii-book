@@ -7,7 +7,7 @@ import { handleShopifyWebhook } from "@/lib/integrations/shopify/webhooks";
  * the function may outlive the response (maxDuration, seconds).
  */
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 export async function POST(request: Request): Promise<Response> {
   return handleShopifyWebhook(request);

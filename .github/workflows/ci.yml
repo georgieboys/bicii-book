@@ -67,6 +67,22 @@ jobs:
       - uses: ./.github/actions/prepare
         with:
           devstack: "true"
+      - name: New migrations sort after main's newest
+        if: github.event_name == 'pull_request'
+        run: |
+          # Production history is append-only and migrate.yml never passes
+          # --include-all, so a migration dated before one already on main
+          # passes CI here and then fails db push after the merge.
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          newest=$(git ls-tree --name-only FETCH_HEAD supabase/migrations/ | sed 's#.*/##' | sort | tail -1)
+          bad=0
+          for f in $(ls supabase/migrations); do
+            if ! git cat-file -e "FETCH_HEAD:supabase/migrations/$f" 2>/dev/null && [[ ! "$f" > "$newest" ]]; then
+              echo "::error file=supabase/migrations/$f::Sorts before $newest on ${{ github.base_ref }}; give it a later timestamp."
+              bad=1
+            fi
+          done
+          exit $bad
       - name: Typecheck, lint, format
         run: npm run check
       - name: Colour contrast (WCAG AA)

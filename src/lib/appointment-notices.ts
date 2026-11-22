@@ -77,6 +77,16 @@ function sitePage(base: string | null, path: string): string | null {
   return root ? `${root}${path}` : null;
 }
 
+/**
+ * Where the workshop is, as the site's booked notice says it (BICII
+ * src/lib/content.ts `shop.inline` and `links.map`): the customer's
+ * confirmation carries it too.
+ */
+export const SHOP_ADDRESS =
+  "294 River Valley Road, Level 2, Singapore 238335 (enter via the back alley)";
+export const SHOP_MAP_URL =
+  "https://www.google.com/maps/search/?api=1&query=294+River+Valley+Road+Singapore";
+
 type Line = [label: string, value: string | null | undefined];
 
 function detailLines(n: AppointmentNotice): Line[] {
@@ -144,6 +154,7 @@ function customerEmail(n: AppointmentNotice): NoticeEmail {
     const lines: Line[] = [
       ["When", when],
       ["What", n.appointmentType],
+      ["Where", SHOP_ADDRESS],
       ["Bike", n.bike],
       ["Your note", n.customerNote],
     ];
@@ -158,6 +169,7 @@ function customerEmail(n: AppointmentNotice): NoticeEmail {
       `Your ${n.appointmentType} at BICII is booked for ${when}.`,
       "",
       ...textLines(lines),
+      `Map: ${SHOP_MAP_URL}`,
       "",
       manage,
       "See you then.",
@@ -165,7 +177,7 @@ function customerEmail(n: AppointmentNotice): NoticeEmail {
     const html = [
       `<p>${escapeHtml(hello)}</p>`,
       `<p>Your ${escapeHtml(n.appointmentType)} at BICII is booked for <strong>${escapeHtml(when)}</strong>.</p>`,
-      `<p>${htmlLines(lines)}</p>`,
+      `<p>${htmlLines(lines)}<br><a href="${escapeHtml(SHOP_MAP_URL)}">Open in Google Maps</a></p>`,
       ...(account ? [button(account, "View your booking")] : []),
       `<p>${escapeHtml(manage)}</p>`,
       "<p>See you then.</p>",

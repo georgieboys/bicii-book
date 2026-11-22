@@ -1178,7 +1178,8 @@ while an approved or ordered item is neither fitted nor cancelled:
 - What happens: when a customer books online, the people you choose get
   an alert ("New booking: Tune-up, Fri 13 Nov 2026, 10:00 am") with the
   customer's name, phone, email, bike, their note and a link to the
-  appointment, and the customer gets a confirmation. When the customer
+  appointment, and the customer gets a confirmation with the time, the
+  workshop's address and a map link. When the customer
   cancels online, both get an email again (the alert gives their reason),
   even for a booking staff made. When staff cancel an online booking,
   only the customer is told. Bookings staff make send nothing otherwise. Emails go out within a minute (D163).

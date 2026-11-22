@@ -95,6 +95,13 @@ describe("booking email wording (D163c)", () => {
     expect(email.text).toContain("Hi Alex,");
     expect(email.text).toContain("Your Tune-up at BICII is booked for Fri 13 Nov 2026, 10:00 am.");
     expect(email.text).toContain("Your note: Squeaky <brakes>");
+    // Where to come, as the site's booked notice says it.
+    expect(email.text).toContain(
+      "Where: 294 River Valley Road, Level 2, Singapore 238335 (enter via the back alley)",
+    );
+    expect(email.text).toContain("Map: https://www.google.com/maps/search/");
+    expect(email.html).toContain("294 River Valley Road");
+    expect(email.html).toContain("Open in Google Maps");
     expect(email.text).toContain(
       "To cancel, sign in at https://shop.example.com/account. To change the time, book the new time first, then cancel this one.",
     );

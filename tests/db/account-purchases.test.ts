@@ -86,9 +86,10 @@ async function deliverOrder(
   tx: pg.Client,
   variant: number,
   customer: { id: number; email: string | null },
+  orderEmail?: string,
 ): Promise<string> {
   const orderId = nextShopifyId();
-  const payload = orderPaidPayload({
+  const base = orderPaidPayload({
     orderId,
     name: `#P${orderId}`,
     customer,
@@ -104,6 +105,7 @@ async function deliverOrder(
       },
     ],
   });
+  const payload = orderEmail === undefined ? base : { ...base, email: orderEmail };
   const raw = JSON.stringify(payload);
   await actAs(tx, SERVICE);
   const recorded = await tx.query<{ event_id: string }>(
@@ -218,6 +220,23 @@ describe.skipIf(!isolatedDatabase())("purchases on the site account (D263)", () 
       expect(await purchasesOf(tx, other.authUserId)).toHaveLength(1);
       expect(await purchasesOf(tx, unconfirmed.authUserId)).toEqual([]);
       expect(await shopifyIdOf(tx, unconfirmed.customerId)).toBeNull();
+    });
+  });
+
+  it("an order typed with someone's email shows that order to them, but never links the buyer's Shopify customer", async () => {
+    await inTx(async (tx) => {
+      const recipient = await customerWithLogin(tx);
+      const { variant } = await onlineProduct(tx);
+      const buyer = nextShopifyId();
+      const typed = await deliverOrder(
+        tx,
+        variant,
+        { id: buyer, email: "buyer@example.com" },
+        recipient.email,
+      );
+      await deliverOrder(tx, variant, { id: buyer, email: "buyer@example.com" });
+      expect(await shopifyIdOf(tx, recipient.customerId)).toBeNull();
+      expect((await purchasesOf(tx, recipient.authUserId)).map((p) => p.sale_id)).toEqual([typed]);
     });
   });
 

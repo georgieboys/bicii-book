@@ -95,9 +95,12 @@ email the customer verified ("Match by verified email").
    address anyway, so the account shows nothing its owner does not already
    receive; `claim_my_customer` already matches a login to a customer
    record by the same email.
-3. **Linking for staff.** A new order whose email matches exactly one
-   verified login, with neither side linked, links that Shopify customer
-   to the customer (audited, reason "Matched by verified email (D263)"),
+3. **Linking for staff.** A link shows every order of that Shopify
+   customer, so it needs more than one order's email: a new order whose
+   Shopify customer has the email of exactly one verified login (and whose
+   own email does not name someone else), with neither side linked, links
+   that Shopify customer to the customer. It is best effort and never
+   stops the order from being recorded (audited, reason "Matched by verified email (D263)"),
    so later orders attach as a staff link makes them; a customer who signs
    in later is linked from their latest matching order. Sales stay
    immutable: earlier orders show through `sales.shopify_customer_id`.

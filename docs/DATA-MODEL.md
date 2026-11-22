@@ -2093,14 +2093,19 @@ Built out of phase on 2026-11-22 (`20261122001500_account_purchases.sql`;
   email, contact_email, else customer.email, lower case) is their verified
   login email (`private.customer_verified_email`). No cost or payout.
 - `private.link_shopify_customer_by_email(customer_id, sale_id)` sets
-  `customers.shopify_customer_id` from such a sale when the customer has
-  none and no other customer has it; audited `customer_linked` (actor
+  `customers.shopify_customer_id` from an online sale whose Shopify
+  customer's email (`private.shopify_customer_email`) is the customer's
+  verified login email and whose order email, if any, is too, when the
+  customer has none and no other customer has it (customer row taken with
+  SKIP LOCKED; a unique-key race skips the link); audited `customer_linked` (actor
   NULL, reason "Matched by verified email (D263)", payload matched_by
   `verified_email`). Called by the deferred triggers
   `sales_link_by_verified_email` (a new unlinked online sale) and
   `customers_link_by_verified_email` (a login linked to a customer, from
   their latest matching order), and once by the migration for existing
-  logins.
+  logins. The triggers swallow any error, so a link never stops an order
+  being recorded. An index on `private.shopify_order_email(payload)` for
+  orders/paid events serves the email lookups.
 
 ### Frame grades (D260)
 

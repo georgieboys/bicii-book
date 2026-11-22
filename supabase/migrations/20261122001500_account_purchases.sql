@@ -11,7 +11,8 @@ set local statement_timeout = '120s';
 --     address the order's receipt, so showing the order there reveals
 --     nothing new. claim_my_customer already matches a login to a customer
 --     record by the same verified email.
---   - When a new online order's email matches exactly one verified login and
+--   - When a new online order's Shopify customer has the email of exactly one
+--     verified login (and the order's own email does not say otherwise), and
 --     neither side is linked yet, the customer's Shopify customer id is set
 --     (audited as customer_linked, reason "Matched by verified email"), so
 --     staff see the order on the customer and every later order attaches as
@@ -44,6 +45,28 @@ comment on function private.shopify_order_email(jsonb) is
   'D263: the email a Shopify order was placed with (email, contact_email, else customer.email), trimmed and lower case; NULL when none.';
 
 revoke all on function private.shopify_order_email(jsonb) from public, anon, authenticated, service_role;
+
+-- The email of the order's Shopify customer, lower case. A link (which shows
+-- the Shopify customer's every order) needs this one to match; one order's
+-- own email only shows that order.
+create function private.shopify_customer_email(payload jsonb)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select nullif(pg_catalog.lower(pg_catalog.btrim(shopify_customer_email.payload #>> '{customer,email}')), '');
+$$;
+
+comment on function private.shopify_customer_email(jsonb) is
+  'D263: the email of a Shopify order''s customer (customer.email), trimmed and lower case; NULL when none.';
+
+revoke all on function private.shopify_customer_email(jsonb) from public, anon, authenticated, service_role;
+
+-- my_purchases and the link find an order by its email.
+create index integration_events_order_email_idx
+  on public.integration_events (private.shopify_order_email(payload))
+  where topic = 'orders/paid';
 
 -- The email a customer verified with a sign-in code, lower case; NULL when
 -- the customer has no login or its email is not confirmed.
@@ -83,9 +106,15 @@ declare
   cust public.customers;
   sale public.sales;
   order_email text;
+  customer_email text;
+  login_email text;
   earlier integer;
 begin
-  select c.* into cust from public.customers c where c.id = link_shopify_customer_by_email.customer_id for update;
+  -- Best effort: a busy customer row is skipped, never waited on (this runs
+  -- at the commit of order processing, which holds the stock locks).
+  select c.* into cust from public.customers c
+  where c.id = link_shopify_customer_by_email.customer_id
+  for update skip locked;
   select s.* into sale from public.sales s where s.id = link_shopify_customer_by_email.sale_id;
   if cust.id is null or sale.id is null or cust.archived_at is not null
      or cust.shopify_customer_id is not null or sale.shopify_customer_id is null
@@ -95,18 +124,30 @@ begin
   if exists (select 1 from public.customers o where o.shopify_customer_id = sale.shopify_customer_id) then
     return false;
   end if;
-  select private.shopify_order_email(e.payload) into order_email
+  select private.shopify_order_email(e.payload), private.shopify_customer_email(e.payload)
+  into order_email, customer_email
   from public.integration_events e where e.id = sale.integration_event_id;
-  if order_email is null or order_email is distinct from private.customer_verified_email(cust.id) then
+  login_email := private.customer_verified_email(cust.id);
+  -- The Shopify customer's own email must be the verified login email, and
+  -- the order's email must not name someone else: a link shows every order
+  -- of that Shopify customer.
+  if login_email is null or customer_email is distinct from login_email
+     or (order_email is not null and order_email <> login_email) then
     return false;
   end if;
 
   select count(*)::integer into earlier
   from public.sales s
   where s.source = 'online_shopify' and s.shopify_customer_id = sale.shopify_customer_id and s.customer_id is null;
-  perform private.set_change_reason('Matched by verified email (D263)');
-  update public.customers c set shopify_customer_id = sale.shopify_customer_id where c.id = cust.id;
-  perform private.set_change_reason(null);
+  begin
+    perform private.set_change_reason('Matched by verified email (D263)');
+    update public.customers c set shopify_customer_id = sale.shopify_customer_id where c.id = cust.id;
+    perform private.set_change_reason(null);
+  exception when unique_violation then
+    -- Another customer took that Shopify customer meanwhile: no link.
+    perform private.set_change_reason(null);
+    return false;
+  end;
   insert into public.integration_audit_events (
     event_type, customer_id, integration_event_id, actor_staff_id, reason, payload, correlation_id
   )
@@ -123,7 +164,7 @@ end;
 $$;
 
 comment on function private.link_shopify_customer_by_email(uuid, uuid) is
-  'D263: link the customer to the Shopify customer of an online sale whose order email is the customer''s verified login email, when the customer has no Shopify customer id and no other customer has that one; audited as customer_linked with matched_by verified_email. Returns whether it linked.';
+  'D263: link the customer to the Shopify customer of an online sale whose Shopify customer email is the customer''s verified login email (and whose order email, if any, is too), when the customer has no Shopify customer id and no other customer has that one; audited as customer_linked with matched_by verified_email. Returns whether it linked.';
 
 revoke all on function private.link_shopify_customer_by_email(uuid, uuid) from public, anon, authenticated, service_role;
 
@@ -142,7 +183,7 @@ begin
   if new.source <> 'online_shopify' or new.customer_id is not null or new.shopify_customer_id is null then
     return null;
   end if;
-  select private.shopify_order_email(e.payload) into order_email
+  select private.shopify_customer_email(e.payload) into order_email
   from public.integration_events e where e.id = new.integration_event_id;
   if order_email is null then
     return null;
@@ -153,7 +194,12 @@ begin
   where pg_catalog.lower(u.email::text) = order_email and u.email_confirmed_at is not null
     and c.archived_at is null;
   if cust is not null then
-    perform private.link_shopify_customer_by_email(cust, new.id);
+    -- A convenience: it never stops the order from being recorded.
+    begin
+      perform private.link_shopify_customer_by_email(cust, new.id);
+    exception when others then
+      null;
+    end;
   end if;
   return null;
 end;
@@ -193,11 +239,15 @@ begin
   from public.sales s
   join public.integration_events e on e.id = s.integration_event_id
   where s.source = 'online_shopify' and s.customer_id is null and s.shopify_customer_id is not null
-    and private.shopify_order_email(e.payload) = login_email
+    and private.shopify_customer_email(e.payload) = login_email
   order by s.recognized_at desc, s.id desc
   limit 1;
   if sid is not null then
-    perform private.link_shopify_customer_by_email(new.id, sid);
+    begin
+      perform private.link_shopify_customer_by_email(new.id, sid);
+    exception when others then
+      null;
+    end;
   end if;
   return null;
 end;
@@ -229,7 +279,7 @@ begin
     from public.sales s
     join public.integration_events e on e.id = s.integration_event_id
     where s.source = 'online_shopify' and s.customer_id is null and s.shopify_customer_id is not null
-      and private.shopify_order_email(e.payload) = c.email
+      and private.shopify_customer_email(e.payload) = c.email
     order by s.recognized_at desc, s.id desc
     limit 1;
     if sid is not null then

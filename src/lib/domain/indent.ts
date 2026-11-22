@@ -292,11 +292,18 @@ export type IndentProductOption = {
   sku: string | null;
   salePrice: string | null;
   currency: string;
+  /** False for a match that is already in the shop and is added with Add part instead. */
+  orderable: boolean;
+  /** Units on hand, for a match that is not orderable. */
+  onHand: number;
+  consigned: boolean;
 };
 
 /**
  * Products that can be ordered for a job (D62, D140): shop-owned, counted
- * by quantity, active and not archived, whatever their stock.
+ * by quantity, active and not archived, whatever their stock. Matches that
+ * cannot be ordered but are in the shop now (consigned stock, a unique
+ * item) come back too, not orderable, so the sheet can point to Add part.
  */
 export async function searchIndentProducts(
   supabase: ServerSupabase,
@@ -314,23 +321,38 @@ export async function searchIndentProducts(
         )
         .in("id", ids),
     ) ?? [];
+  const levels =
+    unwrap(
+      await supabase
+        .schema("reporting")
+        .from("stock_levels")
+        .select("product_id, on_hand")
+        .in("product_id", ids),
+    ) ?? [];
+  const onHand = new Map<string, number>();
+  for (const l of levels) {
+    if (l.product_id) onHand.set(l.product_id, (onHand.get(l.product_id) ?? 0) + (l.on_hand ?? 0));
+  }
   const order = new Map(ids.map((id, i) => [id, i]));
   return rows
-    .filter(
-      (p) =>
-        p.tracking_type === "quantity" &&
-        p.ownership_type === "shop_owned" &&
-        p.active &&
-        p.archived_at === null,
-    )
-    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+    .filter((p) => p.active && p.archived_at === null && p.ownership_type !== "customer_owned")
     .map((p) => ({
+      p,
+      orderable: p.tracking_type === "quantity" && p.ownership_type === "shop_owned",
+      stock: onHand.get(p.id) ?? 0,
+    }))
+    .filter(({ orderable, stock }) => orderable || stock > 0)
+    .sort((a, b) => (order.get(a.p.id) ?? 0) - (order.get(b.p.id) ?? 0))
+    .map(({ p, orderable, stock }) => ({
       id: p.id,
       name: p.name,
       shortId: p.short_id,
       sku: p.sku,
       salePrice: money(p.default_sale_price),
       currency: p.currency,
+      orderable,
+      onHand: stock,
+      consigned: p.ownership_type === "consignment",
     }));
 }
 

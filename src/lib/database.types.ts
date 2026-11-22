@@ -10086,18 +10086,6 @@ export type Database = {
           isSetofReturn: false;
         };
       };
-      propose_part: {
-        Args: {
-          expected_unit_cost?: unknown;
-          product_id: string;
-          quantity?: number;
-          request_id: string;
-          supplier_id?: string;
-          unit_sale_price?: unknown;
-          work_order_id: string;
-        };
-        Returns: string;
-      };
       propose_one_off_part: {
         Args: {
           agreed_amount_owed?: unknown;
@@ -10109,6 +10097,18 @@ export type Database = {
           request_id: string;
           unit_direct_cost?: unknown;
           unit_sale_price: unknown;
+          work_order_id: string;
+        };
+        Returns: string;
+      };
+      propose_part: {
+        Args: {
+          expected_unit_cost?: unknown;
+          product_id: string;
+          quantity?: number;
+          request_id: string;
+          supplier_id?: string;
+          unit_sale_price?: unknown;
           work_order_id: string;
         };
         Returns: string;

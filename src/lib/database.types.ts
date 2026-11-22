@@ -9811,6 +9811,22 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      my_purchases: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          builds: Json;
+          currency: string;
+          lines: Json;
+          order_name: string;
+          purchased_at: string;
+          refunded: number;
+          sale_id: string;
+          sale_number: string;
+          source: Database["public"]["Enums"]["sale_source"];
+          status: Database["public"]["Enums"]["sale_status"];
+          total: number;
+        }[];
+      };
       my_ride_share: {
         Args: { booking_id: string };
         Returns: {

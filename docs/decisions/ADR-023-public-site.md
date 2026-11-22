@@ -78,3 +78,36 @@ or the owner's answer to question 30.
   `tests/db/media-storage.test.ts`.
 - Contracts: [DATA-MODEL §15, §16](../DATA-MODEL.md#15-row-level-security-matrix);
   the public site's own README in repository `bicii`.
+
+## Amendment 2026-11-22: purchases on the account (D263)
+
+The owner, 2026-11-22: customers on bicii.sg should see their past
+purchases, and Store (Shopify) orders should join the account by the
+email the customer verified ("Match by verified email").
+
+1. **Purchases.** `my_purchases()` returns the signed-in customer's
+   in-store and online sales (not voided), newest first, with their
+   items, refunds and build orders; the account shows them under
+   **Purchases**. Never a cost, a payout or another customer's order.
+2. **Matching by verified email.** An online order is the customer's when
+   its Shopify customer is linked (D86) or its email is the customer's
+   login email confirmed with a code. Shopify sends the receipt to that
+   address anyway, so the account shows nothing its owner does not already
+   receive; `claim_my_customer` already matches a login to a customer
+   record by the same email.
+3. **Linking for staff.** A link shows every order of that Shopify
+   customer, so it needs more than one order's email: a new order whose
+   Shopify customer has the email of exactly one verified login (and whose
+   own email does not name someone else), with neither side linked, links
+   that Shopify customer to the customer. It is best effort and never
+   stops the order from being recorded (audited, reason "Matched by verified email (D263)"),
+   so later orders attach as a staff link makes them; a customer who signs
+   in later is linked from their latest matching order. Sales stay
+   immutable: earlier orders show through `sales.shopify_customer_id`.
+
+Considered: staff linking only (D86 as it was; online orders would stay
+off most accounts); matching any customer email rather than a verified
+login (an unverified address on a customer record is not proof); a
+Shopify customer-account login on the site (a second sign-in for the same
+person).
+

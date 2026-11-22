@@ -3689,6 +3689,12 @@ URLs, or customer data in this file.
   that Shopify customer's orders show in their account, by link or by
   email. The unlink is proved by `tests/db/account-purchases.test.ts`
   (CI); not exercised on the hosted project.
+- Confirm email: D263 trusts a login's confirmed email, which proves
+  control of the mailbox only while Auth's "Confirm email" is on. The
+  owner confirmed it on in production on 2026-11-22; the RUNBOOK now
+  requires it. Still open (audit A-07): whether a password sign-up made
+  in someone's name before they first sign in with a code stays usable
+  after they confirm the address; untested on hosted Auth.
 - Next action: none unless it happens; if it does, add a staff-visible
   flag on matched links.
 - Revisit trigger: the first wrong match reported.

@@ -178,7 +178,11 @@ and `bicii-prod`. The owner creates them; agents never see production keys.
      the mail app's browser, not the installed Admin). Subjects: "Your BICII
      sign-in code" (Magic Link) and "Your BICII code" (Confirm signup), as
      in `supabase/config.toml`.
-   - **Sign In / Providers → Email**: enabled; OTP length **6**; OTP expiry
+   - **Sign In / Providers → Email**: enabled; **Confirm email ON**
+     (REQUIRED: a login's email counts as verified only after its first
+     code, and the site trusts a confirmed email to claim a customer record
+     and to match Store orders, D263; the owner confirmed it on in
+     production on 2026-11-22); OTP length **6**; OTP expiry
      **600** seconds (`OTP_LENGTH`, `OTP_EXPIRY_MINUTES` in
      `src/lib/auth/otp.ts`). Turn **off** "Allow new users to sign up" until
      the public site's customer accounts go live

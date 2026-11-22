@@ -290,6 +290,42 @@ export const addPartSchema = z
     }
   });
 
+/** D264: a one-off part made and added on the job. */
+export const oneOffPartSchema = z
+  .object({
+    lineId: z.guid({ error: "Open Add part again." }),
+    workOrderId: z.guid({ error: "Unknown job." }),
+    name: z
+      .string({ error: "Name the part." })
+      .trim()
+      .min(1, { error: "Name the part." })
+      .max(200, { error: "Keep the name under 200 characters." }),
+    quantity: partQuantity,
+    unitSalePrice: money("price"),
+    consigned: toggle,
+    consignorId: optionalId("Choose whose it is from the list."),
+    agreedAmountOwed: optionalMoney("amount owed"),
+    unitCost: optionalMoney("cost"),
+    locationId: optionalId("Choose a location."),
+    buildExtra: toggle,
+  })
+  .superRefine((v, ctx) => {
+    if (v.consigned && !v.consignorId)
+      ctx.addIssue({ code: "custom", path: ["consignorId"], message: "Choose whose it is." });
+    if (v.consigned && v.agreedAmountOwed === null)
+      ctx.addIssue({
+        code: "custom",
+        path: ["agreedAmountOwed"],
+        message: "Enter what they're owed for each (0 is allowed).",
+      });
+    if (!v.consigned && v.unitCost === null)
+      ctx.addIssue({
+        code: "custom",
+        path: ["unitCost"],
+        message: "Enter what each cost the shop (0 when nothing).",
+      });
+  });
+
 export const searchSchema = z.object({
   q: z.string().trim().max(200),
   locationId: z.guid().optional(),

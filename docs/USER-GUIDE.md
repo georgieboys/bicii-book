@@ -183,6 +183,16 @@ managers.
     what is in stock where ("40 at Shop floor · 60 total"). Choose
     **Quantity** and where to **Take from**; **Price each** is optional
     (empty charges the selling price). Press **Add part**.
+  - **A part that isn't in the system yet** (D264): in **Add part**, choose
+    **New one-off item** (it carries what you searched for). Give the
+    **Name**, **Quantity** and **Price each**, then **Whose it is**:
+    **Consigned** (pick the consignor, usually you, and what they're owed
+    for each) or **The shop's** (what each cost). On a build, tick
+    **Charge on top of the build package** if the customer pays for it on
+    top. **Add to job** makes the product, takes it into stock and puts it
+    on the job in one step; a consignor is owed when the job is completed.
+    It needs the rights of Receive item (consigned) or of New product and
+    Adjust stock (the shop's).
   - **Add manual line**: **Description**, **Quantity**, **Unit price** and,
     with cost access, **Unit cost** ("Enter 0 when there is no direct cost.
     Left empty, the line is marked cost pending.").

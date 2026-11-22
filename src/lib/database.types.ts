@@ -8053,6 +8053,28 @@ export type Database = {
         };
         Returns: string;
       };
+      add_one_off_part: {
+        Args: {
+          agreed_amount_owed?: unknown;
+          build_extra?: boolean;
+          consigned: boolean;
+          consignor_id?: string;
+          line_id: string;
+          location_id?: string;
+          name: string;
+          quantity: number;
+          unit_direct_cost?: unknown;
+          unit_sale_price: unknown;
+          work_order_id: string;
+        };
+        Returns: Database["public"]["CompositeTypes"]["one_off_part_result"];
+        SetofOptions: {
+          from: "*";
+          to: "one_off_part_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       add_service_line: {
         Args: {
           description?: string;
@@ -13274,6 +13296,12 @@ export type Database = {
         cancelled_via: Database["public"]["Enums"]["appointment_source"] | null;
         created_at: string | null;
         can_cancel: boolean | null;
+      };
+      one_off_part_result: {
+        line_id: string | null;
+        product_id: string | null;
+        product_short_id: string | null;
+        replayed: boolean | null;
       };
       publication_result: {
         product_id: string | null;

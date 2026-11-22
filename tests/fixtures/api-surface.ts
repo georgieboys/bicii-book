@@ -107,6 +107,8 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // Workshop (Phase 3): active staff; service writes need manage_inventory
   // (a cost also view_costs), Cult Commons rates are admin only
   "public.add_manual_line(uuid, uuid, text, money_amount, line_quantity, money_amount)",
+  // D264: a one-off part created and put on the job in one step
+  "public.add_one_off_part(uuid, uuid, text, integer, money_amount, boolean, uuid, money_amount, money_amount, uuid, boolean)",
   "public.add_service_line(uuid, uuid, uuid, line_quantity, money_amount, money_amount, text)",
   // Build packages (D247-D251)
   "public.set_work_order_build(uuid, uuid, uuid, money_amount)",

@@ -2134,6 +2134,25 @@ Built out of phase on 2026-11-22 (`20261122001500_account_purchases.sql`;
   can with `link_shopify_customer`, and whoever is linked next sees that
   Shopify customer's orders through `sales.shopify_customer_id`.
 
+### One-off parts (D264)
+
+Built out of phase on 2026-11-22 (`20261122001800_one_off_parts.sql`).
+
+- `add_one_off_part(line_id, work_order_id, name, quantity, unit_sale_price,
+  consigned, consignor_id, agreed_amount_owed, unit_direct_cost,
+  location_id, build_extra)` (staff) → `one_off_part_result (line_id,
+  product_id, product_short_id, replayed)`: locks the job, replays an
+  existing line id (`line_conflict` on another job), needs an open job;
+  name 1–200 (`one_off_name_required`), quantity 1–999, the location or
+  the first active one (`location_required`). Consigned:
+  `one_off_consignor_required` without a consignor and amount owed, then
+  `create_consignment_item` (manage_consignments) with the name, quantity
+  and price as asking price on a new consignment product. The shop's:
+  manage_inventory, a cost (`part_cost_missing`) with view_costs, a new
+  shop-owned draft product, then `adjust_stock` (adjust_stock) "One-off
+  item for J-…". Then `add_inventory_line` and, with build_extra,
+  `set_build_line_extra`.
+
 ### Frame grades (D260)
 
 Built out of phase on 2026-11-20 (`20261120000200_frame_grades.sql`;

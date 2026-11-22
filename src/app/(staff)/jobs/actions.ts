@@ -12,7 +12,7 @@ import {
   voidLine as voidOne,
 } from "@/lib/domain/lines";
 import { setBuildLineExtra } from "@/lib/domain/build-packages";
-import { addPartToJob as addPart } from "@/lib/domain/inventory";
+import { addOneOffPart, addPartToJob as addPart } from "@/lib/domain/inventory";
 import { searchServices } from "@/lib/domain/services";
 import {
   addWorkOrderNote as addNote,
@@ -25,7 +25,7 @@ import {
   unassignStaff as unassign,
   updateWorkOrderDetails as updateDetails,
 } from "@/lib/domain/workshop";
-import { addPartSchema } from "@/lib/inventory-forms";
+import { addPartSchema, oneOffPartSchema } from "@/lib/inventory-forms";
 import { Decimal, parseMoney, toMoneyString } from "@/lib/money";
 import { REASON_MAX_LENGTH } from "@/lib/reasons";
 
@@ -211,6 +211,21 @@ export const addPartToJob = staffAction(
         );
       }
     }
+    refresh();
+    return result;
+  },
+);
+
+/**
+ * D264: a one-off part made and put on the job in one step, the shop's or
+ * consigned. The database checks the same rights as New product, Adjust
+ * stock and Receive item.
+ */
+export const addOneOffPartToJob = staffAction(
+  oneOffPartSchema,
+  { name: "jobs.add_one_off_part" },
+  async (input, { supabase }) => {
+    const result = await addOneOffPart(supabase, input);
     refresh();
     return result;
   },

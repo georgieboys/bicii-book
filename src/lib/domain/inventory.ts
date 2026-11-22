@@ -335,17 +335,27 @@ async function productItems(
   });
 }
 
+/** Products on one page of the Inventory list. */
+export const PRODUCTS_PER_PAGE = 30;
+
 /**
  * The Inventory list. With `q`: staff_search over products (P- number and
  * SKU exact first; the Archived filter searches archived products the same
  * way), then their stock. Without: the most recently updated products
- * (archived ones only under Archived). Low stock reads reporting.low_stock
+ * (archived ones only under Archived), a page at a time with their total,
+ * so every product can be browsed. Low stock reads reporting.low_stock
  * (largest shortfall first; with `q`, the matches that are low).
  */
 export async function listProducts(
   supabase: ServerSupabase,
-  { q, filter = "all", limit = 30 }: { q: string; filter?: ProductFilter; limit?: number },
-): Promise<ListPage<ProductListItem>> {
+  {
+    q,
+    filter = "all",
+    limit = PRODUCTS_PER_PAGE,
+    page = 1,
+  }: { q: string; filter?: ProductFilter; limit?: number; page?: number },
+): Promise<ListPage<ProductListItem> & { total: number | null }> {
+  const from = (Math.max(1, Math.floor(page)) - 1) * limit;
   if (q) {
     const hits = await staffSearch(supabase, q, {
       kinds: ["product"],
@@ -366,42 +376,44 @@ export async function listProducts(
         ).map((r) => r.product_id),
       );
       ids = ids.filter((id) => low.has(id));
-      return { items: await productItems(supabase, ids.slice(0, limit)), more: ids.length > limit };
+      return {
+        items: await productItems(supabase, ids.slice(0, limit)),
+        more: ids.length > limit,
+        total: null,
+      };
     }
-    return { items: await productItems(supabase, ids), more: hits.more };
+    return { items: await productItems(supabase, ids), more: hits.more, total: null };
   }
 
   if (filter === "low") {
-    const rows =
-      unwrap(
-        await supabase
-          .schema("reporting")
-          .from("low_stock")
-          .select("product_id")
-          .limit(limit + 1),
-      ) ?? [];
+    const low = await supabase
+      .schema("reporting")
+      .from("low_stock")
+      .select("product_id", { count: "exact" })
+      .range(from, from + limit - 1);
+    const rows = unwrap(low) ?? [];
+    const total = low.count ?? rows.length;
     const ids = rows.map((r) => r.product_id).filter((v): v is string => !!v);
-    return { items: await productItems(supabase, ids.slice(0, limit)), more: ids.length > limit };
+    return { items: await productItems(supabase, ids), more: from + rows.length < total, total };
   }
 
-  let query = supabase.from("products").select(LIST_COLUMNS);
+  let query = supabase.from("products").select(LIST_COLUMNS, { count: "exact" });
   query =
     filter === "archived" ? query.not("archived_at", "is", null) : query.is("archived_at", null);
-  const rows =
-    unwrap(
-      await query
-        .order(filter === "archived" ? "archived_at" : "updated_at", { ascending: false })
-        .order("id", { ascending: true })
-        .limit(limit + 1),
-    ) ?? [];
-  const shown = rows.slice(0, limit);
+  const result = await query
+    .order(filter === "archived" ? "archived_at" : "updated_at", { ascending: false })
+    .order("id", { ascending: true })
+    .range(from, from + limit - 1);
+  const shown = unwrap(result) ?? [];
+  const total = result.count ?? shown.length;
   return {
     items: await productItems(
       supabase,
       shown.map((r) => r.id),
       shown,
     ),
-    more: rows.length > limit,
+    more: from + shown.length < total,
+    total,
   };
 }
 

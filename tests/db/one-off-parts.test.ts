@@ -140,15 +140,31 @@ describe.skipIf(!isolatedDatabase())("one-off parts (D264)", () => {
         cost: "6.00",
       });
       expect(again).toMatchObject({ line_id: lineId, product_id: r.product_id, replayed: true });
-      expect(
-        await readAsOwner(tx, () =>
-          scalar<number>(
-            tx,
-            "select count(*)::int from public.products where name = 'Bell' and id = $1",
-            [r.product_id],
-          ),
-        ),
-      ).toBe(1);
+      const counts = await readAsOwner(tx, async () => {
+        const { rows } = await tx.query<{ lines: number; moves: number }>(
+          `select (select count(*)::int from public.work_order_line_items where work_order_id = $1) as lines,
+                  (select count(*)::int from public.inventory_movements
+                    where product_id = $2 and movement_type = 'stock_adjustment') as moves`,
+          [job.id, r.product_id],
+        );
+        return rows[0];
+      });
+      expect(counts).toEqual({ lines: 1, moves: 1 });
+      // The same id for another quantity is a clash, not a replay.
+      await failsWith(
+        tx,
+        () =>
+          oneOff(tx, {
+            lineId,
+            workOrderId: job.id,
+            name: "Bell",
+            quantity: 3,
+            price: "15.00",
+            consigned: false,
+            cost: "6.00",
+          }),
+        { message: "line_conflict" },
+      );
     });
   });
 
@@ -160,7 +176,7 @@ describe.skipIf(!isolatedDatabase())("one-off parts (D264)", () => {
         message: "one_off_consignor_required",
       });
       await failsWith(tx, () => oneOff(tx, { workOrderId: job.id, consigned: false }), {
-        message: "part_cost_missing",
+        message: "one_off_cost_required",
       });
       await failsWith(
         tx,

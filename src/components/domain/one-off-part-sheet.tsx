@@ -56,8 +56,10 @@ export function OneOffPartSheet({
   const [name, setName] = useState(initialName);
   const [quantity, setQuantity] = useState("1");
   const [price, setPrice] = useState("");
+  // Consigned first when there is someone to consign from, or when it is
+  // the only mode this person may use.
   const [whose, setWhose] = useState<Whose>(
-    options.canConsign && options.defaultConsignor ? "consigned" : "shop",
+    options.canConsign && (options.defaultConsignor || !options.canShop) ? "consigned" : "shop",
   );
   const [consignor, setConsignor] = useState<PickerOption | null>(
     options.defaultConsignor

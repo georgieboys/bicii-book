@@ -88,11 +88,9 @@ describe("New one-off item (D264)", () => {
     );
   });
 
-  it("without inventory or consignment access it says so and cannot add", () => {
-    sheet({ canShop: false, canConsign: false, defaultConsignor: null });
-    expect(screen.getByText(/needs inventory or consignment access/)).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Add to job" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+  it("with consignment rights only and no default consignor, it opens on Consigned", () => {
+    sheet({ canShop: false, canConsign: true, defaultConsignor: null });
+    expect(screen.getByLabelText(/Consigned from/)).toBeTruthy();
+    expect(screen.queryByLabelText(/Cost each/)).toBeNull();
   });
 });

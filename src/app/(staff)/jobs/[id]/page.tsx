@@ -165,16 +165,6 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
     listUnlinkedBuildOrders(supabase),
   ]);
   if (!job) notFound();
-  // D264: what this staff member may make on the job as a new one-off item.
-  const canConsign = hasPermission(staff, "manage_consignments");
-  const oneOff = {
-    canShop:
-      hasPermission(staff, "manage_inventory") && hasPermission(staff, "adjust_stock") && viewCosts,
-    canConsign,
-    defaultConsignor: canConsign ? await defaultConsignor(supabase) : null,
-    locations: locations.locations.filter((l) => l.active).map((l) => ({ id: l.id, name: l.name })),
-    defaultLocationId: locations.defaultLocationId,
-  };
   // Units on live part lines: a reopen puts them back on hold (D25).
   const heldUnits = job.lines
     .filter((l) => !l.voided && l.part?.unitId)
@@ -182,6 +172,16 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
 
   const now = new Date();
   const open = isOpenStatus(job.status);
+  // D264: what this staff member may make on the job as a new one-off item.
+  const canConsign = hasPermission(staff, "manage_consignments");
+  const oneOff = {
+    canShop:
+      hasPermission(staff, "manage_inventory") && hasPermission(staff, "adjust_stock") && viewCosts,
+    canConsign,
+    defaultConsignor: canConsign && open ? await defaultConsignor(supabase) : null,
+    locations: locations.locations.filter((l) => l.active).map((l) => ({ id: l.id, name: l.name })),
+    defaultLocationId: locations.defaultLocationId,
+  };
   const closed = isClosedStatus(job.status);
   const overdue = isOverdue({ status: job.status, checkedInAt: job.stamps.checkedInAt }, now);
   const tel = telHref(job.customer.phone);
@@ -620,5 +620,6 @@ async function defaultConsignor(
     (best, c) => (!best || c.activeItems > best.activeItems ? c : best),
     null,
   );
-  return top ? { id: top.id, label: top.name } : null;
+  // Nobody with items for sale: no default (choose in the sheet).
+  return top && top.activeItems > 0 ? { id: top.id, label: top.name } : null;
 }

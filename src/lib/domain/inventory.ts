@@ -1923,7 +1923,7 @@ export async function addPartToJob(
 const ONE_OFF_FIELDS: Record<string, string> = {
   one_off_name_required: "name",
   quantity_invalid: "quantity",
-  part_cost_missing: "unitCost",
+  one_off_cost_required: "unitCost",
   one_off_consignor_required: "consignorId",
   location_inactive: "locationId",
   location_required: "locationId",

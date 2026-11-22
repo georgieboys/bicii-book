@@ -70,9 +70,11 @@ begin
   wo := private.lock_work_order(add_one_off_part.work_order_id);
   select li.* into existing from public.work_order_line_items li where li.id = add_one_off_part.line_id;
   if found then
-    if existing.work_order_id <> wo.id then
+    -- A replay is the same part line; anything else reusing the id is a clash.
+    if existing.work_order_id <> wo.id or existing.line_type <> 'inventory'
+       or existing.quantity <> add_one_off_part.quantity then
       raise exception using errcode = 'P0001', message = 'line_conflict',
-        detail = 'That line id is already used on another job.';
+        detail = 'That line id is already used for another line.';
     end if;
     select p.* into prod from public.products p where p.id = existing.source_product_id;
     result := row(existing.id, prod.id, prod.short_id, true);
@@ -117,7 +119,7 @@ begin
   else
     perform private.require_permission('manage_inventory');
     if add_one_off_part.unit_direct_cost is null then
-      raise exception using errcode = 'P0001', message = 'part_cost_missing',
+      raise exception using errcode = 'P0001', message = 'one_off_cost_required',
         detail = 'Enter what each cost the shop (0 when nothing).';
     end if;
     if not private.has_permission('view_costs') then

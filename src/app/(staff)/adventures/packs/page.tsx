@@ -1,18 +1,19 @@
-import { CappedNote } from "@/components/domain/adventures/capped-note";
 import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PackStatusButtons } from "@/components/domain/adventures/booking-sheets";
+import { ListPager } from "@/components/domain/adventures/list-pager";
 import { AdventuresSectionNav, PillLink } from "@/components/domain/adventures/section-nav";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RouteIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { RowList } from "@/components/ui/row-list";
-import { canManageAdventures, PACK_STATUS_LABELS } from "@/lib/adventures";
+import { canManageAdventures, PACK_STATUS_LABELS, REVOKED_PACK_TEXT } from "@/lib/adventures";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/dates";
 import { listAdventurePacks } from "@/lib/domain/adventure-bookings";
+import { decodeKeyset, encodeKeyset } from "@/lib/keyset";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Finisher packs" };
@@ -20,18 +21,25 @@ export const metadata: Metadata = { title: "Finisher packs" };
 /**
  * Finisher packs (D179, D182): one per certificate. Open packs oldest
  * first (to pack, ready to collect, on hold), or the collected ones,
- * newest first. manage_adventures moves a pack along.
+ * newest first, a page at a time (`after`: the last row's created_at and
+ * id). manage_adventures moves a pack along.
  */
 export default async function AdventurePacksPage({ searchParams }: PageProps<"/adventures/packs">) {
   const staff = await requireStaff();
   const manage = canManageAdventures(staff);
-  const collected = (await searchParams).show === "collected";
-  const packs = await listAdventurePacks(await createClient(), { open: !collected });
+  const params = await searchParams;
+  const collected = params.show === "collected";
+  const after = decodeKeyset(Array.isArray(params.after) ? params.after[0] : params.after);
+  const { items: packs, next } = await listAdventurePacks(await createClient(), {
+    open: !collected,
+    after,
+  });
+  const base = collected ? "/adventures/packs?show=collected" : "/adventures/packs";
+  const page = (cursor: string) => `${base}${collected ? "&" : "?"}after=${cursor}`;
 
   return (
     <>
       <PageHeader title="Adventures" description="Finisher packs for certified riders." />
-      <CappedNote count={packs.length} cap={200} what="packs" />
       <AdventuresSectionNav current="/adventures/packs" />
       <nav aria-label="Show packs" className="mb-4 flex flex-wrap gap-2">
         <PillLink href="/adventures/packs" active={!collected}>
@@ -73,6 +81,7 @@ export default async function AdventurePacksPage({ searchParams }: PageProps<"/a
                   >
                     {PACK_STATUS_LABELS[p.status]}
                   </Badge>
+                  {p.certificateRevoked ? <Badge tone="danger">Certificate revoked</Badge> : null}
                 </span>
                 <span className="text-sm text-dust-700">
                   {p.routeName} · {p.items.join(", ")}
@@ -80,12 +89,21 @@ export default async function AdventurePacksPage({ searchParams }: PageProps<"/a
                   {formatDateTime(p.createdAt)}
                 </span>
                 {p.note ? <span className="text-sm text-dust-700">{p.note}</span> : null}
+                {p.certificateRevoked && p.status !== "fulfilled" ? (
+                  <span className="text-sm text-danger-deep">{REVOKED_PACK_TEXT}</span>
+                ) : null}
               </span>
               {manage ? <PackStatusButtons fulfilmentId={p.id} status={p.status} /> : null}
             </li>
           ))}
         </RowList>
       )}
+      <ListPager
+        firstHref={after ? base : null}
+        firstLabel={collected ? "Back to newest" : "Back to oldest"}
+        nextHref={next ? page(encodeURIComponent(encodeKeyset(next))) : null}
+        nextLabel="Show more packs"
+      />
     </>
   );
 }

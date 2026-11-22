@@ -3129,8 +3129,10 @@ URLs, or customer data in this file.
   Completed (R-089 accepts the cancel case); Stripe keeps its fee on the
   refund ([R-087](#r-087--refunds-are-made-by-hand-in-stripe)). A balance
   Checkout tab paid after its link was stopped (Collected, reopen, or a
-  resend whose expiry lost the race) comes back to "This payment link was
-  replaced or stopped. Ask the shop for a new one.": the page makes no
+  resend whose expiry lost the race) comes back to the stopped link's
+  notice ("Your bike has been collected, …", "The shop reopened this
+  job after sending this link, …" or "This payment link was replaced or
+  stopped. …"): the page makes no
   check, and `confirmBalanceReturn` would return null because
   `prepare_balance_checkout` refuses a withdrawn link. The money is still
   recorded (D159b) and flagged; the customer is not told it went through.

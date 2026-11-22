@@ -92,6 +92,7 @@ export default async function AppointmentPage({ params }: PageProps<"/appointmen
       <AppointmentActionBar
         appointmentId={appt.id}
         startsAt={appt.startsAt}
+        source={appt.source}
         now={now.toISOString()}
       />
 

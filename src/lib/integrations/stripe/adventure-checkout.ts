@@ -90,7 +90,7 @@ export function validAdventureRedirect(
   }
 }
 
-/** Where Stripe sends the rider back: their booking on the public site, or the adventures page. */
+/** Where Stripe sends the rider back: their booking on the public site, paid or not. */
 export function adventureReturnUrls(
   siteUrl: string,
   bookingId: string,
@@ -98,7 +98,10 @@ export function adventureReturnUrls(
   const base = siteUrl.replace(/\/+$/, "");
   return {
     success: `${base}/account/adventures/${bookingId}?checkout=done`,
-    cancel: `${base}/adventures?checkout=cancelled`,
+    // The booking page already says "Your payment isn't finished." with a
+    // link back to the route while the booking waits for payment; the
+    // routes list said nothing.
+    cancel: `${base}/account/adventures/${bookingId}?checkout=cancelled`,
   };
 }
 

@@ -24,6 +24,7 @@
  */
 import { formatDateTime, formatTime, fromShopLocal, shopDateKey, toShopLocal } from "@/lib/dates";
 import { Decimal, lineTotal, parseMoney, sumMoney, toMoneyString } from "@/lib/money";
+import { plural } from "@/lib/plural";
 import { MAX_PURCHASE_UNIT_COST } from "@/lib/purchasing";
 
 // ---------------------------------------------------------------------------
@@ -248,8 +249,6 @@ export type ReceiveTotals = {
   /** Σ quantity × cost of the valid lines: a PREVIEW, never authoritative. */
   value: Decimal;
 };
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** "1 item", "18 items". */
 export const itemsText = (n: number) => plural(n, "item", "items");

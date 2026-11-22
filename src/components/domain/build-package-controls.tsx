@@ -287,10 +287,16 @@ export function ShopifyPackageButton({
   id,
   online,
   pushed,
+  sellable,
+  hasDonor,
 }: {
   id: string;
   online: boolean;
   pushed: boolean;
+  /** Public and not archived: the only state Shopify takes it in (D252). */
+  sellable: boolean;
+  /** Has a Donor bike service, so Shopify offers the donor-bike option. */
+  hasDonor: boolean;
 }) {
   const { toast } = useToast();
   const [pending, start] = useTransition();
@@ -301,9 +307,7 @@ export function ShopifyPackageButton({
         result.ok
           ? {
               title: publishOnline ? "On Shopify" : "Taken off Shopify",
-              description: publishOnline
-                ? "Customers choose where the frame comes from: one of ours, their own, or a donor bike."
-                : undefined,
+              description: publishOnline ? frameChoiceText(hasDonor) : undefined,
               tone: "success",
             }
           : { title: "Shopify not changed", description: result.error, tone: "error" },
@@ -311,9 +315,11 @@ export function ShopifyPackageButton({
     });
   return (
     <>
-      <Button variant="outline" size="sm" pending={pending} onClick={() => push(true)}>
-        {online && pushed ? "Update on Shopify" : "Put on Shopify"}
-      </Button>
+      {sellable ? (
+        <Button variant="outline" size="sm" pending={pending} onClick={() => push(true)}>
+          {online && pushed ? "Update on Shopify" : "Put on Shopify"}
+        </Button>
+      ) : null}
       {online ? (
         <Button variant="outline" size="sm" disabled={pending} onClick={() => push(false)}>
           Take off Shopify
@@ -321,6 +327,13 @@ export function ShopifyPackageButton({
       ) : null}
     </>
   );
+}
+
+/** The success toast after a push: the frame options Shopify now offers. */
+export function frameChoiceText(hasDonor: boolean): string {
+  return hasDonor
+    ? "Customers choose where the frame comes from: one of ours, their own, or a donor bike."
+    : "Customers choose where the frame comes from: one of ours or their own.";
 }
 
 // ---------------------------------------------------------------------------
@@ -354,6 +367,13 @@ const FRAME_LABEL: Record<FrameSource, string> = {
   bicii_frame: "BICII frame",
   own_frame: "Own frame",
   donor_bike: "Donor bike",
+};
+
+/** The frame inside a sentence, worded as the job timeline words it (build_order_linked). */
+const FRAME_SOURCE_PHRASE: Record<FrameSource, string> = {
+  bicii_frame: "a BICII frame",
+  own_frame: "the customer's own frame",
+  donor_bike: "a donor bike",
 };
 
 /** D257, D258: what staff do next for each frame option. */
@@ -495,7 +515,7 @@ export function JobBuildPanel({
         <div className="flex flex-col gap-1">
           <p className="text-sm text-done-deep">
             Paid on Shopify{linkedOrder.orderName ? ` (${linkedOrder.orderName})` : ""}, with{" "}
-            {FRAME_LABEL[linkedOrder.frameSource].toLowerCase()}:{" "}
+            {FRAME_SOURCE_PHRASE[linkedOrder.frameSource]}:{" "}
             {formatMoney(linkedOrder.amount, linkedOrder.currency)}. It counts as revenue when the
             build is completed.
           </p>

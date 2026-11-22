@@ -41,6 +41,8 @@ export type EditableLine = {
   expectedAt: string | null;
   notes: string | null;
   hasReceipts: boolean;
+  /** A customer job's part was ordered on it: never removed. */
+  hasJobParts: boolean;
   /** manage_purchasing sees costs (D60), so an edited line always has one. */
   unitCost: string;
 };
@@ -331,15 +333,16 @@ function RemoveLine({
     else if (cancelled) startRef.current?.focus();
   }, [confirming, onConfirming]);
 
-  if (line.hasReceipts) {
+  if (line.hasReceipts || line.hasJobParts) {
     return (
       <div className="mt-6 flex flex-col gap-2 border-t border-hairline pt-4">
         <Button variant="outline" disabled aria-describedby={`${line.id}-why`}>
           Remove line
         </Button>
         <p id={`${line.id}-why`} className="text-sm text-dust-700">
-          Part of this line has been received, so it stays. Lower its quantity to what arrived
-          instead.
+          {line.hasReceipts
+            ? "Part of this line has been received, so it stays. Lower its quantity to what arrived instead."
+            : "Customer jobs ordered parts on this line, so it stays. Lower its quantity instead."}
         </p>
       </div>
     );

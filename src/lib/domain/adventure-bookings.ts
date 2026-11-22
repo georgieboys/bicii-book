@@ -12,6 +12,7 @@ import type {
   ReviewCheckKey,
 } from "@/lib/adventures";
 import { unwrap } from "@/lib/db-errors";
+import { afterKeyset, type KeysetCursor } from "@/lib/keyset";
 import { customerLabel } from "@/lib/people";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
@@ -104,22 +105,43 @@ function listItem(r: ListRow): AdventureBookingListItem {
 
 export type BookingFilter = "all" | "paid" | "attention" | "unpaid";
 
-/** The newest bookings first, filtered; at most 200. */
+/** One page of a list ordered by (created_at, id), and the cursor of the next. */
+export type KeysetPage<T> = { items: T[]; next: KeysetCursor | null };
+
+function keysetPage<T, R extends { created_at: string; id: string }>(
+  data: R[],
+  limit: number,
+  map: (r: R) => T,
+): KeysetPage<T> {
+  const page = data.slice(0, limit);
+  const last = page.at(-1);
+  return {
+    items: page.map(map),
+    next: data.length > limit && last ? { createdAt: last.created_at, id: last.id } : null,
+  };
+}
+
+/** Bookings and packs are listed this many to a page. */
+export const ADVENTURE_LIST_PAGE = 200;
+
+/** The newest bookings first, filtered; a page at a time, `before` continues after one. */
 export async function listAdventureBookings(
   supabase: ServerSupabase,
   filter: BookingFilter,
-): Promise<AdventureBookingListItem[]> {
+  before: KeysetCursor | null = null,
+): Promise<KeysetPage<AdventureBookingListItem>> {
   let query = supabase.from("adventure_bookings").select(LIST_COLUMNS);
   if (filter === "paid") query = query.eq("status", "confirmed");
   if (filter === "attention") query = query.eq("needs_attention", true);
   if (filter === "unpaid") query = query.in("status", ["pending_payment", "expired", "cancelled"]);
+  if (before) query = query.or(afterKeyset(before, false));
   const data = rows(
     (await query
       .order("created_at", { ascending: false })
-      .order("id")
-      .limit(200)) as unknown as Rows<ListRow>,
+      .order("id", { ascending: false })
+      .limit(ADVENTURE_LIST_PAGE + 1)) as unknown as Rows<ListRow>,
   );
-  return data.map(listItem);
+  return keysetPage(data, ADVENTURE_LIST_PAGE, listItem);
 }
 
 export type AdventureBookingDetail = AdventureBookingListItem & {
@@ -252,7 +274,7 @@ export async function getAdventureBooking(
       .limit(100),
   ]);
   const cert = rows(certificates)[0] ?? null;
-  const packs = await listAdventurePacks(supabase, { bookingId: id });
+  const { items: packs } = await listAdventurePacks(supabase, { bookingId: id });
 
   return {
     ...listItem(booking),
@@ -725,6 +747,8 @@ export type AdventurePack = {
   bookingId: string;
   reference: string;
   certificateReference: string;
+  /** D179: a revoked certificate keeps its pack; staff are told before handing it over. */
+  certificateRevoked: boolean;
   customerName: string;
   routeName: string;
   tshirtSize: string | null;
@@ -736,11 +760,15 @@ export type AdventurePack = {
   createdAt: string;
 };
 
-/** Packs, oldest first: open ones, or one booking's. */
+/**
+ * Packs: open ones oldest first, collected ones newest first, a page at a
+ * time (`after` continues after one); or one booking's.
+ */
 export async function listAdventurePacks(
   supabase: ServerSupabase,
-  scope: { bookingId: string } | { open: boolean },
-): Promise<AdventurePack[]> {
+  scope: { bookingId: string } | { open: boolean; after?: KeysetCursor | null },
+): Promise<KeysetPage<AdventurePack>> {
+  const ascending = "bookingId" in scope || scope.open;
   let query = supabase
     .from("adventure_fulfilments")
     .select(
@@ -749,16 +777,23 @@ export async function listAdventurePacks(
   if ("bookingId" in scope) query = query.eq("booking_id", scope.bookingId);
   else if (scope.open) query = query.neq("status", "fulfilled");
   else query = query.eq("status", "fulfilled");
+  if (!("bookingId" in scope) && scope.after) {
+    query = query.or(afterKeyset(scope.after, ascending));
+  }
   const data = rows(
-    await query.order("created_at", { ascending: "bookingId" in scope || scope.open }).limit(200),
+    await query
+      .order("created_at", { ascending })
+      .order("id", { ascending })
+      .limit(ADVENTURE_LIST_PAGE + 1),
   );
-  return data.map((p) => {
+  return keysetPage(data, ADVENTURE_LIST_PAGE, (p) => {
     const booking = one<{ reference: string; customer: unknown; revision: unknown }>(p.booking);
     return {
       id: p.id,
       bookingId: p.booking_id,
       reference: booking?.reference ?? "",
       certificateReference: one<{ reference: string }>(p.certificate)?.reference ?? "",
+      certificateRevoked: one<{ status: string }>(p.certificate)?.status === "revoked",
       customerName: riderLabel(booking?.customer),
       routeName: one<{ name: string }>(booking?.revision)?.name ?? "Unknown route",
       tshirtSize: p.tshirt_size,

@@ -643,6 +643,13 @@ const CHANNEL_WORDS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * How a quote or payment link was sent, to follow "sent": " by WhatsApp",
+ * " by email", or nothing for a copied link (or an unknown channel).
+ */
+export const sentByWords = (channel: string | null | undefined): string =>
+  (channel ? CHANNEL_WORDS[channel] : undefined) ?? "";
+
+/**
  * The card's line for the live link (D156): "Payment link sent 17 Oct
  * 2026 by WhatsApp ($180.00 when sent), valid until 24 Oct 2026." or, once
  * past its expiry, "…, expired 24 Oct 2026.". `now` is the page's clock.
@@ -652,7 +659,7 @@ export function linkLine(
   currency: string,
   now: Date = new Date(),
 ): string {
-  const head = `Payment link sent ${formatDate(link.sentAt)}${CHANNEL_WORDS[link.channel] ?? ""} (${formatMoney(link.amountAtSend, currency)} when sent)`;
+  const head = `Payment link sent ${formatDate(link.sentAt)}${sentByWords(link.channel)} (${formatMoney(link.amountAtSend, currency)} when sent)`;
   return Date.parse(link.expiresAt) <= now.getTime()
     ? `${head}, expired ${formatDate(link.expiresAt)}.`
     : `${head}, valid until ${formatDate(link.expiresAt)}.`;

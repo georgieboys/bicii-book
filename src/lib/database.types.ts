@@ -13187,6 +13187,7 @@ export type Database = {
         departure_meeting_point: string | null;
         event_note: string | null;
         board_name: string | null;
+        booking_kind: Database["public"]["Enums"]["adventure_participation"] | null;
       };
       appointment_check_in: {
         appointment_id: string | null;

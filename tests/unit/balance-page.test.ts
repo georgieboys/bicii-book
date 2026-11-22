@@ -143,7 +143,7 @@ describe("parseBalanceView (D156f): the two key sets", () => {
   });
 
   it("reads withdrawn, expired and closed links as their state and job only", () => {
-    for (const status of ["withdrawn", "expired", "closed"] as const) {
+    for (const status of ["withdrawn", "reopened", "collected", "expired", "closed"] as const) {
       expect(parseBalanceView({ status, job_number: "J-000042" })).toEqual({
         status,
         job_number: "J-000042",
@@ -185,6 +185,19 @@ describe("the pay page's words (D156f; step3-app-spec §2)", () => {
     expect(balanceNotice({ status: "closed", job_number: "J-000042" })).toEqual({
       title: "Your bill for job J-000042",
       body: "This job has changed. Ask the shop how to pay.",
+    });
+  });
+
+  it("a collected job's link never asks for a new link, which the shop can't send", () => {
+    const collected = balanceNotice({ status: "collected", job_number: "J-000042" });
+    expect(collected).toEqual({
+      title: "Your bill for job J-000042",
+      body: "Your bike has been collected, so this link no longer takes payments. If anything is still owed, the shop will let you know.",
+    });
+    expect(collected.body).not.toMatch(/new one/);
+    expect(balanceNotice({ status: "reopened", job_number: "J-000042" })).toEqual({
+      title: "Your bill for job J-000042",
+      body: "The shop reopened this job after sending this link, so the link stopped. Ask the shop for a new one.",
     });
   });
 

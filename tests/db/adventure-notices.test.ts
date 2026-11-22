@@ -230,6 +230,7 @@ describe("the outbox's claims (D184; R-100)", () => {
         adventure_name: "BICII 125",
         adventure_slug: "bicii-125",
         rider_first_name: "Dana",
+        booking_kind: "self_supported",
       });
       expect(rows[0].reference).toMatch(/^AV-\d{6}$/);
       expect(rows[0].claim_token).toMatch(/^[0-9a-f-]{36}$/);

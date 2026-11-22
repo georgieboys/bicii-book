@@ -211,7 +211,8 @@ managers.
   - "No part in stock matches. Archived, inactive and customer-owned items
     are not offered." Consigned items are offered, marked "Consigned ·
     <consignor>" (see [Use a consigned item on a job](#use-a-consigned-item-on-a-job)).
-  - "This job is completed or closed. Reopen it to change its lines."
+  - "This job is no longer open. Reopen a completed or ready job to change
+    its lines; a collected or cancelled job can't change."
 
 ### Build a bike to a package (full builds and build only)
 
@@ -255,7 +256,8 @@ managers.
   - "Only the build's parts and its labour line can be repriced."
   - "Only a part from stock can be an extra. Services and manual lines are
     already charged on top of the package."
-  - "This job is completed or closed. Reopen it to change its lines."
+  - "This job is no longer open. Reopen a completed or ready job to change
+    its lines; a collected or cancelled job can't change."
 
 ### Sell a full build online with a frame
 
@@ -269,10 +271,12 @@ managers.
     package (it shows **On Shopify** and the frame options it offers).
     After editing its price, text, picture or donor service, or the donor
     service's price, **Update on Shopify**; **Take off Shopify** stops
-    selling it.
+    selling it. A package that is archived or hidden from the site offers
+    only **Take off Shopify** while it is still online.
   - On Shopify the customer picks **Frame**: **Prepared frame from BICII**
     or **My own prepared frame (inspected first)** at the package price, or
-    **Donor bike, stripped and prepared (+S$185)**. On the site, a frame
+    **Donor bike, stripped and prepared (+S$185)** when the package has a
+    donor bike service. On the site, a frame
     that is on sale online offers each online full build with that frame
     in the same cart. The customer pays in full.
   - When the customer brings the frame or donor bike, open the build's job
@@ -550,7 +554,8 @@ while an approved or ordered item is neither fitted nor cancelled:
     have permission to do that." (without View costs or Manage
     purchasing).
   - Ordering, proposing or fitting on a completed or collected job: "This
-    job is completed or closed. Reopen it to change its lines."
+    job is no longer open. Reopen a completed or ready job to change its
+    lines; a collected or cancelled job can't change."
   - Withdrawing a quote, or (anyone but an admin or manager) cancelling an
     item, on a collected or cancelled job: "This job is collected or
     cancelled and can no longer change."
@@ -591,10 +596,13 @@ while an approved or ordered item is neither fitted nor cancelled:
   cancelled. Ask the shop.", or "Too many attempts. Wait a few minutes and
   try again."
 - What the customer may see instead of the quote: "This link is not valid"
-  (a cut-off link), "Quote for job J-… replaced" (you sent again or
-  withdrew it), "Quote for job J-… expired", "Too many requests" (wait a
-  few minutes), or, after answering, "This quote has already been answered
-  or replaced."
+  (a cut-off link), "Quote for job J-… is no longer open" (you sent again
+  or withdrew it, or the job was completed or cancelled before they
+  answered; it tells them to use a newer link if you sent one, otherwise
+  to message the shop), "Quote for job J-… expired", "Too many requests"
+  (wait a few minutes), or, when the quote changed while they had it open,
+  "This quote can no longer be answered. Use the newest link the shop sent
+  you, or message the shop." (the page then reloads and shows why).
   (Email delivery is not covered by an E2E spec; the quote page is.)
 
 ### Receive a consigned item
@@ -976,7 +984,7 @@ while an approved or ordered item is neither fitted nor cancelled:
   reorder point still counts on Today and the Inventory low-stock filter,
   but it is never reordered here: more of it comes from its consignor
   through intake. If only consigned products are low, the list says
-  "Nothing is below its reorder point."
+  "Nothing is at or below its reorder point".
 
 ### Publish a product
 
@@ -1174,9 +1182,12 @@ website's account pages go live when the owner switches them on,
   sign in again. "Your account is closed" means their customer is archived:
   unarchive it if they should be back. A customer is archived only once
   nothing is open for them: "This customer still has an open job, an
-  upcoming booking, an open quote or payment link, or a consignor record.
-  Close those before archiving." means collect or cancel their jobs, cancel
-  their upcoming bookings and archive their consignor record first. A customer linked to the wrong
+  upcoming booking, an open quote or payment link, or a consignor record
+  that isn't archived. Finish or cancel those (archive the consignor)
+  before archiving." means collect or cancel their jobs, cancel their
+  upcoming bookings, quotes and payment links, and archive their consignor
+  record first. The customer's **Archive** card says this before you press
+  it, and that archiving closes their bicii.sg account. A customer linked to the wrong
   record needs the fix in
   [RUNBOOK](RUNBOOK.md#the-public-site-customer-accounts) (no screen yet).
 
@@ -1380,6 +1391,8 @@ published waiver riders sign). Until then nothing is sold.
   hold** with a reason).
 - An admin can **Revoke** a certificate from its booking, with a reason.
   It comes off the finisher board; the certificate and its history stay.
+  Its pack stays too, marked **Certificate revoked** on **Packs** with a
+  warning on the booking: check with an admin before handing it over.
 - **A cancellation request** (D237) puts the booking in **Needs attention**
   with the rider's reason. Cancel it (and refund in Stripe), or press
   **Clear the flag** with a note saying how you answered.
@@ -1425,8 +1438,9 @@ published waiver riders sign). Until then nothing is sold.
   hour. Cancelling an unpaid booking closes its Stripe page first.
 - **The waiver riders sign** is version 2026-11-14.2 (D239). Late-fee days
   are calendar days: days the shop is closed count.
-- Long lists (bookings, reviews, packs, Live rides) say when they show only
-  the first 200 (or 50).
+- **Bookings** and **Packs** show 200 at a time: **Show older bookings**
+  or **Show more packs** at the foot of the list reaches the rest. Reviews
+  and Live rides say when they show only the first 200 (or 50).
 - **Tracker late fees** (D213): hire is 20 per 24 hours. A tracker gets a
   grace day after its return day; after that it costs 20 a day. Taking a
   late tracker back records the fee and emails the rider. When they pay at
@@ -1455,7 +1469,8 @@ published waiver riders sign). Until then nothing is sold.
   emails, payments waiting on Stripe, ride recordings waiting or failed,
   overdue trackers, feeds more
   than an hour behind (positions not being collected) and failing feeds.
-  **Retry failed emails** puts failed adventure emails back in the queue.
+  A count with a list behind it links there (Reviews, Needs attention,
+  Not paid, Handovers or Trackers). **Retry failed emails** puts failed adventure emails back in the queue.
 - Emails: the rider is emailed when their ticket is paid, when you ask for
   changes, when the ride is certified or not (with your message to them),
   and when you mark the pack ready to collect. The people on **Booking
@@ -1495,7 +1510,11 @@ facilitator on the date (with **Facilitate adventures**) presses **Check
 in** for each rider and **Add observation** for anything worth knowing
 (left the route, withdrew, finished, a note). Observations are kept as
 written and help the reviewer; they never certify anyone. A rider cannot
-leave a paid supported place online: staff change or refund it.
+leave a paid supported place online: staff change or refund it. The
+rider's emails say so: once paid, "Thanks: your place on the … supported ride is
+paid. A tracker is included for the day, and we ride with you.", then the
+date and meeting point, with "To change the date, message the shop."
+(never the self-supported or group-ride wording).
 
 ### Tracker hire at the counter
 

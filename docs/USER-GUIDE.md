@@ -779,8 +779,10 @@ while an approved or ordered item is neither fitted nor cancelled:
 
 - **Inventory** lists your products, most recently updated first, 30 to a
   page: **Next** and **Previous** under the list walk through all of them,
-  with where you are ("31 to 60 of 132"). **Low stock** and **Archived**
-  page the same way.
+  with where you are ("31 to 60 of 132"). **Sort by** changes the order:
+  Recently updated (the default), Name A–Z, Name Z–A or Newest added.
+  **Low stock** and **Archived** page the same way (Low stock is always
+  largest shortfall first).
 - To find one, type its P- number, SKU, or a word of its name or brand. A
   search shows the best matches on one page; add more of the name to
   narrow it.

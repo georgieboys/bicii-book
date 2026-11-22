@@ -338,6 +338,15 @@ async function productItems(
 /** Products on one page of the Inventory list. */
 export const PRODUCTS_PER_PAGE = 30;
 
+/** How the browsed Inventory list is ordered; "recent" is the default. */
+export type ProductSort = "recent" | "name" | "name_desc" | "newest";
+export const PRODUCT_SORTS: { key: ProductSort; text: string }[] = [
+  { key: "recent", text: "Recently updated" },
+  { key: "name", text: "Name A–Z" },
+  { key: "name_desc", text: "Name Z–A" },
+  { key: "newest", text: "Newest added" },
+];
+
 /**
  * The Inventory list. With `q`: staff_search over products (P- number and
  * SKU exact first; the Archived filter searches archived products the same
@@ -353,7 +362,8 @@ export async function listProducts(
     filter = "all",
     limit = PRODUCTS_PER_PAGE,
     page = 1,
-  }: { q: string; filter?: ProductFilter; limit?: number; page?: number },
+    sort = "recent",
+  }: { q: string; filter?: ProductFilter; limit?: number; page?: number; sort?: ProductSort },
 ): Promise<ListPage<ProductListItem> & { total: number | null }> {
   const from = (Math.max(1, Math.floor(page)) - 1) * limit;
   if (q) {
@@ -400,8 +410,17 @@ export async function listProducts(
   let query = supabase.from("products").select(LIST_COLUMNS, { count: "exact" });
   query =
     filter === "archived" ? query.not("archived_at", "is", null) : query.is("archived_at", null);
+  // "recent" under Archived means most recently archived.
+  const [column, ascending] =
+    sort === "name"
+      ? (["name", true] as const)
+      : sort === "name_desc"
+        ? (["name", false] as const)
+        : sort === "newest"
+          ? (["created_at", false] as const)
+          : ([filter === "archived" ? "archived_at" : "updated_at", false] as const);
   const result = await query
-    .order(filter === "archived" ? "archived_at" : "updated_at", { ascending: false })
+    .order(column, { ascending })
     .order("id", { ascending: true })
     .range(from, from + limit - 1);
   const shown = unwrap(result) ?? [];

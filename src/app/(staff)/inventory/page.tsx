@@ -20,7 +20,9 @@ import {
   listFrameGrades,
   listProductCategories,
   listProducts,
+  PRODUCT_SORTS,
   PRODUCTS_PER_PAGE,
+  type ProductSort,
   type ProductFilter,
 } from "@/lib/domain/inventory";
 import { publicationLabel, publicationTone } from "@/lib/inventory";
@@ -54,10 +56,16 @@ function readPage(value: string | string[] | undefined): number {
   return Number.isInteger(n) && n >= 1 && n <= 10_000 ? n : 1;
 }
 
-/** The list at that page, keeping the filter. */
-function pageHref(filter: string, page: number): string {
+const readSort = (value: string | string[] | undefined): ProductSort => {
+  const v = Array.isArray(value) ? value[0] : value;
+  return PRODUCT_SORTS.find((s) => s.key === v)?.key ?? "recent";
+};
+
+/** The list at that page, keeping the filter and the order. */
+function pageHref(filter: string, page: number, sort: ProductSort = "recent"): string {
   const params = new URLSearchParams();
   if (filter !== "all") params.set("filter", filter);
+  if (sort !== "recent") params.set("sort", sort);
   if (page > 1) params.set("page", String(page));
   const query = params.toString();
   return `/inventory${query ? `?${query}` : ""}`;
@@ -73,8 +81,11 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
   const supabase = await createClient();
   // Browsing (nothing searched) is paged; a search narrows instead.
   const page = q ? 1 : readPage(params.page);
+  // Sorting applies to browsing All and Archived; Low stock is by shortfall.
+  const sortable = !q && filter !== "low";
+  const sort = sortable ? readSort(params.sort) : "recent";
   const [{ items: products, more, total }, categories, locations, frameGrades] = await Promise.all([
-    listProducts(supabase, { q, filter, page }),
+    listProducts(supabase, { q, filter, page, sort }),
     manage ? listProductCategories(supabase) : Promise.resolve([]),
     manage ? listLocations(supabase) : Promise.resolve(null),
     manage ? listFrameGrades(supabase) : Promise.resolve([]),
@@ -99,7 +110,9 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
       ? "Low stock"
       : filter === "archived"
         ? "Archived products"
-        : "Recently updated";
+        : sort === "recent"
+          ? "Recently updated"
+          : "All products";
 
   return (
     <>
@@ -143,6 +156,17 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
           }))}
         />
       </div>
+      {sortable ? (
+        <LinkSegments
+          label="Sort by"
+          options={PRODUCT_SORTS.map((s) => ({
+            key: s.key,
+            text: s.text,
+            href: pageHref(filter, 1, s.key),
+            current: s.key === sort,
+          }))}
+        />
+      ) : null}
       <section aria-labelledby="product-results" className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="product-results" className="eyebrow text-dust-500">
@@ -187,7 +211,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
             }
             action={
               page > 1 ? (
-                <ButtonLink href={pageHref(filter, 1)} variant="outline">
+                <ButtonLink href={pageHref(filter, 1, sort)} variant="outline">
                   Back to the first page
                 </ButtonLink>
               ) : !q && filter === "all" ? (
@@ -231,8 +255,8 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
           <PageNav
             label="Products"
             summary={pageRange(page, PRODUCTS_PER_PAGE, products.length, total)}
-            previousHref={page > 1 ? pageHref(filter, page - 1) : null}
-            nextHref={more ? pageHref(filter, page + 1) : null}
+            previousHref={page > 1 ? pageHref(filter, page - 1, sort) : null}
+            nextHref={more ? pageHref(filter, page + 1, sort) : null}
           />
         ) : null}
       </section>

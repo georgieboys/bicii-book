@@ -3399,7 +3399,8 @@ integration_retry_queue   (the visible queue, SPEC §26)
 
 integration_audit_events  (append-only: integration_history_append_only)
   id, event_type integration_audit_type (publish_online_changed | sync_requested |
-  variant_linked | customer_linked | job_retried | job_dismissed | settings_changed),
+  variant_linked | customer_linked | customer_unlinked | job_retried | job_dismissed |
+  settings_changed),
   product_id, customer_id, job_id, integration_event_id, actor_staff_id, reason,
   payload ({from, to} …), correlation_id, created_at
 ```

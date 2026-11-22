@@ -264,7 +264,9 @@ begin
          and (s.shopify_customer_id is null or s.shopify_customer_id <> all (unlinked)))
         or (my_shopify is not null and s.shopify_customer_id = my_shopify)
         or (my_email is not null and s.source = 'online_shopify' and s.customer_id is null
-            and private.shopify_order_email(e.payload) = my_email)
+            and private.shopify_order_email(e.payload) = my_email
+            -- An unlinked Shopify customer's orders stay out by email too.
+            and (s.shopify_customer_id is null or s.shopify_customer_id <> all (unlinked)))
       )
     order by s.recognized_at desc, s.id desc
     limit 100;
@@ -272,7 +274,7 @@ end;
 $$;
 
 comment on function public.my_purchases() is
-  'D263: the signed-in customer''s in-store and online purchases (not voided), newest first, at most 100: sales they are the customer of (except online sales of a Shopify customer an admin unlinked from them), online sales of their linked Shopify customer, and unlinked online sales placed with their verified login email. Each with its lines (description, quantity, unit price, total), refunded amount and build orders (package, frame option, amount, linked job number). Never a cost, payout or another customer''s order.';
+  'D263: the signed-in customer''s in-store and online purchases (not voided), newest first, at most 100: sales they are the customer of (except online sales of a Shopify customer an admin unlinked from them), online sales of their linked Shopify customer, and unlinked online sales placed with their verified login email (never those of a Shopify customer an admin unlinked from them). Each with its lines (description, quantity, unit price, total), refunded amount and build orders (package, frame option, amount, linked job number). Never a cost, payout or another customer''s order.';
 
 -- ---------------------------------------------------------------------------
 -- 2. customers_guard_archive: 20261122000900 with the Adventures checks

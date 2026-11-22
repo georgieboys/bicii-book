@@ -333,15 +333,15 @@ describe.skipIf(!isolatedDatabase())("purchases on the site account (D263)", () 
         message: "shopify_customer_not_linked",
       });
 
-      // The sale keeps its customer for staff (sales are immutable), but the
-      // order recorded through the wrong link has left that account. The
-      // order sent to their own verified address still shows (D263).
+      // The sale keeps its customer for staff (sales are immutable), but
+      // every order of that Shopify customer has left that account, the one
+      // placed with their own address included.
       expect(
         await readAsOwner(tx, () =>
           scalar<string | null>(tx, "select customer_id from public.sales where id = $1", [second]),
         ),
       ).toBe(wrong.customerId);
-      expect((await purchasesOf(tx, wrong.authUserId)).map((p) => p.sale_id)).toEqual([first]);
+      expect(await purchasesOf(tx, wrong.authUserId)).toEqual([]);
 
       // The same pair is never matched by email again, and a later order is
       // recorded without a customer.
@@ -354,7 +354,7 @@ describe.skipIf(!isolatedDatabase())("purchases on the site account (D263)", () 
       ).toBeNull();
 
       // The right customer can now be linked, and sees every order of that
-      // Shopify customer; the wrong one still does not see the second.
+      // Shopify customer; the wrong one still sees none of them.
       await tx.query("select * from public.link_shopify_customer($1, $2, 'Confirmed by phone')", [
         right.customerId,
         gid,
@@ -362,9 +362,7 @@ describe.skipIf(!isolatedDatabase())("purchases on the site account (D263)", () 
       expect((await purchasesOf(tx, right.authUserId)).map((p) => p.sale_id).sort()).toEqual(
         [first, second, third].sort(),
       );
-      expect((await purchasesOf(tx, wrong.authUserId)).map((p) => p.sale_id).sort()).toEqual(
-        [first, third].sort(),
-      );
+      expect(await purchasesOf(tx, wrong.authUserId)).toEqual([]);
     });
   });
 

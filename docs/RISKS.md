@@ -3685,9 +3685,9 @@ URLs, or customer data in this file.
   production.
 - Still open: nothing tells staff that a match was made by email, so a
   wrong one is found only when someone reports it; until it is unlinked
-  the other person sees the buyer's orders. An order sent to the other
-  person's own address still shows to them after the unlink, by D263's
-  email rule. The unlink is proved by `tests/db/account-purchases.test.ts`
+  the other person sees the buyer's orders. After the unlink, none of
+  that Shopify customer's orders show in their account, by link or by
+  email. The unlink is proved by `tests/db/account-purchases.test.ts`
   (CI); not exercised on the hosted project.
 - Next action: none unless it happens; if it does, add a staff-visible
   flag on matched links.

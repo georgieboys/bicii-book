@@ -1,5 +1,16 @@
 # Current state
 
+Updated: 2026-11-22 SGT (quick audit of the day's changes, fixes; branch
+`fix/quick-audit-admin`, migrations `20261122001600` and `20261122001700`;
+site branch `fix/quick-audit-site`). A stale edit sheet now refreshes
+instead of dead-ending; an admin can unlink a Shopify customer
+(`unlink_shopify_customer`, audited, R-131), after which none of that
+Shopify customer's orders show in the account and the pair is never
+matched by email again; a customer with a paid or unfinished adventure
+booking or a tracker out cannot be archived; purchase-order refusals name
+the waiting jobs. Open for the owner: Auth "Confirm email" must be on
+(A-07), and whether Purchases totals should include shipping.
+Before that,
 Updated: 2026-11-22 SGT (D263, account purchases; branch
 `feat/account-purchases` here and in BICII, migration `20261122001500`).
 Customers signed in on bicii.sg see Purchases: in-store and online sales

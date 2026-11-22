@@ -6,6 +6,9 @@ isn't in the system yet is made, taken into stock and put on the job in one
 step, consigned (consignor offered first, amount owed each) or the shop's
 (cost each), optionally charged on top of a build. The owner asked for it
 after trying to add their own items to J-000005 without a separate page.
+Propose part offers the same New one-off item (`propose_one_off_part`), and
+consigned stock counted by quantity can now be proposed on a quote, then
+fitted from stock (D265; never ordered).
 Before that,
 Updated: 2026-11-22 SGT (quick audit of the day's changes, fixes; branch
 `fix/quick-audit-admin`, migrations `20261122001600` and `20261122001700`;

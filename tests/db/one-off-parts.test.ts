@@ -239,4 +239,52 @@ describe.skipIf(!isolatedDatabase())("one-off parts (D264)", () => {
       ).toBe(1);
     });
   });
+
+  it("a new one-off item can be proposed on the quote; consigned stock is proposable (D265)", async () => {
+    await inTx(async (tx) => {
+      const consignorId = await createConsignor(tx);
+      const job = await newJob(tx);
+      const requestId = randomUUID();
+      const propose = () =>
+        tx.query(
+          "select public.propose_one_off_part($1, $2, $3, $4, $5, true, $6, $7, null, null)",
+          [requestId, job.id, "Vintage Motohandlebars", 1, "120.00", consignorId, "60.00"],
+        );
+      await propose();
+      const req = await readAsOwner(tx, async () => {
+        const { rows } = await tx.query<{
+          status: string;
+          product_id: string;
+          ownership: string;
+          price: string;
+        }>(
+          `select r.status::text, r.product_id, p.ownership_type::text as ownership,
+                  r.unit_sale_price::text as price
+             from public.job_part_requests r join public.products p on p.id = r.product_id
+            where r.id = $1`,
+          [requestId],
+        );
+        return rows[0];
+      });
+      expect(req).toMatchObject({ status: "proposed", ownership: "consignment", price: "120.00" });
+      expect(await onHand(tx, req.product_id)).toBe(1);
+      // A repeat proposes nothing new.
+      await propose();
+      expect(
+        await readAsOwner(tx, () =>
+          scalar<number>(
+            tx,
+            "select count(*)::int from public.job_part_requests where work_order_id = $1",
+            [job.id],
+          ),
+        ),
+      ).toBe(1);
+      // The existing consigned product can be proposed again on its own.
+      await tx.query("select public.propose_part($1, $2, $3, 1)", [
+        randomUUID(),
+        job.id,
+        req.product_id,
+      ]);
+    });
+  });
 });

@@ -2153,6 +2153,18 @@ Built out of phase on 2026-11-22 (`20261122001800_one_off_parts.sql`).
   shop-owned draft product, then `adjust_stock` (adjust_stock) "One-off
   item for J-…". Then `add_inventory_line` and, with build_extra,
   `set_build_line_extra`.
+- The stock-taking is `private.create_one_off_stock(wo, name, quantity,
+  unit_sale_price, consigned, consignor_id, agreed_amount_owed,
+  unit_direct_cost, location_id)` → product id, shared with:
+- `propose_one_off_part(request_id, work_order_id, name, quantity,
+  unit_sale_price, consigned, consignor_id, agreed_amount_owed,
+  unit_direct_cost, location_id)` (staff) → request id (D265): replays an
+  existing request of the same quantity (`part_request_conflict`
+  otherwise), then makes the one-off and calls `propose_part`.
+- `propose_part` (re-created, D265) accepts a consigned quantity product as
+  well as a shop-owned one (`indent_product_invalid` otherwise). Ordering
+  such a request is refused by `set_purchase_order_line`
+  (`purchase_line_not_shop_owned`); Fit takes it from stock.
 
 ### Frame grades (D260)
 

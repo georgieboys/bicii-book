@@ -11,6 +11,7 @@ const addOneOff = vi.fn();
 vi.mock("@/app/(staff)/jobs/actions", () => ({
   addOneOffPartToJob: (...args: unknown[]) => addOneOff(...args),
 }));
+vi.mock("@/app/(staff)/jobs/indent-actions", () => ({ proposeOneOffPartAction: vi.fn() }));
 vi.mock("@/app/(staff)/consignment/actions", () => ({
   searchConsignorsAction: vi.fn(async () => ({ ok: true, data: [] })),
 }));

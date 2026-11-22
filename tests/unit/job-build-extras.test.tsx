@@ -28,6 +28,7 @@ const searchParts = vi.fn();
 vi.mock("@/app/(staff)/inventory/actions", () => ({
   searchParts: (...args: unknown[]) => searchParts(...args),
 }));
+vi.mock("@/app/(staff)/jobs/indent-actions", () => ({ proposeOneOffPartAction: vi.fn() }));
 vi.mock("@/app/(staff)/consignment/actions", () => ({ searchConsignorsAction: vi.fn() }));
 vi.mock("@/app/(staff)/jobs/actions", () => ({
   addPartToJob: vi.fn(),

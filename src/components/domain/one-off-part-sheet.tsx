@@ -4,6 +4,7 @@ import { useId, useState, useTransition } from "react";
 
 import { searchConsignorsAction } from "@/app/(staff)/consignment/actions";
 import { addOneOffPartToJob } from "@/app/(staff)/jobs/actions";
+import { proposeOneOffPartAction } from "@/app/(staff)/jobs/indent-actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
@@ -42,12 +43,15 @@ export function OneOffPartSheet({
   initialName,
   hasBuild,
   options,
+  purpose = "add",
   onClose,
 }: {
   workOrderId: string;
   initialName: string;
   hasBuild: boolean;
   options: OneOffOptions;
+  /** D265: "propose" puts it on the quote for the customer to approve instead. */
+  purpose?: "add" | "propose";
   onClose: () => void;
 }) {
   const { toast } = useToast();
@@ -88,24 +92,32 @@ export function OneOffPartSheet({
 
   const submit = () =>
     start(async () => {
-      const result = await callAction(() =>
-        addOneOffPartToJob({
-          lineId,
-          workOrderId,
-          name,
-          quantity,
-          unitSalePrice: price,
-          consigned: whose === "consigned",
-          consignorId: whose === "consigned" ? (consignor?.id ?? "") : "",
-          agreedAmountOwed: whose === "consigned" ? owed : "",
-          unitCost: whose === "shop" ? cost : "",
-          locationId,
-          buildExtra: extra,
-        }),
-      );
+      const input = {
+        lineId,
+        workOrderId,
+        name,
+        quantity,
+        unitSalePrice: price,
+        consigned: whose === "consigned",
+        consignorId: whose === "consigned" ? (consignor?.id ?? "") : "",
+        agreedAmountOwed: whose === "consigned" ? owed : "",
+        unitCost: whose === "shop" ? cost : "",
+        locationId,
+        buildExtra: purpose === "add" && extra,
+      };
+      const result: ActionResult<unknown> =
+        purpose === "propose"
+          ? await callAction(() => proposeOneOffPartAction(input))
+          : await callAction(() => addOneOffPartToJob(input));
       setState(result);
       if (!result.ok) return;
-      toast({ title: `Added ${quantity} × ${name.trim()}.`, tone: "success" });
+      toast({
+        title:
+          purpose === "propose"
+            ? `Proposed ${quantity} × ${name.trim()}. Send a quote when you're ready.`
+            : `Added ${quantity} × ${name.trim()}.`,
+        tone: "success",
+      });
       onClose();
     });
 
@@ -115,7 +127,11 @@ export function OneOffPartSheet({
       onOpenChange={(next) => (next ? null : onClose())}
       dismissible={!pending}
       title="New one-off item"
-      description="A part that isn't in the system yet: it is added to stock and put on this job in one step."
+      description={
+        purpose === "propose"
+          ? "A part that isn't in the system yet: it is added to stock and proposed on this job's quote. Once the customer approves, Fit takes it from stock."
+          : "A part that isn't in the system yet: it is added to stock and put on this job in one step."
+      }
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={pending}>
@@ -128,7 +144,7 @@ export function OneOffPartSheet({
             pendingLabel="Adding…"
             disabled={choices.length === 0}
           >
-            Add to job
+            {purpose === "propose" ? "Propose part" : "Add to job"}
           </Button>
         </>
       }
@@ -233,7 +249,7 @@ export function OneOffPartSheet({
             ) : null}
           </div>
         ) : null}
-        {hasBuild ? (
+        {hasBuild && purpose === "add" ? (
           <Checkbox
             checked={extra}
             onChange={(e) => setExtra(e.target.checked)}

@@ -491,6 +491,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
               canOrder={canOrder}
               purchaseData={purchaseData}
               canCreateProduct={hasPermission(staff, "manage_inventory")}
+              oneOff={oneOff}
               emailEnabled={quoteEmailEnabled()}
               deposits={payments?.deposits ?? []}
               canOverrideDeposit={canOverrideDeposit(staff)}

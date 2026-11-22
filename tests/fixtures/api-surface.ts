@@ -298,6 +298,8 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.order_part_requests(uuid[], uuid, uuid, boolean, text)",
   "public.part_request_arrivals(uuid)",
   "public.propose_part(uuid, uuid, uuid, integer, money_amount, money_amount, uuid)",
+  // D265: a new one-off item proposed on the quote
+  "public.propose_one_off_part(uuid, uuid, text, integer, money_amount, boolean, uuid, money_amount, money_amount, uuid)",
   "public.propose_service(uuid, uuid, uuid, line_quantity, money_amount)",
   "public.quote_by_token(text)",
   "public.send_quote(uuid, uuid, uuid[], quote_channel, integer)",

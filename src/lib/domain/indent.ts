@@ -1,11 +1,12 @@
 import "server-only";
 
-import { unwrap } from "@/lib/db-errors";
+import { DbError, mapDbError, unwrap } from "@/lib/db-errors";
 import type { PartRequestKind, PartRequestStatus, QuoteChannel, QuoteState } from "@/lib/indent";
 import { logger } from "@/lib/logger";
 import { toMoneyString } from "@/lib/money";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
+import { DomainError } from "./errors";
 import { staffSearch } from "./search";
 
 /**
@@ -338,7 +339,11 @@ export async function searchIndentProducts(
     .filter((p) => p.active && p.archived_at === null && p.ownership_type !== "customer_owned")
     .map((p) => ({
       p,
-      orderable: p.tracking_type === "quantity" && p.ownership_type === "shop_owned",
+      // D265: consigned stock counted by quantity is proposed too (quoted,
+      // then fitted from stock; never ordered).
+      orderable:
+        p.tracking_type === "quantity" &&
+        (p.ownership_type === "shop_owned" || p.ownership_type === "consignment"),
       stock: onHand.get(p.id) ?? 0,
     }))
     .filter(({ orderable, stock }) => orderable || stock > 0)
@@ -387,6 +392,56 @@ export async function proposePart(
     ),
     "RPC",
   );
+}
+
+const ONE_OFF_PROPOSE_FIELDS: Record<string, string> = {
+  one_off_name_required: "name",
+  quantity_invalid: "quantity",
+  part_price_missing: "unitSalePrice",
+  one_off_cost_required: "unitCost",
+  one_off_consignor_required: "consignorId",
+  location_inactive: "locationId",
+  location_required: "locationId",
+};
+
+/** D265: a new one-off item made and proposed on the quote; returns the request id. */
+export async function proposeOneOffPart(
+  supabase: ServerSupabase,
+  input: {
+    requestId: string;
+    workOrderId: string;
+    name: string;
+    quantity: number;
+    unitSalePrice: string;
+    consigned: boolean;
+    consignorId: string | null;
+    agreedAmountOwed: string | null;
+    unitCost: string | null;
+    locationId: string | null;
+  },
+): Promise<string> {
+  const { data, error } = await supabase.rpc("propose_one_off_part", {
+    request_id: input.requestId,
+    work_order_id: input.workOrderId,
+    name: input.name,
+    quantity: input.quantity,
+    unit_sale_price: input.unitSalePrice,
+    consigned: input.consigned,
+    consignor_id: input.consigned ? (input.consignorId ?? undefined) : undefined,
+    agreed_amount_owed: input.consigned ? (input.agreedAmountOwed ?? undefined) : undefined,
+    unit_direct_cost: input.consigned ? undefined : (input.unitCost ?? undefined),
+    location_id: input.locationId ?? undefined,
+  });
+  if (error) {
+    const err = new DbError(error);
+    const mapped = mapDbError(err);
+    const field = mapped.reason ? ONE_OFF_PROPOSE_FIELDS[mapped.reason] : undefined;
+    if (field && mapped.kind !== "unknown" && mapped.kind !== "unavailable") {
+      throw new DomainError(mapped.message, { [field]: [mapped.message] });
+    }
+    throw err;
+  }
+  return returned(data, "RPC");
 }
 
 /** propose_service (D140): returns the request id. */

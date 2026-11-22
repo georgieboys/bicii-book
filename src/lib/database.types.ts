@@ -10098,6 +10098,21 @@ export type Database = {
         };
         Returns: string;
       };
+      propose_one_off_part: {
+        Args: {
+          agreed_amount_owed?: unknown;
+          consigned: boolean;
+          consignor_id?: string;
+          location_id?: string;
+          name: string;
+          quantity: number;
+          request_id: string;
+          unit_direct_cost?: unknown;
+          unit_sale_price: unknown;
+          work_order_id: string;
+        };
+        Returns: string;
+      };
       propose_service: {
         Args: {
           quantity?: unknown;

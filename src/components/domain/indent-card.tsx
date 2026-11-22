@@ -51,6 +51,7 @@ import type { WorkOrderStatus } from "@/lib/workshop";
 import { callAction, UNREACHABLE } from "@/lib/call-action";
 
 import { CopyText } from "./copy-text";
+import { OneOffPartSheet, type OneOffOptions } from "./one-off-part-sheet";
 import { CancelSheet, DepositBadge, FitSheet } from "./indent-sheets";
 
 type Errors = Record<string, string[]> | undefined;
@@ -94,6 +95,7 @@ export function IndentCard({
   canOverrideDeposit = false,
   canCancelClosed = false,
   defaultLocationName = null,
+  oneOff,
 }: {
   /** The anchor the memo under the job's total links to. */
   id?: string;
@@ -118,10 +120,14 @@ export function IndentCard({
   canCancelClosed?: boolean;
   /** Where a never-ordered part is taken from when fitted (add_inventory_line's default). */
   defaultLocationName?: string | null;
+  /** D265: what this staff member may make as a new one-off item to propose. */
+  oneOff?: OneOffOptions;
 }) {
   const [sheet, setSheet] = useState<
     null | "part" | "service" | "quote" | "order" | { cancel: PartRequest } | { fit: PartRequest }
   >(null);
+  // D265: a new one-off item to propose, with the search it started from.
+  const [oneOffSheet, setOneOff] = useState<{ name: string } | null>(null);
   const [sent, setSent] = useState<QuoteSent | null>(null);
   const { toast } = useToast();
   const [withdrawing, startWithdraw] = useTransition();
@@ -317,7 +323,25 @@ export function IndentCard({
           workOrderId={workOrderId}
           purchaseData={purchaseData}
           canCreateProduct={canCreateProduct}
+          onOneOff={
+            oneOff && (oneOff.canShop || oneOff.canConsign)
+              ? (query) => {
+                  close();
+                  setOneOff({ name: query });
+                }
+              : undefined
+          }
           onClose={close}
+        />
+      ) : null}
+      {oneOffSheet && oneOff ? (
+        <OneOffPartSheet
+          workOrderId={workOrderId}
+          initialName={oneOffSheet.name}
+          hasBuild={false}
+          options={oneOff}
+          purpose="propose"
+          onClose={() => setOneOff(null)}
         />
       ) : null}
       {sheet === "service" ? (
@@ -409,13 +433,17 @@ function ProposePartSheet({
   workOrderId,
   purchaseData,
   canCreateProduct,
+  onOneOff,
   onClose,
 }: {
   workOrderId: string;
   purchaseData: boolean;
   canCreateProduct: boolean;
+  /** D265: switch to a new one-off item, carrying what was searched for. */
+  onOneOff?: (query: string) => void;
   onClose: () => void;
 }) {
+  const [lastQuery, setLastQuery] = useState("");
   const { toast } = useToast();
   const [requestId] = useState(newId);
   const [newProductId, setNewProductId] = useState(newId);
@@ -433,6 +461,7 @@ function ProposePartSheet({
   const errors = errorsOf(result);
 
   const search = async (q: string): Promise<ProductPick[]> => {
+    setLastQuery(q);
     const r = await callAction(() => searchIndentProductOptions({ q }));
     if (!r.ok) throw new Error(r.error);
     return r.data.map((p) => ({
@@ -441,9 +470,11 @@ function ProposePartSheet({
       description: [p.shortId, p.sku].filter(Boolean).join(" · "),
       meta: !p.orderable
         ? "In stock · use Add part"
-        : p.salePrice !== null
-          ? formatMoney(p.salePrice, p.currency)
-          : "No price",
+        : p.consigned
+          ? `Consigned · ${p.onHand} in stock`
+          : p.salePrice !== null
+            ? formatMoney(p.salePrice, p.currency)
+            : "No price",
       product: p,
     }));
   };
@@ -513,10 +544,8 @@ function ProposePartSheet({
         ) : null}
         {inStock && picked ? (
           <p role="status" className="rounded-xl bg-info-soft p-3 text-sm text-info-deep">
-            {picked.product.name} is already in the shop
-            {picked.product.consigned ? " (consigned)" : ""}: {picked.product.onHand} on hand. Close
-            this and use <span className="font-semibold">Add part</span> on the Lines card to take
-            it from stock.
+            {picked.product.name} is a one-of-a-kind item already in the shop. Close this and use{" "}
+            <span className="font-semibold">Add part</span> on the Lines card to take it from stock.
           </p>
         ) : null}
         {mode === "existing" ? (
@@ -539,6 +568,21 @@ function ProposePartSheet({
             </Field>
           </>
         )}
+        {mode === "existing" && !picked && onOneOff ? (
+          <div className="flex flex-col items-start gap-2 rounded-xl bg-sunken p-3 text-sm text-dust-700">
+            <span>
+              Not in the system yet? Add it here, the shop&apos;s or consigned, to propose it.
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOneOff(lastQuery.trim())}
+            >
+              New one-off item
+            </Button>
+          </div>
+        ) : null}
         <Field label="Quantity" error={errors?.quantity?.[0]} required>
           <NumberInput
             kind="quantity"

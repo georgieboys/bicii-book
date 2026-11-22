@@ -6,7 +6,7 @@ import { ChevronRightIcon } from "@/components/ui/icons";
 import { formatDate } from "@/lib/dates";
 import type { ProductPurchasing } from "@/lib/domain/purchasing";
 import { formatMoney } from "@/lib/money";
-import { formatExpected } from "@/lib/purchasing";
+import { formatExpected, leadTimeText } from "@/lib/purchasing";
 
 import { ShortId } from "../short-id";
 import { PurchaseOrderStatusPill } from "./purchase-order-status-pill";
@@ -73,7 +73,7 @@ export function ProductPurchasingCard({
                     <span className="text-sm text-dust-500">
                       {[
                         s.supplierSku ? `Their SKU ${s.supplierSku}` : null,
-                        s.leadDays !== null ? `${s.leadDays} days lead time` : null,
+                        s.leadDays !== null ? leadTimeText(s.leadDays) : null,
                       ]
                         .filter(Boolean)
                         .join(" · ") || "No SKU or lead time"}

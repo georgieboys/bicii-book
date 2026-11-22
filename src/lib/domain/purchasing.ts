@@ -255,6 +255,8 @@ export type PurchaseOrderLine = {
   onHand: number;
   /** Has any receipt: cannot be removed, quantity never below `received`. */
   hasReceipts: boolean;
+  /** A customer job's part was ordered on it (D145): it is never removed. */
+  hasJobParts: boolean;
   overdue: boolean;
   /** D60: present only for cost-visible staff. */
   costs?: { unitCost: Money; orderedTotal: Money; receivedValue: Money };
@@ -480,7 +482,7 @@ export async function getPurchaseOrder(
     ...new Set([...lineProduct.values(), ...receiptLines.map((r) => r.product_id)]),
   ];
   const locationIds = [...new Set(receiptLines.map((r) => r.location_id))];
-  const [products, stockResult, locationsResult] = await Promise.all([
+  const [products, stockResult, locationsResult, jobPartsResult] = await Promise.all([
     productBriefs(supabase, productIds),
     lineRows.length > 0
       ? supabase
@@ -495,7 +497,21 @@ export async function getPurchaseOrder(
     locationIds.length > 0
       ? supabase.from("locations").select("id, name").in("id", locationIds)
       : Promise.resolve({ data: [], error: null }),
+    lineRows.length > 0
+      ? supabase
+          .from("job_part_requests")
+          .select("purchase_order_line_id")
+          .in(
+            "purchase_order_line_id",
+            lineRows.map((l) => l.id),
+          )
+      : Promise.resolve({ data: [], error: null }),
   ]);
+  const jobPartLines = new Set(
+    ((unwrap(jobPartsResult) ?? []) as { purchase_order_line_id: string | null }[]).map(
+      (r) => r.purchase_order_line_id,
+    ),
+  );
   const onHand = new Map(
     ((unwrap(stockResult) ?? []) as { product_id: string | null; on_hand: number | null }[]).map(
       (s) => [s.product_id, s.on_hand ?? 0],
@@ -529,6 +545,7 @@ export async function getPurchaseOrder(
       notes: l.notes,
       onHand: onHand.get(l.product_id) ?? 0,
       hasReceipts: received > 0,
+      hasJobParts: jobPartLines.has(l.id),
       overdue: p?.is_overdue === true,
       ...(seeCosts && c
         ? {

@@ -13,6 +13,7 @@ import {
   type StockReconciliationRow,
   type UnitReconciliationRow,
 } from "@/lib/reconciliation";
+import { plural } from "@/lib/plural";
 
 /**
  * The server-rendered parts of /reports/reconciliation (Phase 9 step 4;
@@ -89,7 +90,9 @@ export function StockReconciliationList({
               </span>
               <span className="text-sm tabular-nums">
                 {r.locationName} · ledger {onHand(r.ledgerOnHand)}
-                {r.unitsInStock !== null ? ` · ${r.unitsInStock} items in stock` : ""}
+                {r.unitsInStock !== null
+                  ? ` · ${plural(r.unitsInStock, "item", "items")} in stock`
+                  : ""}
               </span>
               {r.issue ? <span className="text-sm text-dust-700">{sentence(r.issue)}</span> : null}
             </span>

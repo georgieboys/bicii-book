@@ -40,9 +40,15 @@ export const BALANCE_PAYMENT_STATES = [
 ] as const;
 export type BalancePaymentState = (typeof BALANCE_PAYMENT_STATES)[number];
 
-/** A withdrawn, expired or closed link shows only its state and the job (C11). */
-const closedLink = <S extends "withdrawn" | "expired" | "closed">(status: S) =>
-  z.object({ status: z.literal(status), job_number: z.string() });
+/**
+ * A link that no longer takes payments shows only its state and the job
+ * (C11): collected (the bike went home), reopened (the job was reopened
+ * after the link was sent), withdrawn (replaced by a newer link), expired,
+ * or closed (the job is no longer completed or ready).
+ */
+const closedLink = <S extends "withdrawn" | "reopened" | "collected" | "expired" | "closed">(
+  status: S,
+) => z.object({ status: z.literal(status), job_number: z.string() });
 
 const openLink = z.object({
   status: z.literal("open"),
@@ -69,6 +75,8 @@ const openLink = z.object({
  */
 export const balanceViewSchema = z.discriminatedUnion("status", [
   closedLink("withdrawn"),
+  closedLink("reopened"),
+  closedLink("collected"),
   closedLink("expired"),
   closedLink("closed"),
   openLink,
@@ -108,9 +116,15 @@ export const NOT_VALID_NOTICE: Notice = {
 };
 
 const CLOSED_BODIES: Readonly<Record<ClosedBalance["status"], string>> = {
+  // Replaced by a newer link (withdrawn_reason replaced).
   withdrawn: "This payment link was replaced or stopped. Ask the shop for a new one.",
+  // The shop can't send a link for a collected job (send_balance_link).
+  collected:
+    "Your bike has been collected, so this link no longer takes payments. If anything is still owed, the shop will let you know.",
+  reopened:
+    "The shop reopened this job after sending this link, so the link stopped. Ask the shop for a new one.",
   expired: "This payment link has expired. Ask the shop for a new one.",
-  // Read from the job's status at every read: reopened, collected or cancelled.
+  // Read from the job's status at every read: a cancelled job, or a fallback.
   closed: "This job has changed. Ask the shop how to pay.",
 };
 

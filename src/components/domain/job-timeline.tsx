@@ -18,7 +18,8 @@ const DOT: Record<StatusTone, string> = {
  * A job's timeline (SPEC §7.3), newest first: what happened
  * (describeEvent; a title with an `href`, such as the appointment a job
  * was opened from, is a link), who did it ("Recorded outside the app"
- * when nobody in the app did) and when, with any note or reason quoted. It never shows a
+ * when nobody in the app did) and when, with any note or reason quoted (the
+ * app's own details, such as an amount, are not). It never shows a
  * cost: event payloads carry none. When older events were left out
  * (`truncated`) it says so under the last one, with a link to more when
  * there is one (`moreHref`).
@@ -69,7 +70,9 @@ function TimelineList({ entries }: { entries: TimelineEntry[] }) {
               <span className="font-medium break-words">{e.title}</span>
             )}
             {e.detail ? (
-              <span className="text-sm whitespace-pre-line text-dust-700">“{e.detail}”</span>
+              <span className="text-sm whitespace-pre-line text-dust-700">
+                {e.plain ? e.detail : `“${e.detail}”`}
+              </span>
             ) : null}
             <span className="text-sm text-dust-500">
               {e.actorName ?? "Recorded outside the app"}

@@ -22,7 +22,7 @@ import type { SupplierProductLink } from "@/lib/domain/suppliers";
 import { getSupplier } from "@/lib/domain/suppliers";
 import { formatMoney } from "@/lib/money";
 import { mailtoHref, telHref } from "@/lib/people";
-import { canManagePurchasing, formatExpected, progressText } from "@/lib/purchasing";
+import { canManagePurchasing, formatExpected, leadTimeText, progressText } from "@/lib/purchasing";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
 
@@ -32,9 +32,7 @@ export const metadata: Metadata = { title: "Supplier" };
 function LinkSummary({ link }: { link: SupplierProductLink }) {
   const facts = [
     link.supplierSku ? `Their SKU ${link.supplierSku}` : null,
-    link.leadDays !== null
-      ? `${link.leadDays} ${link.leadDays === 1 ? "day" : "days"} lead time`
-      : null,
+    link.leadDays !== null ? leadTimeText(link.leadDays) : null,
   ].filter(Boolean);
   return (
     <span className="flex min-w-0 flex-1 flex-col gap-1">

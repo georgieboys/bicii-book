@@ -6,6 +6,9 @@
  * Resend.
  *
  *   rider  ticket_paid        "Your BICII 125 ticket (AV-000012)"
+ *                             (supported: "Your BICII 125 supported ride (AV-000012)")
+ *   rider  departure_joined   "You've joined a BICII 125 group ride"
+ *                             (supported: "Your place on the BICII 125 supported ride")
  *   rider  changes_requested  "Your BICII 125 ride: we need something more"
  *   rider  certified          "You're certified: BICII 125"
  *   rider  not_certified      "Your BICII 125 ride wasn't certified"
@@ -18,6 +21,7 @@
  * the rows it did not get to, which uses no attempt. Each result is
  * recorded with the claim's token.
  */
+import { SHOP_CONTACT } from "@/lib/shop-contact";
 
 export type AdventureNoticeKind =
   | "ticket_paid"
@@ -59,7 +63,15 @@ export type AdventureNotice = {
   eventNote: string | null;
   /** The rider's finisher board name, or null when they chose none (D218, A-60). */
   boardName: string | null;
+  /**
+   * How the booking rides: a supported place has a fixed date, an included
+   * tracker and facilitators, and can't be left online, so its emails say
+   * so. Null on a row from before the claim carried it.
+   */
+  bookingKind: AdventureBookingKind | null;
 };
+
+export type AdventureBookingKind = "self_supported" | "self_supported_group" | "supported";
 
 export type AdventureNoticeRow = {
   id: string | null;
@@ -83,6 +95,7 @@ export type AdventureNoticeRow = {
   departure_meeting_point?: string | null;
   event_note?: string | null;
   board_name?: string | null;
+  booking_kind?: AdventureBookingKind | null;
 };
 
 export function adventureNoticeFromRow(row: AdventureNoticeRow): AdventureNotice {
@@ -108,6 +121,7 @@ export function adventureNoticeFromRow(row: AdventureNoticeRow): AdventureNotice
     departureMeetingPoint: row.departure_meeting_point ?? null,
     eventNote: row.event_note ?? null,
     boardName: row.board_name ?? null,
+    bookingKind: row.booking_kind ?? null,
   };
 }
 
@@ -179,8 +193,24 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
   const ride = page(n.publicSiteUrl, `/account/adventures/${n.bookingId}`);
   const route = n.adventureName;
   const message = n.messageToRider?.trim() ? `From BICII:\n${n.messageToRider.trim()}` : null;
+  const supported = n.bookingKind === "supported";
+  const when = n.departureStartsAt ? ` on ${whenLabel(n.departureStartsAt)}` : "";
+  const meeting = n.departureMeetingPoint ? `, meeting at ${n.departureMeetingPoint}` : "";
   switch (n.kind) {
+    // A supported place's date is fixed and its tracker included; the
+    // date's own email (departure_joined) follows with when and where.
     case "ticket_paid":
+      if (supported) {
+        return compose(
+          `Your ${route} supported ride (${n.reference})`,
+          [
+            hello,
+            `Thanks: your place on the ${route} supported ride is paid. A tracker is included for the day, and we ride with you.`,
+            "Your ride's page shows the date and meeting point. To change the date, message the shop.",
+          ],
+          { href: ride, label: "Open your ride" },
+        );
+      }
       return compose(
         `Your ${route} ticket (${n.reference})`,
         [
@@ -221,7 +251,7 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
           hello,
           `We've checked your ${route} ride and couldn't certify it.`,
           message,
-          "Questions? Reply to the shop on Instagram.",
+          `Questions? ${SHOP_CONTACT.label}: ${SHOP_CONTACT.href}`,
         ],
         { href: ride, label: "Open your ride" },
       );
@@ -236,6 +266,17 @@ function riderEmail(n: AdventureNotice): NoticeEmail {
         { href: page(n.publicSiteUrl, "/contact"), label: "Opening hours" },
       );
     case "departure_joined":
+      if (supported) {
+        return compose(
+          `Your place on the ${route} supported ride`,
+          [
+            hello,
+            `You're on the ${route} supported ride${when}${meeting}.`,
+            "Your place includes a tracker for the day. To change the date, message the shop.",
+          ],
+          { href: ride, label: "Open your ride" },
+        );
+      }
       return compose(
         `You've joined a ${route} group ride`,
         [

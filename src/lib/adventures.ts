@@ -187,6 +187,10 @@ export const PACK_STATUS_LABELS: Record<AdventurePackStatus, string> = {
   on_hold: "On hold",
 };
 
+/** D179: a revoked certificate keeps its pack; said beside it until it is collected. */
+export const REVOKED_PACK_TEXT =
+  "This rider's certificate was revoked. Check with an admin before handing the pack over.";
+
 export const FINISHER_NAME_LABELS: Record<AdventureFinisherName, string> = {
   first_name_initial: "First name and initial",
   full_name: "Full name",

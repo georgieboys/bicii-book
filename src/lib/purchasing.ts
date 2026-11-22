@@ -12,6 +12,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { Constants, type Database } from "@/lib/database.types";
 import { formatDate, shopToday, type DateInput } from "@/lib/dates";
 import { formatMoney, type MoneyInput } from "@/lib/money";
+import { plural } from "@/lib/plural";
 
 export type PurchaseOrderStatus = Database["public"]["Enums"]["purchase_order_status"];
 export type PurchaseOrderEventType = Database["public"]["Enums"]["purchase_order_event_type"];
@@ -155,6 +156,11 @@ export function normaliseWebsite(value: string | null | undefined): string | nul
   const v = value?.trim() ?? "";
   if (!v) return null;
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
+
+/** A supplier's lead time: "1 day lead time", "5 days lead time". */
+export function leadTimeText(days: number): string {
+  return `${plural(days, "day", "days")} lead time`;
 }
 
 /** A shop day "YYYY-MM-DD" for people: "12 Oct 2026". */

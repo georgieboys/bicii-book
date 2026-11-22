@@ -29,6 +29,7 @@ import {
   heldOverSentence,
   paidSummary,
   paymentStatusLabel,
+  sentByWords,
   type PaidSummary,
   showsPaymentTotals,
   stripeConnectionLabel,
@@ -502,5 +503,14 @@ describe("Check with Stripe, incomplete (R-086)", () => {
     expect(error).toContain("could not use Stripe's answer");
     expect(error).toContain("RUNBOOK “Stripe: resolving problems”");
     expect(error).not.toMatch(/permission|key|try again/i);
+  });
+});
+
+describe("sentByWords", () => {
+  it("names WhatsApp and email, and nothing for a copied link", () => {
+    expect(sentByWords("whatsapp")).toBe(" by WhatsApp");
+    expect(sentByWords("email")).toBe(" by email");
+    expect(sentByWords("link")).toBe("");
+    expect(sentByWords(null)).toBe("");
   });
 });

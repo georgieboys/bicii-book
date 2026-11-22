@@ -26,6 +26,7 @@ import {
   type SeriesBucket,
   type StockValueRow,
 } from "@/lib/period-reports";
+import { plural } from "@/lib/plural";
 import { formatSignedMoney, provisionalNote } from "@/lib/reports";
 
 /**
@@ -556,7 +557,7 @@ export function ActivityFigures({ activity }: { activity: PeriodActivity }) {
         <Figure
           label="Appointments"
           value={String(a.appointments.scheduled)}
-          hint={`${a.appointments.arrived} arrived · ${a.appointments.noShow} no-shows · ${a.appointments.cancelled} cancelled`}
+          hint={`${a.appointments.arrived} arrived · ${plural(a.appointments.noShow, "no-show", "no-shows")} · ${a.appointments.cancelled} cancelled`}
         />
         <Figure
           label="Parts used"

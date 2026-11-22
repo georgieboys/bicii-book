@@ -70,8 +70,8 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
   if (quote.status === "withdrawn") {
     return (
       <Notice
-        title={`Quote for job ${quote.job_number} replaced`}
-        body="The shop replaced or withdrew this quote. Use the newest link they sent you, or ask them for one."
+        title={`Quote for job ${quote.job_number} is no longer open`}
+        body="The shop replaced or withdrew this quote. If they sent you a newer link, use that one; otherwise message the shop."
       />
     );
   }

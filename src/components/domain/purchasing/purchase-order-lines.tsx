@@ -101,6 +101,7 @@ export function PurchaseOrderLines({
                 expectedAt: l.expectedAt,
                 notes: l.notes,
                 hasReceipts: l.hasReceipts,
+                hasJobParts: l.hasJobParts,
                 unitCost: l.costs?.unitCost ?? "0.00",
               });
             return (

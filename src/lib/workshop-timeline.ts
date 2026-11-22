@@ -36,8 +36,13 @@ export type TimelineEvent = {
 
 export type EventDescription = {
   title: string;
-  /** A note, reason or the text that changed; shown quoted under the title. */
+  /**
+   * Shown under the title: a note, reason or the text that changed, quoted
+   * as someone wrote it, or, when `plain` is true, the app's own words (an
+   * amount, "Visible to the customer"), shown without quotation marks.
+   */
   detail: string | null;
+  plain?: boolean;
   tone: StatusTone;
   /** Where the title links (the appointment a job was opened from). */
   href?: string;
@@ -188,6 +193,7 @@ export function describeEvent(
       return {
         title: "Photo added",
         detail: p.visibility === "customer" ? "Visible to the customer" : null,
+        plain: true,
         tone: "neutral",
       };
     case "photo_removed":
@@ -286,6 +292,7 @@ export function describeEvent(
       return {
         title: `Parts ordered${po ? ` on ${po}` : ""}`,
         detail: reason ? `Ordered before the deposit was paid: ${reason}` : null,
+        plain: true,
         tone: reason ? "waiting" : "info",
       };
     }
@@ -299,6 +306,7 @@ export function describeEvent(
           p.bought_outside === true
             ? `Bought outside BICII${reference ? ` · ${reference}` : ""}`
             : null,
+        plain: true,
         tone: "done",
       };
     }
@@ -314,6 +322,7 @@ export function describeEvent(
           p.bought_outside === true
             ? "The part bought outside BICII went back into stock. Fit it again or cancel it."
             : "Fit it again or cancel it.",
+        plain: true,
         tone: "waiting",
       };
     }
@@ -333,6 +342,7 @@ export function describeEvent(
           askedText && receivedText !== askedText
             ? `Stripe's amount differs from the ${askedText} asked`
             : null,
+        plain: true,
         tone: "done",
       };
     }
@@ -351,6 +361,7 @@ export function describeEvent(
             : total !== null
               ? `${formatMoney(total, refundCurrency)} refunded in total`
               : null,
+        plain: true,
         tone: "info",
       };
     }
@@ -364,6 +375,7 @@ export function describeEvent(
             ? `A refund of ${formatMoney(failed, refundCurrency)} failed in Stripe`
             : "A refund failed in Stripe",
         detail: total !== null ? `${formatMoney(total, refundCurrency)} refunded in total` : null,
+        plain: true,
         tone: "danger",
       };
     }
@@ -436,6 +448,7 @@ export function describeEvent(
           parts !== null && labour !== null
             ? `Parts ${formatMoney(parts, currency)}, labour ${formatMoney(labour, currency)}`
             : null,
+        plain: true,
         tone: "neutral",
       };
     }
@@ -458,6 +471,7 @@ export function describeEvent(
       return {
         title: `Online build order${order ? ` ${order}` : ""} linked`,
         detail: parts.length > 0 ? parts.join(", ") : null,
+        plain: true,
         tone: "done",
       };
     }
@@ -475,6 +489,7 @@ export function describeEvent(
           event.type === "build_extra_marked" && total !== null
             ? formatMoney(total, currency)
             : null,
+        plain: true,
         tone: "neutral",
       };
     }
@@ -488,6 +503,7 @@ export function describeEvent(
           from !== null && to !== null
             ? `${formatMoney(from, currency)} to ${formatMoney(to, currency)} each`
             : null,
+        plain: true,
         tone: "neutral",
       };
     }

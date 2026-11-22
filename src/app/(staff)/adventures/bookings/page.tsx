@@ -1,6 +1,6 @@
-import { CappedNote } from "@/components/domain/adventures/capped-note";
 import type { Metadata } from "next";
 
+import { ListPager } from "@/components/domain/adventures/list-pager";
 import { AdventuresSectionNav, PillLink } from "@/components/domain/adventures/section-nav";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,6 +11,7 @@ import { BOOKING_STATUS_LABELS, PARTICIPATION_LABELS } from "@/lib/adventures";
 import { requireStaff } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/dates";
 import { listAdventureBookings, type BookingFilter } from "@/lib/domain/adventure-bookings";
+import { decodeKeyset, encodeKeyset } from "@/lib/keyset";
 import { formatMoney } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,32 +28,36 @@ function parseFilter(value: unknown): BookingFilter {
   return FILTERS.some((f) => f.value === value) ? (value as BookingFilter) : "paid";
 }
 
+const filterHref = (f: BookingFilter) =>
+  f === "paid" ? "/adventures/bookings" : `/adventures/bookings?show=${f}`;
+
 /**
  * Adventure bookings (D172, D182): one row per rider's purchase, newest
- * first, filtered by paid, needs attention or not paid. Any staff member
- * can look.
+ * first, filtered by paid, needs attention or not paid, a page at a time
+ * (`before`: the last row's created_at and id). Any staff member can look.
  */
 export default async function AdventureBookingsPage({
   searchParams,
 }: PageProps<"/adventures/bookings">) {
   await requireStaff();
-  const filter = parseFilter((await searchParams).show);
-  const bookings = await listAdventureBookings(await createClient(), filter);
+  const params = await searchParams;
+  const filter = parseFilter(params.show);
+  const before = decodeKeyset(Array.isArray(params.before) ? params.before[0] : params.before);
+  const { items: bookings, next } = await listAdventureBookings(
+    await createClient(),
+    filter,
+    before,
+  );
+  const base = filterHref(filter);
+  const page = (cursor: string) => `${base}${base.includes("?") ? "&" : "?"}before=${cursor}`;
 
   return (
     <>
       <PageHeader title="Adventures" description="Certified ride bookings." />
-      <CappedNote count={bookings.length} cap={200} what="bookings" />
       <AdventuresSectionNav current="/adventures/bookings" />
       <nav aria-label="Show bookings" className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
-          <PillLink
-            key={f.value}
-            href={
-              f.value === "paid" ? "/adventures/bookings" : `/adventures/bookings?show=${f.value}`
-            }
-            active={f.value === filter}
-          >
+          <PillLink key={f.value} href={filterHref(f.value)} active={f.value === filter}>
             {f.label}
           </PillLink>
         ))}
@@ -97,6 +102,12 @@ export default async function AdventureBookingsPage({
           ))}
         </RowList>
       )}
+      <ListPager
+        firstHref={before ? base : null}
+        firstLabel="Back to newest"
+        nextHref={next ? page(encodeURIComponent(encodeKeyset(next))) : null}
+        nextLabel="Show older bookings"
+      />
     </>
   );
 }

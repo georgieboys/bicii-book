@@ -24,6 +24,7 @@ import {
   type PaymentItem,
   type PaymentSummary,
 } from "@/lib/payment-reports";
+import { plural } from "@/lib/plural";
 import { formatSignedMoney } from "@/lib/reports";
 
 /**
@@ -34,8 +35,6 @@ import { formatSignedMoney } from "@/lib/reports";
  * src/lib/payment-reports.ts). Nothing is cost-derived (D154d), so there
  * is no view_costs layout.
  */
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
  * The period's customer money (report_payment_summary): taken online,

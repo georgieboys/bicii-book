@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import {
   AdventureSalesControl,
@@ -40,19 +41,23 @@ export default async function AdventureSalesSettingsPage() {
   const n = (key: string) => Number(health[key] ?? 0);
   const at = (key: string) =>
     typeof health[key] === "string" ? formatDateTime(health[key] as string) : null;
-  const checks: Array<{ label: string; value: string; bad: boolean }> = [
+  // Each check links to the list where it is acted on, when there is one.
+  const checks: Array<{ label: string; value: string; bad: boolean; href?: string }> = [
     {
       label: "Rides waiting for review",
+      href: "/adventures/reviews",
       value: `${n("reviews_waiting")}${at("reviews_oldest") ? `, oldest sent ${at("reviews_oldest")}` : ""}`,
       bad: false,
     },
     {
       label: "Bookings needing attention",
+      href: "/adventures/bookings?show=attention",
       value: String(n("bookings_attention")),
       bad: n("bookings_attention") > 0,
     },
     {
       label: "Cancellations asked (30 days, not cancelled)",
+      href: "/adventures/bookings?show=attention",
       value: String(n("cancellations_requested_30d")),
       bad: n("cancellations_requested_30d") > 0,
     },
@@ -66,21 +71,25 @@ export default async function AdventureSalesSettingsPage() {
     { label: "Ride files that failed (7 days)", value: String(n("files_failed_7d")), bad: false },
     {
       label: "Trackers overdue",
+      href: "/adventures/handovers",
       value: String(n("trackers_overdue")),
       bad: n("trackers_overdue") > 0,
     },
     {
       label: "Payments waiting on Stripe for over an hour",
+      href: "/adventures/bookings?show=unpaid",
       value: String(n("payments_stale")),
       bad: n("payments_stale") > 0,
     },
     {
       label: "Feeds more than an hour behind",
+      href: "/adventures/trackers",
       value: String(n("feeds_behind")),
       bad: n("feeds_behind") > 0,
     },
     {
       label: "Feeds failing",
+      href: "/adventures/trackers",
       value: `${n("feeds_failing")} of ${n("feeds_enabled")}${at("feed_last_read") ? `, last read ${at("feed_last_read")}` : ""}`,
       bad: n("feeds_failing") > 0,
     },
@@ -151,7 +160,15 @@ export default async function AdventureSalesSettingsPage() {
             {checks.map((c) => (
               <div key={c.label} className="contents">
                 <dt className="text-dust-700">{c.label}</dt>
-                <dd className={c.bad ? "font-semibold text-danger-deep" : undefined}>{c.value}</dd>
+                <dd className={c.bad ? "font-semibold text-danger-deep" : undefined}>
+                  {c.href ? (
+                    <Link href={c.href} className="underline underline-offset-2">
+                      {c.value}
+                    </Link>
+                  ) : (
+                    c.value
+                  )}
+                </dd>
               </div>
             ))}
           </dl>

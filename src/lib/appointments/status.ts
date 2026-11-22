@@ -33,6 +33,18 @@ export const APPOINTMENT_SOURCE_LABELS: Readonly<Record<AppointmentSource, strin
   staff: "Booked by staff",
 };
 
+/**
+ * The hint under "Why is the appointment cancelled?". Cancelling an online
+ * booking queues the customer's cancellation email whoever cancels it
+ * (private.appointments_queue_notices), and the email leaves out the staff
+ * reason; a booking staff made sends nothing.
+ */
+export function cancelHint(source: AppointmentSource): string {
+  return source === "customer"
+    ? "Kept in the appointment's history. The customer is emailed that it's cancelled when booking emails are on; your reason isn't in it."
+    : "Kept in the appointment's history. The customer is not told automatically.";
+}
+
 const TONES: Readonly<Record<AppointmentStatus, AppointmentTone>> = {
   booked: "info",
   confirmed: "progress",

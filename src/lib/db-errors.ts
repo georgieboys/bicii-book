@@ -182,7 +182,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   customer_archived: "That customer is archived. Unarchive them first.",
   // A-22: customers_guard_archive.
   customer_has_open_work:
-    "This customer still has an open job, an upcoming booking, an open quote or payment link, or a consignor record. Close those before archiving.",
+    "This customer still has an open job, an upcoming booking, an open quote or payment link, or a consignor record that isn't archived. Finish or cancel those (archive the consignor) before archiving.",
   bike_archived: "That bike is archived. Unarchive it before changing its owner or stocking it.",
   bike_short_id_immutable: "A bike keeps its ID for life.",
   bike_history_append_only: "Bike ownership history cannot be changed.",
@@ -202,7 +202,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   attachment_history_append_only: "Photo history cannot be changed.",
   // Workshop (Phase 3)
   work_order_transition_invalid: "A job can't move to that status from where it is now.",
-  work_order_locked: "This job is completed or closed. Reopen it to change its lines.",
+  work_order_locked:
+    "This job is no longer open. Reopen a completed or ready job to change its lines; a collected or cancelled job can't change.",
   work_order_closed: "This job is collected or cancelled and can no longer change.",
   work_order_has_lines:
     "Void the job's lines before cancelling it. Voiding a part returns it to stock.",
@@ -531,6 +532,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "That product is already on this order. Change its line instead.",
   purchase_line_has_receipts:
     "Part of this line has been received, so it can't be removed. Lower its quantity instead.",
+  purchase_line_has_job_parts:
+    "Customer jobs ordered parts on this line, so it stays. Lower its quantity instead.",
   purchase_currency_mismatch: "That product is priced in another currency than this order.",
   purchase_receipt_key_reused:
     "This submission was already recorded. Check the order before receiving again.",
@@ -564,7 +567,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "Only items proposed on this job and not on another quote can be sent.",
   quote_answered: "The customer has already answered this quote.",
   quote_not_found: "This link is not valid. Ask the shop for a new one.",
-  quote_not_open: "This quote has already been answered or replaced.",
+  quote_not_open:
+    "This quote can no longer be answered. Use the newest link the shop sent you, or message the shop.",
   quote_expired: "This quote has expired. Ask the shop for a new one.",
   quote_name_required: "Type your name (up to 100 characters).",
   quote_answer_incomplete: "Answer every item before sending.",
@@ -1288,6 +1292,16 @@ export const CHECK_ERRORS: Record<string, string> = {
   payments_balance_link_kind: "Only a balance payment comes from a payment link.",
 };
 
+/**
+ * Foreign-key violations (23503) whose generic text would mislead: a row
+ * still refers to the one being removed, so "no longer exists" is wrong.
+ */
+const FOREIGN_KEY_ERRORS: Record<string, string> = {
+  // Backstop of remove_purchase_order_line's purchase_line_has_job_parts.
+  job_part_requests_purchase_order_line_id_fkey:
+    "Customer jobs ordered parts on this line, so it stays. Lower its quantity instead.",
+};
+
 /** Other fixed SQLSTATEs our RPCs raise on purpose. */
 const SQLSTATE_ERRORS: Record<string, Pick<MappedError, "message" | "kind">> = {
   "42501": { message: FORBIDDEN_ERROR, kind: "forbidden" },
@@ -1354,7 +1368,15 @@ export function mapDbError(error: unknown): MappedError {
   }
 
   if (code === "23503") {
-    return { message: "That refers to something that no longer exists.", kind: "invalid", code };
+    const constraint = constraintOf(error);
+    return {
+      message:
+        (constraint && FOREIGN_KEY_ERRORS[constraint]) ??
+        "That refers to something that no longer exists.",
+      kind: "invalid",
+      code,
+      reason: constraint,
+    };
   }
   if (code === "23502") {
     return { message: "Some required values are missing.", kind: "invalid", code };

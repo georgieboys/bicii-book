@@ -37,6 +37,7 @@ function notice(kind: AdventureNoticeKind, over: Partial<AdventureNotice> = {}):
     departureMeetingPoint: null,
     eventNote: null,
     boardName: null,
+    bookingKind: null,
     ...over,
   };
 }
@@ -65,6 +66,10 @@ describe("the emails (D183)", () => {
     );
     expect(no.subject).toBe("Your BICII 125 ride wasn't certified");
     expect(no.text).toContain("The track stops at 80 km.");
+    expect(no.text).toContain(
+      "Questions? Message the shop on Instagram: https://ig.me/m/fukcycles",
+    );
+    expect(no.text).not.toContain("Reply to the shop");
   });
 
   it("certified names the certificate and the day; pack ready lists the items", () => {
@@ -143,6 +148,57 @@ describe("departure emails (D195)", () => {
     const cancelled = adventureNoticeEmail(notice("departure_cancelled", at), null);
     expect(cancelled.subject).toBe("The BICII 125 group ride is cancelled");
     expect(cancelled.text).toContain("Your ticket still stands");
+  });
+
+  it("a supported place is worded for its fixed date and included tracker, never a peer group", () => {
+    const at = {
+      bookingKind: "supported" as const,
+      departureStartsAt: "2026-11-21T23:00:00Z",
+      departureMeetingPoint: "294 River Valley",
+    };
+    const paid = adventureNoticeEmail(notice("ticket_paid", { bookingKind: "supported" }), null);
+    expect(paid.subject).toBe("Your BICII 125 supported ride (AV-000012)");
+    expect(paid.text).toContain("your place on the BICII 125 supported ride is paid");
+    expect(paid.text).toContain("A tracker is included for the day");
+    expect(paid.text).not.toContain("Ride it when you like");
+    const joined = adventureNoticeEmail(notice("departure_joined", at), null);
+    expect(joined.subject).toBe("Your place on the BICII 125 supported ride");
+    expect(joined.text).toContain(
+      "You're on the BICII 125 supported ride on Sun 22 Nov 2026, 7:00 am, meeting at 294 River Valley.",
+    );
+    expect(joined.text).toContain("To change the date, message the shop.");
+    expect(joined.text).not.toContain("peer group");
+    expect(joined.text).not.toContain("leave the date");
+    // A self-supported ticket keeps its words.
+    expect(
+      adventureNoticeEmail(notice("ticket_paid", { bookingKind: "self_supported" }), null).text,
+    ).toContain("Ride it when you like");
+  });
+
+  it("reads the booking's kind from the claimed row", () => {
+    const row = {
+      id: "n1",
+      claim_token: "t1",
+      kind: "ticket_paid" as const,
+      audience: "customer" as const,
+      recipient: "dana@example.com",
+      booking_id: "b1",
+      reference: "AV-000012",
+      adventure_name: "BICII 125",
+      rider_name: "Dana Rider",
+      rider_first_name: "Dana",
+      message_to_rider: null,
+      certificate_reference: null,
+      completed_on: null,
+      accepted_distance_km: null,
+      pack_items: null,
+      attention_reason: null,
+      public_site_url: null,
+    };
+    expect(adventureNoticeFromRow({ ...row, booking_kind: "supported" }).bookingKind).toBe(
+      "supported",
+    );
+    expect(adventureNoticeFromRow(row).bookingKind).toBeNull();
   });
 });
 

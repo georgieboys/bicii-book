@@ -7,10 +7,11 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const proposePartAction = vi.fn();
+const searchIndent = vi.fn(async (_: unknown) => ({ ok: true, data: [] as unknown[] }));
 vi.mock("@/app/(staff)/jobs/indent-actions", () => ({
   proposePartAction: (...args: unknown[]) => proposePartAction(...args),
   supplierOptions: vi.fn(async () => ({ ok: true, data: [] })),
-  searchIndentProductOptions: vi.fn(async () => ({ ok: true, data: [] })),
+  searchIndentProductOptions: (a: unknown) => searchIndent(a),
   cancelPartRequestAction: vi.fn(),
   fitPartRequestAction: vi.fn(),
   fitPartBoughtOutsideAction: vi.fn(),
@@ -70,5 +71,41 @@ describe("Propose part: a new product (A-87)", () => {
     expect(first).not.toBe("");
     expect(second).not.toBe(first);
     expect(third).toBe(second);
+  });
+});
+
+describe("Propose part: a match already in the shop", () => {
+  it("is shown as in stock, explained, and cannot be proposed", async () => {
+    searchIndent.mockResolvedValueOnce({
+      ok: true,
+      data: [
+        {
+          id: "00000000-0000-4000-8000-000000000019",
+          name: "Dia-Compe 188 levers",
+          shortId: "P-000019",
+          sku: null,
+          salePrice: "43.00",
+          currency: "SGD",
+          orderable: false,
+          onHand: 7,
+          consigned: true,
+        },
+      ],
+    });
+    card();
+    fireEvent.click(screen.getByRole("button", { name: "Propose part" }));
+    await act(async () => {
+      fireEvent.change(screen.getByPlaceholderText("Name, SKU or P- number"), {
+        target: { value: "Dia-Compe" },
+      });
+    });
+    const option = await screen.findByRole("option", { name: /Dia-Compe 188 levers/ });
+    expect(option.textContent).toContain("In stock · use Add part");
+    fireEvent.click(option);
+    expect(screen.getByRole("status").textContent).toMatch(
+      /already in the shop \(consigned\): 7 on hand/,
+    );
+    const buttons = screen.getAllByRole("button", { name: "Propose part" });
+    expect((buttons.at(-1) as HTMLButtonElement).disabled).toBe(true);
   });
 });

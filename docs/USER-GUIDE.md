@@ -311,7 +311,10 @@ while an approved or ordered item is neither fitted nor cancelled:
 **Complete…** lists them first (D149b).
 
 - Before you start: the job is open; the part is a product counted by
-  quantity (an existing one, or a new one if you manage inventory). The
+  quantity (an existing one, or a new one if you manage inventory). A part
+  already in the shop (consigned stock, or a one-off item) is not ordered:
+  search finds it marked "In stock · use Add part", and you add it from
+  stock with **Add part** on the Lines card. The
   customer needs a mobile number for WhatsApp, or an email address for
   email (once an admin has set up quote emails,
   [RUNBOOK](RUNBOOK.md#quote-emails)); otherwise copy the link and send it

@@ -439,10 +439,16 @@ function ProposePartSheet({
       id: p.id,
       label: p.name,
       description: [p.shortId, p.sku].filter(Boolean).join(" · "),
-      meta: p.salePrice !== null ? formatMoney(p.salePrice, p.currency) : "No price",
+      meta: !p.orderable
+        ? "In stock · use Add part"
+        : p.salePrice !== null
+          ? formatMoney(p.salePrice, p.currency)
+          : "No price",
       product: p,
     }));
   };
+  // A match already in the shop is added from stock, not ordered.
+  const inStock = mode === "existing" && picked !== null && !picked.product.orderable;
 
   const submit = () =>
     start(async () => {
@@ -481,7 +487,7 @@ function ProposePartSheet({
           <Button variant="outline" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
-          <Button onClick={submit} pending={pending} pendingLabel="Proposing…">
+          <Button onClick={submit} pending={pending} pendingLabel="Proposing…" disabled={inStock}>
             Propose part
           </Button>
         </>
@@ -505,6 +511,14 @@ function ProposePartSheet({
             ]}
           />
         ) : null}
+        {inStock && picked ? (
+          <p role="status" className="rounded-xl bg-info-soft p-3 text-sm text-info-deep">
+            {picked.product.name} is already in the shop
+            {picked.product.consigned ? " (consigned)" : ""}: {picked.product.onHand} on hand. Close
+            this and use <span className="font-semibold">Add part</span> on the Lines card to take
+            it from stock.
+          </p>
+        ) : null}
         {mode === "existing" ? (
           <Field label="Part" error={errors?.productId?.[0]} required>
             <SearchPicker<ProductPick>
@@ -512,7 +526,7 @@ function ProposePartSheet({
               value={picked}
               onSelect={setPicked}
               placeholder="Name, SKU or P- number"
-              emptyMessage="No product matches. Only shop-owned products counted by quantity can be ordered."
+              emptyMessage="No product matches. Parts already in the shop are added with Add part on the Lines card."
             />
           </Field>
         ) : (

@@ -11,6 +11,14 @@ booking or a tracker out cannot be archived; purchase-order refusals name
 the waiting jobs. Open for the owner: Auth "Confirm email" must be on
 (A-07), and whether Purchases totals should include shipping.
 Before that,
+Updated: 2026-11-22 SGT (Propose part points to Add part; branch
+`fix/indent-in-stock`, no migration). The owner could not find consigned
+stock (P-000019, 7 on RV Shop floor) because they searched Propose part,
+which orders shop-owned parts only; its search now also shows matches
+already in the shop as "In stock · use Add part" and says how many are on
+hand, and Propose is disabled for them. Add part itself offers consigned
+stock (checked in production in a rolled-back transaction).
+Before that,
 Updated: 2026-11-22 SGT (Inventory pages; branch
 `feat/inventory-pagination`, no migration). The Inventory list is paged,
 30 products a page with Previous, Next and "31 to 60 of 132", for All, Low

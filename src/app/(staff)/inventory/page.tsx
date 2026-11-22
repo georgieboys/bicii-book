@@ -10,6 +10,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { BoxIcon, ChevronRightIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
+import { PageNav, pageRange } from "@/components/ui/page-nav";
 import { RowLink, RowList } from "@/components/ui/row-list";
 import { StatusPill } from "@/components/ui/status-pill";
 import { hasPermission } from "@/lib/auth/permissions";
@@ -19,6 +20,9 @@ import {
   listFrameGrades,
   listProductCategories,
   listProducts,
+  PRODUCT_SORTS,
+  PRODUCTS_PER_PAGE,
+  type ProductSort,
   type ProductFilter,
 } from "@/lib/domain/inventory";
 import { publicationLabel, publicationTone } from "@/lib/inventory";
@@ -46,6 +50,27 @@ const readFilter = (value: string | string[] | undefined): ProductFilter => {
  * Archived, kept with the query in the URL. Each row: name, P- number,
  * SKU, its stock as a badge and, when public or sold, the publication.
  */
+/** The page asked for in the address: a whole number from 1, else 1. */
+function readPage(value: string | string[] | undefined): number {
+  const n = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isInteger(n) && n >= 1 && n <= 10_000 ? n : 1;
+}
+
+const readSort = (value: string | string[] | undefined): ProductSort => {
+  const v = Array.isArray(value) ? value[0] : value;
+  return PRODUCT_SORTS.find((s) => s.key === v)?.key ?? "recent";
+};
+
+/** The list at that page, keeping the filter and the order. */
+function pageHref(filter: string, page: number, sort: ProductSort = "recent"): string {
+  const params = new URLSearchParams();
+  if (filter !== "all") params.set("filter", filter);
+  if (sort !== "recent") params.set("sort", sort);
+  if (page > 1) params.set("page", String(page));
+  const query = params.toString();
+  return `/inventory${query ? `?${query}` : ""}`;
+}
+
 export default async function InventoryPage({ searchParams }: PageProps<"/inventory">) {
   const staff = await requireStaff();
   const params = await searchParams;
@@ -54,8 +79,13 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
   const manage = hasPermission(staff, "manage_inventory");
   const viewCosts = hasPermission(staff, "view_costs");
   const supabase = await createClient();
-  const [{ items: products, more }, categories, locations, frameGrades] = await Promise.all([
-    listProducts(supabase, { q, filter }),
+  // Browsing (nothing searched) is paged; a search narrows instead.
+  const page = q ? 1 : readPage(params.page);
+  // Sorting applies to browsing All and Archived; Low stock is by shortfall.
+  const sortable = !q && filter !== "low";
+  const sort = sortable ? readSort(params.sort) : "recent";
+  const [{ items: products, more, total }, categories, locations, frameGrades] = await Promise.all([
+    listProducts(supabase, { q, filter, page, sort }),
     manage ? listProductCategories(supabase) : Promise.resolve([]),
     manage ? listLocations(supabase) : Promise.resolve(null),
     manage ? listFrameGrades(supabase) : Promise.resolve([]),
@@ -80,7 +110,9 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
       ? "Low stock"
       : filter === "archived"
         ? "Archived products"
-        : "Recently updated";
+        : sort === "recent"
+          ? "Recently updated"
+          : "All products";
 
   return (
     <>
@@ -124,6 +156,17 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
           }))}
         />
       </div>
+      {sortable ? (
+        <LinkSegments
+          label="Sort by"
+          options={PRODUCT_SORTS.map((s) => ({
+            key: s.key,
+            text: s.text,
+            href: pageHref(filter, 1, s.key),
+            current: s.key === sort,
+          }))}
+        />
+      ) : null}
       <section aria-labelledby="product-results" className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="product-results" className="eyebrow text-dust-500">
@@ -145,13 +188,15 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
           <EmptyState
             icon={<BoxIcon />}
             title={
-              q
-                ? `No product matches “${q}”`
-                : filter === "low"
-                  ? "Nothing is low"
-                  : filter === "archived"
-                    ? "No archived products"
-                    : "No products yet"
+              page > 1
+                ? "No more products"
+                : q
+                  ? `No product matches “${q}”`
+                  : filter === "low"
+                    ? "Nothing is low"
+                    : filter === "archived"
+                      ? "No archived products"
+                      : "No products yet"
             }
             description={
               q
@@ -164,7 +209,15 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
                       ? "Add the first product with New product: counted stock like tubes and pads, or a unique item like a complete bike. Then record its opening stock with Adjust stock."
                       : "Someone with inventory access adds products; they appear here."
             }
-            action={!q && filter === "all" ? newButton : undefined}
+            action={
+              page > 1 ? (
+                <ButtonLink href={pageHref(filter, 1, sort)} variant="outline">
+                  Back to the first page
+                </ButtonLink>
+              ) : !q && filter === "all" ? (
+                newButton
+              ) : undefined
+            }
           />
         ) : (
           <RowList label="Products">
@@ -198,6 +251,14 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
             ))}
           </RowList>
         )}
+        {!q && total !== null ? (
+          <PageNav
+            label="Products"
+            summary={pageRange(page, PRODUCTS_PER_PAGE, products.length, total)}
+            previousHref={page > 1 ? pageHref(filter, page - 1, sort) : null}
+            nextHref={more ? pageHref(filter, page + 1, sort) : null}
+          />
+        ) : null}
       </section>
     </>
   );

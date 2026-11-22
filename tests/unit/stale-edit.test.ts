@@ -11,10 +11,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+const refresh = vi.fn();
+vi.mock("next/cache", () => ({ refresh: () => refresh() }));
 
 const { updateProduct, updateUnit } = await import("@/lib/domain/inventory");
 const { updateCustomer } = await import("@/lib/domain/customers");
-const { DomainError, STALE_EDIT } = await import("@/lib/domain/errors");
+const { DomainError, STALE_EDIT, STALE_EDIT_CODE, isStaleEdit, staleEdit } =
+  await import("@/lib/domain/errors");
+const { refreshWhenStale } = await import("@/lib/stale-edit");
+const { isStaleRefusal } = await import("@/lib/stale-edit-toast");
 const { updateProductSchema, updateUnitSchema } = await import("@/lib/inventory-forms");
 import type { ServerSupabase } from "@/lib/supabase/server";
 
@@ -124,7 +129,10 @@ describe.each(cases)("$name (audit A-11)", ({ table, notFound, run }) => {
     const err = await run(supabase).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(DomainError);
     expect((err as Error).message).toBe(STALE_EDIT);
-    expect(STALE_EDIT).toBe("This changed since you opened it. Close the sheet and open it again.");
+    expect((err as InstanceType<typeof DomainError>).code).toBe(STALE_EDIT_CODE);
+    expect(isStaleEdit(err)).toBe(true);
+    // The old text ("Close the sheet and open it again") could not work.
+    expect(STALE_EDIT).not.toMatch(/close the sheet/i);
     expect(queries[1]).toEqual({
       kind: "select",
       calls: [["select", "id"], ["eq", "id", ID], ["maybeSingle"]],
@@ -153,5 +161,27 @@ describe("edit schemas carry the sheet's updated_at", () => {
       OPENED,
     );
     expect(updateUnitSchema.safeParse({ id: ID, expectedUpdatedAt: "" }).success).toBe(false);
+  });
+});
+
+describe("a stale refusal re-reads the page", () => {
+  it("refreshes before the refusal goes back, and only for a stale refusal", async () => {
+    refresh.mockReset();
+    await expect(refreshWhenStale(async () => "saved")).resolves.toBe("saved");
+    expect(refresh).not.toHaveBeenCalled();
+
+    const other = new DomainError("That product no longer exists.");
+    await expect(refreshWhenStale(() => Promise.reject(other))).rejects.toBe(other);
+    expect(refresh).not.toHaveBeenCalled();
+
+    const stale = staleEdit();
+    await expect(refreshWhenStale(() => Promise.reject(stale))).rejects.toBe(stale);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("is recognised by the sheets from its code, not its wording", () => {
+    expect(isStaleRefusal({ ok: false, error: "anything", code: STALE_EDIT_CODE })).toBe(true);
+    expect(isStaleRefusal({ ok: false, error: STALE_EDIT })).toBe(false);
+    expect(isStaleRefusal({ ok: true, data: null })).toBe(false);
   });
 });

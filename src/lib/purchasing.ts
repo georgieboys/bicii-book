@@ -334,3 +334,85 @@ export function costSourceHint(source: string | null | undefined): string {
       return "No earlier cost known: enter what the supplier charges.";
   }
 }
+
+// ---------------------------------------------------------------------------
+// Customer jobs waiting on a purchase order line (A-21)
+// ---------------------------------------------------------------------------
+
+/** A job's indent part ordered on a purchase order line (job_part_requests). */
+export type LinePartRequest = {
+  id: string;
+  workOrderId: string;
+  lineId: string;
+  status: string;
+  quantity: number;
+  orderedAt: string | null;
+  createdAt: string;
+};
+
+/** What customer jobs still wait for on one line. */
+export type LineWaiting = {
+  /** The smallest quantity the line may have while they wait. */
+  quantity: number;
+  /** The waiting jobs, first ordered first, with how many each waits for. */
+  jobs: { workOrderId: string; quantity: number }[];
+};
+
+function byQueueOrder(a: LinePartRequest, b: LinePartRequest): number {
+  const at = (v: string | null) => (v === null ? Number.POSITIVE_INFINITY : Date.parse(v));
+  return (
+    at(a.orderedAt) - at(b.orderedAt) ||
+    (a.orderedAt ?? "").localeCompare(b.orderedAt ?? "") ||
+    at(a.createdAt) - at(b.createdAt) ||
+    a.createdAt.localeCompare(b.createdAt) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+/**
+ * Which jobs wait on each purchase order line for a part that has not
+ * arrived: the rule of private.purchase_order_waiting_indent (and
+ * part_request_arrival_rows). A line's receipts cover its ordered and fitted
+ * requests first ordered first; an ordered request waits while the receipts
+ * are below the running total up to it. These are the jobs cancel_purchase_order,
+ * remove_purchase_order_line and a lowered quantity are refused for
+ * (purchase_order_has_indent_requests), so the order page names them. The
+ * database decides; this only shows it.
+ */
+export function waitingJobParts(
+  requests: readonly LinePartRequest[],
+  receivedByLine: ReadonlyMap<string, number>,
+): Map<string, LineWaiting> {
+  const byLine = new Map<string, LinePartRequest[]>();
+  for (const r of requests) {
+    if (r.status !== "ordered" && r.status !== "fitted") continue;
+    byLine.set(r.lineId, [...(byLine.get(r.lineId) ?? []), r]);
+  }
+  const waiting = new Map<string, LineWaiting>();
+  for (const [lineId, queue] of byLine) {
+    const received = receivedByLine.get(lineId) ?? 0;
+    const jobs = new Map<string, number>();
+    let cumulative = 0;
+    let quantity = 0;
+    for (const r of [...queue].sort(byQueueOrder)) {
+      cumulative += r.quantity;
+      if (r.status !== "ordered" || received >= cumulative) continue;
+      quantity = cumulative;
+      jobs.set(r.workOrderId, (jobs.get(r.workOrderId) ?? 0) + r.quantity);
+    }
+    if (jobs.size > 0) {
+      waiting.set(lineId, {
+        quantity,
+        jobs: [...jobs].map(([workOrderId, q]) => ({ workOrderId, quantity: q })),
+      });
+    }
+  }
+  return waiting;
+}
+
+/** "J-000101", "J-000101 and J-000102", "J-000101, J-000102 and J-000103". */
+export function jobList(jobNumbers: readonly string[]): string {
+  return jobNumbers.length <= 1
+    ? (jobNumbers[0] ?? "")
+    : `${jobNumbers.slice(0, -1).join(", ")} and ${jobNumbers[jobNumbers.length - 1]}`;
+}

@@ -2,7 +2,7 @@
 
 import { useId, useState, useTransition } from "react";
 
-import { linkCustomerAction } from "@/app/(staff)/shopify/actions";
+import { linkCustomerAction, unlinkCustomerAction } from "@/app/(staff)/shopify/actions";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import type { PickerOption } from "@/components/ui/search-picker";
@@ -16,6 +16,41 @@ import { earlierSalesText } from "@/lib/shopify";
 import { callAction } from "@/lib/call-action";
 
 import { CustomerPicker } from "../customer-picker";
+import { ReasonConfirm } from "../reason-confirm";
+
+/**
+ * Undo a Shopify customer link (admins; D86, D263, R-131): for a link that
+ * names the wrong person, whether an admin made it or the verified-email
+ * match did. A two-step confirm with a required reason (ReasonConfirm).
+ * Afterwards the order shows "Not linked" and the right customer can be
+ * linked. Orders recorded while the link stood stay on the customer for
+ * staff (sales are immutable) but leave that customer's own account.
+ */
+export function UnlinkCustomerButton({
+  customerId,
+  customerLabel,
+}: {
+  customerId: string;
+  customerLabel: string;
+}) {
+  return (
+    <ReasonConfirm
+      startLabel="Unlink…"
+      startAccessibleName={`Unlink… ${customerLabel} from this Shopify customer`}
+      startSize="sm"
+      question="Why is this link wrong?"
+      hint="Kept with the change in the Shopify audit history."
+      confirmLabel="Unlink"
+      pendingLabel="Unlinking…"
+      dismissLabel="Keep link"
+      failureTitle="Not unlinked"
+      successTitle={`Unlinked from ${customerLabel}`}
+      onConfirm={(reason) => unlinkCustomerAction({ customerId, reason })}
+    >
+      {`${customerLabel} stops seeing this Shopify customer's orders in their account, and later orders are recorded without a customer until the right one is linked. Orders already recorded for ${customerLabel} stay on their record here (sales are never changed). BICII will not match these two by email again.`}
+    </ReasonConfirm>
+  );
+}
 
 /**
  * Link the order's Shopify customer to a BICII customer (admins; D86).

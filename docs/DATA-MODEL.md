@@ -544,7 +544,7 @@ customers
   created_at, updated_at, archived_at
   check customers_identifies_someone    -- a name, an email or a phone
   -- trigger: text trimmed, blanks stored as NULL
-  -- trigger customers_guard_archive (A-22, 20261122000900): see below
+  -- trigger customers_guard_archive (A-22, 20261122000900; Adventures 20261122001700): see below
 
 bikes
   id uuid PK
@@ -611,8 +611,17 @@ Rules:
   `customer_has_open_work` while they have a work order not `collected` or
   `cancelled`, a `booked`, `confirmed` or `arrived` appointment whose
   `ends_at` is still ahead, an `open` unexpired quote or a live (not
-  withdrawn, unexpired) balance link on any of their jobs, or a consignor
-  that is not archived. Otherwise `archived_at` is set to the database's
+  withdrawn, unexpired) balance link on any of their jobs, a consignor
+  that is not archived, an adventure booking that is `pending_payment`, or
+  `confirmed` and not finished (no active certificate, and its latest
+  submission is not `rejected`), or a tracker assignment on any of their
+  bookings with `returned_at` null (the last two since
+  `20261122001700_quick_audit_fixes`: the rider RPCs rest on
+  `private.require_customer()`, which refuses an archived customer's
+  login, so a rider archived mid-booking could neither ride for
+  certification nor ask to cancel). A certified or not-certified ride, a
+  cancelled or expired booking and a returned tracker do not hold the
+  archive. Otherwise `archived_at` is set to the database's
   `now()`, whatever value was sent; re-archiving keeps the first date, and
   unarchiving is never refused. Residual: a check-in or booking committed
   at the same moment as the archive is not serialised against it (neither
@@ -2088,15 +2097,18 @@ Built out of phase on 2026-11-22 (`20261122001500_account_purchases.sql`;
   [description, quantity, unit_price, total], builds jsonb [package,
   frame_source, amount, job_number]): the caller's `retail` and
   `online_shopify` sales, not voided, newest first, at most 100, where
-  `customer_id` is theirs, `shopify_customer_id` is their linked one, or an
-  unlinked online sale's order email (`private.shopify_order_email`:
+  `customer_id` is theirs (except an online sale of a Shopify customer an
+  admin unlinked from them, below), `shopify_customer_id` is their linked
+  one, or an unlinked online sale's order email (`private.shopify_order_email`:
   email, contact_email, else customer.email, lower case) is their verified
   login email (`private.customer_verified_email`). No cost or payout.
 - `private.link_shopify_customer_by_email(customer_id, sale_id)` sets
   `customers.shopify_customer_id` from an online sale whose Shopify
   customer's email (`private.shopify_customer_email`) is the customer's
   verified login email and whose order email, if any, is too, when the
-  customer has none and no other customer has it (customer row taken with
+  customer has none, no other customer has it and no admin unlinked that
+  pair (a `customer_unlinked` audit row for the customer with that id as
+  `from`; customer row taken with
   SKIP LOCKED; a unique-key race skips the link); audited `customer_linked` (actor
   NULL, reason "Matched by verified email (D263)", payload matched_by
   `verified_email`). Called by the deferred triggers
@@ -2106,6 +2118,21 @@ Built out of phase on 2026-11-22 (`20261122001500_account_purchases.sql`;
   logins. The triggers swallow any error, so a link never stops an order
   being recorded. An index on `private.shopify_order_email(payload)` for
   orders/paid events serves the email lookups.
+- `unlink_shopify_customer(customer_id, reason)` (admins;
+  `20261122001700_quick_audit_fixes.sql`, the enum value
+  `integration_audit_type.customer_unlinked` in `20261122001600`; R-131)
+  undoes a link, whoever made it: `customers.shopify_customer_id` becomes
+  NULL, audited `customer_unlinked` with payload `{from, to: null,
+  online_sales_kept}`. Before it a wrong link could not be corrected in the
+  app (`link_shopify_customer` refuses a customer who already has another
+  id, and the id is unique, so the right customer could not take it).
+  Sales stay immutable: online sales recorded for the customer while the
+  link stood keep `sales.customer_id` for staff (`online_sales_kept`), but
+  `my_purchases` no longer returns them to that customer; orders placed
+  with the customer's own verified email still show through the email
+  rule. The automatic match never links that pair again; an admin still
+  can with `link_shopify_customer`, and whoever is linked next sees that
+  Shopify customer's orders through `sales.shopify_customer_id`.
 
 ### Frame grades (D260)
 
@@ -3974,10 +4001,16 @@ through the plain RLS updates above (`updateCustomer`, `updateProduct`,
 opened as a hidden `expectedUpdatedAt`, and the update adds
 `updated_at = expectedUpdatedAt` (the `*_set_updated_at` triggers move it
 on every write). No row back while the row still exists means it changed
-since the sheet opened: the save is refused with "This changed since you
-opened it. Close the sheet and open it again." and nothing is written, so
-a stale sheet cannot revert a newer price, cost or contact detail. Any
-write to the row counts, including a unit's status change by an RPC.
+since the sheet opened: the save is refused (`DomainError` code
+`stale_edit`) and nothing is written, so a stale sheet cannot revert a
+newer price, cost or contact detail. Any write to the row counts,
+including a unit's status change by an RPC. The sheet's values and its
+`updated_at` are props of the page's server render, so the refusal also
+re-reads the page: the Server Action calls `refresh()` before returning
+it (`refreshWhenStale`, `src/lib/stale-edit.ts`) and the sheet closes with
+the toast "Not saved: this changed while you had it open. Open Edit again
+to see the current values, then make your change." The next Edit opens
+with the current values and the current `updated_at`.
 
 **Customer job projection (Phase 3, shown in Phase 11; PLAN D8, D17).**
 The four `my_work_order*` RPCs follow the pattern above. Which jobs: those
@@ -4137,7 +4170,7 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `create_purchase_order(id, supplier_id, expected_at = null, supplier_reference = null, notes = null)` → `purchase_orders` | P(manage_purchasing) | Built (Phase 7). 22004 for null ids; replay by id first, FOR UPDATE (same supplier → the row unchanged, no event; another → `purchase_order_conflict`); P0002 / `supplier_archived`; insert in the shop currency (D62) catching a `purchase_orders_pkey` race. Never ON CONFLICT (the number trigger would burn a PO number per replay). |
 | `update_purchase_order(purchase_order_id, supplier_id, expected_at, supplier_reference, notes)` → `purchase_orders` | P(manage_purchasing) | Sets all four exactly (null clears); locks the PO; `purchase_order_closed`; `purchase_order_supplier_locked` outside draft; identical → no update, no event. |
 | `submit_purchase_order(purchase_order_id)` → `purchase_orders` | P(manage_purchasing) | Already submitted or further → unchanged; cancelled → `purchase_order_closed`; `purchase_order_needs_lines`; `supplier_archived`; else submitted_at/by. |
-| `cancel_purchase_order(purchase_order_id, reason)` → `purchase_orders` | P(manage_purchasing) | D61. `reason_required` / `reason_too_long`; cancelled → unchanged; received → `purchase_order_closed`; receipts, movements and stock stay. A-21 (`20261122000800`): locks the jobs with parts ordered on the PO in id order, then the PO (`order_part_requests`' order); `purchase_order_has_indent_requests` (detail: the job numbers) while an ordered request on one of its lines has not arrived (`private.purchase_order_waiting_indent`, `part_request_arrival_rows`' queue). |
+| `cancel_purchase_order(purchase_order_id, reason)` → `purchase_orders` | P(manage_purchasing) | D61. `reason_required` / `reason_too_long`; cancelled → unchanged; received → `purchase_order_closed`; receipts, movements and stock stay. A-21 (`20261122000800`): locks the jobs with parts ordered on the PO in id order, then the PO (`order_part_requests`' order); `purchase_order_has_indent_requests` (detail: the job numbers) while an ordered request on one of its lines has not arrived (`private.purchase_order_waiting_indent`, `part_request_arrival_rows`' queue). The Admin names those jobs in the refusal (`mapDbError` takes only the `J-` numbers out of the detail) and on each line of the order page (`waitingJobParts`, the same queue rule over `job_part_requests`); a part that has not arrived cannot be fitted, so the way out is to receive it or cancel it on the job. |
 | `set_purchase_order_line(id, purchase_order_id, product_id, quantity_ordered, unit_cost, expected_at = null, notes = null, reason = null)` → `purchase_order_lines` | P(manage_purchasing) | Upsert by id under the PO lock. Closed → `purchase_order_closed` (D65); existing: `purchase_line_conflict`, `purchase_line_below_received`, a lowered quantity below the cumulative quantity its last not-yet-arrived ordered request needs → `purchase_order_has_indent_requests` (A-21; raising is never refused), identical → unchanged; new: P0002, `purchase_line_unique_product`, `purchase_line_not_shop_owned`, `purchase_line_product_inactive`, `purchase_currency_mismatch`, `purchase_line_duplicate_product` (D62). 0 is a valid cost. Refreshes the status (a cut to the received total completes the PO). |
 | `remove_purchase_order_line(line_id, reason = null)` → setof `purchase_order_lines` | P(manage_purchasing) | Unknown → no row. Locks the PO; `purchase_order_closed`; `purchase_line_has_receipts`; `purchase_order_has_indent_requests` while a job's ordered part on the line has not arrived, else `purchase_line_has_job_parts` while any job part request names the line (its link is kept; `20261122001400_fe_admin_stock_settings.sql`); after submission `reason_required` and never the last line (`purchase_order_needs_lines`). Refreshes the status. |
 | `receive_purchase(purchase_order_id, idempotency_key, lines jsonb, reference = null, received_at = null, notes = null)` → `purchase_receipts` | P(manage_purchasing) | Built (Phase 7); the 14 steps in §10 (replay, over-receipt, D64 dating, lock_stock, one movement per receipt line, D63 last cost, `received` event, status). |
@@ -4154,6 +4187,7 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `dismiss_integration_job(job_id, reason)` → `integration_retry_queue` | A | Built (Phase 10 step 1, D86, D87). `reason_required` / `reason_too_long` (`private.require_reason`); running → `integration_job_running`; done/dismissed → `integration_job_closed`; dismissed with the reason; a `shopify_event` job's event → skipped / `dismissed` (keeps its last error); an `orders/paid` event of an order with no sale is final for the order (D87): every `orders/paid` event of the order is locked in id order, its other open deliveries' queued or needs_attention jobs are dismissed ('Another delivery of this order was dismissed: ' ‖ reason; their events skipped / `dismissed`), and the order's waiting refund jobs close ('The order was dismissed: ' ‖ reason; their events skipped / `order_not_recorded`); a later delivery of the order is `earlier_delivery_skipped`. audit `job_dismissed` {closed_refund_job_ids, closed_order_job_ids}. |
 | `link_shopify_variant(product_id, shopify_product_id, shopify_variant_id, reason)` → `shopify_product_sync` | A | Built (Phase 10 step 1, D84). Numeric ids or gids (`shopify_gid_invalid`); reason required; the product FOR UPDATE; another variant already on it, or a Shopify product BICII created for another product → `shopify_ids_conflict`; a variant on another product → 23505 `products_shopify_variant_id_key`; sets the two product columns with the reason (P4's history records `details_changed`); upserts the sync row as `external` (unless `bicii`), no handle, Publish online untouched; same ids → no-op; audit `variant_linked` {from, to}. |
 | `link_shopify_customer(customer_id, shopify_customer_id, reason)` → `shopify_customer_link_result (customer_id, shopify_customer_id, earlier_online_sales)` | A | Built (Phase 10 step 1, D86). A composite result (a `returns table` would clash with the argument names). Reason required; the customer FOR UPDATE; a different id already linked → `shopify_customer_already_linked`; an id on another customer → 23505 `customers_shopify_customer_id_key`; never by email; recorded sales are never edited (`earlier_online_sales` counts the online sales of that Shopify customer still without a customer); same id → no-op; audit `customer_linked`. |
+| `unlink_shopify_customer(customer_id, reason)` → `shopify_customer_unlink_result (customer_id, shopify_customer_id, online_sales_kept)` | A | Built (`20261122001700_quick_audit_fixes`; D86, D263, R-131). Reason required; the customer FOR UPDATE; unknown → P0002; no link → `shopify_customer_not_linked`. Sets `shopify_customer_id` NULL and returns the id removed; recorded sales are never edited (`online_sales_kept` counts the online sales recorded for the customer through that link; `my_purchases` hides them from that customer); the verified-email match never links that pair again; audit `customer_unlinked`. |
 | `private.integration_exceptions()` → P5's nine exception columns | no API role | Built (Phase 10 step 1, D86): §14. |
 | `record_stripe_event(payload jsonb, headers jsonb, body_sha256 text, body_bytes integer, rejection_reason stripe_rejection_reason, correlation_id text)` → `event_id, duplicate, event_status, outcome, payment_id` | service role only | Built (Phase 14 step 1, D153, D159; §19). 22004 without the SHA or size; 22023 on a bad SHA, a negative size or non-object headers; headers capped as Shopify's. Rejected → one row per (reason, body sha), no payload, no event id. Verified → 22023 unless `payload` has an `evt_` id, a type and a boolean livemode; dedupe on the `evt_` id (a repeat counts the delivery and returns the stored decision); a new one is stored as its projection and applied in the same transaction (§19's tables); an error rolls everything back. |
 | `record_stripe_read(payment_id uuid, object jsonb, correlation_id text)` → `event_id, event_status, outcome, payment_status` | service role only | Built (Phase 14 step 1, D159a; §19). 22004 on nulls; 22023 unless a `checkout.session` (`cs_` id), a `refund` (`re_`/`pyr_` id) or a `payment_intent` (`pi_` id; since the final review, R-086); P0002 for an unknown payment. Stores an `api_read` row, applies it like a webhook (or `read_mismatch` when the id is not the payment's: a PaymentIntent must be the one the payment already carries) and stamps `checked_at`. Not deduplicated. |

@@ -4,12 +4,12 @@
  * actions.ts). Pure, so they are unit-tested directly; the RPCs
  * (set_publish_online, request_product_sync, retry_integration_job,
  * dismiss_integration_job, link_shopify_variant, link_shopify_customer,
- * set_shopify_settings) check everything again.
+ * unlink_shopify_customer, set_shopify_settings) check everything again.
  *
  *   - ids: uuids; Shopify ids: gids of the expected kind (the database
  *     also accepts bare numbers, the screens always send gids);
  *   - reasons: trimmed, 1..REASON_MAX_LENGTH, required to dismiss, to
- *     link a variant or a customer (D86), and to change whether test
+ *     link a variant, to link or unlink a customer (D86), and to change whether test
  *     orders are recorded (D89);
  *   - the storefront URL: https or blank (blank = no Buy-online link, D84).
  */
@@ -52,6 +52,11 @@ export const linkCustomerSchema = z.object({
   customerId: id("Choose the BICII customer."),
   shopifyCustomerGid: gid("Customer", "This order has no Shopify customer."),
   reason: reason("Say how you know this is the same person."),
+});
+
+export const unlinkCustomerSchema = z.object({
+  customerId: id("Unknown customer."),
+  reason: reason("Say why this link is wrong."),
 });
 
 export const searchProductsSchema = z.object({ q: z.string().trim().max(200) });

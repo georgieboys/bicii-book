@@ -26,6 +26,7 @@ import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import type { TrackingType } from "@/lib/inventory";
 import { formatMoney } from "@/lib/money";
+import { isStaleRefusal, STALE_TOAST } from "@/lib/stale-edit-toast";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
@@ -256,6 +257,10 @@ function ProductSheetBody({
       );
       if (result.ok) {
         toast({ title: "Product saved", tone: "success" });
+        onOpenChange(false);
+      } else if (isStaleRefusal(result)) {
+        // The action refreshed the page; this sheet still shows the old values.
+        toast(STALE_TOAST);
         onOpenChange(false);
       }
       return result;

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { staffAction } from "@/lib/actions";
 import { expectedUpdatedAt } from "@/lib/inventory-forms";
+import { refreshWhenStale } from "@/lib/stale-edit";
 import {
   createCustomer as create,
   searchCustomerOptions,
@@ -66,7 +67,7 @@ export const updateCustomer = staffAction(
   updateCustomerSchema,
   { name: "customers.update" },
   async ({ id, expectedUpdatedAt, ...input }, { supabase }) => {
-    await update(supabase, id, input, expectedUpdatedAt);
+    await refreshWhenStale(() => update(supabase, id, input, expectedUpdatedAt));
     refresh();
     return null;
   },

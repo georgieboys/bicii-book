@@ -5,9 +5,10 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }));
 
 const createCustomer = vi.fn();
+const updateCustomer = vi.fn();
 vi.mock("@/app/(staff)/customers/actions", () => ({
   createCustomer: (...args: unknown[]) => createCustomer(...args),
-  updateCustomer: vi.fn(),
+  updateCustomer: (...args: unknown[]) => updateCustomer(...args),
   searchCustomers: vi.fn(),
 }));
 
@@ -18,12 +19,13 @@ vi.mock("@/app/(staff)/bikes/actions", () => ({
 }));
 
 import { BikeSheet } from "@/components/domain/bike-sheet";
-import { CustomerSheet } from "@/components/domain/customer-sheet";
+import { CustomerSheet, EditCustomerButton } from "@/components/domain/customer-sheet";
 import { ToastProvider } from "@/components/ui/toast";
 
 beforeEach(() => {
   push.mockReset();
   createCustomer.mockReset();
+  updateCustomer.mockReset();
   createBike.mockReset();
   createCustomer.mockImplementation(async (_prev: unknown, formData: FormData) => ({
     ok: true,
@@ -69,6 +71,53 @@ describe("CustomerSheet", () => {
     expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("closes on a stale refusal and reopens with the refreshed values (audit A-11)", async () => {
+    const customer = {
+      id: "d0000000-0000-4000-8000-000000000145",
+      firstName: "Ana",
+      lastName: "Lim",
+      displayName: null,
+      email: null,
+      phone: "+65 9123 4567",
+      internalNotes: null,
+      updatedAt: "2026-11-22T02:00:00.123456+00:00",
+    };
+    const sent: (FormDataEntryValue | null)[] = [];
+    updateCustomer.mockImplementation(async (_prev: unknown, formData: FormData) => {
+      sent.push(formData.get("expectedUpdatedAt"));
+      return sent.length === 1
+        ? { ok: false, error: "This changed since you opened it.", code: "stale_edit" }
+        : { ok: true, data: null };
+    });
+    const { rerender } = render(
+      <ToastProvider>
+        <EditCustomerButton customer={customer} />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    // The sheet is gone and the toast says what to do; nothing asks for a reload.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Save" })).toBeNull());
+    expect(screen.getByText("Not saved: this changed while you had it open")).toBeTruthy();
+
+    // The action refreshed the page: the button now holds the current row.
+    const current = { ...customer, phone: "+65 8000 0000", updatedAt: "2026-11-22T03:00:00+00:00" };
+    rerender(
+      <ToastProvider>
+        <EditCustomerButton customer={current} />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect((screen.getByLabelText("Phone") as HTMLInputElement).value).toBe("+65 8000 0000");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent).toEqual([customer.updatedAt, current.updatedAt]);
   });
 });
 

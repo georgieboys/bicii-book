@@ -12435,6 +12435,16 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      unlink_shopify_customer: {
+        Args: { customer_id: string; reason: string };
+        Returns: Database["public"]["CompositeTypes"]["shopify_customer_unlink_result"];
+        SetofOptions: {
+          from: "*";
+          to: "shopify_customer_unlink_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       unlock_adventure_board_name: { Args: { booking_id: string }; Returns: undefined };
       update_adventure_departure: {
         Args: {
@@ -12985,7 +12995,8 @@ export type Database = {
         | "customer_linked"
         | "job_retried"
         | "job_dismissed"
-        | "settings_changed";
+        | "settings_changed"
+        | "customer_unlinked";
       integration_event_status: "pending" | "processed" | "skipped" | "failed" | "rejected";
       integration_job_kind: "shopify_event" | "product_sync";
       integration_job_status: "queued" | "running" | "done" | "needs_attention" | "dismissed";
@@ -13294,6 +13305,11 @@ export type Database = {
         customer_id: string | null;
         shopify_customer_id: string | null;
         earlier_online_sales: number | null;
+      };
+      shopify_customer_unlink_result: {
+        customer_id: string | null;
+        shopify_customer_id: string | null;
+        online_sales_kept: number | null;
       };
       shopify_product_sync_state: {
         product_id: string | null;
@@ -14205,6 +14221,7 @@ export const Constants = {
         "job_retried",
         "job_dismissed",
         "settings_changed",
+        "customer_unlinked",
       ],
       integration_event_status: ["pending", "processed", "skipped", "failed", "rejected"],
       integration_job_kind: ["shopify_event", "product_sync"],

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
+import { isStaleRefusal, STALE_TOAST } from "@/lib/stale-edit-toast";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
@@ -197,6 +198,10 @@ function EditUnitSheet({
       const result = await callAction(() => updateUnit(prev, formData), formData);
       if (result.ok) {
         toast({ title: "Unit saved", tone: "success" });
+        onClose();
+      } else if (isStaleRefusal(result)) {
+        // The action refreshed the page; this sheet still shows the old values.
+        toast(STALE_TOAST);
         onClose();
       }
       return result;

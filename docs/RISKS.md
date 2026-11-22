@@ -3671,9 +3671,26 @@ URLs, or customer data in this file.
   the receipt to the same address, so the account shows nothing the
   address's owner does not already receive.
 - Workaround or containment: the link is audited ("Matched by verified
-  email (D263)"); an admin can see it under More → Shopify and relink.
-- Next action: none unless it happens; if it does, add an admin "Unlink"
-  and a staff-visible flag on matched links.
+  email (D263)"). An admin undoes it with **Unlink…** on the Customer card
+  of any of that Shopify customer's orders (More → Shopify → Events;
+  `unlink_shopify_customer`, reason required, audited `customer_unlinked`;
+  `20261122001700_quick_audit_fixes`), and can then link the right
+  customer. After an unlink the pair is never matched by email again, and
+  the orders recorded for the wrong person while the link stood leave
+  their Purchases (they keep `sales.customer_id` on the staff side, since
+  sales are immutable). This record first said an admin could "see it
+  under More → Shopify and relink"; that was wrong until this change: no
+  in-app unlink or relink existed (`link_shopify_customer` refuses a
+  customer who already has another id), so the only correction was SQL on
+  production.
+- Still open: nothing tells staff that a match was made by email, so a
+  wrong one is found only when someone reports it; until it is unlinked
+  the other person sees the buyer's orders. An order sent to the other
+  person's own address still shows to them after the unlink, by D263's
+  email rule. The unlink is proved by `tests/db/account-purchases.test.ts`
+  (CI); not exercised on the hosted project.
+- Next action: none unless it happens; if it does, add a staff-visible
+  flag on matched links.
 - Revisit trigger: the first wrong match reported.
 - Last checked: 2026-11-22.
 

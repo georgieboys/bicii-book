@@ -18,7 +18,7 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 import type { WorkOrderStatus } from "@/lib/workshop";
 
 import { listPhotos, type Photo } from "./attachments";
-import { DomainError, STALE_EDIT } from "./errors";
+import { DomainError, staleEdit } from "./errors";
 import type { ListPage } from "./list";
 import { staffSearch } from "./search";
 import { staffNames } from "@/lib/domain/staff-directory";
@@ -1094,7 +1094,7 @@ export async function updateProduct(
   if (error) rethrowFields(new DbError(error), PRODUCT_FIELDS);
   if (data) return;
   const exists = unwrap(await supabase.from("products").select("id").eq("id", id).maybeSingle());
-  throw new DomainError(exists ? STALE_EDIT : PRODUCT_NOT_FOUND);
+  throw exists ? staleEdit() : new DomainError(PRODUCT_NOT_FOUND);
 }
 
 /**
@@ -1249,7 +1249,7 @@ export async function updateUnit(
   const exists = unwrap(
     await supabase.from("inventory_units").select("id").eq("id", id).maybeSingle(),
   );
-  throw new DomainError(exists ? STALE_EDIT : UNIT_NOT_FOUND);
+  throw exists ? staleEdit() : new DomainError(UNIT_NOT_FOUND);
 }
 
 /**

@@ -43,6 +43,7 @@ import { afterCommit } from "@/lib/integrations/shopify/after-commit";
 import { defaultDeps } from "@/lib/integrations/shopify/deps";
 import { runJobById } from "@/lib/integrations/shopify/queue";
 import { SYNC_QUEUED_MESSAGE } from "@/lib/shopify";
+import { refreshWhenStale } from "@/lib/stale-edit";
 import { productIdSchema, publishOnlineSchema } from "@/lib/shopify-forms";
 
 /**
@@ -133,7 +134,9 @@ export const updateProduct = staffAction(
   { name: "inventory.update_product", permission: "manage_inventory" },
   async (input, { supabase, staff }) => {
     requireCost(staff, { cost: input.cost });
-    await updateOneProduct(supabase, input.id, productInput(input), input.expectedUpdatedAt);
+    await refreshWhenStale(() =>
+      updateOneProduct(supabase, input.id, productInput(input), input.expectedUpdatedAt),
+    );
     refresh();
     return null;
   },
@@ -177,17 +180,19 @@ export const updateUnit = staffAction(
   { name: "inventory.update_unit", permission: "manage_inventory" },
   async (input, { supabase, staff }) => {
     requireCost(staff, { unitCost: input.unitCost });
-    await updateOneUnit(
-      supabase,
-      input.id,
-      {
-        serialNumber: input.serialNumber,
-        condition: input.condition,
-        salePrice: input.unitSalePrice,
-        cost: input.unitCost,
-        internalNotes: input.internalNotes,
-      },
-      input.expectedUpdatedAt,
+    await refreshWhenStale(() =>
+      updateOneUnit(
+        supabase,
+        input.id,
+        {
+          serialNumber: input.serialNumber,
+          condition: input.condition,
+          salePrice: input.unitSalePrice,
+          cost: input.unitCost,
+          internalNotes: input.internalNotes,
+        },
+        input.expectedUpdatedAt,
+      ),
     );
     refresh();
     return null;

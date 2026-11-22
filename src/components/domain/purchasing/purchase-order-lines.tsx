@@ -22,7 +22,9 @@ import { QuantityProgress } from "./quantity-progress";
  * link, SKU, on hand), its QuantityProgress, the expected date or a danger
  * "Overdue" badge and, for cost-visible staff only (D60), unit cost and
  * line total (from purchase_order_lines_staff; the DTO has no costs
- * otherwise). A table once its card is 42rem wide (a container query: the
+ * otherwise), and the customer jobs still waiting for a part on the line
+ * that has not arrived (A-21: J- links, so a refused cancel or cut can be
+ * acted on). A table once its card is 42rem wide (a container query: the
  * card's width, as LineTable; dense, tabular figures), stacked rows on a
  * phone: one DOM with explicit table roles either way. With `editable`
  * (manage_purchasing, open order) a row is a button opening
@@ -102,6 +104,8 @@ export function PurchaseOrderLines({
                 notes: l.notes,
                 hasReceipts: l.hasReceipts,
                 hasJobParts: l.hasJobParts,
+                waitingJobs: l.waitingJobs,
+                waitingQuantity: l.waitingQuantity,
                 unitCost: l.costs?.unitCost ?? "0.00",
               });
             return (
@@ -137,6 +141,17 @@ export function PurchaseOrderLines({
                   </span>
                   {l.notes ? (
                     <span className="text-dense whitespace-pre-line text-dust-700">{l.notes}</span>
+                  ) : null}
+                  {l.waitingJobs.length > 0 ? (
+                    <span className="relative z-10 flex flex-wrap items-center gap-x-2 gap-y-1 text-dense text-waiting-deep">
+                      <span>{l.waitingJobs.length === 1 ? "A job is" : "Jobs are"} waiting:</span>
+                      {l.waitingJobs.map((j) => (
+                        <span key={j.id} className="inline-flex items-center gap-1">
+                          <ShortIdLink href={`/jobs/${j.id}`} value={j.jobNumber} />
+                          <span className="tabular-nums">× {j.quantity}</span>
+                        </span>
+                      ))}
+                    </span>
                   ) : null}
                 </div>
                 <div

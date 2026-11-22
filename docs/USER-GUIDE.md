@@ -811,10 +811,11 @@ while an approved or ordered item is neither fitted nor cancelled:
   grade on Shopify (its listing is the group's). Say it with the build when
   selling ("a B++ frame with a Classic+ build").
 - If saving **Edit details** (a product or a unit) or **Edit customer**
-  says "This changed since you opened it. Close the sheet and open it
-  again.", someone else (or a sale, a stock action or a sync) changed the
-  record while the sheet was open. Nothing was saved: close the sheet,
-  open it again to see the current values, and make your change again.
+  closes the sheet with "Not saved: this changed while you had it open",
+  someone else (or a sale, a stock action or a sync) changed the record
+  while the sheet was open. Nothing was saved, and the page behind the
+  sheet now shows the current values: press Edit again and make your
+  change again. There is no need to reload the page.
 - Consigned items (owned by someone else) are not added here: use
   [Receive a consigned item](#receive-a-consigned-item). If they were
   added here by mistake, do not archive the product or count its stock
@@ -937,10 +938,15 @@ while an approved or ordered item is neither fitted nor cancelled:
   (a consigned or customer-owned product); "That product is already on
   this order. Change its line instead."; "An order needs at least one
   line." To stop an order, **Cancel order…** with a reason (D61): what was
-  already received stays in stock. "Customer jobs are waiting for parts on
-  this order." means a job's indent part ordered on it has not arrived:
-  fit it from other stock or cancel the item on the job first; the same
-  message stops a line being cut below what those jobs still need.
+  already received stays in stock. "Jobs J-000101 and J-000107 are waiting
+  for parts on this order that have not arrived. Receive the parts, or
+  cancel them on those jobs, then try again." means those jobs' indent
+  parts ordered on it have not arrived: receive the delivery, or open each
+  job and cancel the item there (a part that has not arrived cannot be
+  fitted). Each line of the order lists its waiting jobs ("Jobs are
+  waiting: J-000101 × 2"), with links. The same refusal stops a line being
+  removed or cut below what those jobs still need; the line's sheet says
+  how many that is and will not go lower.
 
 ### Receive a delivery
 
@@ -1182,11 +1188,15 @@ website's account pages go live when the owner switches them on,
   sign in again. "Your account is closed" means their customer is archived:
   unarchive it if they should be back. A customer is archived only once
   nothing is open for them: "This customer still has an open job, an
-  upcoming booking, an open quote or payment link, or a consignor record
-  that isn't archived. Finish or cancel those (archive the consignor)
-  before archiving." means collect or cancel their jobs, cancel their
-  upcoming bookings, quotes and payment links, and archive their consignor
-  record first. The customer's **Archive** card says this before you press
+  upcoming booking, an open quote or payment link, a consignor record that
+  isn't archived, an adventure booking that is waiting for payment or paid
+  and not finished, or a hired tracker that isn't back. Finish or cancel
+  those (archive the consignor, take the tracker back) before archiving."
+  means collect or cancel their jobs, cancel their upcoming bookings,
+  quotes and payment links, archive their consignor record, and for
+  Adventures wait until the ride is certified (or not certified) or cancel
+  the booking, and record the tracker's return first. An archived rider
+  cannot open their ride page or ask to cancel. The customer's **Archive** card says this before you press
   it, and that archiving closes their bicii.sg account. A customer linked to the wrong
   record needs the fix in
   [RUNBOOK](RUNBOOK.md#the-public-site-customer-accounts) (no screen yet).
@@ -1310,6 +1320,17 @@ website's account pages go live when the owner switches them on,
 - The link applies to later orders. Sales already recorded are not changed;
   the toast says how many earlier online sales show the customer through
   their Shopify ID.
+- A link can also be made automatically, when a paid order's Shopify
+  customer has the email a customer verified on bicii.sg. From then on
+  that customer sees every order of that Shopify customer under Purchases.
+- **Wrong person linked?** Open any order of that Shopify customer →
+  **Customer** → **Unlink…**, say why, **Unlink**. The customer stops
+  seeing that Shopify customer's orders in their account, later orders are
+  recorded without a customer, and BICII does not match the two by email
+  again. Orders already recorded for them stay on their record in the
+  Admin (sales are never changed). Then link the right customer with
+  **Link to a BICII customer**. "That customer is already linked to a
+  different Shopify customer" means unlink the old one first.
 
 ### Shopify settings and events (admins)
 

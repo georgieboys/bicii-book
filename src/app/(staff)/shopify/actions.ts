@@ -12,6 +12,7 @@ import {
   linkVariant,
   retryJob,
   saveShopifySettings,
+  unlinkCustomer,
   type RunReport,
 } from "@/lib/domain/shopify";
 import { afterCommit } from "@/lib/integrations/shopify/after-commit";
@@ -24,6 +25,7 @@ import {
   linkVariantSchema,
   searchProductsSchema,
   shopifySettingsSchema,
+  unlinkCustomerSchema,
 } from "@/lib/shopify-forms";
 
 /**
@@ -37,6 +39,7 @@ import {
  *   dismissJobAction            admins, reason required
  *   linkVariantAction           admins, reason required; then retries the job
  *   linkCustomerAction          admins, reason required (never by email)
+ *   unlinkCustomerAction        admins, reason required (undoes a wrong link)
  *   saveShopifySettingsAction   admins; a reason when test orders change
  *   searchProductsForLinkAction admins (the Link sheet's product picker)
  *
@@ -114,6 +117,17 @@ export const linkCustomerAction = staffAction(
       shopifyCustomerId: shopifyCustomerGid,
       reason,
     });
+    refresh();
+    return result;
+  },
+);
+
+/** Remove a customer's Shopify customer link: a wrong link, by hand or by verified email (D263). */
+export const unlinkCustomerAction = staffAction(
+  unlinkCustomerSchema,
+  { name: "shopify.unlink_customer", admin: true },
+  async ({ customerId, reason }, { supabase }) => {
+    const result = await unlinkCustomer(supabase, { customerId, reason });
     refresh();
     return result;
   },

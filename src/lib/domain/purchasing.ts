@@ -13,6 +13,7 @@ import {
   eventShowsReason,
   isEditableStatus,
   isOpenStatus,
+  waitingJobParts,
   type PurchaseOrderEventType,
   type PurchaseOrderFilter,
   type PurchaseOrderStatus,
@@ -257,6 +258,14 @@ export type PurchaseOrderLine = {
   hasReceipts: boolean;
   /** A customer job's part was ordered on it (D145): it is never removed. */
   hasJobParts: boolean;
+  /**
+   * Jobs waiting for a part on this line that has not arrived (A-21), first
+   * ordered first: the order cannot be cancelled, nor the line cut below
+   * `waitingQuantity`, until they are received or cancelled on the job.
+   */
+  waitingJobs: { id: string; jobNumber: string; quantity: number }[];
+  /** The smallest quantity the line may have while those jobs wait; 0 with none. */
+  waitingQuantity: number;
   overdue: boolean;
   /** D60: present only for cost-visible staff. */
   costs?: { unitCost: Money; orderedTotal: Money; receivedValue: Money };
@@ -500,17 +509,55 @@ export async function getPurchaseOrder(
     lineRows.length > 0
       ? supabase
           .from("job_part_requests")
-          .select("purchase_order_line_id")
+          .select(
+            "id, work_order_id, status, quantity, ordered_at, created_at, purchase_order_line_id",
+          )
           .in(
             "purchase_order_line_id",
             lineRows.map((l) => l.id),
           )
       : Promise.resolve({ data: [], error: null }),
   ]);
-  const jobPartLines = new Set(
-    ((unwrap(jobPartsResult) ?? []) as { purchase_order_line_id: string | null }[]).map(
-      (r) => r.purchase_order_line_id,
+  const jobParts = (unwrap(jobPartsResult) ?? []) as {
+    id: string;
+    work_order_id: string;
+    status: string;
+    quantity: number;
+    ordered_at: string | null;
+    created_at: string;
+    purchase_order_line_id: string | null;
+  }[];
+  const jobPartLines = new Set(jobParts.map((r) => r.purchase_order_line_id));
+  // A-21: the jobs still waiting on each line, so a refused cancel or cut
+  // can be acted on from here.
+  const waiting = waitingJobParts(
+    jobParts.flatMap((r) =>
+      r.purchase_order_line_id
+        ? [
+            {
+              id: r.id,
+              workOrderId: r.work_order_id,
+              lineId: r.purchase_order_line_id,
+              status: r.status,
+              quantity: Number(r.quantity),
+              orderedAt: r.ordered_at,
+              createdAt: r.created_at,
+            },
+          ]
+        : [],
     ),
+    new Map(lineRows.map((l) => [l.id, progress.get(l.id)?.quantity_received ?? 0])),
+  );
+  const waitingJobIds = [
+    ...new Set([...waiting.values()].flatMap((w) => w.jobs.map((j) => j.workOrderId))),
+  ];
+  const jobNumbers = new Map(
+    (waitingJobIds.length > 0
+      ? ((unwrap(
+          await supabase.from("work_orders").select("id, job_number").in("id", waitingJobIds),
+        ) ?? []) as { id: string; job_number: string }[])
+      : []
+    ).map((w) => [w.id, w.job_number]),
   );
   const onHand = new Map(
     ((unwrap(stockResult) ?? []) as { product_id: string | null; on_hand: number | null }[]).map(
@@ -546,6 +593,12 @@ export async function getPurchaseOrder(
       onHand: onHand.get(l.product_id) ?? 0,
       hasReceipts: received > 0,
       hasJobParts: jobPartLines.has(l.id),
+      waitingJobs: (waiting.get(l.id)?.jobs ?? []).map((j) => ({
+        id: j.workOrderId,
+        jobNumber: jobNumbers.get(j.workOrderId) ?? "A job",
+        quantity: j.quantity,
+      })),
+      waitingQuantity: waiting.get(l.id)?.quantity ?? 0,
       overdue: p?.is_overdue === true,
       ...(seeCosts && c
         ? {

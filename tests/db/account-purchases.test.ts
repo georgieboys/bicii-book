@@ -3,6 +3,9 @@
  * signed-in customer's in-store and online sales; an online order belongs to
  * them through a linked Shopify customer or the email they verified with a
  * sign-in code, which also links the Shopify customer for staff (audited).
+ * An admin can undo a link (unlink_shopify_customer; R-131): the customer
+ * stops seeing that Shopify customer's orders, the match is not made again,
+ * and the right customer can be linked.
  *
  * Tests create products, customers and sales, so the file runs only on a
  * per-file clone, in rolled-back transactions.
@@ -12,14 +15,14 @@ import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { LOCATION } from "../fixtures/ids";
+import { AUTH_USER, LOCATION } from "../fixtures/ids";
 import { orderPaidPayload, SHOPIFY_TEST_SHOP } from "../fixtures/shopify";
 import { recordSale } from "./consignment-fixtures";
 import { createAuthUser, customerClaims } from "./customer-fixtures";
-import { actAs, connect, inTransaction, isolatedDatabase, scalar } from "./harness";
+import { actAs, connect, inTransaction, isolatedDatabase, scalar, staffClaims } from "./harness";
 import { ADMIN, addStock, makeProduct, readAsOwner } from "./inventory-fixtures";
 import { SERVICE } from "./payment-fixtures";
-import { makeCustomer, ownerMode } from "./workshop-fixtures";
+import { failsWith, makeCustomer, ownerMode } from "./workshop-fixtures";
 
 let conn: pg.Client;
 
@@ -262,6 +265,106 @@ describe.skipIf(!isolatedDatabase())("purchases on the site account (D263)", () 
 
       expect(await shopifyIdOf(tx, customerId)).toBe(`gid://shopify/Customer/${shopifyCustomer}`);
       expect((await purchasesOf(tx, authUserId)).map((p) => p.sale_id)).toEqual([sale]);
+    });
+  });
+
+  it("an admin unlinks a wrong match: its orders leave the account, it is not matched again, and the right customer can be linked", async () => {
+    await inTx(async (tx) => {
+      const wrong = await customerWithLogin(tx);
+      const right = await customerWithLogin(tx);
+      const { variant } = await onlineProduct(tx);
+      const shopifyCustomer = nextShopifyId();
+      const gid = `gid://shopify/Customer/${shopifyCustomer}`;
+      // The buyer's Shopify customer carries the other person's address.
+      const first = await deliverOrder(tx, variant, { id: shopifyCustomer, email: wrong.email });
+      expect(await shopifyIdOf(tx, wrong.customerId)).toBe(gid);
+      // Recorded for the wrong customer while the link stood.
+      const second = await deliverOrder(tx, variant, {
+        id: shopifyCustomer,
+        email: "buyer@example.com",
+      });
+      expect((await purchasesOf(tx, wrong.authUserId)).map((p) => p.sale_id).sort()).toEqual(
+        [first, second].sort(),
+      );
+
+      const unlink = (reason: string) =>
+        tx.query<{ customer_id: string; shopify_customer_id: string; online_sales_kept: number }>(
+          "select * from public.unlink_shopify_customer($1, $2)",
+          [wrong.customerId, reason],
+        );
+      // Admins only, with a reason; the link cannot simply be replaced.
+      await actAs(tx, staffClaims(AUTH_USER.manager));
+      await failsWith(tx, () => unlink("Not the buyer"), { code: "42501" });
+      await actAs(tx, ADMIN);
+      await failsWith(tx, () => unlink("  "), { code: "P0001", message: "reason_required" });
+      await failsWith(
+        tx,
+        () =>
+          tx.query("select * from public.link_shopify_customer($1, $2, 'Try another')", [
+            wrong.customerId,
+            `gid://shopify/Customer/${nextShopifyId()}`,
+          ]),
+        { code: "P0001", message: "shopify_customer_already_linked" },
+      );
+
+      const { rows } = await unlink(" Shared family address; not the buyer ");
+      expect(rows).toEqual([
+        { customer_id: wrong.customerId, shopify_customer_id: gid, online_sales_kept: 1 },
+      ]);
+      expect(await shopifyIdOf(tx, wrong.customerId)).toBeNull();
+      const audit = await readAsOwner(tx, () =>
+        tx.query(
+          `select reason, payload, actor_staff_id is not null as by_staff
+             from public.integration_audit_events
+            where customer_id = $1 and event_type = 'customer_unlinked'`,
+          [wrong.customerId],
+        ),
+      );
+      expect(audit.rows).toEqual([
+        {
+          reason: "Shared family address; not the buyer",
+          payload: { from: gid, to: null, online_sales_kept: 1 },
+          by_staff: true,
+        },
+      ]);
+      // Nothing left to unlink.
+      await failsWith(tx, () => unlink("Again"), {
+        code: "P0001",
+        message: "shopify_customer_not_linked",
+      });
+
+      // The sale keeps its customer for staff (sales are immutable), but the
+      // order recorded through the wrong link has left that account. The
+      // order sent to their own verified address still shows (D263).
+      expect(
+        await readAsOwner(tx, () =>
+          scalar<string | null>(tx, "select customer_id from public.sales where id = $1", [second]),
+        ),
+      ).toBe(wrong.customerId);
+      expect((await purchasesOf(tx, wrong.authUserId)).map((p) => p.sale_id)).toEqual([first]);
+
+      // The same pair is never matched by email again, and a later order is
+      // recorded without a customer.
+      const third = await deliverOrder(tx, variant, { id: shopifyCustomer, email: wrong.email });
+      expect(await shopifyIdOf(tx, wrong.customerId)).toBeNull();
+      expect(
+        await readAsOwner(tx, () =>
+          scalar<string | null>(tx, "select customer_id from public.sales where id = $1", [third]),
+        ),
+      ).toBeNull();
+
+      // The right customer can now be linked, and sees every order of that
+      // Shopify customer; the wrong one still does not see the second.
+      await tx.query("select * from public.link_shopify_customer($1, $2, 'Confirmed by phone')", [
+        right.customerId,
+        gid,
+      ]);
+      expect((await purchasesOf(tx, right.authUserId)).map((p) => p.sale_id).sort()).toEqual(
+        [first, second, third].sort(),
+      );
+      expect((await purchasesOf(tx, wrong.authUserId)).map((p) => p.sale_id).sort()).toEqual(
+        [first, third].sort(),
+      );
     });
   });
 

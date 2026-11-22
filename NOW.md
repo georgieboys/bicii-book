@@ -1,5 +1,14 @@
 # Current state
 
+Updated: 2026-11-22 SGT (D263, account purchases; branch
+`feat/account-purchases` here and in BICII, migration `20261122001500`).
+Customers signed in on bicii.sg see Purchases: in-store and online sales
+with items, refunds and paid builds. A Store order joins the account when
+its email is the customer's verified login email, which also links the
+Shopify customer for staff (audited); a customer who signs in later is
+linked from their latest matching order. Amends D86 for the customer's own
+view (ADR-023 amendment; R-131 records the wrong-email case).
+Before that,
 Updated: 2026-11-22 SGT (D262, online stock holds, audit A-04; branch
 `fix/a04-online-holds`, migration `20261122001200`). A paid Shopify order
 BICII has not recorded keeps its units off sale online: the sync pushes the

@@ -1224,8 +1224,11 @@ website's account pages go live when the owner switches them on,
 - A refund made in Shopify marks the sale Partly refunded or Refunded, like
   an in-store refund: the stock and the item's status do not change; use
   **Restock…** on the sale if the item came back.
-- A Shopify customer becomes a BICII customer only when an admin links
-  them; a matching email is never enough.
+- A Shopify customer becomes a BICII customer when an admin links them,
+  or when the order's email is the email a customer verified by signing in
+  on bicii.sg (D263): the link is then made for you and audited as
+  "Matched by verified email (D263)". Any other matching email is never
+  enough.
 
 ### Publish a product online
 

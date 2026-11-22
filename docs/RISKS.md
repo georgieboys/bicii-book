@@ -3654,3 +3654,24 @@ URLs, or customer data in this file.
 - Revisit trigger: the first tag-based collection or feed.
 - Last checked: 2026-11-20.
 
+## R-131 — An online order placed with someone else's email joins their account
+
+- Category: Public site, Shopify.
+- Status and owner: open, accepted; the owner (decision D263), the build
+  agent (code).
+- Trigger: someone checks out on the Store with an email that belongs to
+  another person who has a verified login on bicii.sg.
+- Impact: the order shows under that person's Purchases (items, amount,
+  date) and, if neither side was linked, the buyer's Shopify customer is
+  linked to them, so the buyer's later orders attach to them too until an
+  admin corrects the link.
+- Evidence and confidence: high, by design (D263). Shopify already emails
+  the receipt to the same address, so the account shows nothing the
+  address's owner does not already receive.
+- Workaround or containment: the link is audited ("Matched by verified
+  email (D263)"); an admin can see it under More → Shopify and relink.
+- Next action: none unless it happens; if it does, add an admin "Unlink"
+  and a staff-visible flag on matched links.
+- Revisit trigger: the first wrong match reported.
+- Last checked: 2026-11-22.
+

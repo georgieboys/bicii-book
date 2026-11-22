@@ -183,6 +183,16 @@ managers.
     what is in stock where ("40 at Shop floor · 60 total"). Choose
     **Quantity** and where to **Take from**; **Price each** is optional
     (empty charges the selling price). Press **Add part**.
+  - **A part that isn't in the system yet** (D264): in **Add part**, choose
+    **New one-off item** (it carries what you searched for). Give the
+    **Name**, **Quantity** and **Price each**, then **Whose it is**:
+    **Consigned** (pick the consignor, usually you, and what they're owed
+    for each) or **The shop's** (what each cost). On a build, tick
+    **Charge on top of the build package** if the customer pays for it on
+    top. **Add to job** makes the product, takes it into stock and puts it
+    on the job in one step; a consignor is owed when the job is completed.
+    It needs the rights of Receive item (consigned) or of New product and
+    Adjust stock (the shop's).
   - **Add manual line**: **Description**, **Quantity**, **Unit price** and,
     with cost access, **Unit cost** ("Enter 0 when there is no direct cost.
     Left empty, the line is marked cost pending.").
@@ -311,10 +321,13 @@ while an approved or ordered item is neither fitted nor cancelled:
 **Complete…** lists them first (D149b).
 
 - Before you start: the job is open; the part is a product counted by
-  quantity (an existing one, or a new one if you manage inventory). A part
-  already in the shop (consigned stock, or a one-off item) is not ordered:
-  search finds it marked "In stock · use Add part", and you add it from
-  stock with **Add part** on the Lines card. The
+  quantity (an existing one, or a new one if you manage inventory). Consigned
+  stock counted by quantity can be proposed too (search shows it as
+  "Consigned · 7 in stock"): it is never ordered; once approved, **Fit**
+  takes it from stock and the consignor is owed when the job is completed
+  (D265). A one-of-a-kind item is marked "In stock · use Add part". A part
+  that isn't in the system yet: **New one-off item** under the search, the
+  shop's or consigned, makes it and proposes it in one step. The
   customer needs a mobile number for WhatsApp, or an email address for
   email (once an admin has set up quote emails,
   [RUNBOOK](RUNBOOK.md#quote-emails)); otherwise copy the link and send it

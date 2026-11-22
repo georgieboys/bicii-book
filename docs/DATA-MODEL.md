@@ -2134,6 +2134,38 @@ Built out of phase on 2026-11-22 (`20261122001500_account_purchases.sql`;
   can with `link_shopify_customer`, and whoever is linked next sees that
   Shopify customer's orders through `sales.shopify_customer_id`.
 
+### One-off parts (D264)
+
+Built out of phase on 2026-11-22 (`20261122001800_one_off_parts.sql`).
+
+- `add_one_off_part(line_id, work_order_id, name, quantity, unit_sale_price,
+  consigned, consignor_id, agreed_amount_owed, unit_direct_cost,
+  location_id, build_extra)` (staff) → `one_off_part_result (line_id,
+  product_id, product_short_id, replayed)`: locks the job, replays an
+  existing part line of the same quantity on the job (any other use of
+  the id: `line_conflict`), needs an open job;
+  name 1–200 (`one_off_name_required`), quantity 1–999, the location or
+  the first active one (`location_required`). Consigned:
+  `one_off_consignor_required` without a consignor and amount owed, then
+  `create_consignment_item` (manage_consignments) with the name, quantity
+  and price as asking price on a new consignment product. The shop's:
+  manage_inventory, a cost (`one_off_cost_required`) with view_costs, a new
+  shop-owned draft product, then `adjust_stock` (adjust_stock) "One-off
+  item for J-…". Then `add_inventory_line` and, with build_extra,
+  `set_build_line_extra`.
+- The stock-taking is `private.create_one_off_stock(wo, name, quantity,
+  unit_sale_price, consigned, consignor_id, agreed_amount_owed,
+  unit_direct_cost, location_id)` → product id, shared with:
+- `propose_one_off_part(request_id, work_order_id, name, quantity,
+  unit_sale_price, consigned, consignor_id, agreed_amount_owed,
+  unit_direct_cost, location_id)` (staff) → request id (D265): replays an
+  existing request of the same quantity (`part_request_conflict`
+  otherwise), then makes the one-off and calls `propose_part`.
+- `propose_part` (re-created, D265) accepts a consigned quantity product as
+  well as a shop-owned one (`indent_product_invalid` otherwise). Ordering
+  such a request is refused by `set_purchase_order_line`
+  (`purchase_line_not_shop_owned`); Fit takes it from stock.
+
 ### Frame grades (D260)
 
 Built out of phase on 2026-11-20 (`20261120000200_frame_grades.sql`;

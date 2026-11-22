@@ -1920,6 +1920,63 @@ export async function addPartToJob(
   };
 }
 
+const ONE_OFF_FIELDS: Record<string, string> = {
+  one_off_name_required: "name",
+  quantity_invalid: "quantity",
+  one_off_cost_required: "unitCost",
+  one_off_consignor_required: "consignorId",
+  location_inactive: "locationId",
+  location_required: "locationId",
+};
+
+/**
+ * D264: a one-off part created, taken into stock and put on the job in one
+ * step (add_one_off_part): the shop's at its cost, or consigned from a
+ * consignor at the amount owed each. Replay-safe by line id.
+ */
+export async function addOneOffPart(
+  supabase: ServerSupabase,
+  input: {
+    lineId: string;
+    workOrderId: string;
+    name: string;
+    quantity: number;
+    unitSalePrice: Money;
+    consigned: boolean;
+    consignorId: string | null;
+    agreedAmountOwed: Money | null;
+    unitCost: Money | null;
+    locationId: string | null;
+    buildExtra: boolean;
+  },
+): Promise<{ lineId: string; productShortId: string | null; replayed: boolean }> {
+  let result;
+  try {
+    result = unwrap(
+      await supabase.rpc("add_one_off_part", {
+        line_id: input.lineId,
+        work_order_id: input.workOrderId,
+        name: input.name,
+        quantity: input.quantity,
+        unit_sale_price: input.unitSalePrice,
+        consigned: input.consigned,
+        consignor_id: input.consigned ? (input.consignorId ?? undefined) : undefined,
+        agreed_amount_owed: input.consigned ? (input.agreedAmountOwed ?? undefined) : undefined,
+        unit_direct_cost: input.consigned ? undefined : (input.unitCost ?? undefined),
+        location_id: input.locationId ?? undefined,
+        build_extra: input.buildExtra,
+      }),
+    );
+  } catch (err) {
+    rethrowFields(err, ONE_OFF_FIELDS);
+  }
+  return {
+    lineId: result?.line_id ?? input.lineId,
+    productShortId: result?.product_short_id ?? null,
+    replayed: result?.replayed === true,
+  };
+}
+
 /** A product's name and P- number (the movements list's filter chip), or null. */
 export async function productLabel(
   supabase: ServerSupabase,

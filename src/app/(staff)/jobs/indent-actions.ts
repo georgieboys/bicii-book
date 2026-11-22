@@ -13,6 +13,7 @@ import {
   fitPartRequest,
   getQuoteRecipient,
   orderPartRequests,
+  proposeOneOffPart,
   proposePart,
   proposeService,
   searchIndentProducts,
@@ -20,6 +21,7 @@ import {
   withdrawQuote,
 } from "@/lib/domain/indent";
 import { createProduct, setProductArchived } from "@/lib/domain/inventory";
+import { oneOffPartSchema } from "@/lib/inventory-forms";
 import { listSuppliers } from "@/lib/domain/suppliers";
 import { QUOTE_DAYS, quotePath } from "@/lib/indent";
 import { quoteEmailEnabled, sendQuoteEmail } from "@/lib/integrations/email/quote";
@@ -80,6 +82,32 @@ export const supplierOptions = staffAction(
       return [];
     const { items } = await listSuppliers(supabase, { q, limit: 50 });
     return items.map((s) => ({ id: s.id, name: s.name }));
+  },
+);
+
+/**
+ * D265: a new one-off item made (consigned or the shop's, taken into stock)
+ * and proposed on the job's quote in one step. The database checks the
+ * rights of the separate pages.
+ */
+export const proposeOneOffPartAction = staffAction(
+  oneOffPartSchema,
+  { name: "indent.propose_one_off_part" },
+  async (input, { supabase }) => {
+    const id = await proposeOneOffPart(supabase, {
+      requestId: input.lineId,
+      workOrderId: input.workOrderId,
+      name: input.name,
+      quantity: input.quantity,
+      unitSalePrice: input.unitSalePrice,
+      consigned: input.consigned,
+      consignorId: input.consignorId,
+      agreedAmountOwed: input.agreedAmountOwed,
+      unitCost: input.unitCost,
+      locationId: input.locationId,
+    });
+    refresh();
+    return { id };
   },
 );
 

@@ -343,6 +343,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   build_line_not_repriceable: "Only the build's parts and its labour line can be repriced.",
   build_line_voided: "That line is voided. Reload the job.",
   build_package_online: "Take the package off Shopify before archiving it.",
+  one_off_name_required: "Name the part.",
+  one_off_cost_required: "Enter what each cost the shop (0 when nothing).",
+  one_off_consignor_required: "Choose whose it is and what they're owed for each.",
   build_line_not_part:
     "Only a part from stock can be an extra. Services and manual lines are already charged on top of the package.",
   build_labour_line_voided: "The build's labour line was voided. Set the package again first.",
@@ -531,7 +534,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "More than that has already been received. The ordered quantity can't go below it.",
   purchase_line_unique_product:
     "Unique items are registered one by one in Stock, not ordered on a purchase order.",
-  purchase_line_not_shop_owned: "Only shop-owned products can be ordered from a supplier.",
+  purchase_line_not_shop_owned:
+    "Only shop-owned products can be ordered from a supplier. A consigned part is already in the shop: once approved, Fit takes it from stock.",
   purchase_line_product_inactive: "That product is inactive or archived. Reactivate it first.",
   purchase_line_duplicate_product:
     "That product is already on this order. Change its line instead.",
@@ -559,7 +563,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   reorder_nothing_selected: "Choose at least one product to order.",
   // Indent parts and quotes (Phase 13, D140-D147)
   part_request_conflict: "That item was already added as something else. Reload and try again.",
-  indent_product_invalid: "Only shop-owned products counted by quantity can be ordered for a job.",
+  indent_product_invalid:
+    "Only products counted by quantity, the shop's or consigned, can be proposed. Use Add part for a one-of-a-kind item.",
   price_invalid: "A price cannot be negative.",
   cost_invalid: "A cost cannot be negative.",
   supplier_unavailable: "That supplier no longer exists or is archived. Choose another.",

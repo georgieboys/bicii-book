@@ -53,6 +53,7 @@ import {
   type WorkOrderDetail,
 } from "@/lib/domain/workshop";
 import { telHref } from "@/lib/people";
+import { listConsignors } from "@/lib/domain/consignment";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
 import {
@@ -171,6 +172,16 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
 
   const now = new Date();
   const open = isOpenStatus(job.status);
+  // D264: what this staff member may make on the job as a new one-off item.
+  const canConsign = hasPermission(staff, "manage_consignments");
+  const oneOff = {
+    canShop:
+      hasPermission(staff, "manage_inventory") && hasPermission(staff, "adjust_stock") && viewCosts,
+    canConsign,
+    defaultConsignor: canConsign && open ? await defaultConsignor(supabase) : null,
+    locations: locations.locations.filter((l) => l.active).map((l) => ({ id: l.id, name: l.name })),
+    defaultLocationId: locations.defaultLocationId,
+  };
   const closed = isClosedStatus(job.status);
   const overdue = isOverdue({ status: job.status, checkedInAt: job.stamps.checkedInAt }, now);
   const tel = telHref(job.customer.phone);
@@ -356,6 +367,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
                   disabled={!open}
                   hasActiveLocation={locations.defaultLocationId !== null}
                   hasBuild={build !== null}
+                  oneOff={oneOff}
                 />
                 <ManualLineButton
                   workOrderId={job.id}
@@ -479,6 +491,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
               canOrder={canOrder}
               purchaseData={purchaseData}
               canCreateProduct={hasPermission(staff, "manage_inventory")}
+              oneOff={oneOff}
               emailEnabled={quoteEmailEnabled()}
               deposits={payments?.deposits ?? []}
               canOverrideDeposit={canOverrideDeposit(staff)}
@@ -595,4 +608,19 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
       </div>
     </>
   );
+}
+
+/** D264: the consignor offered first for a one-off item: the one with the most items for sale. */
+async function defaultConsignor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<{ id: string; label: string } | null> {
+  const { items } = await listConsignors(supabase, { q: "", limit: 100 }).catch(() => ({
+    items: [] as Awaited<ReturnType<typeof listConsignors>>["items"],
+  }));
+  const top = items.reduce<(typeof items)[number] | null>(
+    (best, c) => (!best || c.activeItems > best.activeItems ? c : best),
+    null,
+  );
+  // Nobody with items for sale: no default (choose in the sheet).
+  return top && top.activeItems > 0 ? { id: top.id, label: top.name } : null;
 }

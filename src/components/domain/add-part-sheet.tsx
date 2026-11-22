@@ -24,6 +24,7 @@ import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
 import { ManualLineSheet } from "./manual-line-sheet";
+import { OneOffPartSheet, type OneOffOptions } from "./one-off-part-sheet";
 import { NoActiveLocation } from "./no-active-location";
 import { ShortId } from "./short-id";
 import { StockBadge } from "./stock-badge";
@@ -69,6 +70,7 @@ export function AddPartButton({
   disabled = false,
   hasActiveLocation,
   hasBuild = false,
+  oneOff,
 }: {
   workOrderId: string;
   viewCosts: boolean;
@@ -79,6 +81,8 @@ export function AddPartButton({
   hasActiveLocation: boolean;
   /** D261: the job has a build package, so a part may be charged on top of it. */
   hasBuild?: boolean;
+  /** D264: a new one-off item made on the job; without it, a manual line. */
+  oneOff?: OneOffOptions;
 }) {
   const [sheet, setSheet] = useState<"part" | { oneOff: string } | null>(null);
   return (
@@ -101,9 +105,18 @@ export function AddPartButton({
           onOneOff={(query) => setSheet({ oneOff: query })}
           onClose={() => setSheet(null)}
         />
+      ) : sheet && oneOff && (oneOff.canShop || oneOff.canConsign) ? (
+        // D264: a new one-off item, the shop's or consigned, made and added here.
+        <OneOffPartSheet
+          workOrderId={workOrderId}
+          initialName={sheet.oneOff}
+          hasBuild={hasBuild}
+          options={oneOff}
+          onClose={() => setSheet(null)}
+        />
       ) : sheet ? (
-        // D261: a one-off with no stock record is a manual line (no SKU, no
-        // count), charged on top of a build package like every manual line.
+        // D261: without those rights, a one-off with no stock record is a
+        // manual line (no SKU, no count), charged on top of a build package.
         <ManualLineSheet
           workOrderId={workOrderId}
           viewCosts={viewCosts}
@@ -309,18 +322,17 @@ function AddPartSheet({
           </Field>
 
           {!part ? (
-            <p className="text-sm text-dust-700">
-              Not in stock? A one-off with no stock record or SKU goes on as a{" "}
-              <button
+            <div className="flex flex-col items-start gap-2 rounded-xl bg-sunken p-3 text-sm text-dust-700">
+              <span>Not in the system yet? Add it here, the shop&apos;s or consigned.</span>
+              <Button
                 type="button"
-                className="font-medium text-ink underline underline-offset-4"
+                variant="outline"
+                size="sm"
                 onClick={() => onOneOff(lastQuery.trim())}
               >
-                one-off line
-              </button>
-              . A consigned item is received under Consignment first, so its consignor is owed when
-              the job is completed.
-            </p>
+                New one-off item
+              </Button>
+            </div>
           ) : null}
 
           {part ? (

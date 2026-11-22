@@ -28,9 +28,12 @@ const searchParts = vi.fn();
 vi.mock("@/app/(staff)/inventory/actions", () => ({
   searchParts: (...args: unknown[]) => searchParts(...args),
 }));
+vi.mock("@/app/(staff)/jobs/indent-actions", () => ({ proposeOneOffPartAction: vi.fn() }));
+vi.mock("@/app/(staff)/consignment/actions", () => ({ searchConsignorsAction: vi.fn() }));
 vi.mock("@/app/(staff)/jobs/actions", () => ({
   addPartToJob: vi.fn(),
   addManualLine: vi.fn(),
+  addOneOffPartToJob: vi.fn(),
 }));
 
 import { AddPartButton } from "@/components/domain/add-part-sheet";
@@ -140,7 +143,7 @@ describe("Add part on a build (D261)", () => {
       fireEvent.change(box, { target: { value: "Vintage bell" } });
     });
     await waitFor(() => expect(searchParts).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole("button", { name: "one-off line" }));
+    fireEvent.click(screen.getByRole("button", { name: "New one-off item" }));
     expect((screen.getByLabelText(/Description/) as HTMLInputElement).value).toBe("Vintage bell");
   });
 

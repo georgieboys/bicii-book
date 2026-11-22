@@ -23,6 +23,7 @@ import {
   MAX_PURCHASE_QUANTITY,
   MAX_PURCHASE_UNIT_COST,
   costSourceHint,
+  jobList,
   type PurchaseOrderStatus,
 } from "@/lib/purchasing";
 import { newId } from "@/lib/uuid";
@@ -43,6 +44,10 @@ export type EditableLine = {
   hasReceipts: boolean;
   /** A customer job's part was ordered on it: never removed. */
   hasJobParts: boolean;
+  /** Jobs waiting for a part on it that has not arrived (A-21). */
+  waitingJobs?: { id: string; jobNumber: string; quantity: number }[];
+  /** The smallest quantity the line may have while they wait. */
+  waitingQuantity?: number;
   /** manage_purchasing sees costs (D60), so an edited line always has one. */
   unitCost: string;
 };
@@ -58,9 +63,27 @@ export type LineSheetOrder = {
 
 type State = ActionResult<null> | null;
 
-/** The smallest quantity a line may have: what has arrived, and at least 1. */
-export function minimumQuantity(received: number): number {
-  return Math.max(1, received);
+/**
+ * The smallest quantity a line may have: what has arrived, what customer
+ * jobs still wait for on it (A-21), and at least 1.
+ */
+export function minimumQuantity(received: number, waiting = 0): number {
+  return Math.max(1, received, waiting);
+}
+
+/** Why the quantity cannot go lower, or undefined. */
+export function quantityHint(
+  line: Pick<EditableLine, "received" | "waitingJobs" | "waitingQuantity"> | undefined,
+): string | undefined {
+  if (!line) return undefined;
+  const jobs = (line.waitingJobs ?? []).map((j) => j.jobNumber);
+  const waiting = line.waitingQuantity ?? 0;
+  if (jobs.length > 0 && waiting >= line.received) {
+    return `${jobList(jobs)} ${jobs.length === 1 ? "is" : "are"} waiting for ${waiting} of these: the order can't be for fewer until they arrive or are cancelled on ${jobs.length === 1 ? "that job" : "those jobs"}.`;
+  }
+  return line.received > 0
+    ? `${line.received} already received: the order can't be for fewer.`
+    : undefined;
 }
 
 /**
@@ -98,7 +121,7 @@ export function PurchaseOrderLineSheet({
   const costTouched = useRef(false);
   const product = line?.product ?? picked?.product ?? null;
   const draft = order.status === "draft";
-  const minQty = minimumQuantity(line?.received ?? 0);
+  const minQty = minimumQuantity(line?.received ?? 0, line?.waitingQuantity ?? 0);
 
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = await callAction(() => setPurchaseOrderLine(prev, formData), formData);
@@ -215,11 +238,7 @@ export function PurchaseOrderLineSheet({
           <>
             <Field
               label="Quantity"
-              hint={
-                line && line.received > 0
-                  ? `${line.received} already received: the order can't be for fewer.`
-                  : undefined
-              }
+              hint={quantityHint(line)}
               error={errors?.quantityOrdered?.[0]}
               required
             >
@@ -334,6 +353,7 @@ function RemoveLine({
   }, [confirming, onConfirming]);
 
   if (line.hasReceipts || line.hasJobParts) {
+    const waitingJobs = (line.waitingJobs ?? []).map((j) => j.jobNumber);
     return (
       <div className="mt-6 flex flex-col gap-2 border-t border-hairline pt-4">
         <Button variant="outline" disabled aria-describedby={`${line.id}-why`}>
@@ -342,7 +362,9 @@ function RemoveLine({
         <p id={`${line.id}-why`} className="text-sm text-dust-700">
           {line.hasReceipts
             ? "Part of this line has been received, so it stays. Lower its quantity to what arrived instead."
-            : "Customer jobs ordered parts on this line, so it stays. Lower its quantity instead."}
+            : waitingJobs.length > 0
+              ? `${jobList(waitingJobs)} ${waitingJobs.length === 1 ? "is" : "are"} waiting for parts on this line, so it stays and can't go below ${line.waitingQuantity ?? 0}. Receive the parts, or cancel them on ${waitingJobs.length === 1 ? "that job" : "those jobs"} first.`
+              : "Customer jobs ordered parts on this line, so it stays. Lower its quantity instead."}
         </p>
       </div>
     );

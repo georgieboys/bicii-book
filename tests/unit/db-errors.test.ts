@@ -61,6 +61,9 @@ describe("mapDbError", () => {
       reason: "customer_has_open_work",
     });
     expect(mapped.message).toMatch(/before archiving/);
+    // Adventures too: a live booking or a tracker out also holds the archive.
+    expect(mapped.message).toMatch(/adventure booking/);
+    expect(mapped.message).toMatch(/hired tracker/);
   });
 
   it("never echoes an unknown P0001 message", () => {
@@ -364,13 +367,47 @@ describe("mapDbError", () => {
       "This order is closed: it has been fully received or cancelled. Extra units go on a new order.",
     );
     // A-21: a cancel or a cut that would strand customer jobs' parts
-    expect(mapDbError(pgrst("P0001", "purchase_order_has_indent_requests"))).toEqual({
+    // (the waiting parts have not arrived, so "Fit" is never the way out).
+    // Without job numbers in the detail (a lowered line quantity): the fixed text.
+    expect(
+      mapDbError(
+        pgrst(
+          "P0001",
+          "purchase_order_has_indent_requests",
+          "Customer jobs are waiting for 3 of these; fit or cancel those parts on the jobs first.",
+        ),
+      ),
+    ).toEqual({
       kind: "business",
       code: "P0001",
       reason: "purchase_order_has_indent_requests",
       message:
-        "Customer jobs are waiting for parts on this order. Fit or cancel those parts on the jobs first.",
+        "Customer jobs are waiting for parts on this order that have not arrived. Receive the parts, or cancel them on those jobs (each line of the order names its waiting jobs), then try again.",
     });
+    // cancel_purchase_order and remove_purchase_order_line name the jobs in
+    // the detail: only the job numbers are taken from it, never its text.
+    expect(
+      mapDbError(
+        pgrst(
+          "P0001",
+          "purchase_order_has_indent_requests",
+          "Customer jobs are waiting for parts on this order (J-000101, J-000107). Fit or cancel those parts on the jobs first.",
+        ),
+      ).message,
+    ).toBe(
+      "Jobs J-000101 and J-000107 are waiting for parts on this order that have not arrived. Receive the parts, or cancel them on those jobs, then try again.",
+    );
+    expect(
+      mapDbError(
+        pgrst(
+          "P0001",
+          "purchase_order_has_indent_requests",
+          "Customer jobs are waiting for parts on this line (J-000101). <b>anything else</b>",
+        ),
+      ).message,
+    ).toBe(
+      "Job J-000101 is waiting for a part on this order that has not arrived. Receive the part, or cancel it on that job, then try again.",
+    );
     expect(mapDbError(pgrst("P0001", "supplier_has_open_orders")).message).toBe(
       "This supplier still has open orders. Receive or cancel them first.",
     );
@@ -592,6 +629,32 @@ describe("CHECK_ERRORS and UNIQUE_ERRORS cover every named constraint", () => {
       kind: "invalid",
       code: "23514",
       reason: "work_order_line_items_quantity_check",
+    });
+  });
+});
+
+describe("Shopify customer links", () => {
+  it("says how to undo a wrong link, and maps the unlink refusal", () => {
+    const linked = mapDbError({
+      code: "P0001",
+      message: "shopify_customer_already_linked",
+      details: "That customer is already linked to a different Shopify customer.",
+      hint: null,
+    });
+    expect(linked.kind).toBe("business");
+    expect(linked.message).toMatch(/unlink it first/);
+    expect(
+      mapDbError({
+        code: "P0001",
+        message: "shopify_customer_not_linked",
+        details: null,
+        hint: null,
+      }),
+    ).toEqual({
+      kind: "business",
+      code: "P0001",
+      reason: "shopify_customer_not_linked",
+      message: "That customer is no longer linked to a Shopify customer. Refresh the page.",
     });
   });
 });

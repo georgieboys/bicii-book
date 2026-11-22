@@ -6,7 +6,10 @@ import type { ReactNode } from "react";
 import { ShortIdLink } from "@/components/domain/short-id";
 import { JobPanel } from "@/components/domain/shopify/job-panel";
 import { JsonView } from "@/components/domain/shopify/json-view";
-import { LinkCustomerButton } from "@/components/domain/shopify/link-customer-sheet";
+import {
+  LinkCustomerButton,
+  UnlinkCustomerButton,
+} from "@/components/domain/shopify/link-customer-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -55,7 +58,7 @@ function SaleLink({ sale }: { sale: { id: string; saleNumber: string } }) {
  * Processing: attempts, the human error, the unexpected detail folded
  * away, unmapped lines with Link buttons, and the job with Retry and
  * Dismiss as on the queue. Customer (orders): the Shopify customer and
- * the linked BICII customer, or Link. Headers, then the payload.
+ * the linked BICII customer with Unlink, or Link. Headers, then the payload.
  */
 export default async function ShopifyEventPage({ params }: PageProps<"/shopify/events/[id]">) {
   await requireAdmin();
@@ -214,7 +217,20 @@ export default async function ShopifyEventPage({ params }: PageProps<"/shopify/e
                 )}
               </Row>
             </dl>
-            {event.customer.linked ? null : (
+            {event.customer.linked ? (
+              <>
+                <p className="text-sm text-dust-700">
+                  This customer sees every order of this Shopify customer in their account, and
+                  later orders are recorded for them. If it is the wrong person (a link can also be
+                  made automatically from a verified email), unlink it; the right customer can then
+                  be linked.
+                </p>
+                <UnlinkCustomerButton
+                  customerId={event.customer.linked.id}
+                  customerLabel={event.customer.linked.label}
+                />
+              </>
+            ) : (
               <>
                 <p className="text-sm text-dust-700">
                   Online orders are recorded without a customer until an admin links the Shopify

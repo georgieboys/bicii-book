@@ -20,7 +20,7 @@ const COPY = {
     archived:
       "Archived: hidden from search and pickers, no bikes or bookings can be added for them, and their bicii.sg account is closed. Their bikes and history are kept.",
     active:
-      "Archiving hides this customer from search and pickers, stops new bikes and bookings, and closes their online account on bicii.sg. It can't be done while they have an open job, an upcoming booking, an open quote or payment link, or a consignor record that isn't archived. Nothing is deleted: their bikes and history stay, and you can unarchive them later.",
+      "Archiving hides this customer from search and pickers, stops new bikes and bookings, and closes their online account on bicii.sg. It can't be done while they have an open job, an upcoming booking, an open quote or payment link, a consignor record that isn't archived, an adventure booking that is waiting for payment or paid and not finished, or a hired tracker that isn't back. Nothing is deleted: their bikes and history stay, and you can unarchive them later.",
   },
   bike: {
     noun: "bike",

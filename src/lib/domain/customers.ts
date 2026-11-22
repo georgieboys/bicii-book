@@ -5,7 +5,7 @@ import { DbError, constraintOf, unwrap } from "@/lib/db-errors";
 import { customerLabel } from "@/lib/people";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
-import { DomainError, STALE_EDIT } from "./errors";
+import { DomainError, staleEdit } from "./errors";
 import type { ListPage } from "./list";
 
 /**
@@ -225,7 +225,7 @@ export async function updateCustomer(
   );
   if (row) return;
   const exists = unwrap(await supabase.from("customers").select("id").eq("id", id).maybeSingle());
-  throw new DomainError(exists ? STALE_EDIT : NOT_FOUND);
+  throw exists ? staleEdit() : new DomainError(NOT_FOUND);
 }
 
 /**

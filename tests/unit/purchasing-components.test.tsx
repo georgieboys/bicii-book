@@ -16,6 +16,7 @@ vi.mock("@/app/(staff)/purchasing/actions", () => ({
 import {
   PurchaseOrderLineSheet,
   minimumQuantity,
+  quantityHint,
   type EditableLine,
   type LineSheetOrder,
 } from "@/components/domain/purchasing/purchase-order-line-sheet";
@@ -131,6 +132,36 @@ describe("PurchaseOrderLineSheet", () => {
     expect(screen.getByRole("button", { name: "Remove line" })).toBeDisabled();
     expect(screen.getByText(/Customer jobs ordered parts on this line/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove line…" })).not.toBeInTheDocument();
+  });
+
+  it("names the jobs waiting on a line and keeps its quantity at what they need (A-21)", () => {
+    const waiting = {
+      ...LINE,
+      ordered: 5,
+      received: 0,
+      hasReceipts: false,
+      hasJobParts: true,
+      waitingJobs: [
+        { id: "e0000000-0000-4000-8000-000000000001", jobNumber: "J-000101", quantity: 2 },
+        { id: "e0000000-0000-4000-8000-000000000002", jobNumber: "J-000107", quantity: 1 },
+      ],
+      waitingQuantity: 3,
+    };
+    expect(minimumQuantity(0, 3)).toBe(3);
+    expect(quantityHint(waiting)).toBe(
+      "J-000101 and J-000107 are waiting for 3 of these: the order can't be for fewer until they arrive or are cancelled on those jobs.",
+    );
+    expect(quantityHint(LINE)).toBe("18 already received: the order can't be for fewer.");
+    expect(quantityHint({ received: 0 })).toBeUndefined();
+    renderSheet(ORDER, waiting);
+    expect(screen.getByRole("button", { name: "Remove line" })).toBeDisabled();
+    // The way out is named: receive, or cancel on the jobs. Never "Fit".
+    expect(
+      screen.getByText(
+        "J-000101 and J-000107 are waiting for parts on this line, so it stays and can't go below 3. Receive the parts, or cancel them on those jobs first.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Lower its quantity instead/)).not.toBeInTheDocument();
   });
 
   it("sends the line with its cost as typed, 0 included (D24 as amended)", async () => {

@@ -3671,9 +3671,32 @@ URLs, or customer data in this file.
   the receipt to the same address, so the account shows nothing the
   address's owner does not already receive.
 - Workaround or containment: the link is audited ("Matched by verified
-  email (D263)"); an admin can see it under More → Shopify and relink.
-- Next action: none unless it happens; if it does, add an admin "Unlink"
-  and a staff-visible flag on matched links.
+  email (D263)"). An admin undoes it with **Unlink…** on the Customer card
+  of any of that Shopify customer's orders (More → Shopify → Events;
+  `unlink_shopify_customer`, reason required, audited `customer_unlinked`;
+  `20261122001700_quick_audit_fixes`), and can then link the right
+  customer. After an unlink the pair is never matched by email again, and
+  the orders recorded for the wrong person while the link stood leave
+  their Purchases (they keep `sales.customer_id` on the staff side, since
+  sales are immutable). This record first said an admin could "see it
+  under More → Shopify and relink"; that was wrong until this change: no
+  in-app unlink or relink existed (`link_shopify_customer` refuses a
+  customer who already has another id), so the only correction was SQL on
+  production.
+- Still open: nothing tells staff that a match was made by email, so a
+  wrong one is found only when someone reports it; until it is unlinked
+  the other person sees the buyer's orders. After the unlink, none of
+  that Shopify customer's orders show in their account, by link or by
+  email. The unlink is proved by `tests/db/account-purchases.test.ts`
+  (CI); not exercised on the hosted project.
+- Confirm email: D263 trusts a login's confirmed email, which proves
+  control of the mailbox only while Auth's "Confirm email" is on. The
+  owner confirmed it on in production on 2026-11-22; the RUNBOOK now
+  requires it. Still open (audit A-07): whether a password sign-up made
+  in someone's name before they first sign in with a code stays usable
+  after they confirm the address; untested on hosted Auth.
+- Next action: none unless it happens; if it does, add a staff-visible
+  flag on matched links.
 - Revisit trigger: the first wrong match reported.
 - Last checked: 2026-11-22.
 

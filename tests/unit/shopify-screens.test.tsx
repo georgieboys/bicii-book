@@ -1,6 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+const unlinkCustomerAction = vi.fn();
+vi.mock("@/app/(staff)/shopify/actions", () => ({
+  linkCustomerAction: vi.fn(),
+  unlinkCustomerAction: (...args: unknown[]) => unlinkCustomerAction(...args),
+}));
+vi.mock("@/app/(staff)/customers/actions", () => ({
+  createCustomer: vi.fn(),
+  updateCustomer: vi.fn(),
+  searchCustomers: vi.fn(async () => ({ ok: true, data: [] })),
+}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+
+import { UnlinkCustomerButton } from "@/components/domain/shopify/link-customer-sheet";
 import { JsonView } from "@/components/domain/shopify/json-view";
 import { ToastProvider } from "@/components/ui/toast";
 import { formatTime } from "@/lib/dates";
@@ -42,6 +55,7 @@ import {
   linkVariantSchema,
   publishOnlineSchema,
   shopifySettingsSchema,
+  unlinkCustomerSchema,
 } from "@/lib/shopify-forms";
 
 /**
@@ -360,6 +374,13 @@ describe("action schemas", () => {
     ).toBe(false);
   });
 
+  it("needs a customer and a reason to unlink a customer (R-131)", () => {
+    const ok = { customerId: PRODUCT, reason: "Shared family email; not the buyer" };
+    expect(unlinkCustomerSchema.safeParse(ok).success).toBe(true);
+    expect(unlinkCustomerSchema.safeParse({ ...ok, reason: "  " }).success).toBe(false);
+    expect(unlinkCustomerSchema.safeParse({ ...ok, customerId: "x" }).success).toBe(false);
+  });
+
   it("needs a reason only when the test-order switch changes (D89)", () => {
     const form = {
       onlineLocationId: PRODUCT,
@@ -420,5 +441,34 @@ describe("JsonView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy payload" }));
     expect(writeText).toHaveBeenCalledWith(json);
     expect(await screen.findByText("Copied")).toBeInTheDocument();
+  });
+});
+
+describe("UnlinkCustomerButton (R-131: a wrong link can be undone)", () => {
+  it("asks why, says what unlinking does, and sends the customer with the reason", async () => {
+    unlinkCustomerAction.mockResolvedValue({ ok: true, data: { onlineSalesKept: 2 } });
+    render(
+      <ToastProvider>
+        <UnlinkCustomerButton customerId={PRODUCT} customerLabel="Ana Lim" />
+      </ToastProvider>,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unlink… Ana Lim from this Shopify customer" }),
+    );
+    expect(screen.getByText(/BICII will not match these two by email again/)).toBeInTheDocument();
+    expect(screen.getByText(/stay on their record here/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Why is this link wrong/), {
+      target: { value: "  Shared family email  " },
+    });
+    // The confirm button ignores presses for 400 ms after opening.
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Unlink" }));
+    });
+    await waitFor(() => expect(unlinkCustomerAction).toHaveBeenCalledTimes(1));
+    expect(unlinkCustomerAction).toHaveBeenCalledWith({
+      customerId: PRODUCT,
+      reason: "Shared family email",
+    });
   });
 });

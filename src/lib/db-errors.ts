@@ -182,7 +182,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   customer_archived: "That customer is archived. Unarchive them first.",
   // A-22: customers_guard_archive.
   customer_has_open_work:
-    "This customer still has an open job, an upcoming booking, an open quote or payment link, or a consignor record that isn't archived. Finish or cancel those (archive the consignor) before archiving.",
+    "This customer still has an open job, an upcoming booking, an open quote or payment link, a consignor record that isn't archived, an adventure booking that is waiting for payment or paid and not finished, or a hired tracker that isn't back. Finish or cancel those (archive the consignor, take the tracker back) before archiving.",
   bike_archived: "That bike is archived. Unarchive it before changing its owner or stocking it.",
   bike_short_id_immutable: "A bike keeps its ID for life.",
   bike_history_append_only: "Bike ownership history cannot be changed.",
@@ -495,7 +495,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   // never returned as an error, so they are not listed here.
   shopify_ids_conflict: "This product is already linked to a different Shopify product.",
   shopify_customer_already_linked:
-    "That customer is already linked to a different Shopify customer.",
+    "That customer is already linked to a different Shopify customer. If that link is wrong, open one of that Shopify customer's orders under More, Shopify and unlink it first.",
+  shopify_customer_not_linked:
+    "That customer is no longer linked to a Shopify customer. Refresh the page.",
   shopify_gid_invalid: "That is not a valid Shopify ID.",
   shopify_settings_missing:
     "Shopify settings are missing. Ask an admin to set the online location.",
@@ -519,8 +521,11 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "This order is closed: it has been fully received or cancelled. Extra units go on a new order.",
   purchase_order_not_submitted: "Submit the order before receiving against it.",
   purchase_order_needs_lines: "An order needs at least one line. Add one, or cancel the order.",
+  // The waiting parts have not arrived, so they cannot be fitted: receive
+  // them or cancel them on the jobs. mapDbError names the jobs when the
+  // refusal's detail carries their numbers (BUSINESS_DETAIL_ERRORS).
   purchase_order_has_indent_requests:
-    "Customer jobs are waiting for parts on this order. Fit or cancel those parts on the jobs first.",
+    "Customer jobs are waiting for parts on this order that have not arrived. Receive the parts, or cancel them on those jobs (each line of the order names its waiting jobs), then try again.",
   purchase_line_conflict: "That line clashes with another one. Refresh the order and try again.",
   purchase_line_below_received:
     "More than that has already been received. The ordered quantity can't go below it.",
@@ -1333,6 +1338,38 @@ function isDbErrorLike(error: unknown): error is DbErrorLike {
   return typeof error === "object" && error !== null && ("code" in error || "message" in error);
 }
 
+/** Job numbers (J-######) in a refusal's detail, in order, each once. */
+function jobNumbersIn(detail: string | null | undefined): string[] {
+  return [...new Set((detail ?? "").match(/\bJ-[0-9]{6}\b/g) ?? [])];
+}
+
+/** "J-000101", "J-000101 and J-000102", "J-000101, J-000102 and J-000103". */
+function listOf(items: string[]): string {
+  return items.length <= 1
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * Business refusals whose message names something from the exception's
+ * detail. The detail itself is never echoed: each entry takes only tokens
+ * of a known, safe shape out of it (here job numbers) and returns null to
+ * keep the fixed text of BUSINESS_ERRORS.
+ */
+const BUSINESS_DETAIL_ERRORS: Record<string, (detail: string | null | undefined) => string | null> =
+  {
+    // A-21: cancel_purchase_order and remove_purchase_order_line list the
+    // waiting jobs in the detail. Those parts have not arrived, so Fit is
+    // not offered on the job: receiving or cancelling them is what clears it.
+    purchase_order_has_indent_requests: (detail) => {
+      const jobs = jobNumbersIn(detail);
+      if (jobs.length === 0) return null;
+      return jobs.length === 1
+        ? `Job ${jobs[0]} is waiting for a part on this order that has not arrived. Receive the part, or cancel it on that job, then try again.`
+        : `Jobs ${listOf(jobs)} are waiting for parts on this order that have not arrived. Receive the parts, or cancel them on those jobs, then try again.`;
+    },
+  };
+
 export function mapDbError(error: unknown): MappedError {
   if (!isDbErrorLike(error) || typeof error.code !== "string" || error.code === "") {
     return { message: GENERIC_ERROR, kind: "unknown" };
@@ -1341,7 +1378,8 @@ export function mapDbError(error: unknown): MappedError {
 
   if (code === "P0001") {
     const reason = (error.message ?? "").trim();
-    const known = BUSINESS_ERRORS[reason];
+    const fixed = BUSINESS_ERRORS[reason];
+    const known = fixed ? (BUSINESS_DETAIL_ERRORS[reason]?.(error.details) ?? fixed) : undefined;
     return known
       ? { message: known, kind: "business", code, reason }
       : { message: GENERIC_ERROR, kind: "unknown", code, reason: reason || undefined };

@@ -219,6 +219,8 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.link_shopify_customer(uuid, text, text)",
   "public.link_shopify_variant(uuid, text, text, text)",
   "public.retry_integration_job(uuid)",
+  // Quick audit 2026-11-22 (D86, D263; R-131): admins undo a customer link
+  "public.unlink_shopify_customer(uuid, text)",
   // Shopify outbound (Phase 10 step 2, D84, D86): manage_inventory
   // publishes online and asks for a sync; admins change the settings
   "public.request_product_sync(uuid)",

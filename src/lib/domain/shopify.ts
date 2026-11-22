@@ -41,6 +41,7 @@ import type { ListPage } from "./list";
  *   dismiss_integration_job(job, reason)     admin
  *   link_shopify_variant(product, gids, why) admin
  *   link_shopify_customer(customer, gid, why) admin
+ *   unlink_shopify_customer(customer, why)   admin
  *   set_shopify_settings(location, url, test, why) admin
  */
 
@@ -723,6 +724,23 @@ export async function linkCustomer(
     }),
   );
   return { earlierOnlineSales: r?.earlier_online_sales ?? 0 };
+}
+
+/**
+ * Remove a customer's Shopify customer link (admin, with a reason): a link
+ * made by hand or by the verified-email match (D263) that names the wrong
+ * person. Sales recorded while it stood keep the customer (sales are
+ * immutable) and are counted in `onlineSalesKept`; the customer's own account
+ * no longer shows them, and the automatic match never makes that pair again.
+ */
+export async function unlinkCustomer(
+  supabase: ServerSupabase,
+  { customerId, reason }: { customerId: string; reason: string },
+): Promise<{ onlineSalesKept: number }> {
+  const r = unwrap(
+    await supabase.rpc("unlink_shopify_customer", { customer_id: customerId, reason }),
+  );
+  return { onlineSalesKept: r?.online_sales_kept ?? 0 };
 }
 
 /** Save the online location, storefront and test-order setting (admin). */

@@ -25,8 +25,9 @@ export type ActionResult<T = null> =
       fieldErrors?: Record<string, string[]>;
       /**
        * The business-error code when an RPC refused (DATA-MODEL §16, e.g.
-       * `attachment_object_missing`), so a client can react to that case
-       * specifically. A stable code, never a raw database message.
+       * `attachment_object_missing`) or a domain function refused with one
+       * (`stale_edit`), so a client can react to that case specifically. A
+       * stable code, never a raw database message.
        */
       code?: string;
       /**
@@ -141,7 +142,13 @@ export function staffAction<Schema extends z.ZodType, Data>(
       unstable_rethrow(err);
       if (err instanceof ActionError || err instanceof DomainError) {
         after(() => log.info({ outcome: "rejected", reason: err.message }, "action"));
-        return { ok: false, error: err.message, fieldErrors: err.fieldErrors, values };
+        return {
+          ok: false,
+          error: err.message,
+          fieldErrors: err.fieldErrors,
+          code: err instanceof DomainError ? err.code : undefined,
+          values,
+        };
       }
       const mapped = mapDbError(err);
       after(() =>

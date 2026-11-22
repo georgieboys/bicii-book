@@ -13,11 +13,14 @@ import {
   isOpenStatus,
   isOverdue,
   isPurchaseOrderFilter,
+  jobList,
   leadTimeText,
   normaliseWebsite,
   progressText,
   purchaseOrderStatusLabel,
   purchaseOrderStatusTone,
+  waitingJobParts,
+  type LinePartRequest,
 } from "@/lib/purchasing";
 
 const staff = (role: StaffDTO["role"], permissions: StaffDTO["permissions"], active = true) => ({
@@ -272,5 +275,78 @@ describe("costSourceHint", () => {
     expect(costSourceHint("supplier_last")).toMatch(/supplier's last cost/);
     expect(costSourceHint("product")).toMatch(/product's cost/);
     expect(costSourceHint("none")).toMatch(/No earlier cost/);
+  });
+});
+
+describe("waitingJobParts (A-21: the jobs a purchase order line is held for)", () => {
+  const LINE_A = "d7200000-0000-4000-8000-00000000000a";
+  const LINE_B = "d7200000-0000-4000-8000-00000000000b";
+  const JOB_1 = "e0000000-0000-4000-8000-000000000001";
+  const JOB_2 = "e0000000-0000-4000-8000-000000000002";
+  const JOB_3 = "e0000000-0000-4000-8000-000000000003";
+  const request = (
+    n: number,
+    over: Partial<LinePartRequest> & Pick<LinePartRequest, "workOrderId">,
+  ): LinePartRequest => ({
+    id: `f0000000-0000-4000-8000-00000000000${n}`,
+    lineId: LINE_A,
+    status: "ordered",
+    quantity: 1,
+    orderedAt: `2026-11-2${n}T02:00:00+00:00`,
+    createdAt: "2026-11-20T01:00:00+00:00",
+    ...over,
+  });
+
+  it("covers requests first ordered first; the rest wait", () => {
+    // 3 arrived: the first request (2) and the fitted one (1) are covered.
+    const waiting = waitingJobParts(
+      [
+        request(3, { workOrderId: JOB_3, quantity: 2 }),
+        request(1, { workOrderId: JOB_1, quantity: 2 }),
+        request(2, { workOrderId: JOB_2, status: "fitted" }),
+      ],
+      new Map([[LINE_A, 3]]),
+    );
+    expect(waiting.get(LINE_A)).toEqual({
+      quantity: 5,
+      jobs: [{ workOrderId: JOB_3, quantity: 2 }],
+    });
+  });
+
+  it("names every waiting job once, with what it waits for, per line", () => {
+    const waiting = waitingJobParts(
+      [
+        request(1, { workOrderId: JOB_1 }),
+        request(2, { workOrderId: JOB_2, quantity: 2 }),
+        request(3, { workOrderId: JOB_1 }),
+        request(4, { workOrderId: JOB_3, lineId: LINE_B }),
+        // Proposed, approved and cancelled requests are not in the queue.
+        request(5, { workOrderId: JOB_3, status: "cancelled" }),
+      ],
+      new Map([[LINE_B, 1]]),
+    );
+    expect(waiting.get(LINE_A)).toEqual({
+      quantity: 4,
+      jobs: [
+        { workOrderId: JOB_1, quantity: 2 },
+        { workOrderId: JOB_2, quantity: 2 },
+      ],
+    });
+    // Line B's part arrived: nobody waits there.
+    expect(waiting.has(LINE_B)).toBe(false);
+  });
+
+  it("has nothing for a line with no ordered part", () => {
+    expect(waitingJobParts([], new Map()).size).toBe(0);
+    expect(
+      waitingJobParts([request(1, { workOrderId: JOB_1, status: "fitted" })], new Map()).size,
+    ).toBe(0);
+  });
+
+  it("lists job numbers in words", () => {
+    expect(jobList([])).toBe("");
+    expect(jobList(["J-000101"])).toBe("J-000101");
+    expect(jobList(["J-000101", "J-000102"])).toBe("J-000101 and J-000102");
+    expect(jobList(["J-000101", "J-000102", "J-000103"])).toBe("J-000101, J-000102 and J-000103");
   });
 });

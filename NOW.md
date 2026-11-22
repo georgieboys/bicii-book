@@ -1,5 +1,15 @@
 # Current state
 
+Updated: 2026-11-22 SGT (booking confirmation carries the address; branch
+`fix/booking-email-address`, no migration). Bobby noticed the site's booked
+notice gives the workshop's address but the customer's confirmation email
+did not; it now has a Where line and a Google Maps link, the same words as
+the site. Also today, on the owner's request, the last 8 shop-owned
+products were changed to the owner's consignment in production (all 152
+products are now consigned from the owner; the six proposed on J-000005
+were received, 1 each, C-000068 to C-000073). Reports before that are not
+restated.
+Before that,
 Updated: 2026-11-22 SGT (D264, one-off parts; branch `feat/one-off-parts`,
 migration `20261122001800`). Add part has **New one-off item**: a part that
 isn't in the system yet is made, taken into stock and put on the job in one

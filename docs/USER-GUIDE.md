@@ -778,6 +778,18 @@ while an approved or ordered item is neither fitted nor cancelled:
   applies to reopening a job that used it, D47); a restock never refunds
   money: record a refund too if the customer was paid back.
 
+### Browse or find a product
+
+- **Inventory** lists your products, most recently updated first, 30 to a
+  page: **Next** and **Previous** under the list walk through all of them,
+  with where you are ("31 to 60 of 132"). **Sort by** changes the order:
+  Recently updated (the default), Name A–Z, Name Z–A or Newest added.
+  **Low stock** and **Archived** page the same way (Low stock is always
+  largest shortfall first).
+- To find one, type its P- number, SKU, or a word of its name or brand. A
+  search shows the best matches on one page; add more of the name to
+  narrow it.
+
 ### Add a product you already stock
 
 - Before you start: Manage inventory (the Cost fields also need View

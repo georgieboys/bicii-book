@@ -8,6 +8,12 @@ already in the shop as "In stock · use Add part" and says how many are on
 hand, and Propose is disabled for them. Add part itself offers consigned
 stock (checked in production in a rolled-back transaction).
 Before that,
+Updated: 2026-11-22 SGT (Inventory pages; branch
+`feat/inventory-pagination`, no migration). The Inventory list is paged,
+30 products a page with Previous, Next and "31 to 60 of 132", for All, Low
+stock and Archived, so every product can be browsed; a search still
+narrows on one page.
+Before that,
 Updated: 2026-11-22 SGT (D263, account purchases; branch
 `feat/account-purchases` here and in BICII, migration `20261122001500`).
 Customers signed in on bicii.sg see Purchases: in-store and online sales

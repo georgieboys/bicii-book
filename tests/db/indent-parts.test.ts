@@ -890,7 +890,9 @@ describe("purchase orders customer jobs wait on (A-21)", () => {
     await inTransaction(conn, async (tx) => {
       const t = await twoJobsOnOneLine(tx);
       // A second, ordinary line on the same draft goes as before.
+      await ownerMode(tx);
       const plain = await makeProduct(tx, { name: "Plain line" });
+      await actAs(tx, ADMIN);
       const plainLine = randomUUID();
       await setLine(tx, {
         id: plainLine,

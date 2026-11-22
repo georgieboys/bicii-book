@@ -682,6 +682,7 @@ describe("A link is withdrawn when its job leaves completed or ready (D156d)", (
       await actAs(tx, ADMIN);
       await reopenJob(tx, job.id);
       expect((await balancePage(tx, second.token))!.status).toBe("reopened");
+      await actAs(tx, ADMIN);
       await completeJob(tx, job.id);
       await setStatus(tx, job.id, "collected");
       for (const token of [first.token, second.token]) {

@@ -1905,36 +1905,70 @@ export async function addPartToJob(
   onHandAfter: number | null;
   locationName: string | null;
   replayed: boolean;
+  /** D267: consigned stock received on use because BICII held too little. */
+  receivedQuantity: number;
 }> {
-  let result;
+  let lineId = input.lineId;
+  let locationId: string | null = null;
+  let onHandAfter: number | null = null;
+  let replayed = false;
+  let receivedQuantity = 0;
   try {
-    result = unwrap(
-      await supabase.rpc("add_inventory_line", {
-        line_id: input.lineId,
-        work_order_id: input.workOrderId,
-        product_id: input.productId,
-        quantity: input.quantity,
-        location_id: input.locationId ?? undefined,
-        inventory_unit_id: input.unitId ?? undefined,
-        unit_sale_price: input.unitSalePrice ?? undefined,
-      }),
-    );
+    if (input.unitId) {
+      const r = unwrap(
+        await supabase.rpc("add_inventory_line", {
+          line_id: input.lineId,
+          work_order_id: input.workOrderId,
+          product_id: input.productId,
+          quantity: input.quantity,
+          location_id: input.locationId ?? undefined,
+          inventory_unit_id: input.unitId,
+          unit_sale_price: input.unitSalePrice ?? undefined,
+        }),
+      );
+      lineId = r?.line_id ?? lineId;
+      locationId = r?.location_id ?? null;
+      onHandAfter = r?.on_hand_after ?? null;
+      replayed = r?.replayed === true;
+    } else {
+      // D267: a counted part; consigned stock BICII holds too little of is
+      // received from its consignor on use, so the mechanic is never stopped.
+      const r = unwrap(
+        await supabase.rpc("add_part_to_job", {
+          line_id: input.lineId,
+          work_order_id: input.workOrderId,
+          product_id: input.productId,
+          quantity: input.quantity,
+          location_id: input.locationId ?? undefined,
+          unit_sale_price: input.unitSalePrice ?? undefined,
+        }),
+      );
+      lineId = r?.line_id ?? lineId;
+      locationId = r?.location_id ?? input.locationId;
+      replayed = r?.replayed === true;
+      receivedQuantity = r?.received_quantity ?? 0;
+    }
   } catch (err) {
     rethrowFields(err, PART_FIELDS);
   }
   let locationName: string | null = null;
-  if (result?.location_id) {
-    const loc = unwrap(
-      await supabase.from("locations").select("name").eq("id", result.location_id).maybeSingle(),
-    );
-    locationName = loc?.name ?? null;
+  if (locationId) {
+    const [loc, level] = await Promise.all([
+      supabase.from("locations").select("name").eq("id", locationId).maybeSingle(),
+      input.unitId
+        ? null
+        : supabase
+            .schema("reporting")
+            .from("stock_levels")
+            .select("on_hand")
+            .eq("product_id", input.productId)
+            .eq("location_id", locationId)
+            .maybeSingle(),
+    ]);
+    locationName = unwrap(loc)?.name ?? null;
+    if (level) onHandAfter = unwrap(level)?.on_hand ?? 0;
   }
-  return {
-    lineId: result?.line_id ?? input.lineId,
-    onHandAfter: result?.on_hand_after ?? null,
-    locationName,
-    replayed: result?.replayed === true,
-  };
+  return { lineId, onHandAfter, locationName, replayed, receivedQuantity };
 }
 
 const ONE_OFF_FIELDS: Record<string, string> = {

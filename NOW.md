@@ -1,5 +1,16 @@
 # Current state
 
+Updated: 2026-11-23 SGT (D267/D268 receive on use; branch
+`feat/receive-on-use`, migration `20261123000100`). After the owner's
+direction to stop putting blocks in front of operators, an operator-journey
+review (mechanic, counter, manager; 67 frictions) produced a keep-moving
+plan, and the owner decided D267–D271. This branch builds the biggest one:
+Add part and Fit put a consigned part on the job even when BICII holds too
+little of it, receiving the rest from the consignor (last amount owed, else
+half the price) and listing it on Consignment for a manager to check.
+Next batches: receive on use at the counter, D269 add after complete, D270
+staff counter payments, D271 discounts, then the screen-only fixes.
+Before that,
 Updated: 2026-11-23 SGT (D266; branch `docs/d266-deposit-consigned`, docs
 only). The owner decided a quote's deposit keeps counting consigned parts
 the shop already holds (D151 unchanged). The consigned-stock sweep's fixes

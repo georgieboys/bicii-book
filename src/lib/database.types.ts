@@ -2641,6 +2641,7 @@ export type Database = {
           product_id: string;
           quantity: number;
           received_at: string;
+          received_on_use: boolean;
           request_fingerprint: string | null;
           return_reason: string | null;
           returned_at: string | null;
@@ -2648,6 +2649,8 @@ export type Database = {
           sold_at: string | null;
           status: Database["public"]["Enums"]["consignment_status"];
           updated_at: string;
+          use_checked_at: string | null;
+          use_checked_by: string | null;
         };
         Insert: {
           agreed_amount_owed: number;
@@ -2663,6 +2666,7 @@ export type Database = {
           product_id: string;
           quantity?: number;
           received_at?: string;
+          received_on_use?: boolean;
           request_fingerprint?: string | null;
           return_reason?: string | null;
           returned_at?: string | null;
@@ -2670,6 +2674,8 @@ export type Database = {
           sold_at?: string | null;
           status?: Database["public"]["Enums"]["consignment_status"];
           updated_at?: string;
+          use_checked_at?: string | null;
+          use_checked_by?: string | null;
         };
         Update: {
           agreed_amount_owed?: number;
@@ -2685,6 +2691,7 @@ export type Database = {
           product_id?: string;
           quantity?: number;
           received_at?: string;
+          received_on_use?: boolean;
           request_fingerprint?: string | null;
           return_reason?: string | null;
           returned_at?: string | null;
@@ -2692,6 +2699,8 @@ export type Database = {
           sold_at?: string | null;
           status?: Database["public"]["Enums"]["consignment_status"];
           updated_at?: string;
+          use_checked_at?: string | null;
+          use_checked_by?: string | null;
         };
         Relationships: [
           {
@@ -2734,6 +2743,13 @@ export type Database = {
             columns: ["product_id"];
             isOneToOne: false;
             referencedRelation: "products";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "consignment_items_use_checked_by_fkey";
+            columns: ["use_checked_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
             referencedColumns: ["id"];
           },
         ];
@@ -8075,6 +8091,23 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      add_part_to_job: {
+        Args: {
+          line_id: string;
+          location_id?: string;
+          product_id: string;
+          quantity?: number;
+          unit_sale_price?: unknown;
+          work_order_id: string;
+        };
+        Returns: Database["public"]["CompositeTypes"]["add_part_result"];
+        SetofOptions: {
+          from: "*";
+          to: "add_part_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       add_service_line: {
         Args: {
           description?: string;
@@ -8599,6 +8632,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      check_received_on_use: { Args: { item_id: string }; Returns: undefined };
       claim_adventure_notices: {
         Args: { max_count?: number };
         Returns: Database["public"]["CompositeTypes"]["adventure_notice"][];
@@ -13211,6 +13245,13 @@ export type Database = {
         | "cancelled";
     };
     CompositeTypes: {
+      add_part_result: {
+        line_id: string | null;
+        line_count: number | null;
+        received_quantity: number | null;
+        location_id: string | null;
+        replayed: boolean | null;
+      };
       adventure_notice: {
         id: string | null;
         claim_token: string | null;

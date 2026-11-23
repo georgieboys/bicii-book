@@ -1387,3 +1387,48 @@ export async function reverseSettlement(
     rethrowFields(err, { reason_required: "reason", reason_too_long: "reason" });
   }
 }
+
+/** D267: an item received on use, waiting for a manager's check. */
+export type ReceivedOnUse = {
+  id: string;
+  shortId: string;
+  productName: string;
+  consignorName: string;
+  quantity: number;
+  askingPrice: Money | null;
+  currency: string;
+  receivedAt: string;
+  note: string | null;
+};
+
+/** D267: items received on use not checked yet, oldest first. */
+export async function listReceivedOnUse(supabase: ServerSupabase): Promise<ReceivedOnUse[]> {
+  const rows =
+    unwrap(
+      await supabase
+        .from("consignment_items")
+        .select(
+          "id, short_id, quantity, asking_price, currency, received_at, internal_notes, products(name), consignors(display_name)",
+        )
+        .eq("received_on_use", true)
+        .is("use_checked_at", null)
+        .order("received_at", { ascending: true })
+        .limit(100),
+    ) ?? [];
+  return rows.map((r) => ({
+    id: r.id,
+    shortId: r.short_id,
+    productName: r.products?.name ?? "",
+    consignorName: r.consignors?.display_name ?? "",
+    quantity: r.quantity,
+    askingPrice: r.asking_price === null ? null : toMoneyString(r.asking_price),
+    currency: r.currency,
+    receivedAt: r.received_at,
+    note: r.internal_notes,
+  }));
+}
+
+/** D267: check_received_on_use (manage_consignments): takes it off the list. */
+export async function checkReceivedOnUse(supabase: ServerSupabase, itemId: string): Promise<void> {
+  unwrap(await supabase.rpc("check_received_on_use", { item_id: itemId }));
+}

@@ -233,15 +233,15 @@ describe("FitSheet: consigned parts (D265)", () => {
     );
   });
 
-  it("with too little consigned stock, says so and does not fit", () => {
+  it("with too little consigned stock, fits anyway: the rest is received from the consignor (D267)", () => {
     sheet({
       ...part,
       quantity: "2.00",
       consigned: { onHand: 1, locationId: null, locationName: null },
     });
     const dialog = screen.getByRole("dialog", { name: "Fit part" });
-    expect(dialog).toHaveTextContent("fewer than this needs. Receive more on the product");
-    expect(within(dialog).getByRole("button", { name: "Fit part" })).toBeDisabled();
+    expect(dialog).toHaveTextContent("Fitting receives the other 1 from the consignor");
+    expect(within(dialog).getByRole("button", { name: "Fit part" })).toBeEnabled();
   });
 });
 
@@ -262,11 +262,11 @@ describe("FitSheet: where a never-ordered part comes from", () => {
     );
   });
 
-  it("with no consigned stock, says to receive it or cancel", () => {
+  it("with no consigned stock recorded, fits anyway and receives it (D267)", () => {
     sheet({ ...part, consigned: { onHand: 0, locationId: null, locationName: null } });
     const dialog = screen.getByRole("dialog", { name: "Fit part" });
-    expect(dialog).toHaveTextContent("No consigned stock of this part.");
-    expect(within(dialog).getByRole("button", { name: "Fit part" })).toBeDisabled();
+    expect(dialog).toHaveTextContent("Consigned stock: 0 recorded. Fitting receives the other 2");
+    expect(within(dialog).getByRole("button", { name: "Fit part" })).toBeEnabled();
   });
 
   it("a shop part already in stock (a one-off) is fitted from it, not steered to Bought outside", async () => {

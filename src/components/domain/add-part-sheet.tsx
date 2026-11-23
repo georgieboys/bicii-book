@@ -34,6 +34,7 @@ type Result = {
   onHandAfter: number | null;
   locationName: string | null;
   replayed: boolean;
+  receivedQuantity: number;
 };
 type State = ActionResult<Result> | null;
 type PartPick = PickerOption & { part: PartOption };
@@ -56,8 +57,20 @@ function consignedLabel(part: PartOption): string {
     : `Consigned · ${who}`;
 }
 
-/** A consigned product with no consignment stock left (listed, not choosable). */
-const CONSIGNED_EMPTY = "Consigned · nothing in stock";
+/** A consigned product with no consignment stock recorded: received when added (D267). */
+const CONSIGNED_EMPTY = "Consigned · none recorded";
+
+/**
+ * Where a counted part is taken from by default: the default location when
+ * it holds any, otherwise the location holding the most of it.
+ */
+function stockedLocation(part: PartOption | null): string | null {
+  if (!part) return null;
+  const home = part.byLocation.find((l) => l.locationId === part.defaultLocationId);
+  if (part.kind !== "product" || (home && home.onHand > 0)) return part.defaultLocationId;
+  const best = [...part.byLocation].sort((a, b) => b.onHand - a.onHand)[0];
+  return best && best.onHand > 0 ? best.locationId : part.defaultLocationId;
+}
 
 /** "−1" for a negative count, "37" otherwise. */
 const plain = (n: number) => signedQuantity(n).replace(/^\+/, "");
@@ -177,7 +190,7 @@ function AddPartSheet({
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = await callAction(() => addPartToJob(prev, formData), formData);
     if (result.ok && part) {
-      const { onHandAfter, locationName } = result.data;
+      const { onHandAfter, locationName, receivedQuantity } = result.data;
       const what =
         part.kind === "unit"
           ? `Added ${part.title} (${part.shortId}).`
@@ -189,7 +202,12 @@ function AddPartSheet({
             ? `${plain(onHandAfter)} left at ${locationName}.`
             : "";
       const extra = formData.get("buildExtra") === "on" ? " Charged on top of the package." : "";
-      toast({ title: `${what} ${left}${extra}`.trim(), tone: "success" });
+      // D267: what BICII didn't hold was received from the consignor.
+      const received =
+        receivedQuantity > 0
+          ? ` ${receivedQuantity} received from the consignor (a manager checks it).`
+          : "";
+      toast({ title: `${what} ${left}${extra}${received}`.trim(), tone: "success" });
       onClose();
     }
     return result;
@@ -204,8 +222,6 @@ function AddPartSheet({
     return result.data.map((p) => ({
       id: `${p.kind}:${p.unitId ?? p.productId}`,
       label: p.title,
-      // A consigned product with nothing left is listed, not choosable.
-      disabled: p.consignedEmpty === true,
       description: [
         p.shortId,
         p.sku,
@@ -223,16 +239,18 @@ function AddPartSheet({
   const qty = Number.parseInt(quantity, 10);
   const validQty = Number.isFinite(qty) && qty >= 1 ? qty : null;
   const chosenLocation = part?.byLocation.find((l) => l.locationId === locationId) ?? null;
-  // D23 lets shop stock go below zero with a warning; consigned stock never
-  // may (D44: on-hand equals what the consignors have left), so the
-  // database refuses it and the sheet says so instead.
+  // D23 lets shop stock go below zero with a warning. Consigned stock never
+  // goes below zero: what BICII doesn't hold is received from the consignor
+  // when it is added (D267), so the sheet says so and lets them carry on.
+  const consignedPart = part?.kind === "product" && (part.consigned || part.consignedEmpty);
+  const here = Math.max(chosenLocation?.onHand ?? 0, 0);
+  const receiveNote =
+    consignedPart && validQty !== null && validQty > here
+      ? `${plain(validQty - here)} not recorded${chosenLocation ? ` at ${chosenLocation.name}` : ""}: it is received from the consignor when you add it, and a manager checks it later.`
+      : null;
   const warning =
-    part?.kind === "product" && validQty !== null && chosenLocation
-      ? part.consigned
-        ? validQty > chosenLocation.onHand
-          ? `Only ${plain(Math.max(chosenLocation.onHand, 0))} of this consigned item at ${chosenLocation.name}. Consigned stock can't go below zero.`
-          : null
-        : overdrawWarning(validQty, chosenLocation.onHand, chosenLocation.name)
+    part?.kind === "product" && validQty !== null && chosenLocation && !consignedPart
+      ? overdrawWarning(validQty, chosenLocation.onHand, chosenLocation.name)
       : null;
   const effectivePrice = price.trim()
     ? parseMoney(price)
@@ -303,10 +321,10 @@ function AddPartSheet({
                 setPicked(option);
                 setQuantity("1");
                 setPrice("");
-                setLocationId(option?.part.defaultLocationId ?? null);
+                setLocationId(stockedLocation(option?.part ?? null));
               }}
               placeholder="Name, SKU, P- or U- number"
-              emptyMessage="No part in stock matches. Archived, inactive and customer-owned items are not offered. A consigned item with nothing left shows as not in stock: receive more with Receive consigned stock on its product page."
+              emptyMessage="No part matches. Archived, inactive and customer-owned items are not offered."
               renderOption={(o) => (
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="flex items-center justify-between gap-2">
@@ -318,9 +336,7 @@ function AddPartSheet({
                     {o.part.sku ? <span>{o.part.sku}</span> : null}
                     {o.part.consigned ? <Badge tone="info">{consignedLabel(o.part)}</Badge> : null}
                     {o.part.consignedEmpty ? (
-                      <span>
-                        {CONSIGNED_EMPTY}: receive more with Receive consigned stock on its page
-                      </span>
+                      <span>{CONSIGNED_EMPTY}: received when you add it</span>
                     ) : (
                       <StockBadge
                         onHand={o.part.kind === "unit" ? 1 : o.part.onHandAtDefault}
@@ -402,6 +418,11 @@ function AddPartSheet({
                       className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep"
                     >
                       {warning}
+                    </p>
+                  ) : null}
+                  {receiveNote ? (
+                    <p role="status" className="rounded-xl bg-info-soft p-3 text-sm text-info-deep">
+                      {receiveNote}
                     </p>
                   ) : null}
                 </>

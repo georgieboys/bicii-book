@@ -17,6 +17,7 @@ import {
 } from "@/lib/consignment-forms";
 import {
   addConsignmentCharge,
+  checkReceivedOnUse,
   createConsignor,
   customerContact,
   getConsignorPayoutDetails,
@@ -142,6 +143,17 @@ export const returnConsignmentItemAction = staffAction(
   { name: "consignment.return_item", permission: MANAGE },
   async (input, { supabase }) => {
     await returnConsignmentItem(supabase, input);
+    refresh();
+    return null;
+  },
+);
+
+/** D267: a manager confirms an item received on use. */
+export const checkReceivedOnUseAction = staffAction(
+  z.object({ itemId: z.guid() }),
+  { name: "consignment.check_received_on_use", permission: MANAGE },
+  async ({ itemId }, { supabase }) => {
+    await checkReceivedOnUse(supabase, itemId);
     refresh();
     return null;
   },

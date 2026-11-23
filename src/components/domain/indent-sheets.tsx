@@ -114,7 +114,6 @@ export function FitSheet({
   const outside = canBuy && source === "outside";
   const notArrived = request.kind === "part" && request.order !== null && !request.order.arrived;
   const consigned = request.kind === "part" ? (request.consigned ?? null) : null;
-  const short = consigned !== null && consigned.onHand < Number(request.quantity);
   const inStock =
     request.kind === "part" && request.order === null ? (request.inStock ?? null) : null;
   const neverOrdered =
@@ -205,7 +204,7 @@ export function FitSheet({
             onClick={submit}
             pending={pending}
             pendingLabel={outside ? "Recording…" : "Adding…"}
-            disabled={!outside && (costMissing || short)}
+            disabled={!outside && costMissing}
           >
             {outside ? "Record and fit" : request.kind === "service" ? "Add to job" : "Fit part"}
           </Button>
@@ -304,14 +303,7 @@ export function FitSheet({
               </p>
             ) : null}
             {consigned ? (
-              <p
-                role="status"
-                className={
-                  short
-                    ? "rounded-xl bg-danger-soft p-3 text-sm text-danger-deep"
-                    : "rounded-xl bg-info-soft p-3 text-sm text-info-deep"
-                }
-              >
+              <p role="status" className="rounded-xl bg-info-soft p-3 text-sm text-info-deep">
                 {consignedFitNote(
                   consigned.onHand,
                   Number(request.quantity),

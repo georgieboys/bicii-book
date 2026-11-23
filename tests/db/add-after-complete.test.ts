@@ -164,7 +164,10 @@ describe.skipIf(!isolatedDatabase())("add after complete (D269)", () => {
       await completeJob(tx, job.id);
       await setStatus(tx, job.id, "ready_for_collection");
       await ownerMode(tx);
-      const serviceId = await makeService(tx, { name: `Brake bleed ${randomUUID().slice(0, 6)}`, price: "45.00" });
+      const serviceId = await makeService(tx, {
+        name: `Brake bleed ${randomUUID().slice(0, 6)}`,
+        price: "45.00",
+      });
       await actAs(tx, ADMIN);
 
       const r = await addService(tx, { workOrderId: job.id, serviceId });

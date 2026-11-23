@@ -225,5 +225,6 @@ describe("money held on jobs now (report_payments_held)", () => {
     expect(await EXPORT_FETCHERS.payments_held(c.supabase, {} as never)).toHaveLength(
       EXPORT_MAX_ROWS,
     );
-  });
+    // Builds and pages the full export size: past 5 s on a busy CI runner.
+  }, 20_000);
 });

@@ -1,5 +1,18 @@
 # Current state
 
+Updated: 2026-11-23 SGT (keep-moving batches merged; branch
+`docs/keep-moving-status`, docs only). Merged and live in production
+(migrations `20261123000100`–`20261123000500`, all applied by migrate.yml,
+functions confirmed): #125 receive on use on jobs (D267/D268), #126 receive
+on use at the counter, #128 add after complete (D269), #130 staff counter
+payments with an admin review list (D270), #129 discounts spread across
+lines (D271), #127 screen fixes (Add as labour line, New supplier/consignor
+inline, Tell the customer, Pay owners on Today). Verified by CI (unit, DB,
+types) and the reviews; not yet tried by hand in the live app. Open
+trade-offs: R-132, R-133. Next from the keep-moving plan: one-press Fit all
+and complete, change quantity / swap a line, cancel voids all lines,
+staff-recorded quote answers, collect with payment, consigned stock counts.
+Before that,
 Updated: 2026-11-23 SGT (D267/D268 receive on use; branch
 `feat/receive-on-use`, migration `20261123000100`). After the owner's
 direction to stop putting blocks in front of operators, an operator-journey

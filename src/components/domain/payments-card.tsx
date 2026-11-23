@@ -97,7 +97,7 @@ export function PaymentsCard({
   payOnline: boolean;
   /** Any active staff member (D270): Record counter payment. */
   canRecordCounter?: boolean;
-  /** An active admin (D161d): the void controls. */
+  /** An active admin or manager (D161d, D272): the void and review controls. */
   canVoidCounter?: boolean;
   customer?: { firstName: string | null; phone: string | null; email: string | null };
   /** RESEND_API_KEY and EMAIL_FROM are set: links can be emailed. */
@@ -314,8 +314,8 @@ export function PaymentsCard({
         ) : null}
 
         <p className="text-sm text-dust-500">
-          Money held against this job, not a sale. Online refunds are made in Stripe; an admin
-          corrects a counter payment by voiding it.
+          Money held against this job, not a sale. Online refunds are made in Stripe; an admin or
+          manager corrects a counter payment by voiding it.
         </p>
       </div>
 
@@ -370,8 +370,8 @@ export function PaymentsCard({
 /**
  * One counter payment: what it was for, how it was paid, the amount, the
  * day, the reference and who recorded it; one recorded by someone who is
- * not an admin and not yet reviewed says an admin will check it, and an
- * admin presses Looks right on it here as on Today (D270); a
+ * a mechanic and not yet reviewed says an admin or manager will check it,
+ * and one of them presses Looks right on it here as on Today (D270, D272); a
  * voided one struck through with why, who and when. An admin's two corrections on a live one, each
  * its own ReasonConfirm (D161d; step3-critique C18): "Void (recorded in
  * error)…" (it never came in) and "Given back…" (the shop handed it back
@@ -385,7 +385,7 @@ function CounterRow({ payment: c, canVoid }: { payment: CounterPayment; canVoid:
   const amount = formatMoney(c.amount, c.currency);
   const what = c.kind === "deposit" ? "Deposit" : "Towards the bill";
   const label = `${what} ${amount}, ${COUNTER_METHOD_LABELS[c.method]}`;
-  // D270: an admin reviews it here too, not only from Today.
+  // D270, D272: an admin or manager reviews it here too, not only from Today.
   const review = () =>
     startReview(async () => {
       const r = await callAction(() => reviewCounterPaymentAction({ counterPaymentId: c.id }));
@@ -437,7 +437,9 @@ function CounterRow({ payment: c, canVoid }: { payment: CounterPayment; canVoid:
           </span>
           {c.note ? <span className="text-sm text-dust-700">{c.note}</span> : null}
           {c.awaitingReview && !c.voided ? (
-            <span className="text-sm text-waiting-deep">An admin will check this payment.</span>
+            <span className="text-sm text-waiting-deep">
+              An admin or manager will check this payment.
+            </span>
           ) : null}
         </span>
         <span

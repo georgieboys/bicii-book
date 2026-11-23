@@ -3751,9 +3751,10 @@ URLs, or customer data in this file.
   - D271: a discount on a job completed on an earlier shop day reopens and
     completes it again, so its sales move to today's shop day (the sheet
     says so). Overpayment after a discount is shown, not refunded.
-  - D270: counter payments recorded by non-admins wait for an admin's
-    **Looks right**; only admins void a payment or review it (a manager
-    cannot), so a mistaken payment waits for an admin.
+  - D270: counter payments recorded by mechanics wait for an admin's or
+    manager's **Looks right**; since D272 admins and managers both void
+    and review (`20261123000600`), and a manager's own payment is not
+    reviewed by anyone.
   - D269: a line added to a job completed on an earlier day goes on a
     follow-up job; if the follow-up can't be made (archived customer or
     bike, or the bike changed owner) the add is refused. Voiding a line on

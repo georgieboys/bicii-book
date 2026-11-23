@@ -516,7 +516,7 @@ export async function recordCounterPayment(
 }
 
 /**
- * void_counter_payment (D161d): an active admin only. `recorded_in_error`
+ * void_counter_payment (D161d, D272): an active admin or manager. `recorded_in_error`
  * (it never came in) or `given_back` (the shop handed it back outside
  * BICII), with a reason. The same kind and reason again is a replay.
  */
@@ -547,7 +547,7 @@ export async function reviewCounterPayment(
   unwrap(await supabase.rpc("review_counter_payment", { p_counter_payment_id: counterPaymentId }));
 }
 
-/** A counter payment waiting for an admin's review (D270), for Today. */
+/** A counter payment waiting for an admin's or manager's review (D270, D272), for Today. */
 export type CounterPaymentToReview = {
   id: string;
   workOrderId: string;
@@ -566,10 +566,10 @@ export type CounterPaymentToReview = {
 export const COUNTER_REVIEW_ROWS = 50;
 
 /**
- * Counter payments recorded by someone who is not an admin, not yet
+ * Counter payments recorded by a mechanic, not yet
  * reviewed and not voided (D270), oldest first, with how many wait in all.
  * Read through RLS (any staff member reads counter payments; Today shows
- * the list to admins only, who alone can review).
+ * the list to admins and managers, who alone can review; D272).
  */
 export async function listCounterPaymentsToReview(
   supabase: ServerSupabase,

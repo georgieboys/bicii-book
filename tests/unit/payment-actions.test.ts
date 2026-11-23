@@ -426,10 +426,10 @@ describe("recordCounterPaymentAction (D161)", () => {
 describe("voidCounterPaymentAction (D161d)", () => {
   beforeEach(() => voidCounterPayment.mockResolvedValue({ replayed: false }));
 
-  it("is for an active admin only", () => {
+  it("is for an active admin or manager (D272)", () => {
     expect(options["payments.void_counter_payment"]).toEqual({
       name: "payments.void_counter_payment",
-      admin: true,
+      roles: ["admin", "manager"],
     });
   });
 
@@ -462,10 +462,10 @@ describe("voidCounterPaymentAction (D161d)", () => {
 describe("reviewCounterPaymentAction (D270)", () => {
   beforeEach(() => reviewCounterPayment.mockResolvedValue(undefined));
 
-  it("is for an active admin only", () => {
+  it("is for an active admin or manager (D272)", () => {
     expect(options["payments.review_counter_payment"]).toEqual({
       name: "payments.review_counter_payment",
-      admin: true,
+      roles: ["admin", "manager"],
     });
   });
 

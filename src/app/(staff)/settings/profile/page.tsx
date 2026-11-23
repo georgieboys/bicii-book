@@ -87,8 +87,8 @@ export default async function ProfilePage() {
                 label="Record counter payments"
                 description={
                   voids
-                    ? "Record money the shop took at the counter on a job, check the ones others recorded, and void one recorded in error or given back. Voiding is admins only."
-                    : "Record money the shop took at the counter on a job, a deposit included. An admin checks it afterwards."
+                    ? "Record money the shop took at the counter on a job, check the ones others recorded, and void one recorded in error or given back. Admins and managers."
+                    : "Record money the shop took at the counter on a job, a deposit included. An admin or manager checks it afterwards."
                 }
               />
             ) : null}

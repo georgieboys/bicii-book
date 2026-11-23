@@ -1,5 +1,12 @@
 # Current state
 
+Updated: 2026-11-23 SGT (D272; branch `feat/manager-counter-payments`,
+migration `20261123000600`). The owner decided managers also review and
+void counter payments ("Yes, managers too"); a manager's or admin's own
+payment needs no review, a mechanic's still waits on Today. Verified:
+unit tests, lint and types locally; DB tests in CI only (the local
+database is the hosted one). Next: the keep-moving plan items below.
+Before that,
 Updated: 2026-11-23 SGT (keep-moving batches merged; branch
 `docs/keep-moving-status`, docs only). Merged and live in production
 (migrations `20261123000100`–`20261123000500`, all applied by migrate.yml,

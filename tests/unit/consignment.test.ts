@@ -405,16 +405,16 @@ describe("recording a counter payment (D270, amending D161a)", () => {
   });
 });
 
-describe("voiding and reviewing a counter payment (D161d, D270)", () => {
-  it("is an active admin only, by role (private.require_admin)", () => {
+describe("voiding and reviewing a counter payment (D161d, D270, D272)", () => {
+  it("is an active admin or manager, by role (private.require_admin_or_manager)", () => {
     expect(canVoidCounterPayment(who("admin"))).toBe(true);
+    expect(canVoidCounterPayment(who("manager"))).toBe(true);
     expect(canVoidCounterPayment(who("admin", [], false))).toBe(false);
+    expect(canVoidCounterPayment(who("manager", [], false))).toBe(false);
   });
 
-  it("is never a manager or a mechanic, whatever permissions they hold", () => {
-    expect(canVoidCounterPayment(who("manager"))).toBe(false);
+  it("is never a mechanic, whatever permissions they hold", () => {
     expect(canVoidCounterPayment(who("mechanic"))).toBe(false);
-    expect(canVoidCounterPayment(who("manager", [...PERMISSIONS]))).toBe(false);
     expect(canVoidCounterPayment(who("mechanic", [...PERMISSIONS]))).toBe(false);
   });
 });

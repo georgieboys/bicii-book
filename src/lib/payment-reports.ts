@@ -88,7 +88,7 @@ export const PAYMENTS_SECTION_TITLE = "Customer payments";
 /** Under the tiles: what the figures are, and what they are not. */
 export const PAYMENTS_NOT_SALES_NOTE = "Not sales: money taken and given back by the day it moved.";
 export const COUNTER_RECORDED_NOTE =
-  "Recorded at the counter: only what an admin recorded in BICII; not the till's takings.";
+  "Recorded at the counter: only what staff recorded in BICII; not the till's takings.";
 
 /**
  * report_payment_summary's other_currency_count: movements in another

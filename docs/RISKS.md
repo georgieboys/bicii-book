@@ -2982,9 +2982,21 @@ URLs, or customer data in this file.
   No counter payment has been recorded in production yet (read-only,
   2026-10-18 SGT: `counter_payments` no rows), so the screens are proved
   by the tests above, not by a real record.
-- Next action: the owner answers question 35 (forks 1, 2, 5 and 7).
-- Revisit trigger: a request to reconcile the till, or for staff other
-  than admins to record (question 35 fork 2); a disputed counter record.
+- D270 (owner, 2026-11-23; `20261123000400_staff_counter_payments`):
+  any active staff member now records (`private.require_staff()`), so a
+  record rests on a manager's or mechanic's word too. Containment: such a
+  record is flagged `needs_review` and listed on Today for an admin's
+  **Looks right** (`review_counter_payment`); it counts at once, since
+  nothing waits for the review; voiding stays admin only, so a wrong one
+  is corrected by an admin. Reports' note reads "only what staff
+  recorded". Evidence: `tests/db/staff-counter-payments.test.ts` (CI
+  only; not run locally, the local database is the hosted one). Residual:
+  an unreviewed payment is visible only on Today, which an admin must
+  open.
+- Next action: the owner answers question 35 (forks 1, 5 and 7; fork 2
+  is D270).
+- Revisit trigger: a request to reconcile the till; a disputed counter
+  record; unreviewed counter payments piling up on Today.
 - Last checked: 2026-10-18 SGT, Phase 14 step 3 PR B (the app; merged in PR #36 and in production since 2026-10-18 SGT; the database merged in PR #34 and in production since 2026-10-17 SGT).
 
 ## R-091 — A balance link is a payment capability

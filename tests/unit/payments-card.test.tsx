@@ -4,9 +4,10 @@
  * was paid, attempted or sent (work_order_payment_totals has a row for
  * every job); the header's Send payment link (any staff member, Stripe on,
  * a final SGD bill of at least S$0.50, nothing being confirmed) and Record
- * counter payment (admins, not on a cancelled job); totals that count
+ * counter payment (any staff member since D270, not on a cancelled job); totals that count
  * counter money and name what Stripe is still confirming; the live link's
- * line; counter rows with an admin's two void controls; issues keyed by
+ * line; counter rows with an admin's two void controls (and, D270, a note
+ * on one waiting for an admin's review); issues keyed by
  * either id, Check with Stripe never on a counter row; a deposit due on a
  * job that is no longer open reads "Part of the balance"; the footer.
  */
@@ -95,6 +96,7 @@ const CASH: CounterPayment = {
   note: null,
   recordedBy: "Sam Admin",
   createdAt: "2026-10-03T04:01:00Z",
+  awaitingReview: false,
   voided: null,
 };
 
@@ -146,7 +148,7 @@ describe("when the job page renders the card (C15)", () => {
     expect(showsPaymentsCard({ ...none, payments: 1 })).toBe(true);
     expect(showsPaymentsCard({ ...none, counterPayments: 1 })).toBe(true);
   });
-  it("when a link can be sent, or an admin can record on a job that is not cancelled", () => {
+  it("when a link can be sent, or a staff member can record on a job that is not cancelled", () => {
     expect(showsPaymentsCard({ ...none, canSendLink: true })).toBe(true);
     expect(showsPaymentsCard({ ...none, canRecordCounter: true })).toBe(true);
     expect(showsPaymentsCard({ ...none, canRecordCounter: true, jobStatus: "cancelled" })).toBe(
@@ -185,7 +187,7 @@ describe("PaymentsCard header actions", () => {
     }
   });
 
-  it("Record counter payment for an admin on any job but a cancelled one, Stripe off too", () => {
+  it("Record counter payment for any staff member on any job but a cancelled one, Stripe off too", () => {
     const { unmount } = show(DUE, { canRecordCounter: true, payOnline: false });
     expect(screen.getByRole("button", { name: "Record counter payment" })).toBeInTheDocument();
     unmount();
@@ -409,6 +411,16 @@ describe("PaymentsCard counter rows (D161, C18)", () => {
     expect(within(row).queryByRole("button")).toBeNull();
   });
 
+  it("a staff member who records but cannot void sees no void controls; one awaiting review says so (D270)", () => {
+    show(withCash({ ...CASH, recordedBy: "Nur Mechanic", awaitingReview: true }), {
+      canRecordCounter: true,
+    });
+    const row = screen.getByRole("listitem", { name: "Towards the bill $45.00, Cash" });
+    expect(row).toHaveTextContent("An admin will check this payment.");
+    expect(within(row).queryByRole("button")).toBeNull();
+    expect(screen.getByRole("button", { name: "Record counter payment" })).toBeInTheDocument();
+  });
+
   it("a voided row is struck through with why, who and when", () => {
     show(
       withCash({
@@ -422,7 +434,7 @@ describe("PaymentsCard counter rows (D161, C18)", () => {
           voidedAt: "2026-10-04T02:00:00Z",
         },
       }),
-      { canRecordCounter: true },
+      { canRecordCounter: true, canVoidCounter: true },
     );
     const row = screen.getByRole("listitem", { name: "Deposit $45.00, Cash" });
     expect(row).toHaveTextContent("Given back: Paid online as well · Sam Admin ·");
@@ -431,7 +443,7 @@ describe("PaymentsCard counter rows (D161, C18)", () => {
   });
 
   it("an admin's two voids, each its own ReasonConfirm with Keep payment", async () => {
-    show(withCash(CASH), { canRecordCounter: true });
+    show(withCash(CASH), { canRecordCounter: true, canVoidCounter: true });
     const row = screen.getByRole("listitem", { name: "Towards the bill $45.00, Cash" });
     expect(
       within(row).getByRole("button", {
@@ -461,7 +473,7 @@ describe("PaymentsCard counter rows (D161, C18)", () => {
   });
 
   it("Keep payment closes the confirmation and brings both controls back", () => {
-    show(withCash(CASH), { canRecordCounter: true });
+    show(withCash(CASH), { canRecordCounter: true, canVoidCounter: true });
     const row = screen.getByRole("listitem", { name: "Towards the bill $45.00, Cash" });
     fireEvent.click(within(row).getByRole("button", { name: /^Void \(recorded in error\)/ }));
     expect(within(row).getByLabelText(/Why was it recorded in error\?/)).toBeInTheDocument();

@@ -29,6 +29,7 @@ import {
   canOverrideDeposit,
   canRecordCounterPayment,
   canRecordRefund,
+  canVoidCounterPayment,
   hasPermission,
 } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
@@ -516,6 +517,7 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
               canOpenStripe={canRecordRefund(staff)}
               payOnline={stripeOn}
               canRecordCounter={canRecordCounter}
+              canVoidCounter={canVoidCounterPayment(staff)}
               customer={{
                 firstName: job.customer.firstName,
                 phone: job.customer.phone,

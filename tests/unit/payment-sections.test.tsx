@@ -123,7 +123,7 @@ describe("PaymentSummaryFigures", () => {
     const notes = screen.getAllByRole("note").map((n) => n.textContent);
     expect(notes).toEqual([
       "Not sales: money taken and given back by the day it moved.",
-      "Recorded at the counter: only what an admin recorded in BICII; not the till's takings.",
+      "Recorded at the counter: only what staff recorded in BICII; not the till's takings.",
     ]);
     expect(screen.queryByRole("link", { name: "See exceptions" })).toBeNull();
   });

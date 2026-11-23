@@ -311,12 +311,16 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // percent is admin only; ordering a part whose deposit is not paid needs
   // an active admin or manager and a reason (order_part_requests above)
   "public.set_indent_deposit_percent(integer)",
-  // Phase 14 step 3 (D154, D156, D161): counter payments are recorded and
-  // voided by an active admin only (the functions check); any active staff
+  // Phase 14 step 3 (D154, D156, D161, D270): counter payments are recorded
+  // by any active staff member and voided by an active admin only (the
+  // functions check); any active staff
   // member sends a balance link; the payment link page is callable signed
   // in too; the payment reports need view_financial_reports
   "public.record_counter_payment(uuid, uuid, uuid, money_amount, counter_payment_method, timestamp with time zone, text, text)",
   "public.void_counter_payment(uuid, counter_void_kind, text)",
+  // D270: an admin reviews a counter payment recorded by someone who is not
+  // an admin
+  "public.review_counter_payment(uuid)",
   "public.balance_by_token(text)",
   "public.send_balance_link(uuid, uuid, quote_channel, integer)",
   "public.report_payment_items(date, date, integer, timestamp with time zone, uuid)",

@@ -178,8 +178,14 @@ test("journey 1: a walk-in bike is checked in with photos, priced, completed and
   await expect(toast(page, `${jobNumber}: In progress`)).toBeVisible();
   await page.getByRole("button", { name: "Complete" }).click();
   await expect(toast(page, `${jobNumber}: Completed`)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add service" })).toBeDisabled();
-  await expect(page.getByText("Completed jobs are locked. Reopen to change lines.")).toBeVisible();
+  // D269: a completed job still takes lines; the sheet says what happens.
+  await page.getByRole("button", { name: "Add service" }).click();
+  const lateSheet = page.getByRole("dialog", { name: "Add service" });
+  await expect(
+    lateSheet.getByText("This job is completed: the line is added and the job completed again."),
+  ).toBeVisible();
+  await lateSheet.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(lateSheet).toHaveCount(0);
   await page.getByRole("button", { name: "Ready for collection" }).click();
   await expect(toast(page, `${jobNumber}: Ready for collection`)).toBeVisible();
   // Collected is final, so it is a second step naming the job, focus on Back.
@@ -189,6 +195,8 @@ test("journey 1: a walk-in bike is checked in with photos, priced, completed and
   await collect.getByRole("button", { name: "Mark collected" }).click();
   await expect(toast(page, `${jobNumber}: Collected`)).toBeVisible();
   await expect(page.getByRole("button", { name: "Change status" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add service" })).toBeDisabled();
+  await expect(page.getByText("This job is closed, so its lines can't change.")).toBeVisible();
 
   // Completed and collected are two separate timestamps.
   const dates = page.getByLabel("Dates", { exact: true });

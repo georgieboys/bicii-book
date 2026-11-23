@@ -371,30 +371,76 @@ export type ServiceLineInput = {
   unitDirectCost: string | null;
   /** Null: the service's name. */
   description: string | null;
+  /** D269: the job is completed, so add_service_after_complete places it. */
+  afterComplete?: boolean;
 };
 
 /**
+ * D269: where a line added after completion went. `followUp` is set when
+ * it went on a follow-up job (completed on an earlier day); `recompleted`
+ * when the job was reopened for it and completed again (the same day).
+ */
+export type LinePlacement = {
+  followUp: { id: string; jobNumber: string } | null;
+  recompleted: boolean;
+};
+
+const IN_PLACE: LinePlacement = { followUp: null, recompleted: false };
+
+type AfterCompleteRow = Database["public"]["CompositeTypes"]["add_after_complete_result"];
+
+/**
+ * D269: the plain line RPC refused because the job was completed after the
+ * sheet opened (a stale page). The caller then places the line through the
+ * add_*_after_complete RPC instead of refusing.
+ */
+export function completedMeanwhile(err: unknown): boolean {
+  return err instanceof DbError && err.code === "P0001" && err.message === "work_order_locked";
+}
+
+/** D269: the placement an add_*_after_complete RPC reports. */
+export function placementOf(row: AfterCompleteRow | null | undefined): LinePlacement {
+  if (!row) return IN_PLACE;
+  return {
+    followUp:
+      row.follow_up && row.work_order_id
+        ? { id: row.work_order_id, jobNumber: row.job_number ?? "" }
+        : null,
+    recompleted: row.recompleted === true,
+  };
+}
+
+/**
  * Adds a service to an open job (RPC add_service_line: snapshots price,
- * cost and rate). The line id is the idempotency key: a replay returns
+ * cost and rate), or after completion (D269, add_service_after_complete:
+ * completed today, the job is completed again; an earlier day, a
+ * follow-up job). The line id is the idempotency key: a replay returns
  * the line it already added.
  */
 export async function addServiceLine(
   supabase: ServerSupabase,
   input: ServiceLineInput,
-): Promise<{ id: string }> {
+): Promise<{ id: string } & LinePlacement> {
+  const args = {
+    line_id: input.lineId,
+    work_order_id: input.workOrderId,
+    service_id: input.serviceId,
+    quantity: input.quantity,
+    unit_sale_price: input.unitSalePrice ?? undefined,
+    unit_direct_cost: input.unitDirectCost ?? undefined,
+    description: input.description ?? undefined,
+  };
   try {
-    const id = unwrap(
-      await supabase.rpc("add_service_line", {
-        line_id: input.lineId,
-        work_order_id: input.workOrderId,
-        service_id: input.serviceId,
-        quantity: input.quantity,
-        unit_sale_price: input.unitSalePrice ?? undefined,
-        unit_direct_cost: input.unitDirectCost ?? undefined,
-        description: input.description ?? undefined,
-      }),
-    );
-    return { id: id ?? input.lineId };
+    if (!input.afterComplete) {
+      try {
+        const id = unwrap(await supabase.rpc("add_service_line", args));
+        return { id: id ?? input.lineId, ...IN_PLACE };
+      } catch (err) {
+        if (!completedMeanwhile(err)) throw err;
+      }
+    }
+    const row = unwrap(await supabase.rpc("add_service_after_complete", args));
+    return { id: row?.line_id ?? input.lineId, ...placementOf(row) };
   } catch (err) {
     rethrowOnField(err, LINE_FIELDS);
   }
@@ -408,25 +454,37 @@ export type ManualLineInput = {
   unitSalePrice: string;
   /** Null: no direct cost. Requires view_costs. */
   unitDirectCost: string | null;
+  /** D269: the job is completed, so add_manual_after_complete places it. */
+  afterComplete?: boolean;
 };
 
-/** Adds a free-text line (labour, a sundry) to an open job; replay-safe by line id. */
+/**
+ * Adds a free-text line (labour, a sundry) to an open job, or after
+ * completion (D269, add_manual_after_complete); replay-safe by line id.
+ */
 export async function addManualLine(
   supabase: ServerSupabase,
   input: ManualLineInput,
-): Promise<{ id: string }> {
+): Promise<{ id: string } & LinePlacement> {
+  const args = {
+    line_id: input.lineId,
+    work_order_id: input.workOrderId,
+    description: input.description,
+    unit_sale_price: input.unitSalePrice,
+    quantity: input.quantity,
+    unit_direct_cost: input.unitDirectCost ?? undefined,
+  };
   try {
-    const id = unwrap(
-      await supabase.rpc("add_manual_line", {
-        line_id: input.lineId,
-        work_order_id: input.workOrderId,
-        description: input.description,
-        unit_sale_price: input.unitSalePrice,
-        quantity: input.quantity,
-        unit_direct_cost: input.unitDirectCost ?? undefined,
-      }),
-    );
-    return { id: id ?? input.lineId };
+    if (!input.afterComplete) {
+      try {
+        const id = unwrap(await supabase.rpc("add_manual_line", args));
+        return { id: id ?? input.lineId, ...IN_PLACE };
+      } catch (err) {
+        if (!completedMeanwhile(err)) throw err;
+      }
+    }
+    const row = unwrap(await supabase.rpc("add_manual_after_complete", args));
+    return { id: row?.line_id ?? input.lineId, ...placementOf(row) };
   } catch (err) {
     rethrowOnField(err, LINE_FIELDS);
   }

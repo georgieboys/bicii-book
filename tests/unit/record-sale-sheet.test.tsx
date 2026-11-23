@@ -92,3 +92,42 @@ describe("RecordSaleSheet quantity", () => {
     expect(recordButton()).toBeDisabled();
   });
 });
+
+describe("RecordSaleSheet consigned stock BICII holds too little of (D267)", () => {
+  const CONSIGNED = {
+    ...ROW,
+    key: `product:${PRODUCT}:${LOCATION}:shop`,
+    title: "Consigned bidon",
+    onHand: 0,
+    unitPrice: "12.00",
+    ownership: "consignment",
+    consignment: null,
+  };
+
+  it("says what is received on sale and keeps Record sale on", async () => {
+    searchSaleableAction.mockResolvedValue({ ok: true, data: { rows: [CONSIGNED], rate: null } });
+    const qty = await openWithProduct();
+    expect(screen.getByText("Consigned · none recorded: received when sold")).toBeInTheDocument();
+    fireEvent.change(qty, { target: { value: "2" } });
+    expect(
+      screen.getByText(
+        "2 not recorded at Shop floor: it is received from the consignor when you record the sale, and a manager checks it later.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Only /)).not.toBeInTheDocument();
+    expect(recordButton()).toBeEnabled();
+    expect(recordButton()).toHaveTextContent("24.00");
+  });
+
+  it("shop stock past what is there is still marked and Record sale stays off", async () => {
+    searchSaleableAction.mockResolvedValue({
+      ok: true,
+      data: { rows: [{ ...ROW, onHand: 1 }], rate: null },
+    });
+    const qty = await openWithProduct();
+    fireEvent.change(qty, { target: { value: "2" } });
+    expect(screen.getByText("Only 1 at Shop floor.")).toBeInTheDocument();
+    expect(screen.queryByText(/not recorded at/)).not.toBeInTheDocument();
+    expect(recordButton()).toBeDisabled();
+  });
+});

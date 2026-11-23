@@ -52,12 +52,31 @@ type Line = {
 /** "U-000123", or the product's P- number. */
 const shortIdOf = (row: SaleableRow) => row.unitShortId ?? row.productShortId;
 
-/** "3 in stock at Shop floor", or "At Shop floor" for a unit. */
+/**
+ * Consigned stock counted by quantity: what BICII holds too little of is
+ * received from the consignor when the sale is recorded (D267).
+ */
+const receivesOnSale = (row: SaleableRow) =>
+  row.kind === "product" && row.ownership === "consignment";
+
+/** A consigned product with no consignment stock recorded anywhere. */
+const noneRecorded = (row: SaleableRow) => receivesOnSale(row) && !row.consignment;
+
+/** "3 in stock at Shop floor", or "At Shop floor" for a unit (or nothing recorded). */
 const stockText = (row: SaleableRow) =>
-  row.kind === "unit" ? `At ${row.locationName}` : `${row.onHand} in stock at ${row.locationName}`;
+  row.kind === "unit" || noneRecorded(row)
+    ? `At ${row.locationName}`
+    : `${row.onHand} in stock at ${row.locationName}`;
 
 const consignedText = (row: SaleableRow) =>
-  row.consignment ? `Consigned · ${row.consignment.consignorName || "a consignor"}` : null;
+  row.consignment
+    ? `Consigned · ${row.consignment.consignorName || "a consignor"}`
+    : noneRecorded(row)
+      ? "Consigned · none recorded: received when sold"
+      : null;
+
+/** The most a line may sell: what the row holds, or any quantity when it is received on sale. */
+const maxQuantity = (row: SaleableRow) => (receivesOnSale(row) ? 999 : row.onHand);
 
 const matches = (row: SaleableRow, p: SalePreset) =>
   (p.unitId === undefined || row.unitId === p.unitId) &&
@@ -151,8 +170,12 @@ export function SaleablePicker({
           </span>
           <span className="flex flex-wrap items-center gap-2 text-sm text-dust-500">
             <ShortId value={shortIdOf(o.row)} />
-            <StockBadge onHand={o.row.onHand} label={stockText(o.row)} />
-            {o.row.consignment ? <Badge tone="info">{consignedText(o.row)}</Badge> : null}
+            {noneRecorded(o.row) ? (
+              <span>{stockText(o.row)}</span>
+            ) : (
+              <StockBadge onHand={o.row.onHand} label={stockText(o.row)} />
+            )}
+            {consignedText(o.row) ? <Badge tone="info">{consignedText(o.row)}</Badge> : null}
             {o.disabled ? <span>Already on the sale</span> : null}
           </span>
         </span>
@@ -169,7 +192,9 @@ export function SaleablePicker({
  * selling price (any staff may change it, D53: "Below the asking price"
  * for everyone and, for view_costs holders, "Below cost: this sale loses
  * money"; it never blocks), a quantity capped at what the row holds, and
- * remove. Optional customer; "Sold earlier?" sets when it was sold (NULL,
+ * remove (consigned stock may go past it: the rest is received from the
+ * consignor when the sale is recorded, D267, and the line says so).
+ * Optional customer; "Sold earlier?" sets when it was sold (NULL,
  * so now, while closed). The footer shows the running total and, for
  * view_costs holders, a labelled preview of cost, yield and Cult Commons
  * per line and in total (display only: the database snapshots the real
@@ -257,7 +282,10 @@ function RecordSaleSheet({
         if (row.kind === "unit") return all;
         return all.map((l) =>
           l.row.key === row.key
-            ? { ...l, quantity: String(Math.min((saleQuantity(l.quantity) ?? 0) + 1, row.onHand)) }
+            ? {
+                ...l,
+                quantity: String(Math.min((saleQuantity(l.quantity) ?? 0) + 1, maxQuantity(row))),
+              }
             : l,
         );
       }
@@ -275,8 +303,14 @@ function RecordSaleSheet({
   const priceOf = (l: Line) => (l.price.trim() === "" ? null : parseMoney(l.price));
   const priced = lines.map((l) => ({ line: l, qty: qtyOf(l), price: priceOf(l) }));
   const complete = priced.every((p) => p.qty !== null && p.price !== null);
+  // Shop stock never goes below zero on a sale; consigned stock BICII holds
+  // too little of is received from the consignor instead (D267).
   const overStock = priced.some(
-    (p) => p.line.row.kind === "product" && p.qty !== null && p.qty > p.line.row.onHand,
+    (p) =>
+      p.line.row.kind === "product" &&
+      !receivesOnSale(p.line.row) &&
+      p.qty !== null &&
+      p.qty > p.line.row.onHand,
   );
   const total = complete ? sumMoney(priced.map((p) => lineTotal(p.qty!, p.price!))) : null;
   const recognizedAt = earlier && soldAt ? (fromShopLocal(soldAt)?.toISOString() ?? null) : null;
@@ -441,6 +475,11 @@ function RecordSaleSheet({
               const lineTotalText =
                 qty !== null && price !== null ? formatMoney(lineTotal(qty, price)) : "—";
               const economics = preview ? preview.lines[index] : null;
+              const here = Math.max(row.onHand, 0);
+              const receiveNote =
+                receivesOnSale(row) && qty !== null && qty > here
+                  ? `${qty - here} not recorded at ${row.locationName}: it is received from the consignor when you record the sale, and a manager checks it later.`
+                  : null;
               return (
                 <li
                   key={row.key}
@@ -457,7 +496,9 @@ function RecordSaleSheet({
                       <span className="flex flex-wrap items-center gap-2 text-sm text-dust-700">
                         <ShortId value={shortIdOf(row)} />
                         <span>{stockText(row)}</span>
-                        {row.consignment ? <Badge tone="info">{consignedText(row)}</Badge> : null}
+                        {consignedText(row) ? (
+                          <Badge tone="info">{consignedText(row)}</Badge>
+                        ) : null}
                       </span>
                     </div>
                     <IconButton
@@ -496,7 +537,7 @@ function RecordSaleSheet({
                         error={
                           line.quantity.trim() !== "" && qty === null
                             ? SALE_QUANTITY_MESSAGE
-                            : qty !== null && qty > row.onHand
+                            : qty !== null && qty > row.onHand && !receivesOnSale(row)
                               ? `Only ${row.onHand} at ${row.locationName}.`
                               : undefined
                         }
@@ -505,13 +546,18 @@ function RecordSaleSheet({
                           kind="quantity"
                           stepper
                           minValue={1}
-                          maxValue={row.onHand}
+                          maxValue={maxQuantity(row)}
                           value={line.quantity}
                           onValueChange={(v) => update(row.key, { quantity: v })}
                         />
                       </Field>
                     ) : null}
                   </div>
+                  {receiveNote ? (
+                    <p role="status" className="rounded-xl bg-info-soft p-3 text-sm text-info-deep">
+                      {receiveNote}
+                    </p>
+                  ) : null}
                   {warnings.length > 0 ? (
                     <ul role="status" className="flex flex-col gap-1">
                       {warnings.map((w) => (

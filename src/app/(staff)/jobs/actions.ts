@@ -80,6 +80,12 @@ const reason = (what: string) =>
 
 const workOrderId = z.guid({ error: "Unknown job." });
 
+/** D269: set by the Add sheets on a completed job ("on"), absent otherwise. */
+const afterComplete = z
+  .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
+  .optional()
+  .transform((v) => v === "on" || v === "true" || v === true);
+
 /** D14: only view_costs holders enter a direct cost (the RPC refuses anyone else too). */
 function requireCostPermission(
   staff: Parameters<typeof hasPermission>[0],
@@ -139,9 +145,14 @@ export const setWorkOrderStatus = staffAction(
   },
 );
 
-/** Add a service to an open job; the price may be changed, the cost only with view_costs (D14). */
+/**
+ * Add a service to an open job, or to a completed one (D269: completed
+ * again the same day, a follow-up job on a later day); the price may be
+ * changed, the cost only with view_costs (D14).
+ */
 export const addServiceLine = staffAction(
   z.object({
+    afterComplete,
     lineId: z.guid({ error: "Open Add service again." }),
     workOrderId,
     serviceId: z.guid({ error: "Choose a service from the list." }),
@@ -164,9 +175,10 @@ export const addServiceLine = staffAction(
   },
 );
 
-/** Add a free-text line (labour, a sundry) to an open job. */
+/** Add a free-text line (labour, a sundry) to an open job, or a completed one (D269). */
 export const addManualLine = staffAction(
   z.object({
+    afterComplete,
     lineId: z.guid({ error: "Open Add manual line again." }),
     workOrderId,
     description: z
@@ -201,7 +213,9 @@ export const addPartToJob = staffAction(
     const result = await addPart(supabase, input);
     // D261: an extra on a build, charged on top of the package. A retry
     // replays the add (same line id) and marks it again.
-    if (input.buildExtra) {
+    // D269: not after completion (the job is completed again, or the line
+    // is on a follow-up job without the package).
+    if (input.buildExtra && !input.afterComplete && !result.followUp && !result.recompleted) {
       try {
         await setBuildLineExtra(supabase, result.lineId, true);
       } catch {

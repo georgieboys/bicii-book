@@ -9,15 +9,17 @@ import { PlusIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Sheet } from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
+import type { LinePlacement } from "@/lib/domain/lines";
+import type { AfterComplete } from "@/lib/workshop";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
 import { previewTotal } from "./add-service-sheet";
+import { AfterCompleteNote, useAddedToast } from "./after-complete";
 
-type State = ActionResult<{ id: string }> | null;
+type State = ActionResult<{ id: string } & LinePlacement> | null;
 
 /**
  * "Add manual line": a free-text line (a sundry, a one-off item) with a
@@ -26,18 +28,22 @@ type State = ActionResult<{ id: string }> | null;
  * marked cost pending (its 0 is a placeholder) until someone with cost
  * access voids it and adds it again with the cost. The preview is display
  * only; the database computes the line. The sheet's line id is the
- * idempotency key.
+ * idempotency key. On a completed job (`afterComplete`, D269) it says
+ * beforehand what will happen.
  */
 export function ManualLineButton({
   workOrderId,
   viewCosts,
   currency,
   disabled = false,
+  afterComplete = null,
 }: {
   workOrderId: string;
   viewCosts: boolean;
   currency: string;
   disabled?: boolean;
+  /** D269: the job is completed; what adding a line does. */
+  afterComplete?: AfterComplete | null;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -56,6 +62,7 @@ export function ManualLineButton({
           workOrderId={workOrderId}
           viewCosts={viewCosts}
           currency={currency}
+          afterComplete={afterComplete}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -68,6 +75,7 @@ export function ManualLineSheet({
   viewCosts,
   currency,
   initialDescription = "",
+  afterComplete = null,
   onClose,
 }: {
   workOrderId: string;
@@ -75,9 +83,11 @@ export function ManualLineSheet({
   currency: string;
   /** Add part's "one-off" shortcut fills in what was searched for. */
   initialDescription?: string;
+  /** D269: the job is completed; what adding a line does. */
+  afterComplete?: AfterComplete | null;
   onClose: () => void;
 }) {
-  const { toast } = useToast();
+  const added = useAddedToast();
   const formId = useId();
   const [lineId] = useState(newId);
   const [description, setDescription] = useState(initialDescription);
@@ -87,7 +97,7 @@ export function ManualLineSheet({
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = await callAction(() => addManualLine(prev, formData), formData);
     if (result.ok) {
-      toast({ title: `${description.trim() || "Line"} added`, tone: "success" });
+      added(`${description.trim() || "Line"} added`, result.data);
       onClose();
     }
     return result;
@@ -122,6 +132,7 @@ export function ManualLineSheet({
       >
         <input type="hidden" name="lineId" value={lineId} />
         <input type="hidden" name="workOrderId" value={workOrderId} />
+        <AfterCompleteNote mode={afterComplete} />
         {state && !state.ok ? (
           <p role="alert" className="text-sm font-medium text-danger-deep">
             {state.error}

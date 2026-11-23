@@ -62,6 +62,7 @@ import { isUuid } from "@/lib/uuid";
 import {
   OVERDUE_AFTER_DAYS,
   STATUS_LABELS,
+  afterCompleteMode,
   isClosedStatus,
   isOpenStatus,
   isOverdue,
@@ -229,11 +230,14 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
     deposits: payments?.deposits ?? [],
   };
   const target = { entityType: "work_order" as const, entityId: job.id };
-  const lockedReason = open
-    ? null
-    : closed
-      ? "This job is closed, so its lines can't change."
-      : "Completed jobs are locked. Reopen to change lines.";
+  // D269: a completed job still takes new lines: the same shop day it is
+  // completed again, a later day they go on a follow-up job.
+  const afterComplete = afterCompleteMode(
+    { status: job.status, completedAt: job.stamps.completedAt },
+    now,
+  );
+  const canAddLines = open || afterComplete !== null;
+  const lockedReason = closed ? "This job is closed, so its lines can't change." : null;
 
   return (
     <>
@@ -381,13 +385,15 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
                   workOrderId={job.id}
                   viewCosts={viewCosts}
                   currency={job.currency}
-                  disabled={!open}
+                  disabled={!canAddLines}
+                  afterComplete={afterComplete}
                 />
                 <AddPartButton
                   workOrderId={job.id}
                   viewCosts={viewCosts}
                   currency={job.currency}
-                  disabled={!open}
+                  disabled={!canAddLines}
+                  afterComplete={afterComplete}
                   hasActiveLocation={locations.defaultLocationId !== null}
                   hasBuild={build !== null}
                   oneOff={oneOff}
@@ -396,7 +402,8 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
                   workOrderId={job.id}
                   viewCosts={viewCosts}
                   currency={job.currency}
-                  disabled={!open}
+                  disabled={!canAddLines}
+                  afterComplete={afterComplete}
                 />
               </>
             }

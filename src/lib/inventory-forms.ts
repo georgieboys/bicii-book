@@ -279,6 +279,8 @@ export const addPartSchema = z
     unitSalePrice: optionalMoney("price"),
     // D261: on a job with a build package, charge it on top of the package.
     buildExtra: toggle,
+    // D269: the job is completed (not collected): add_part_after_complete.
+    afterComplete: toggle,
   })
   .superRefine((v, ctx) => {
     if (v.unitId && v.quantity !== 1) {

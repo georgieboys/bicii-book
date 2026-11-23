@@ -157,11 +157,18 @@ export function unfittedMemo(
  * public.fit_part_bought_outside checks again.
  */
 export function canBuyOutside(
-  request: { kind: PartRequestKind; status: PartRequestStatus; order: unknown },
+  request: {
+    kind: PartRequestKind;
+    status: PartRequestStatus;
+    order: unknown;
+    consigned?: unknown;
+  },
   purchaseData: boolean,
 ): boolean {
   return (
     purchaseData &&
+    // Consigned stock is the consignor's: never bought by the shop (D44).
+    !request.consigned &&
     request.kind === "part" &&
     request.status === "approved" &&
     request.order === null
@@ -180,6 +187,16 @@ export function neverOrderedNote(locationName: string | null, canBuy: boolean): 
   return canBuy
     ? `Never ordered in BICII. If you bought it outside BICII, choose Bought outside BICII so the stock count stays right and the job uses what you paid. From stock, it comes out of ${where}.`
     : `Never ordered in BICII: fitting takes it out of stock at ${where}. If it was bought outside BICII, ask someone with View costs or Manage purchasing to fit it as bought outside, so the stock count stays right.`;
+}
+
+/**
+ * The Fit sheet's note for a consigned part (D44, D265): it comes out of
+ * the consigned stock, and fitting more than there is is refused.
+ */
+export function consignedFitNote(onHand: number, quantity: number): string {
+  return onHand >= quantity
+    ? `Consigned stock: ${onHand} in stock. Fitting takes it from there, and the consignor is owed their agreed amount when the job is completed.`
+    : `Consigned stock: ${onHand} in stock, fewer than this needs. Receive more under Consignment first.`;
 }
 
 /** The Fit sheet's note when the product has no cost (D24, part_cost_missing), for cost holders. */

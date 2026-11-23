@@ -213,3 +213,28 @@ describe("FitSheet after a void (D160)", () => {
     );
   });
 });
+
+describe("FitSheet: consigned parts (D265)", () => {
+  it("fits from the consigned stock: no Bought outside, no never-ordered note, no cost check", async () => {
+    sheet({ ...part, quantity: "1.00", consigned: { onHand: 1 } });
+    const dialog = screen.getByRole("dialog", { name: "Fit part" });
+    expect(within(dialog).queryByRole("radiogroup", { name: "Where it comes from" })).toBeNull();
+    expect(dialog).not.toHaveTextContent("Never ordered in BICII");
+    expect(dialog).toHaveTextContent("Consigned stock: 1 in stock.");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Fit part" }));
+    });
+    expect(fitPartRequestAction).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: part.id, locationId: "" }),
+    );
+  });
+
+  it("with too little consigned stock, says so and does not fit", () => {
+    sheet({ ...part, quantity: "2.00", consigned: { onHand: 1 } });
+    const dialog = screen.getByRole("dialog", { name: "Fit part" });
+    expect(dialog).toHaveTextContent(
+      "fewer than this needs. Receive more under Consignment first.",
+    );
+    expect(within(dialog).getByRole("button", { name: "Fit part" })).toBeDisabled();
+  });
+});

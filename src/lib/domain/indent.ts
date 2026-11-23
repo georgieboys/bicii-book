@@ -53,6 +53,12 @@ export type PartRequest = {
    */
   costMissing?: boolean;
   /**
+   * Parts on consigned products (D44, D265): fitted from the consigned stock
+   * (the consignor is owed the agreed amount on completion), never ordered
+   * or bought outside BICII; `onHand` is that stock now. Absent otherwise.
+   */
+  consigned?: { onHand: number };
+  /**
    * D160: an approved or ordered item that was fitted and whose line was
    * voided since (its latest part_request_unfitted entry), and whether it
    * had been bought outside BICII (the part is then back in stock). Absent
@@ -144,7 +150,7 @@ export async function getIndentPanel(
   const productIds = [
     ...new Set(rows.flatMap((r) => (r.kind === "part" && r.product_id ? [r.product_id] : []))),
   ];
-  const [staffResult, costResult] = await Promise.all([
+  const [staffResult, costResult, productResult, levelResult] = await Promise.all([
     purchaseData && rows.length > 0
       ? supabase
           .from("job_part_requests_staff")
@@ -160,7 +166,31 @@ export async function getIndentPanel(
           .select("product_id, default_direct_cost")
           .in("product_id", productIds)
       : null,
+    productIds.length > 0
+      ? supabase.from("products").select("id, ownership_type").in("id", productIds)
+      : null,
+    productIds.length > 0
+      ? supabase
+          .schema("reporting")
+          .from("stock_levels")
+          .select("product_id, on_hand")
+          .in("product_id", productIds)
+      : null,
   ]);
+  const consignedIds = new Set(
+    (productResult ? (unwrap(productResult) ?? []) : [])
+      .filter((p) => p.ownership_type === "consignment")
+      .map((p) => p.id),
+  );
+  const consignedOnHand = new Map<string, number>();
+  for (const l of levelResult ? (unwrap(levelResult) ?? []) : []) {
+    if (l.product_id && consignedIds.has(l.product_id)) {
+      consignedOnHand.set(
+        l.product_id,
+        (consignedOnHand.get(l.product_id) ?? 0) + (l.on_hand ?? 0),
+      );
+    }
+  }
   const purchase = new Map<
     string,
     { expected_unit_cost: number | null; supplier_id: string | null; supplier_name: string | null }
@@ -225,8 +255,13 @@ export async function getIndentPanel(
               },
             }
           : {}),
-        ...(withoutCost && r.kind === "part" && r.product_id
+        // A consigned part's cost is what its consignor is owed, not the
+        // product's default cost.
+        ...(withoutCost && r.kind === "part" && r.product_id && !consignedIds.has(r.product_id)
           ? { costMissing: withoutCost.has(r.product_id) }
+          : {}),
+        ...(r.kind === "part" && r.product_id && consignedIds.has(r.product_id)
+          ? { consigned: { onHand: consignedOnHand.get(r.product_id) ?? 0 } }
           : {}),
         ...((r.status === "approved" || r.status === "ordered") && unfitted.has(r.id)
           ? { unfitted: unfitted.get(r.id)! }

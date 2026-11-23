@@ -34,6 +34,12 @@ export type DiscountPlan = {
   totalAfter: string;
   /** The job is completed or ready: it is reopened and completed again. */
   reopens: boolean;
+  /** What the job has taken (deposits, online, counter, build orders). */
+  paid: string;
+  /** How much of that would be above the new total (0.00 when none). */
+  paidOver: string;
+  /** The reopen withdraws the job's live payment link. */
+  withdrawsLink: boolean;
   lines: DiscountLine[];
 };
 
@@ -54,6 +60,9 @@ export function parsePlan(raw: unknown): DiscountPlan {
     applied: money(p.applied),
     totalAfter: money(p.total_after),
     reopens: p.reopens === true || p.reopened === true,
+    paid: money(p.paid),
+    paidOver: money(p.paid_over),
+    withdrawsLink: p.withdraws_link === true,
     lines: lines.map((l) => ({
       lineId: str(l.line_id),
       description: str(l.description),

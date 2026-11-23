@@ -24,6 +24,7 @@ export function discountAmount(mode: DiscountMode, figure: string, total: string
     }
     return { ok: true, amount: toMoneyString(value) };
   }
+  if (value.lessThan(0)) return { ok: false, error: "Round to a total of zero or more." };
   if (value.gte(jobTotal)) {
     return { ok: false, error: "Round to a total below the job's total now." };
   }

@@ -2180,17 +2180,22 @@ line's Cult Commons share is on its new sale price.
   `reopened`, `result` jsonb (what the call returned, for a replay),
   `created_by`, `created_at`.
 - `private.plan_job_discount(wo, amount)` (stable): the chargeable lines
-  are the job's live lines with a price above zero, largest `sale_total`
-  first. `discount_not_positive` for amount ≤ 0, `discount_over_total`
+  are the job's live lines with a `sale_total` above zero, largest first. `discount_not_positive` for amount ≤ 0, `discount_over_total`
   above their total. Each line's new unit price is `round(round(s − a·s/T,
   2) / q, 2)` (never above its price, never below 0); the remainder to the
   exact new total goes on the first (largest) line whose quantity can take
   it exactly, else as close as the lines allow. Returns jsonb `{currency,
-  total_before, amount, applied, total_after, reopens, lines: [{line_id,
+  total_before, amount, applied, total_after, reopens, paid, paid_over,
+  withdraws_link, lines: [{line_id,
   description, line_type, quantity, from_price, to_price, from_total,
   to_total, below_consignor}]}`, money as text. `below_consignor` is true
   when a consigned line's new unit price is below its
   `consignor_payout_snapshot` (the payout itself is never returned).
+  `paid` is `work_order_payment_totals.net_paid` and `paid_over` =
+  max(paid − new total, 0): money already taken is never a block, the
+  sheet says how much would be above the bill. `withdraws_link` is true
+  when the job is completed or ready and has a live balance link, which
+  the reopen withdraws.
 - `preview_job_discount(work_order_id, amount)` (active staff, stable) →
   the plan; `discount_job_closed` for a collected or cancelled job.
 - `apply_job_discount(request_id, work_order_id, amount, reason)` (active
@@ -2213,7 +2218,11 @@ line's Cult Commons share is on its new sale price.
   total_after, currency, lines: [{line_id, description, quantity,
   from_price, to_price}]}`. Then the job is completed again, and put back
   to `ready_for_collection` when it was ready (the reopen withdraws a live
-  balance link, D156d). The `work_order_discounts` row is written last.
+  balance link, D156d). As with any reopen (D3 as modified by D15), the
+  job's lines are then recognised on the shop day of this completion, not
+  the earlier one, and the reopen's own refusals apply
+  (`bike_with_customer`, `consignor_archived`). The `work_order_discounts`
+  row is written last.
 
 ### One-off parts (D264)
 

@@ -30,6 +30,7 @@ describe("discountAmount", () => {
     });
     expect(discountAmount("target", "120", "120.00")).toMatchObject({ ok: false });
     expect(discountAmount("target", "abc", "120.00")).toMatchObject({ ok: false });
+    expect(discountAmount("target", "-5", "120.00")).toMatchObject({ ok: false });
   });
 });
 

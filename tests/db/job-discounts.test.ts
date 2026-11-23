@@ -304,6 +304,30 @@ describe.skipIf(!isolatedDatabase())("job discounts (D271)", () => {
     });
   });
 
+  it("money already taken is not a block: the plan says how much would be above the new total", async () => {
+    await inTx(async (tx) => {
+      const { job } = await threeLineJob(tx);
+      expect(await preview(tx, job.id, "15.00")).toMatchObject({
+        paid: "0.00",
+        paid_over: "0.00",
+        withdraws_link: false,
+      });
+      await completeJob(tx, job.id);
+      await tx.query(
+        `select * from public.record_counter_payment($1, $2, null, $3, 'cash'::public.counter_payment_method, null, null, null)`,
+        [randomUUID(), job.id, "115.00"],
+      );
+      expect(await preview(tx, job.id, "15.00")).toMatchObject({
+        paid: "115.00",
+        paid_over: "15.00",
+        reopens: true,
+      });
+      const r = await apply(tx, { workOrderId: job.id, amount: "15.00" });
+      expect(r).toMatchObject({ paid: "115.00", paid_over: "15.00", total_after: "100.00" });
+      expect((await workOrder(tx, job.id)).status).toBe("completed");
+    });
+  });
+
   it("a collected job is refused: its money has been taken", async () => {
     await inTx(async (tx) => {
       const { job } = await threeLineJob(tx);

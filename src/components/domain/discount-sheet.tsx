@@ -206,8 +206,11 @@ function DiscountSheet({
           <section aria-label="New prices" className="flex flex-col gap-3">
             {shown.reopens ? (
               <p className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
-                This job is completed. It is reopened, discounted and completed again in one step;
-                the reason goes on the reopen.
+                This job is completed or ready for collection. It is reopened, discounted and put
+                back in one step; the reason goes on the reopen.
+                {shown.withdrawsLink
+                  ? " Its payment link is withdrawn: send a new one for the new total."
+                  : null}
               </p>
             ) : null}
             <ul className="divide-y divide-hairline rounded-xl border border-hairline">
@@ -232,9 +235,15 @@ function DiscountSheet({
             </ul>
             {shown.applied !== shown.amount ? (
               <p className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
-                The lines come in quantities that can only take{" "}
-                {formatMoney(shown.applied, currency)} off, not{" "}
-                {formatMoney(shown.amount, currency)}.
+                The lines come in quantities that take {formatMoney(shown.applied, currency)} off,
+                not exactly {formatMoney(shown.amount, currency)}.
+              </p>
+            ) : null}
+            {shown.paidOver !== "0.00" ? (
+              <p className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
+                The customer has already paid {formatMoney(shown.paid, currency)}, so{" "}
+                {formatMoney(shown.paidOver, currency)} of it will be above the new total. Give it
+                back from Payments.
               </p>
             ) : null}
             <p className="flex items-baseline justify-between rounded-xl bg-sunken px-4 py-3 tabular-nums">

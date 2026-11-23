@@ -5,7 +5,7 @@ set local statement_timeout = '120s';
 -- discount lines"; D1 Cult Commons math unchanged). Any active staff member
 -- may take an amount off a job (a discount or a round-off) with a reason,
 -- at most the job's total. There is still no negative or discount line: the
--- amount is spread over the job's chargeable lines (live, price above zero:
+-- amount is spread over the job's chargeable lines (live, total above zero:
 -- parts, services and manual lines) as new sale prices, so every line's
 -- yield and Cult Commons share is computed on what was actually charged.
 --
@@ -31,8 +31,14 @@ set local statement_timeout = '120s';
 --   * Open jobs directly. Completed and ready-for-collection jobs are
 --     reopened, discounted and completed again in the same transaction
 --     (set_work_order_status; the reopen note is filled automatically), and
---     put back to ready when they were ready. Collected and cancelled jobs
---     are refused (discount_job_closed): the money has been taken.
+--     put back to ready when they were ready. As with any reopen (D15),
+--     the job is then recognised on the shop day of this completion, and
+--     the reopen's own checks apply (bike_with_customer, consignor_archived).
+--     Collected and cancelled jobs are refused (discount_job_closed): the
+--     money has been taken.
+--   * Money already taken is not a block: the plan says how much would be
+--     above the new total (paid, paid_over) and whether a live payment
+--     link is withdrawn (withdraws_link).
 --   * Replay-safe by request id (work_order_discounts.id).
 --
 --   public.preview_job_discount  what a discount would do, no writes.
@@ -121,6 +127,7 @@ declare
   k integer;
   lines jsonb := '[]'::jsonb;
   applied numeric;
+  paid numeric;
 begin
   if plan_job_discount.amount is null or plan_job_discount.amount <= 0 then
     raise exception using errcode = 'P0001', message = 'discount_not_positive',
@@ -138,7 +145,7 @@ begin
          coalesce(sum(l.sale_total), 0)
   into ids, qs, ps, ss, pays, descs, kinds, total
   from public.work_order_line_items l
-  where l.work_order_id = wo.id and l.voided_at is null and l.unit_sale_price_snapshot > 0;
+  where l.work_order_id = wo.id and l.voided_at is null and l.sale_total > 0;
   n := coalesce(pg_catalog.cardinality(ids), 0);
 
   if plan_job_discount.amount > total then
@@ -193,6 +200,11 @@ begin
 
   applied := total - coalesce((select sum(x) from pg_catalog.unnest(na) x), 0);
 
+  -- Money already taken (deposits, online and counter payments, build
+  -- orders): the sheet says what would be above the new bill. Not a block.
+  select t.net_paid into paid from public.work_order_payment_totals t where t.work_order_id = wo.id;
+  paid := coalesce(paid, 0);
+
   for i in 1 .. n loop
     lines := lines || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
       'line_id', ids[i],
@@ -214,6 +226,12 @@ begin
     'applied', applied::public.money_amount::text,
     'total_after', (total - applied)::public.money_amount::text,
     'reopens', not private.work_order_status_is_open(wo.status),
+    'paid', paid::public.money_amount::text,
+    'paid_over', greatest(paid - (total - applied), 0)::public.money_amount::text,
+    -- A reopen withdraws the job's live payment link (D156d).
+    'withdraws_link', not private.work_order_status_is_open(wo.status) and exists (
+      select 1 from public.balance_links b where b.work_order_id = wo.id and b.withdrawn_at is null
+    ),
     'lines', lines
   );
 end;
@@ -267,7 +285,7 @@ end;
 $$;
 
 comment on function public.preview_job_discount(uuid, public.money_amount) is
-  'D271: active staff: what apply_job_discount would do to the job (each chargeable line''s new unit price and total, below_consignor when a consigned part would sell below what its consignor is owed, the applied amount and the totals, reopens for a completed or ready job). No writes.';
+  'D271: active staff: what apply_job_discount would do to the job (each chargeable line''s new unit price and total, below_consignor when a consigned part would sell below what its consignor is owed, the applied amount and the totals, reopens for a completed or ready job, paid and paid_over (what the job has taken and how much of it would be above the new total), withdraws_link when the reopen withdraws a live payment link). No writes.';
 
 revoke all on function public.preview_job_discount(uuid, public.money_amount)
   from public, anon, authenticated, service_role;

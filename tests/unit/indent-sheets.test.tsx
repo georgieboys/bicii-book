@@ -216,7 +216,11 @@ describe("FitSheet after a void (D160)", () => {
 
 describe("FitSheet: consigned parts (D265)", () => {
   it("fits from the consigned stock: no Bought outside, no never-ordered note, no cost check", async () => {
-    sheet({ ...part, quantity: "1.00", consigned: { onHand: 1 } });
+    sheet({
+      ...part,
+      quantity: "1.00",
+      consigned: { onHand: 1, locationId: null, locationName: null },
+    });
     const dialog = screen.getByRole("dialog", { name: "Fit part" });
     expect(within(dialog).queryByRole("radiogroup", { name: "Where it comes from" })).toBeNull();
     expect(dialog).not.toHaveTextContent("Never ordered in BICII");
@@ -230,11 +234,55 @@ describe("FitSheet: consigned parts (D265)", () => {
   });
 
   it("with too little consigned stock, says so and does not fit", () => {
-    sheet({ ...part, quantity: "2.00", consigned: { onHand: 1 } });
+    sheet({
+      ...part,
+      quantity: "2.00",
+      consigned: { onHand: 1, locationId: null, locationName: null },
+    });
     const dialog = screen.getByRole("dialog", { name: "Fit part" });
-    expect(dialog).toHaveTextContent(
-      "fewer than this needs. Receive more under Consignment first.",
-    );
+    expect(dialog).toHaveTextContent("fewer than this needs. Receive more on the product");
     expect(within(dialog).getByRole("button", { name: "Fit part" })).toBeDisabled();
+  });
+});
+
+describe("FitSheet: where a never-ordered part comes from", () => {
+  it("a consigned part is fitted from the location holding it", async () => {
+    sheet({
+      ...part,
+      quantity: "1.00",
+      consigned: { onHand: 1, locationId: "loc-wh", locationName: "Pandan Loop Warehouse" },
+    });
+    const dialog = screen.getByRole("dialog", { name: "Fit part" });
+    expect(dialog).toHaveTextContent("Consigned stock: 1 in stock at Pandan Loop Warehouse.");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Fit part" }));
+    });
+    expect(fitPartRequestAction).toHaveBeenCalledWith(
+      expect.objectContaining({ locationId: "loc-wh" }),
+    );
+  });
+
+  it("with no consigned stock, says to receive it or cancel", () => {
+    sheet({ ...part, consigned: { onHand: 0, locationId: null, locationName: null } });
+    const dialog = screen.getByRole("dialog", { name: "Fit part" });
+    expect(dialog).toHaveTextContent("No consigned stock of this part.");
+    expect(within(dialog).getByRole("button", { name: "Fit part" })).toBeDisabled();
+  });
+
+  it("a shop part already in stock (a one-off) is fitted from it, not steered to Bought outside", async () => {
+    sheet({
+      ...part,
+      quantity: "1.00",
+      inStock: { onHand: 1, locationId: "loc-floor", locationName: "RV Shop floor" },
+    });
+    const dialog = screen.getByRole("dialog", { name: "Fit part" });
+    expect(dialog).toHaveTextContent("In stock: 1 at RV Shop floor. Fitting takes it from there.");
+    expect(dialog).not.toHaveTextContent("Never ordered in BICII");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Fit part" }));
+    });
+    expect(fitPartRequestAction).toHaveBeenCalledWith(
+      expect.objectContaining({ locationId: "loc-floor" }),
+    );
   });
 });

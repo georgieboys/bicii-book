@@ -193,10 +193,27 @@ export function neverOrderedNote(locationName: string | null, canBuy: boolean): 
  * The Fit sheet's note for a consigned part (D44, D265): it comes out of
  * the consigned stock, and fitting more than there is is refused.
  */
-export function consignedFitNote(onHand: number, quantity: number): string {
+export function consignedFitNote(
+  onHand: number,
+  quantity: number,
+  locationName: string | null = null,
+): string {
+  const at = locationName ? ` at ${locationName}` : "";
   return onHand >= quantity
-    ? `Consigned stock: ${onHand} in stock. Fitting takes it from there, and the consignor is owed their agreed amount when the job is completed.`
-    : `Consigned stock: ${onHand} in stock, fewer than this needs. Receive more under Consignment first.`;
+    ? `Consigned stock: ${onHand} in stock${at}. Fitting takes it from there, and the consignor is owed their agreed amount when the job is completed.`
+    : onHand > 0
+      ? `Consigned stock: ${onHand} in stock${at}, fewer than this needs. Receive more on the product's page, or cancel this part.`
+      : "No consigned stock of this part. Receive it on the product's page, or cancel this part.";
+}
+
+/**
+ * The Fit sheet's note for a shop-owned part never ordered here that is in
+ * stock already (a one-off taken in when proposed): it is fitted from that
+ * stock, so Bought outside BICII would count it twice.
+ */
+export function inStockFitNote(onHand: number, locationName: string | null): string {
+  const at = locationName ? ` at ${locationName}` : "";
+  return `In stock: ${onHand}${at}. Fitting takes it from there. Choose Bought outside BICII only if you bought another one for this job.`;
 }
 
 /** The Fit sheet's note when the product has no cost (D24, part_cost_missing), for cost holders. */

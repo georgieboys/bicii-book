@@ -55,9 +55,17 @@ export type PartRequest = {
   /**
    * Parts on consigned products (D44, D265): fitted from the consigned stock
    * (the consignor is owed the agreed amount on completion), never ordered
-   * or bought outside BICII; `onHand` is that stock now. Absent otherwise.
+   * or bought outside BICII. `onHand` is the stock at `locationId`, the
+   * location holding the most of it, which Fit takes it from. Absent
+   * otherwise.
    */
-  consigned?: { onHand: number };
+  consigned?: StockAt;
+  /**
+   * A shop-owned part never ordered in BICII that is in stock already (a
+   * one-off taken in when proposed, D264/D265, or stock on the shelf): Fit
+   * takes it from `locationId` and does not steer to Bought outside BICII.
+   */
+  inStock?: StockAt;
   /**
    * D160: an approved or ordered item that was fitted and whose line was
    * voided since (its latest part_request_unfitted entry), and whether it
@@ -66,6 +74,9 @@ export type PartRequest = {
    */
   unfitted?: { boughtOutside: boolean };
 };
+
+/** Stock of one product at the location that holds the most of it. */
+export type StockAt = { onHand: number; locationId: string | null; locationName: string | null };
 
 export type JobQuote = {
   id: string;
@@ -150,7 +161,7 @@ export async function getIndentPanel(
   const productIds = [
     ...new Set(rows.flatMap((r) => (r.kind === "part" && r.product_id ? [r.product_id] : []))),
   ];
-  const [staffResult, costResult, productResult, levelResult] = await Promise.all([
+  const [staffResult, costResult, productResult, levelResult, locationResult] = await Promise.all([
     purchaseData && rows.length > 0
       ? supabase
           .from("job_part_requests_staff")
@@ -173,24 +184,35 @@ export async function getIndentPanel(
       ? supabase
           .schema("reporting")
           .from("stock_levels")
-          .select("product_id, on_hand")
+          .select("product_id, location_id, on_hand")
           .in("product_id", productIds)
       : null,
+    productIds.length > 0 ? supabase.from("locations").select("id, name") : null,
   ]);
   const consignedIds = new Set(
     (productResult ? (unwrap(productResult) ?? []) : [])
       .filter((p) => p.ownership_type === "consignment")
       .map((p) => p.id),
   );
-  const consignedOnHand = new Map<string, number>();
+  // Fit takes a never-ordered part from one location (add_inventory_line):
+  // the one holding the most of it, so the sheet counts what Fit can take.
+  const locationNames = new Map(
+    (locationResult ? (unwrap(locationResult) ?? []) : []).map((l) => [l.id, l.name]),
+  );
+  const stockAt = new Map<string, StockAt>();
   for (const l of levelResult ? (unwrap(levelResult) ?? []) : []) {
-    if (l.product_id && consignedIds.has(l.product_id)) {
-      consignedOnHand.set(
-        l.product_id,
-        (consignedOnHand.get(l.product_id) ?? 0) + (l.on_hand ?? 0),
-      );
+    if (!l.product_id) continue;
+    const onHand = l.on_hand ?? 0;
+    const best = stockAt.get(l.product_id);
+    if (!best || onHand > best.onHand) {
+      stockAt.set(l.product_id, {
+        onHand,
+        locationId: l.location_id,
+        locationName: l.location_id ? (locationNames.get(l.location_id) ?? null) : null,
+      });
     }
   }
+  const noStock: StockAt = { onHand: 0, locationId: null, locationName: null };
   const purchase = new Map<
     string,
     { expected_unit_cost: number | null; supplier_id: string | null; supplier_name: string | null }
@@ -261,7 +283,14 @@ export async function getIndentPanel(
           ? { costMissing: withoutCost.has(r.product_id) }
           : {}),
         ...(r.kind === "part" && r.product_id && consignedIds.has(r.product_id)
-          ? { consigned: { onHand: consignedOnHand.get(r.product_id) ?? 0 } }
+          ? { consigned: stockAt.get(r.product_id) ?? noStock }
+          : {}),
+        ...(r.kind === "part" &&
+        r.product_id &&
+        !consignedIds.has(r.product_id) &&
+        !(arrival && arrival.purchase_order_id) &&
+        (stockAt.get(r.product_id)?.onHand ?? 0) > 0
+          ? { inStock: stockAt.get(r.product_id)! }
           : {}),
         ...((r.status === "approved" || r.status === "ordered") && unfitted.has(r.id)
           ? { unfitted: unfitted.get(r.id)! }
@@ -376,9 +405,11 @@ export async function searchIndentProducts(
       p,
       // D265: consigned stock counted by quantity is proposed too (quoted,
       // then fitted from stock; never ordered).
+      // A consigned product with no stock could be quoted but never fitted.
       orderable:
         p.tracking_type === "quantity" &&
-        (p.ownership_type === "shop_owned" || p.ownership_type === "consignment"),
+        (p.ownership_type === "shop_owned" ||
+          (p.ownership_type === "consignment" && (onHand.get(p.id) ?? 0) > 0)),
       stock: onHand.get(p.id) ?? 0,
     }))
     .filter(({ orderable, stock }) => orderable || stock > 0)

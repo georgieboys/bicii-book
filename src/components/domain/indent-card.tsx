@@ -135,7 +135,10 @@ export function IndentCard({
   const live = panel.requests.filter((r) => r.status !== "cancelled");
   // Sending again withdraws the open quote first, so its items can go on the new one.
   const quotable = live.filter((r) => r.status === "proposed" || r.status === "quoted");
-  const approvedParts = live.filter((r) => r.kind === "part" && r.status === "approved");
+  // Consigned parts are fitted from the consigned stock, never ordered (D265).
+  const approvedParts = live.filter(
+    (r) => r.kind === "part" && r.status === "approved" && !r.consigned,
+  );
   const quote = panel.quote;
   const close = () => setSheet(null);
   const depositByRequest = useMemo(() => depositStates(deposits), [deposits]);
@@ -480,6 +483,8 @@ function ProposePartSheet({
   };
   // A match already in the shop is added from stock, not ordered.
   const inStock = mode === "existing" && picked !== null && !picked.product.orderable;
+  // D265: consigned stock is fitted from stock, never ordered: no purchase cost or supplier.
+  const consignedPick = mode === "existing" && picked?.product.consigned === true && !inStock;
 
   const submit = () =>
     start(async () => {
@@ -493,8 +498,8 @@ function ProposePartSheet({
           newPrice: mode === "new" ? newPrice : "",
           quantity,
           unitSalePrice: price,
-          expectedUnitCost: cost,
-          supplierId,
+          expectedUnitCost: consignedPick ? "" : cost,
+          supplierId: consignedPick ? "" : supplierId,
         }),
       );
       setResult(r);
@@ -512,7 +517,7 @@ function ProposePartSheet({
       onOpenChange={(next) => (next ? null : onClose())}
       dismissible={!pending}
       title="Propose part"
-      description="A part to order for this bike. Nothing comes out of stock until it is fitted."
+      description="A part for this bike, ordered or from stock. Nothing comes out of stock until it is fitted."
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={pending}>
@@ -600,7 +605,14 @@ function ProposePartSheet({
         >
           <NumberInput kind="money" value={price} onValueChange={setPrice} />
         </Field>
-        {purchaseData ? (
+        {consignedPick && picked ? (
+          <p role="status" className="rounded-xl bg-info-soft p-3 text-sm text-info-deep">
+            Consigned, {picked.product.onHand} in stock: once approved, Fit takes it from the
+            consigned stock. It is never ordered, and the consignor is owed their agreed amount when
+            the job is completed.
+          </p>
+        ) : null}
+        {purchaseData && !consignedPick ? (
           <>
             <Field
               label="Expected cost each"

@@ -130,15 +130,15 @@ function Open({
   return (
     <>
       <p className="text-dust-700">
-        Approve or decline each item, type your name and send your answer. The shop orders only what
-        you approve. You can answer once; this link works until {formatDateTime(quote.expires_at)}{" "}
-        (Singapore time).
+        Approve or decline each item, type your name and send your answer. The shop goes ahead only
+        with what you approve. You can answer once; this link works until{" "}
+        {formatDateTime(quote.expires_at)} (Singapore time).
       </p>
       {quote.deposit?.status === "on_answer" ? (
         <p className="text-dust-700">
           After you answer, the shop asks for a deposit of {quote.deposit.percent}% of the parts you
           approve (not labour){payOnline ? ", paid online by card or PayNow" : ""}. Your approval
-          stands either way; the shop orders your parts once the deposit is paid.
+          stands either way; the shop goes ahead with your parts once the deposit is paid.
         </p>
       ) : null}
       <QuoteForm

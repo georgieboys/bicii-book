@@ -121,7 +121,7 @@ comment on function private.receive_for_use(public.products, uuid, integer, publ
   'D267/D268: take in a consigned quantity at the moment of use, from the product''s latest consignor (else the consignor with the most items) at its last agreed amount (else half the price), flagged received_on_use. The caller holds the work order and stock locks.';
 
 revoke all on function private.receive_for_use(public.products, uuid, integer, public.money_amount, text)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- A part on a job, receiving what is missing
@@ -254,7 +254,7 @@ comment on function private.add_part_lines(public.work_orders, uuid, uuid, integ
   'D267: put a part on a job. Consigned stock counted by quantity comes from the oldest consignments at the location first, one line each (the first line keeps line_id, the others md5(line_id:n)), and what is still missing is received on use. Everything else is add_inventory_line as before.';
 
 revoke all on function private.add_part_lines(public.work_orders, uuid, uuid, integer, uuid, public.money_amount)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 create function public.add_part_to_job(
   line_id uuid,
@@ -290,7 +290,7 @@ comment on function public.add_part_to_job(uuid, uuid, uuid, integer, uuid, publ
   'D267: active staff put a stocked part on an open job; consigned stock BICII holds too little of is received from its consignor at that moment (received_on_use) and used. Replay-safe by line id.';
 
 revoke all on function public.add_part_to_job(uuid, uuid, uuid, integer, uuid, public.money_amount)
-  from public, anon;
+  from public, anon, authenticated, service_role;
 grant execute on function public.add_part_to_job(uuid, uuid, uuid, integer, uuid, public.money_amount)
   to authenticated;
 
@@ -400,5 +400,5 @@ $$;
 comment on function public.check_received_on_use(uuid) is
   'D267: manage_consignments confirms an item received on use (its consignor and amount owed look right), taking it off the review list. Idempotent.';
 
-revoke all on function public.check_received_on_use(uuid) from public, anon;
+revoke all on function public.check_received_on_use(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.check_received_on_use(uuid) to authenticated;

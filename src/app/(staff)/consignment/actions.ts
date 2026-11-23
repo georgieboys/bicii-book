@@ -150,7 +150,7 @@ export const returnConsignmentItemAction = staffAction(
 
 /** D267: a manager confirms an item received on use. */
 export const checkReceivedOnUseAction = staffAction(
-  z.object({ itemId: z.uuid() }),
+  z.object({ itemId: z.guid() }),
   { name: "consignment.check_received_on_use", permission: MANAGE },
   async ({ itemId }, { supabase }) => {
     await checkReceivedOnUse(supabase, itemId);

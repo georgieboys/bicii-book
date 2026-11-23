@@ -127,6 +127,7 @@ describe.skipIf(!isolatedDatabase())("receive on use (D267, D268)", () => {
     });
   });
 
+  // consignor_payout_snapshot is per unit.
   it("uses what BICII holds first, then receives the rest from the same consignor at its terms", async () => {
     await inTx(async (tx) => {
       const consignorId = await createConsignor(tx);
@@ -148,7 +149,7 @@ describe.skipIf(!isolatedDatabase())("receive on use (D267, D268)", () => {
       ]);
       expect(await jobLines(tx, job.id)).toEqual([
         { quantity: "1.00", consigned: true, payout: "15.00" },
-        { quantity: "2.00", consigned: true, payout: "30.00" },
+        { quantity: "2.00", consigned: true, payout: "15.00" },
       ]);
       expect(await onHand(tx, productId)).toBe(0);
     });

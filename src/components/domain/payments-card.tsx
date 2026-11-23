@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import {
   checkWithStripeAction,
+  reviewCounterPaymentAction,
   voidCounterPaymentAction,
 } from "@/app/(staff)/jobs/payment-actions";
 import { Badge } from "@/components/ui/badge";
@@ -369,7 +370,8 @@ export function PaymentsCard({
 /**
  * One counter payment: what it was for, how it was paid, the amount, the
  * day, the reference and who recorded it; one recorded by someone who is
- * not an admin and not yet reviewed says an admin will check it (D270); a
+ * not an admin and not yet reviewed says an admin will check it, and an
+ * admin presses Looks right on it here as on Today (D270); a
  * voided one struck through with why, who and when. An admin's two corrections on a live one, each
  * its own ReasonConfirm (D161d; step3-critique C18): "Void (recorded in
  * error)…" (it never came in) and "Given back…" (the shop handed it back
@@ -377,10 +379,18 @@ export function PaymentsCard({
  * its reason, so no request id is needed.
  */
 function CounterRow({ payment: c, canVoid }: { payment: CounterPayment; canVoid: boolean }) {
+  const { toast } = useToast();
   const [confirming, setConfirming] = useState<CounterVoidKind | null>(null);
+  const [reviewing, startReview] = useTransition();
   const amount = formatMoney(c.amount, c.currency);
   const what = c.kind === "deposit" ? "Deposit" : "Towards the bill";
   const label = `${what} ${amount}, ${COUNTER_METHOD_LABELS[c.method]}`;
+  // D270: an admin reviews it here too, not only from Today.
+  const review = () =>
+    startReview(async () => {
+      const r = await callAction(() => reviewCounterPaymentAction({ counterPaymentId: c.id }));
+      if (!r.ok) toast({ title: "Not saved", description: r.error, tone: "error" });
+    });
   const voidControl = (kind: CounterVoidKind) => (
     <ReasonConfirm
       key={kind}
@@ -443,6 +453,18 @@ function CounterRow({ payment: c, canVoid }: { payment: CounterPayment; canVoid:
         </p>
       ) : canVoid ? (
         <div className="flex flex-wrap gap-2">
+          {c.awaitingReview && confirming === null ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={review}
+              pending={reviewing}
+              pendingLabel="Saving…"
+              aria-label={`Looks right: ${label}`}
+            >
+              Looks right
+            </Button>
+          ) : null}
           {confirming !== "given_back" ? voidControl("recorded_in_error") : null}
           {confirming !== "recorded_in_error" ? voidControl("given_back") : null}
         </div>

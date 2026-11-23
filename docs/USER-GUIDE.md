@@ -1907,7 +1907,7 @@ trackers and handovers needs **Manage adventures**.
   whoever recorded it: the part is no longer held back from ordering and
   the customer's page stops asking for it. Recorded by someone who is not
   an admin, the row also says "An admin will check this payment." until
-  an admin presses **Looks right**.
+  an admin presses **Looks right** (on that row, or on Today).
 - When the customer had a Stripe page open for this job, BICII closes it.
   If a payment on it went through first, the sheet stays open and says
   "An online payment for this job has just gone through; refund it in
@@ -1959,6 +1959,8 @@ trackers and handovers needs **Manage adventures**.
   amount, "Deposit" or "Towards the bill", how it was paid, the job, the
   day it was paid, the reference and who recorded it. Check it against
   the till, the terminal or the PayNow record, then press **Looks right**.
+  The same **Looks right** sits on the payment's row in the job's
+  **Customer payments** card, so an admin on the job reviews it there.
   One that is wrong: open its job and void it there (see "Void a counter
   payment or record it as given back (admins)").
 - Success looks like: the row leaves the list; on the job the note "An

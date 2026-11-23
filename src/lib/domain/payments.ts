@@ -210,7 +210,7 @@ export type PaymentTotals = {
   paidAhead: string | null;
   /** Net paid online above the job total, in every status (R-082); null outside SGD. */
   heldOverTotal: string | null;
-  /** Live counter payments an admin recorded (D161); "0.00" when none. */
+  /** Live counter payments staff recorded (D161, D270); "0.00" when none. */
   paidAtCounter: string;
   /** Online net plus counter money: what balance_due and paid_ahead are taken from (D161j). */
   netPaid: string;
@@ -472,8 +472,8 @@ export async function sendBalanceLink(
 }
 
 /**
- * record_counter_payment (D161i): an active admin only (the RPC's
- * require_admin). With `quoteId` it settles that quote's deposit at
+ * record_counter_payment (D161i, D270): any active staff member (the RPC's
+ * require_staff). With `quoteId` it settles that quote's deposit at
  * exactly its amount; without, it counts towards the bill. `receivedAt`
  * null means now. Replay-safe on `id`. `openCheckouts` is how many of the
  * job's open Checkout sessions this money made stale (the action expires

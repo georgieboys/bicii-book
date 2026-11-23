@@ -16,8 +16,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const checkWithStripeAction = vi.fn();
 const voidCounterPaymentAction = vi.fn();
+const reviewCounterPaymentAction = vi.fn();
 vi.mock("@/app/(staff)/jobs/payment-actions", () => ({
   checkWithStripeAction: (...a: unknown[]) => checkWithStripeAction(...a),
+  reviewCounterPaymentAction: (...a: unknown[]) => reviewCounterPaymentAction(...a),
   voidCounterPaymentAction: (...a: unknown[]) => voidCounterPaymentAction(...a),
   sendBalanceLinkAction: vi.fn(),
   recordCounterPaymentAction: vi.fn(),
@@ -419,6 +421,26 @@ describe("PaymentsCard counter rows (D161, C18)", () => {
     expect(row).toHaveTextContent("An admin will check this payment.");
     expect(within(row).queryByRole("button")).toBeNull();
     expect(screen.getByRole("button", { name: "Record counter payment" })).toBeInTheDocument();
+  });
+
+  it("an admin presses Looks right on one awaiting review, on the job itself (D270)", async () => {
+    reviewCounterPaymentAction.mockResolvedValue({ ok: true, data: undefined });
+    show(withCash({ ...CASH, recordedBy: "Nur Mechanic", awaitingReview: true }), {
+      canRecordCounter: true,
+      canVoidCounter: true,
+    });
+    const row = screen.getByRole("listitem", { name: "Towards the bill $45.00, Cash" });
+    await act(async () => {
+      fireEvent.click(
+        within(row).getByRole("button", { name: "Looks right: Towards the bill $45.00, Cash" }),
+      );
+    });
+    await waitFor(() =>
+      expect(reviewCounterPaymentAction).toHaveBeenCalledWith({ counterPaymentId: COUNTER }),
+    );
+    // A reviewed one (or one an admin recorded) offers no Looks right.
+    show(withCash(CASH), { canRecordCounter: true, canVoidCounter: true });
+    expect(screen.getAllByRole("button", { name: /^Looks right/ })).toHaveLength(1);
   });
 
   it("a voided row is struck through with why, who and when", () => {

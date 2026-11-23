@@ -2991,8 +2991,8 @@ URLs, or customer data in this file.
   is corrected by an admin. Reports' note reads "only what staff
   recorded". Evidence: `tests/db/staff-counter-payments.test.ts` (CI
   only; not run locally, the local database is the hosted one). Residual:
-  an unreviewed payment is visible only on Today, which an admin must
-  open.
+  an unreviewed payment is listed only on Today (and offered for
+  **Looks right** on its own job's card), which an admin must open.
 - Next action: the owner answers question 35 (forks 1, 5 and 7; fork 2
   is D270).
 - Revisit trigger: a request to reconcile the till; a disputed counter

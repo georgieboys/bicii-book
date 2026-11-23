@@ -72,7 +72,7 @@ export function paymentKindLabel(movement: string, kind: string): string {
   return kind;
 }
 
-/** How the money moved: Stripe online, or the counter method an admin recorded. */
+/** How the money moved: Stripe online, or the counter method staff recorded. */
 export function paymentMethodLabel(method: string): string {
   if (method === "stripe") return "Stripe";
   if (method === "shopify") return "Shopify";
@@ -198,7 +198,7 @@ export type PaymentItem = {
   currency: string;
   /** Stripe took another currency: counted at the amount asked. */
   otherCurrency: boolean;
-  /** Counter rows only: when and by whom an admin recorded it (shows back-dating). */
+  /** Counter rows only: when and by whom staff recorded it (shows back-dating). */
   recordedAt: string | null;
   recordedByName: string | null;
 };

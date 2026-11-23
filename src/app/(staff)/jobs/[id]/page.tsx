@@ -103,7 +103,7 @@ function sharedRate(job: WorkOrderDetail): string | null {
  * Commons only with view_costs: the DTO has none otherwise), the indent
  * parts and quote (Phase 13), the Customer payments card once a deposit,
  * an online payment or a counter payment exists, or when a payment link
- * can be sent or an admin can record a counter payment (Phase 14, D154,
+ * can be sent or a counter payment recorded (Phase 14, D154, D270,
  * D156, D161; hidden if its read fails), what was paid (online and at the
  * counter) and what is left under the total, approved indent items not on
  * the bill as a memo under the total, never in it, and what a closed job

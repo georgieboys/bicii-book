@@ -1,11 +1,12 @@
 /**
  * D270 staff counter payments (amends D161a): any active staff member
  * records counter money, a quote's deposit included; one recorded by
- * someone who is not an admin waits for an admin's review
- * (needs_review, review_counter_payment); voiding stays admin only.
+ * a mechanic waits for an admin's or manager's review
+ * (needs_review, review_counter_payment); admins and managers review
+ * and void (D272).
  *
- *   record_counter_payment   require_staff; needs_review = not an admin.
- *   review_counter_payment   admins only; idempotent; P0002 when unknown.
+ *   record_counter_payment   require_staff; needs_review = a mechanic.
+ *   review_counter_payment   admins and managers; idempotent; P0002 when unknown.
  *   counter_payments_immutable  lets the one review through, nothing else.
  *   quote_deposits / quote_by_token  a mechanic's counter deposit makes
  *                            the deposit paid in the same transaction.
@@ -122,26 +123,28 @@ describe.skipIf(!isolatedDatabase())("Staff counter payments (D270)", () => {
     });
   });
 
-  it("a manager's payment is flagged too; an admin's is not", async () => {
+  it("a manager's or admin's payment needs no review (D272); a mechanic's does", async () => {
     await inTransaction(conn, async (tx) => {
       const job = await billedJob(tx);
       await actAs(tx, MANAGER);
       const managers = await recordAs(tx, { workOrderId: job.id, amount: "10.00" });
       await actAs(tx, ADMIN);
       const admins = await recordAs(tx, { workOrderId: job.id, amount: "5.00" });
-      expect((await reviewRow(tx, managers)).needs_review).toBe(true);
+      await actAs(tx, MECHANIC2);
+      const mechanics = await recordAs(tx, { workOrderId: job.id, amount: "3.00" });
+      expect((await reviewRow(tx, managers)).needs_review).toBe(false);
       expect((await reviewRow(tx, admins)).needs_review).toBe(false);
-      expect(await toReview(tx, job.id)).toEqual([managers]);
+      expect(await toReview(tx, job.id)).toEqual([mechanics]);
     });
   });
 
-  it("an admin reviews it, once; mechanics and managers cannot; an unknown id is P0002", async () => {
+  it("an admin reviews it, once; mechanics cannot; an unknown id is P0002", async () => {
     await inTransaction(conn, async (tx) => {
       const job = await billedJob(tx);
       await actAs(tx, MECHANIC2);
       const id = await recordAs(tx, { workOrderId: job.id, amount: "30.00" });
 
-      for (const claims of [MECHANIC2, MANAGER, ANON]) {
+      for (const claims of [MECHANIC2, ANON]) {
         await actAs(tx, claims);
         await failsWith(tx, () => review(tx, id), DENIED);
       }
@@ -226,13 +229,31 @@ describe.skipIf(!isolatedDatabase())("Staff counter payments (D270)", () => {
     });
   });
 
+  it("a manager reviews and voids counter payments too (D272)", async () => {
+    await inTransaction(conn, async (tx) => {
+      const job = await billedJob(tx);
+      await actAs(tx, MECHANIC2);
+      const reviewed = await recordAs(tx, { workOrderId: job.id, amount: "30.00" });
+      const voided = await recordAs(tx, { workOrderId: job.id, amount: "20.00" });
+      await actAs(tx, MANAGER);
+      await review(tx, reviewed);
+      expect((await reviewRow(tx, reviewed)).reviewed_by).toBe(STAFF.manager);
+      await actAs(tx, MANAGER);
+      await tx.query("select public.void_counter_payment($1, 'recorded_in_error', $2)", [
+        voided,
+        "Typed on the wrong job",
+      ]);
+      expect(await toReview(tx, job.id)).toEqual([]);
+    });
+  });
+
   it("a mechanic cannot void a counter payment; an admin can, and it leaves the review list", async () => {
     await inTransaction(conn, async (tx) => {
       const job = await billedJob(tx);
       await actAs(tx, MECHANIC2);
       const id = await recordAs(tx, { workOrderId: job.id, amount: "30.00" });
 
-      for (const claims of [MECHANIC2, MANAGER]) {
+      for (const claims of [MECHANIC2]) {
         await actAs(tx, claims);
         await failsWith(
           tx,

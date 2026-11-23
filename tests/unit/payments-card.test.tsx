@@ -392,7 +392,7 @@ describe("PaymentsCard deposits, issues and footer", () => {
     show(DUE);
     expect(
       screen.getByText(
-        "Money held against this job, not a sale. Online refunds are made in Stripe; an admin corrects a counter payment by voiding it.",
+        "Money held against this job, not a sale. Online refunds are made in Stripe; an admin or manager corrects a counter payment by voiding it.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Online through Stripe, and at the counter")).toBeInTheDocument();
@@ -418,7 +418,7 @@ describe("PaymentsCard counter rows (D161, C18)", () => {
       canRecordCounter: true,
     });
     const row = screen.getByRole("listitem", { name: "Towards the bill $45.00, Cash" });
-    expect(row).toHaveTextContent("An admin will check this payment.");
+    expect(row).toHaveTextContent("An admin or manager will check this payment.");
     expect(within(row).queryByRole("button")).toBeNull();
     expect(screen.getByRole("button", { name: "Record counter payment" })).toBeInTheDocument();
   });

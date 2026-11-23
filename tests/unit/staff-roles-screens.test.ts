@@ -75,7 +75,7 @@ describe("role change wording", () => {
     expect(s.kept).toEqual([]);
     expect(s.lost).toEqual([]);
     expect(s.lines).toEqual([
-      "Managers have every permission except Manage staff, and can record refunds.",
+      "Managers have every permission except Manage staff, and can record refunds and void counter payments.",
       "Their extra access to Manage purchasing and View costs is included in the new role and will be removed. Changing the role back later does not restore it.",
     ]);
   });
@@ -87,7 +87,7 @@ describe("role change wording", () => {
     expect(s.lines.at(-1)).toBe("Their extra access to Manage staff stays.");
   });
 
-  it("manager to mechanic: what they lose, refunds included", () => {
+  it("manager to mechanic: what they lose, refunds and voiding counter payments included (D272)", () => {
     const s = roleChangeSummary("manager", "mechanic", []);
     expect(s.dropped).toEqual([]);
     expect(s.lost).toEqual([
@@ -101,11 +101,14 @@ describe("role change wording", () => {
       "Verify adventures",
       "Facilitate adventures",
       "Record refunds",
+      "Void counter payments",
     ]);
     expect(s.lines[0]).toBe(
       "Mechanics have workshop access only, plus any extra access given to them.",
     );
-    expect(s.lines[1]).toMatch(/^They will no longer have View costs, .* and Record refunds\.$/);
+    expect(s.lines[1]).toMatch(
+      /^They will no longer have View costs, .*, Record refunds and Void counter payments\.$/,
+    );
   });
 
   it("manager with Manage staff to admin: the exception is included, nothing is lost", () => {
@@ -114,12 +117,10 @@ describe("role change wording", () => {
     expect(s.lost).toEqual([]);
   });
 
-  it("admin to manager: Manage staff, voiding counter payments and the admin settings go, refunds stay", () => {
+  it("admin to manager: Manage staff and the admin settings go; refunds and voiding counter payments stay (D272)", () => {
     const s = roleChangeSummary("admin", "manager", []);
-    expect(s.lost).toEqual(["Manage staff", "Void counter payments", "Admin settings"]);
-    expect(s.lines).toContain(
-      "They will no longer have Manage staff, Void counter payments and Admin settings.",
-    );
+    expect(s.lost).toEqual(["Manage staff", "Admin settings"]);
+    expect(s.lines).toContain("They will no longer have Manage staff and Admin settings.");
   });
 
   it("admin to mechanic: voiding counter payments goes with refunds (D161d, D270)", () => {

@@ -25,7 +25,8 @@ export function roleWithArticle(role: StaffRole): string {
 export const ROLE_GRANTS: Record<StaffRole, string> = {
   admin:
     "Admins have every permission, manage staff and roles, change the shop settings, and can record refunds and void counter payments.",
-  manager: "Managers have every permission except Manage staff, and can record refunds.",
+  manager:
+    "Managers have every permission except Manage staff, and can record refunds and void counter payments.",
   mechanic: "Mechanics have workshop access only, plus any extra access given to them.",
 };
 

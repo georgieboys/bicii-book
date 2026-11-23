@@ -489,7 +489,7 @@ const counterEvents = (tx: pg.Client, workOrderId: string, type: string) =>
 // ---------------------------------------------------------------------------
 
 describe("Who can reach counter payments (D161a, DATA-MODEL §15)", () => {
-  it("any active staff member records (D270), only an active admin voids; customers get 42501; anon and the service role cannot execute", async () => {
+  it("any active staff member records (D270), only an active admin or manager voids (D272); customers get 42501; anon and the service role cannot execute", async () => {
     await inTransaction(conn, async (tx) => {
       const job = await billedJob(tx);
       const { counter_payment_id: id } = await record(tx, { workOrderId: job.id, amount: "10.00" });
@@ -502,7 +502,9 @@ describe("Who can reach counter payments (D161a, DATA-MODEL §15)", () => {
       }
       for (const claims of [MANAGER, MECHANIC2]) {
         await actAs(tx, claims);
-        await failsWith(tx, () => callVoid(tx, id, "recorded_in_error", "No"), DENIED);
+        if (claims === MECHANIC2) {
+          await failsWith(tx, () => callVoid(tx, id, "recorded_in_error", "No"), DENIED);
+        }
         expect((await callRecord(tx, { workOrderId: job.id, amount: "5.00" })).replayed).toBe(
           false,
         );

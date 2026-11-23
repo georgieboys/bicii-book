@@ -222,8 +222,8 @@ const optionalText = (max: number, what: string) =>
 
 /**
  * Record money the shop took at the counter (D161; any active staff
- * member since D270, the RPC's require_staff; one recorded by someone who
- * is not an admin is listed on Today for an admin to review). With `quoteId` it settles that quote's
+ * member since D270, the RPC's require_staff; one recorded by a mechanic
+ * is listed on Today for an admin or manager to review). With `quoteId` it settles that quote's
  * deposit (exactly its amount, which the sheet fixes); without, it counts
  * towards the bill. `receivedAt` null means now. After it commits, and
  * also on a replay of the same id, the job's open Checkout sessions it
@@ -295,7 +295,7 @@ export const recordCounterPaymentAction = staffAction(
 );
 
 /**
- * Void a counter payment (D161d; an active admin only): recorded in error
+ * Void a counter payment (D161d, D272; an active admin or manager): recorded in error
  * (it never came in) or given back (the shop handed it back outside
  * BICII), with a reason. It never expires or refunds anything.
  */
@@ -313,7 +313,7 @@ export const voidCounterPaymentAction = staffAction(
         error: `Keep the reason under ${REASON_MAX_LENGTH} characters.`,
       }),
   }),
-  { name: "payments.void_counter_payment", admin: true },
+  { name: "payments.void_counter_payment", roles: ["admin", "manager"] },
   async (input, { supabase }): Promise<{ replayed: boolean }> => {
     const result = await voidCounterPayment(supabase, input);
     refresh();
@@ -322,13 +322,13 @@ export const voidCounterPaymentAction = staffAction(
 );
 
 /**
- * "Looks right" on a counter payment someone who is not an admin recorded
- * (D270; an active admin only, the RPC's require_admin): it leaves the
+ * "Looks right" on a counter payment a mechanic recorded (D270, D272; an
+ * active admin or manager, the RPC's require_admin_or_manager): it leaves the
  * review list on Today. Idempotent; it changes no money.
  */
 export const reviewCounterPaymentAction = staffAction(
   z.object({ counterPaymentId: z.guid({ error: "Unknown counter payment." }) }),
-  { name: "payments.review_counter_payment", admin: true },
+  { name: "payments.review_counter_payment", roles: ["admin", "manager"] },
   async ({ counterPaymentId }, { supabase }): Promise<void> => {
     await reviewCounterPayment(supabase, counterPaymentId);
     refresh();

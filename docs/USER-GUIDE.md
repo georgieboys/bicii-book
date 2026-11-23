@@ -1998,8 +1998,9 @@ trackers and handovers needs **Manage adventures**.
 - Before you start: anyone signed in records it (D270): an admin, a
   manager or a mechanic, a deposit included. The job is not cancelled.
   BICII records the money; it moves none. It works with Stripe off. One
-  you record without being an admin counts at once and is listed for an
-  admin to check (see "Review counter payments (admins)").
+  a mechanic records counts at once and is listed for an admin or
+  manager to check (see "Review counter payments (admins and managers)").
+  One an admin or manager records needs no check (D272).
 - Steps: on the job's **Customer payments** card press **Record counter
   payment**. Under **What it is for** choose a deposit that is due (or
   was refunded in Stripe), "Record the $120.00 deposit for the quote
@@ -2040,9 +2041,9 @@ trackers and handovers needs **Manage adventures**.
   or before the check-in); what you entered stays to correct. Covered by
   `tests/e2e/payments.spec.ts` (a deposit by PayNow).
 
-### Void a counter payment or record it as given back (admins)
+### Void a counter payment or record it as given back (admins and managers)
 
-- Before you start: you are an admin. BICII moves no money: a give-back
+- Before you start: you are an admin or a manager (D272). BICII moves no money: a give-back
   happens at the counter first, and is recorded on the day the money goes
   back.
 - Steps: on the counter row press one of:
@@ -2067,22 +2068,22 @@ trackers and handovers needs **Manage adventures**.
   is refused. Managers see a counter problem in Exceptions, but only an
   admin voids
   ([R-090](RISKS.md#r-090--a-counter-payment-rests-on-an-admins-word)).
-  Managers and mechanics who recorded a payment by mistake ask an admin
+  Mechanics who recorded a payment by mistake ask an admin or a manager
   to void it. Covered by `tests/e2e/payments.spec.ts` (Given back).
 
-### Review counter payments (admins)
+### Review counter payments (admins and managers)
 
-- Before you start: you are an admin (D270). Nothing waits for you: the
+- Before you start: you are an admin or a manager (D270, D272). Nothing waits for you: the
   payments already count on their jobs.
 - Steps: on **Today**, **Counter payments to review (N)** lists each
-  counter payment recorded by a manager or mechanic, oldest first: the
+  counter payment recorded by a mechanic, oldest first: the
   amount, "Deposit" or "Towards the bill", how it was paid, the job, the
   day it was paid, the reference and who recorded it. Check it against
   the till, the terminal or the PayNow record, then press **Looks right**.
   The same **Looks right** sits on the payment's row in the job's
-  **Customer payments** card, so an admin on the job reviews it there.
+  **Customer payments** card, so an admin or manager on the job reviews it there.
   One that is wrong: open its job and void it there (see "Void a counter
-  payment or record it as given back (admins)").
+  payment or record it as given back (admins and managers)").
 - Success looks like: the row leaves the list; on the job the note "An
   admin will check this payment." goes. A voided payment leaves the list
   too. The list is not shown when nothing waits, or on an earlier day.
@@ -2163,7 +2164,7 @@ shown as a badge on Settings → Your profile and on Settings → Staff:
 | Role | What it lets you do |
 |---|---|
 | Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, who gets booking emails (D163), appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157), the two voids of a counter payment on a job (D161) and **Looks right** on the counter payments others recorded (D270), and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
-| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify, Settings → Customer payments, or voiding or reviewing counter payments |
+| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify, or Settings → Customer payments. Since D272 a manager also reviews and voids counter payments |
 | Mechanic | The workshop: what everyone can do (next paragraph). Anything more only as extra access |
 
 Everyone signed in can use customers, bikes, photos, jobs and their lines,
@@ -2182,8 +2183,8 @@ each one **Extra access**. Extra access never includes **Record refund**,
 ordering an indent part before its deposit is paid (D152) or cancelling
 an indent item on a collected or cancelled job (D149), which are for
 admins and managers only, or voiding and reviewing counter payments
-(D161, D270) and changing a product's owner (D162), which are for admins
-only. Anyone signed in can send a payment
+(D161, D270, D272), which are for admins and managers only, or changing a
+product's owner (D162), which is for admins only. Anyone signed in can send a payment
 link (D156). Each permission, whether it comes
 from your role or as extra access:
 

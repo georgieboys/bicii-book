@@ -398,7 +398,7 @@ async function TodayContent({
         </div>
       </TodaySection>
 
-      {/* D270: counter payments staff who aren't admins recorded, for an admin. */}
+      {/* D270, D272: counter payments a mechanic recorded, for an admin or manager. */}
       {isToday && canVoidCounterPayment(staff) ? (
         <Suspense fallback={<SectionSkeleton rows={1} />}>
           <SectionLoader name="counter-review" load={() => listCounterPaymentsToReview(supabase)}>

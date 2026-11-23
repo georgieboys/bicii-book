@@ -71,7 +71,7 @@ The repository follows
      reporting, D120–D139 public site, D140–D149 indent parts and quotes,
      D150–D159 Stripe payments, D160–D163 later (D160 indent follow-up,
      D161 counter payments, D162 reclassifying shop stock, D163 booking
-     emails), D164–D189 and D190–D209 adventures (D164–D239 taken), D240 reclassifying cancelled purchases, D241–D245 product groups, D246–D259 build packages, D260 frame grades, D261 build extras, D262 online stock holds, D263 account purchases, D264 one-off parts, D265 proposing consigned parts, D266 deposit counts consigned parts, D267 receive on use, D268 owed default, D269 add after complete, D270 staff counter payments, D271 discounts, D272+ later.
+     emails), D164–D189 and D190–D209 adventures (D164–D239 taken), D240 reclassifying cancelled purchases, D241–D245 product groups, D246–D259 build packages, D260 frame grades, D261 build extras, D262 online stock holds, D263 account purchases, D264 one-off parts, D265 proposing consigned parts, D266 deposit counts consigned parts, D267 receive on use, D268 owed default, D269 add after complete, D270 staff counter payments, D271 discounts, D272 managers review and void counter payments, D273+ later.
      Records: ADR-017 labels,
      ADR-018 purchasing, ADR-019 email sign-in, ADR-020 Shopify, ADR-021
      staff roles, ADR-022 reporting, ADR-023 public site, ADR-024 indent

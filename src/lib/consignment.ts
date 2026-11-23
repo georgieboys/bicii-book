@@ -471,3 +471,47 @@ export type ChangeOwnerStock = { locationId: string; name: string; onHand: numbe
 export function stockToMove(stock: ChangeOwnerStock[]): ChangeOwnerStock[] {
   return stock.filter((s) => s.onHand !== 0);
 }
+
+/** One consignor still owed money, for Today's "Pay owners" card. */
+export type OwedConsignor = { id: string; name: string; outstanding: string; items: number };
+
+/**
+ * Today's "Pay owners" card (manage_consignments): the consignors with a
+ * positive outstanding balance (list_consignors, from
+ * reporting.consignor_ledger), most owed first, with the total and the
+ * items awaiting payment. A display sum of the ledger's own figures, as the
+ * consignor page sums its statement; null when nobody is owed anything, so
+ * the card hides. Pass active and archived consignors alike (an archived
+ * consignor can still be owed); `partial` says a list was cut short, so the
+ * total is a floor ("at least").
+ */
+export function owedToConsignors(
+  rows: readonly {
+    id: string;
+    name: string;
+    outstanding: string | null;
+    awaitingItems: number | null;
+  }[],
+  { partial = false }: { partial?: boolean } = {},
+): { total: string; items: number; consignors: OwedConsignor[]; partial: boolean } | null {
+  const owed = rows
+    .filter((r) => r.outstanding !== null && toDecimal(r.outstanding).gt(0))
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      outstanding: r.outstanding!,
+      items: r.awaitingItems ?? 0,
+    }))
+    .sort(
+      (a, b) =>
+        toDecimal(b.outstanding).cmp(toDecimal(a.outstanding)) || a.name.localeCompare(b.name),
+    );
+  if (owed.length === 0) return null;
+  const total = owed.reduce((acc, r) => acc.plus(toDecimal(r.outstanding)), new Decimal(0));
+  return {
+    total: total.toFixed(2),
+    items: owed.reduce((n, r) => n + r.items, 0),
+    consignors: owed,
+    partial,
+  };
+}

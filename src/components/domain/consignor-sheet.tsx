@@ -40,7 +40,9 @@ type State = ActionResult<unknown> | null;
  * consignor may be linked to the customer record of the same person
  * (choosing one prefills the name, phone and email). A new consignor's
  * form carries its own id (idempotency key, made when the sheet opens);
- * saving opens their page. Payout details (bank, PayNow) are entered here
+ * saving opens their page, or, with `onCreated` (a one-off part's "New
+ * consignor"), hands the new consignor back and closes, so the sheet
+ * underneath keeps what was typed. Payout details (bank, PayNow) are entered here
  * but never shown back: on an edit, a blank field keeps what is on file
  * (D48: only manage_consignments reads them, through Show payout details).
  */
@@ -48,26 +50,43 @@ export function ConsignorSheet({
   open,
   onOpenChange,
   consignor,
+  initialName,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   consignor?: ConsignorFields;
+  /** A new consignor's name to start from (what was searched for). */
+  initialName?: string;
+  /** A new consignor is chosen where it was asked for instead of opened. */
+  onCreated?: (created: { id: string; label: string }) => void;
 }) {
-  return open ? <ConsignorSheetBody onOpenChange={onOpenChange} consignor={consignor} /> : null;
+  return open ? (
+    <ConsignorSheetBody
+      onOpenChange={onOpenChange}
+      consignor={consignor}
+      initialName={initialName}
+      onCreated={onCreated}
+    />
+  ) : null;
 }
 
 function ConsignorSheetBody({
   onOpenChange,
   consignor,
+  initialName,
+  onCreated,
 }: {
   onOpenChange: (open: boolean) => void;
   consignor?: ConsignorFields;
+  initialName?: string;
+  onCreated?: (created: { id: string; label: string }) => void;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const formId = useId();
   const [id] = useState(() => consignor?.id ?? newId());
-  const [name, setName] = useState(consignor?.name ?? "");
+  const [name, setName] = useState(consignor?.name ?? initialName ?? "");
   const [phone, setPhone] = useState(consignor?.phone ?? "");
   const [email, setEmail] = useState(consignor?.email ?? "");
   const [customer, setCustomer] = useState<PickerOption | null>(consignor?.customer ?? null);
@@ -85,6 +104,10 @@ function ConsignorSheetBody({
     if (result.ok) {
       if (consignor) {
         toast({ title: "Consignor saved", tone: "success" });
+        onOpenChange(false);
+      } else if (onCreated) {
+        toast({ title: "Consignor created", tone: "success" });
+        onCreated({ id, label: name.trim() || "New consignor" });
         onOpenChange(false);
       } else {
         toast({ title: "Consignor created", tone: "success" });

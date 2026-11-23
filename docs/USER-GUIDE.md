@@ -159,6 +159,18 @@ managers.
 - Success looks like: a toast "J-…: <new status>" and the status in the
   timeline. A completed job says "Completed jobs are locked. Reopen to
   change lines."
+- **Tell the customer** (completed and ready-for-collection jobs): the
+  button under the status buttons opens a message, ready to change: "Hi
+  <first name>, your <bike> is ready for collection at BICII (job J-…).",
+  "Balance due on collection: $…." (or "It is all paid, nothing is due on
+  collection.") and "Collect it at <the shop's address>.". **Open
+  WhatsApp** (with the customer's phone) or **Email** (with their email)
+  opens your own app with it filled in, and leaves a note in the job's
+  timeline ("Told the customer the bike is ready (opened WhatsApp with
+  this message): …"); **Copy message** copies it. Without a phone or
+  email on file the sheet says "The customer has no WhatsApp number or
+  email on file. Copy the message and send it another way, or add their
+  phone or email on their customer page." BICII sends nothing itself.
 - If it fails: "A job can't move to that status from where it is now."
   "Give a reason for this change." "Void the job's lines before cancelling
   it. Voiding a part returns it to stock." "Fit or cancel the job's
@@ -178,7 +190,11 @@ managers.
 - Before you start: the job is open (not completed).
 - Steps:
   - **Add service**: pick the service, adjust **Unit price** or
-    **Quantity** if needed, press **Add service**.
+    **Quantity** if needed, press **Add service**. No service for it
+    ("No active service matches. Add it as a labour line.")? The last row
+    of the list, **Add "…" as labour line**, opens **Add manual line**
+    with what you typed as the **Description**: give the price and add
+    it. A manager can add the service to the catalog later.
   - **Add part**: search by name, SKU, P- or U- number. Each choice shows
     what is in stock where ("40 at Shop floor · 60 total"). Choose
     **Quantity** and where to **Take from**; **Price each** is optional
@@ -206,7 +222,10 @@ managers.
     top. **Add to job** makes the product, takes it into stock and puts it
     on the job in one step; a consignor is owed when the job is completed.
     It needs the rights of Receive item (consigned) or of New product and
-    Adjust stock (the shop's).
+    Adjust stock (the shop's). The consignor isn't on the list yet? The
+    last row, **New consignor "…"**, opens **New consignor** with what you
+    typed as the **Name**; **Create consignor** chooses them and leaves the
+    part as you typed it.
   - **Add manual line**: **Description**, **Quantity**, **Unit price** and,
     with cost access, **Unit cost** ("Enter 0 when there is no direct cost.
     Left empty, the line is marked cost pending.").
@@ -816,7 +835,10 @@ while an approved or ordered item is neither fitted nor cancelled:
   later date. "That consigned item is no longer with the shop." means the
   consignment you picked went meanwhile: remove the line and search
   again. A sold bike is not
-  transferred to the buyer: use **Transfer** on the bike page (D51).
+  transferred to the buyer: use **Transfer** on the bike page (D51). The
+  buyer isn't a customer yet? In **Transfer ownership** (and in a new
+  bike's **Owner**), the customer search ends with **New customer "…"**:
+  it adds them and chooses them there.
 
 ### Refund a sale
 
@@ -1017,7 +1039,11 @@ while an approved or ordered item is neither fitted nor cancelled:
   - **Purchasing** → **Suppliers** → **New supplier** for someone new:
     **Name**, **Contact name**, **Phone**, **Email**, **Website**,
     **Account reference** (BICII's account number with them), then
-    **Create supplier**.
+    **Create supplier**. Or, from any supplier search (New order, Reorder,
+    a product's supplier link): the last row, **New supplier "…"**, opens
+    the same sheet with what you typed as the **Name**; **Create
+    supplier** chooses the new supplier there, and what you typed around
+    it stays.
   - On the supplier's page, **New order** (the supplier is fixed), or
     **Purchasing** → **New order** and pick the supplier. Optionally a
     **Supplier reference** and an expected date; **Create order** opens
@@ -1306,6 +1332,13 @@ website's account pages go live when the owner switches them on,
   Appointments (arrivals, still expected, arrived), Stock (parts used, low
   stock, significant adjustments), Needs attention, Activity and the Last 7
   days. Use the day navigator for an earlier day and **Back to today**.
+- **Pay owners** (Manage consignments, today only): "Owed to
+  consignors: $… on N items", then the consignors owed the most (up to
+  five; **See all** opens Consignment), each with its amount and "N items
+  awaiting payment". Archived consignors who are still owed count too. With
+  more consignors than one list holds, it reads "Owed to consignors: at
+  least $… on N items". A row opens the consignor, where **Record payment**
+  is. The card is hidden when nobody is owed anything.
 - Money (Gross sales) appears only with View financial reports; Direct
   costs (COGS), Yield, Cult Commons and BICII after Cult Commons also need
   View costs.

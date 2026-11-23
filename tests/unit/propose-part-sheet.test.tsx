@@ -17,6 +17,12 @@ vi.mock("@/app/(staff)/jobs/indent-actions", () => ({
   fitPartBoughtOutsideAction: vi.fn(),
   proposeOneOffPartAction: vi.fn(),
 }));
+// The one-off sheet's "New consignor" sheet links a customer record.
+vi.mock("@/app/(staff)/customers/actions", () => ({
+  searchCustomers: vi.fn(),
+  createCustomer: vi.fn(),
+  updateCustomer: vi.fn(),
+}));
 vi.mock("@/app/(staff)/consignment/actions", () => ({ searchConsignorsAction: vi.fn() }));
 vi.mock("@/app/(staff)/jobs/actions", () => ({ searchServiceOptions: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));

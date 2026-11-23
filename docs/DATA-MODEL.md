@@ -2191,6 +2191,35 @@ At the counter (`20261123000200_counter_receive_on_use.sql`):
   `unit_price` the latest item's asking price else the product's, subtitle
   ending "Consigned · none recorded: received when sold".
 
+### Keep-moving screens (2026-11-23, no migration)
+
+Screen-only fixes from the owner's keep-moving direction: each uses a
+write that already exists, with its own permission check; no contract
+changes.
+
+- **Add service → Add as labour line** writes through `add_manual_line`
+  (the manual line sheet, prefilled with the search).
+- **New supplier** from any supplier picker: the `suppliers` insert under
+  its RLS policy (manage_purchasing, as every picker's screen already
+  needs); the new id is chosen in place. **New consignor** from a one-off
+  part: the `consignors` insert (manage_consignments). **New customer**
+  from the bike and transfer sheets: the `customers` insert (active
+  staff). Each is replay-safe by its client-made id, as before.
+- **Tell the customer** (completed and ready-for-collection jobs) reads
+  `work_order_payment_totals.balance_due` (through the job's payments
+  loader) and records nothing but a timeline note, through
+  `add_work_order_note(note_id, work_order_id, 'note', body)`, one
+  `note_id` per channel per opening of the sheet, so a second tap replays.
+  No message is sent by BICII.
+- **Today → Pay owners** (manage_consignments) reads `list_consignors`
+  twice, active and archived (an archived consignor can still be owed;
+  `include_archived` returns archived ones only), 199 rows each with one
+  more to detect a cut-off list (the RPC caps `max_rows` at 200);
+  `outstanding` and `awaiting_settlement_items` are visible to consignment
+  money users (D48). It sums the positive `outstanding` figures for display
+  only, as the consignor page sums its statement, and says "at least" when
+  either list was cut off.
+
 ### One-off parts (D264)
 
 Built out of phase on 2026-11-22 (`20261122001800_one_off_parts.sql`).

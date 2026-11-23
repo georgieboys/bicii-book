@@ -281,6 +281,60 @@ managers.
   - "This job is no longer open. Reopen a completed or ready job to change
     its lines; a collected or cancelled job can't change."
 
+### Give a discount or round a job's total off (D271)
+
+- Before you start: the job has lines and is not collected or cancelled.
+  Any staff member can do it; it works on open jobs and on completed or
+  ready ones.
+- Steps:
+  - Under the job's totals, press **Discount / round off**.
+  - Choose **Take off** and enter the **Amount to take off** ("At most
+    S$…, the job's total."), or choose **Round to** and enter the **New
+    total** ("Below S$…, the job's total now.").
+  - Give the **Reason** (required, up to 300 characters).
+  - The sheet shows each line's new price (old price struck through) and
+    the **New total**. A consigned part that would sell below what its
+    consignor is owed says "This sells <part> below what is owed to the
+    consignor." That is allowed: the consignor is still owed the same.
+  - On a completed or ready job the sheet says "This job is completed or
+    ready for collection. It is reopened, discounted and put back in one
+    step; the reason goes on the reopen." When the job has a live payment
+    link it adds "Its payment link is withdrawn: send a new one for the
+    new total."
+  - When the customer has already paid more than the new total, the sheet
+    says "The customer has already paid S$…, so S$… of it will be above
+    the new total. Give it back from Payments." That is allowed; the job's
+    Payments card then shows it as **Paid above the bill**.
+  - Press **Apply discount**.
+- What happens: there is no discount line. The amount is spread over the
+  job's lines that have a price (parts, services, manual lines, a build's
+  parts and labour), each in proportion to its total, as new prices; the
+  largest line takes the last cent so the total drops by exactly the
+  amount. Each line's yield and Cult Commons are worked out on its new
+  price. Stock does not move and the product history shows nothing new. On
+  a build, the package price (and its labour amount) drops by what the
+  package's lines gave, so the package still adds up and **Fit parts to
+  budget** keeps the discount. A completed job is reopened and completed
+  again (a ready one goes back to ready); a payment link it had is
+  withdrawn, so send a new one for the new total. Like any reopen, the
+  job's sales then count on today's shop day in the reports, not the day
+  it was first completed.
+- Success looks like: a toast "S$… taken off" ("The job's total is now
+  S$…"), and the timeline reads "Discount of S$…, new total S$…" with the
+  reason.
+- If it fails:
+  - "That's more than the job's total. Take off at most the total."
+  - "This job is collected or cancelled, so its money has been taken. Give
+    a refund instead."
+  - The reopen's own checks still apply to a completed or ready job: a
+    shop bike sold on it that now belongs to a customer, or a consigned
+    part whose consignor is archived, stops it with the reopen's message.
+  - Lines that come only in 2s or 3s can't always take the last cent; the
+    sheet says "The lines come in quantities that take S$… off, not
+    exactly S$…" before you apply, and "The job's lines come in quantities
+    that can't take this little off. Take off a little more." when nothing
+    can come off.
+
 ### Build a bike to a package (full builds and build only)
 
 - Before you start: the job is open, and an admin has added the packages

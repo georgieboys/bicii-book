@@ -2166,6 +2166,64 @@ Built out of phase on 2026-11-23 (`20261123000100_receive_on_use.sql`).
 - `check_received_on_use(item_id)` (manage_consignments): sets
   `use_checked_at`/`use_checked_by` once; idempotent.
 
+### Discounts and round-offs (D271)
+
+Built out of phase on 2026-11-23 (`20261123000500_job_discounts.sql`).
+Amends D14 ("no negative-price or discount lines"): there is still no
+discount line; a discount re-prices the job's lines. D1 is unchanged: each
+line's Cult Commons share is on its new sale price.
+
+- `work_order_discounts` (RLS: staff read; written only by
+  `apply_job_discount`): `id` (the request id), `work_order_id`, `amount`
+  (asked), `applied_amount` (taken off, > 0, ≤ `total_before`), `reason`
+  (1–300 characters), `total_before`, `total_after`, `currency`,
+  `reopened`, `result` jsonb (what the call returned, for a replay),
+  `created_by`, `created_at`.
+- `private.plan_job_discount(wo, amount)` (stable): the chargeable lines
+  are the job's live lines with a `sale_total` above zero, largest first. `discount_not_positive` for amount ≤ 0, `discount_over_total`
+  above their total. Each line's new unit price is `round(round(s − a·s/T,
+  2) / q, 2)` (never above its price, never below 0); the remainder to the
+  exact new total goes on the first (largest) line whose quantity can take
+  it exactly, else as close as the lines allow. Returns jsonb `{currency,
+  total_before, amount, applied, total_after, reopens, paid, paid_over,
+  withdraws_link, lines: [{line_id,
+  description, line_type, quantity, from_price, to_price, from_total,
+  to_total, below_consignor}]}`, money as text. `below_consignor` is true
+  when a consigned line's new unit price is below its
+  `consignor_payout_snapshot` (the payout itself is never returned).
+  `paid` is `work_order_payment_totals.net_paid` and `paid_over` =
+  max(paid − new total, 0): money already taken is never a block, the
+  sheet says how much would be above the bill. `withdraws_link` is true
+  when the job is completed or ready and has a live balance link, which
+  the reopen withdraws.
+- `preview_job_discount(work_order_id, amount)` (active staff, stable) →
+  the plan; `discount_job_closed` for a collected or cancelled job.
+- `apply_job_discount(request_id, work_order_id, amount, reason)` (active
+  staff) → the plan plus `discount_id, reason, reopened, changed_count,
+  replayed`. Locks the job; a known request id with the same job, amount
+  and reason returns the stored result with `replayed: true`, anything else
+  `discount_request_conflict`; then `reason_required`,
+  `discount_reason_too_long`, `discount_job_closed`, the plan
+  (`discount_too_small` when nothing can come off). A completed or
+  ready job goes to `in_progress` through `set_work_order_status` with the
+  note "Reopened to give a discount: <reason>". The lines are locked in id
+  order and each changed price is written by `private.reprice_line` (D248),
+  so the line, its stock movement, unit, consignment item and payout stay.
+  On a job with a build package, `work_order_builds.price` drops by what
+  the package's lines (its labour line and its parts that are not extras)
+  gave and `labour_amount` by what the labour line gave (never below 0,
+  never above the price); `work_order_builds_price_positive` becomes
+  `work_order_builds_price_not_negative` (price ≥ 0). Event
+  `discount_applied {discount_id, amount (applied), reason, total_before,
+  total_after, currency, lines: [{line_id, description, quantity,
+  from_price, to_price}]}`. Then the job is completed again, and put back
+  to `ready_for_collection` when it was ready (the reopen withdraws a live
+  balance link, D156d). As with any reopen (D3 as modified by D15), the
+  job's lines are then recognised on the shop day of this completion, not
+  the earlier one, and the reopen's own refusals apply
+  (`bike_with_customer`, `consignor_archived`). The `work_order_discounts`
+  row is written last.
+
 ### Add after complete (D269)
 
 Built out of phase on 2026-11-23 (`20261123000300_add_after_complete.sql`).

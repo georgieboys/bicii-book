@@ -507,6 +507,17 @@ export function describeEvent(
         tone: "neutral",
       };
     }
+    // D271: an amount taken off, spread over the lines as new prices.
+    case "discount_applied": {
+      const off = amount(p, "amount");
+      const after = amount(p, "total_after");
+      const title = off !== null ? `Discount of ${formatMoney(off, currency)}` : "Discount given";
+      return {
+        title: after !== null ? `${title}, new total ${formatMoney(after, currency)}` : title,
+        detail: text(p, "reason"),
+        tone: "neutral",
+      };
+    }
     default: {
       const unknown: never = event.type;
       return { title: String(unknown), detail: null, tone: "neutral" };

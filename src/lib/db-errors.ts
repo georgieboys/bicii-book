@@ -350,6 +350,15 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   build_line_not_part:
     "Only a part from stock can be an extra. Services and manual lines are already charged on top of the package.",
   build_labour_line_voided: "The build's labour line was voided. Set the package again first.",
+  // Discounts and round-offs (D271)
+  discount_not_positive: "Take off an amount above zero.",
+  discount_over_total: "That's more than the job's total. Take off at most the total.",
+  discount_job_closed:
+    "This job is collected or cancelled, so its money has been taken. Give a refund instead.",
+  discount_request_conflict: "This discount was already given with other details. Open it again.",
+  discount_too_small:
+    "The job's lines come in quantities that can't take this little off. Take off a little more.",
+  discount_reason_too_long: "Keep the reason under 300 characters.",
   build_over_budget:
     "The parts cost more than the whole package even after fitting. Check the package price.",
   build_order_linked_elsewhere: "That online order is already on another job.",
@@ -840,6 +849,13 @@ export const CHECK_ERRORS: Record<string, string> = {
   build_packages_sort_order_range: "Use a sort order from 0 to 10,000.",
   work_order_builds_price_positive: "Give the build a price above zero.",
   work_order_builds_labour_within_price: "The labour can't be more than the build price.",
+  // D271: a discount may take a build's price down to zero.
+  work_order_builds_price_not_negative: "A build's price can't go below zero.",
+  work_order_discounts_amount_check: "Take off an amount above zero.",
+  work_order_discounts_applied_check:
+    "That's more than the job's total. Take off at most the total.",
+  work_order_discounts_reason_check: "Give a reason for the discount (up to 300 characters).",
+  work_order_discounts_currency_check: "Use a three-letter currency code.",
   products_group_option_pair:
     "A product in a group needs an option value, and only a grouped product has one.",
   products_option_value_length: "Keep the option value to 60 characters.",

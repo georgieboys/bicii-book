@@ -2166,6 +2166,58 @@ Built out of phase on 2026-11-23 (`20261123000100_receive_on_use.sql`).
 - `check_received_on_use(item_id)` (manage_consignments): sets
   `use_checked_at`/`use_checked_by` once; idempotent.
 
+### Add after complete (D269)
+
+Built out of phase on 2026-11-23 (`20261123000300_add_after_complete.sql`).
+No table changes.
+
+- `add_part_after_complete(line_id, work_order_id, product_id, quantity,
+  location_id, inventory_unit_id, unit_sale_price)`,
+  `add_service_after_complete(line_id, work_order_id, service_id, quantity,
+  unit_sale_price, unit_direct_cost, description)` and
+  `add_manual_after_complete(line_id, work_order_id, description,
+  unit_sale_price, quantity, unit_direct_cost)` (active staff; a cost needs
+  view_costs, as the line RPCs) → `add_after_complete_result (line_id,
+  work_order_id, job_number, follow_up, recompleted, received_quantity,
+  location_id, replayed)`. One transaction each.
+- Each locks the job, then `private.late_line_replay`: a line with that id
+  already on the job, or on a job for the same customer and bike (its
+  follow-up), returns where it went with `replayed`; on any other job
+  `line_conflict`.
+- `private.late_line_target` picks the job: collected or cancelled →
+  `work_order_closed`; open → the job itself; completed or
+  ready_for_collection with `private.shop_day(completed_at)` = today →
+  reopened through `set_work_order_status(…, 'in_progress', 'Added after
+  completion: <description>')` (the part's product name, the service's
+  description or name, the manual description; at most 500 characters),
+  restored afterwards by `private.restore_after_late_line` (→ completed,
+  → ready_for_collection again when it was; completed_at is restamped on
+  the same shop day). An earlier day, or a same-day reopen the job's own
+  rules refuse (any P0001, e.g. `bike_with_customer`; rolled back in a
+  sub-block) or that could not be completed again (an approved or ordered
+  `job_part_requests` row, D149b: not reopened at all), → the follow-up job
+  `md5('follow_up:<job id>:<shop day>:<n>')::uuid`, n = 1 upward past
+  collected or cancelled ones and past one completed earlier today whose
+  reopen is refused the same way: created when
+  missing through `private.create_work_order` (same customer and bike,
+  requested work "Follow-up to J-…: <description>", the original's lead
+  when active, received); a follow-up completed earlier today is reopened
+  and restored the same way. The original job is not touched.
+- The line itself: a counted part through `private.add_part_lines` (D267
+  receive-on-use applies), a unit through `add_inventory_line`, a service
+  through `add_service_line`, a manual line through `add_manual_line`.
+  The timeline on the same day reads `reopened` (note = the reason),
+  `line_added`, `completed` (`ready_for_collection`).
+- Reopening has its usual effects (sold units held again and sold again on
+  completion; a live balance link is withdrawn, D156d).
+- The app calls these on completed and ready jobs (`afterComplete` in the
+  Add sheets); open jobs keep `add_part_to_job`, `add_inventory_line`,
+  `add_service_line` and `add_manual_line`, and when one of those refuses
+  with `work_order_locked` (the job was completed after the sheet opened)
+  the domain layer places the same line id through the matching
+  `add_*_after_complete` instead (`completedMeanwhile` in
+  `src/lib/domain/lines.ts`).
+
 At the counter (`20261123000200_counter_receive_on_use.sql`):
 
 - `private.receive_for_use` gains `received_at timestamptz default null`

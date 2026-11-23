@@ -157,8 +157,10 @@ managers.
     keep items waiting."): press **Cancel item…** on each (no Fit: a line
     would stop the cancel), then **Cancel job…** in that sheet.
 - Success looks like: a toast "J-…: <new status>" and the status in the
-  timeline. A completed job says "Completed jobs are locked. Reopen to
-  change lines."
+  timeline. A completed job still takes new lines without a reopen (D269,
+  see [add lines](#add-services-parts-and-other-lines-to-a-job)); voiding
+  a line still needs a reopen. A collected or cancelled job says "This job
+  is closed, so its lines can't change."
 - **Tell the customer** (completed and ready-for-collection jobs): the
   button under the status buttons opens a message, ready to change: "Hi
   <first name>, your <bike> is ready for collection at BICII (job J-…).",
@@ -187,7 +189,29 @@ managers.
 
 ### Add services, parts and other lines to a job
 
-- Before you start: the job is open (not completed).
+- Before you start: the job is not collected or cancelled. A completed
+  (or ready for collection) job takes new lines too (D269): you don't
+  reopen it first and nobody asks for a reason.
+  - Completed today: the sheet says "This job is completed: the line is
+    added and the job completed again." The job is reopened with the
+    reason "Added after completion: <what you added>", the line is added
+    and the job is completed again (a job that was ready for collection
+    is ready again). The toast ends "The job is completed again." If
+    the job can't be reopened or completed again (for example a sold
+    bike already with its buyer, or an approved indent item not fitted),
+    the line goes on a follow-up job instead, as below.
+  - Completed on an earlier day: the sheet says "Completed on an earlier
+    day: this goes on a new follow-up job for the same bike." The
+    original job is left as it was; the line goes on a new job for the
+    same customer and bike ("Follow-up to J-…: <what you added>", same
+    lead mechanic), received, for you to complete and bill. The toast says
+    "Added to follow-up job J-…." with **Open J-…**. More lines added to
+    the original job the same day join the same follow-up.
+  - After completion, **New one-off item** in **Add part** opens **Add
+    manual line**, and **Charge on top of the build package** is not
+    offered.
+  - Someone completed the job while your sheet was open: the line is
+    still added, the same way as above (the toast says where it went).
 - Steps:
   - **Add service**: pick the service, adjust **Unit price** or
     **Quantity** if needed, press **Add service**. No service for it

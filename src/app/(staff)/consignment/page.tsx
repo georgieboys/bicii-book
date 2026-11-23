@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { NewConsignorButton } from "@/components/domain/consignor-sheet";
 import { ReceiveItemButton } from "@/components/domain/consignment-intake-sheet";
 import { ConsignmentItemRow } from "@/components/domain/consignment-item-row";
+import { ReceivedOnUseList } from "@/components/domain/received-on-use";
 import { ArchivedFilter } from "@/components/domain/list-filter";
 import { SearchField } from "@/components/domain/search-field";
 import { LinkSegments } from "@/components/domain/workshop-board";
@@ -22,7 +23,7 @@ import {
   readItemStatusFilter,
   remainingLabel,
 } from "@/lib/consignment";
-import { listConsignmentItems, listConsignors } from "@/lib/domain/consignment";
+import { listConsignmentItems, listConsignors, listReceivedOnUse } from "@/lib/domain/consignment";
 import { formatMoney } from "@/lib/money";
 import { readFlag, readQuery, withParam } from "@/lib/search-params";
 import { createClient } from "@/lib/supabase/server";
@@ -72,6 +73,7 @@ export default async function ConsignmentPage({ searchParams }: PageProps<"/cons
   return (
     <>
       <PageHeader title="Consignment" actions={manage ? <IntakeActions staff={staff} /> : null} />
+      {manage ? <ReceivedOnUse /> : null}
       {tabs}
       {view === "consignors" ? (
         <ConsignorsView q={q} archived={readFlag(params.archived)} money={money} manage={manage} />
@@ -80,6 +82,11 @@ export default async function ConsignmentPage({ searchParams }: PageProps<"/cons
       )}
     </>
   );
+}
+
+/** D267: the manager's list of items received on use, waiting for a check. */
+async function ReceivedOnUse() {
+  return <ReceivedOnUseList items={await listReceivedOnUse(await createClient())} />;
 }
 
 /**

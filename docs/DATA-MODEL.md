@@ -2134,6 +2134,38 @@ Built out of phase on 2026-11-22 (`20261122001500_account_purchases.sql`;
   can with `link_shopify_customer`, and whoever is linked next sees that
   Shopify customer's orders through `sales.shopify_customer_id`.
 
+### Receive on use (D267, D268)
+
+Built out of phase on 2026-11-23 (`20261123000100_receive_on_use.sql`).
+
+- `consignment_items` gains `received_on_use boolean` (default false),
+  `use_checked_at` and `use_checked_by` (staff), readable by staff like the
+  item's other columns.
+- `add_part_to_job(line_id, work_order_id, product_id, quantity, location_id,
+  unit_sale_price)` (active staff) → `add_part_result (line_id, line_count,
+  received_quantity, location_id, replayed)`. Locks the job, then
+  `private.add_part_lines`: an existing line with the id on that job for
+  that product is a replay (anything else: `line_conflict`). Shop stock,
+  units, inactive or archived products go to `add_inventory_line` as before.
+  A consigned quantity product takes, at the location (given, or the
+  default), what each active consignment holds there oldest first, one
+  `add_inventory_line` per consignment (the first line keeps `line_id`,
+  the n-th is `md5(line_id:n)::uuid`), then receives what is still
+  missing with `private.receive_for_use` and adds it as one more line.
+- `private.receive_for_use` inserts the consignment item directly (no
+  manage_consignments: D267 lets any staff do it on a job): consignor = the
+  product's latest unarchived consignor, else the unarchived consignor with
+  the most items (`consignor_required` when none); asking price = the given
+  price, else the last item's, else the product's; agreed amount (D268) =
+  the last item's, else half the asking price; `received_on_use = true`,
+  internal note "Received on use for J-…"; its `consignment_received`
+  movement. The consignor is locked FOR SHARE first, as in
+  `create_consignment_item`.
+- `fit_part_request` is re-created to put a part on through
+  `private.add_part_lines`, so Fit receives the same way.
+- `check_received_on_use(item_id)` (manage_consignments): sets
+  `use_checked_at`/`use_checked_by` once; idempotent.
+
 ### One-off parts (D264)
 
 Built out of phase on 2026-11-22 (`20261122001800_one_off_parts.sql`).

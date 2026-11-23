@@ -182,7 +182,21 @@ managers.
   - **Add part**: search by name, SKU, P- or U- number. Each choice shows
     what is in stock where ("40 at Shop floor · 60 total"). Choose
     **Quantity** and where to **Take from**; **Price each** is optional
-    (empty charges the selling price). Press **Add part**.
+    (empty charges the selling price). Press **Add part**. **A consigned
+    part BICII holds too little of** (D267) is offered too ("Consigned ·
+    none recorded: received when you add it"): the sheet says "1 not
+    recorded at RV Shop floor: it is received from the consignor when you
+    add it, and a manager checks it later." and adds it anyway. The missing
+    quantity is received from the product's usual consignor at the last
+    amount owed (never consigned before: half the price, D268). The toast
+    says "1 received from the consignor (a manager checks it)." **Take
+    from** starts at the location that holds the part when the default
+    location holds none. **Fit** on a quoted consigned part works the same
+    way ("Fitting receives the other 1 from the consignor").
+  - **Check parts received on use** (manage_consignments): **Consignment**
+    shows "Received on use · to check" with each item, its consignor and
+    the job. Open the item to check what the consignor is owed, then press
+    **Looks right**. Nothing waits for this check.
   - **A part that isn't in the system yet** (D264): in **Add part**, choose
     **New one-off item** (it carries what you searched for). Give the
     **Name**, **Quantity** and **Price each**, then **Whose it is**:

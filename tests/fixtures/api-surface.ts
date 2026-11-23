@@ -110,6 +110,9 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // D264: a one-off part created and put on the job in one step
   "public.add_one_off_part(uuid, uuid, text, integer, money_amount, boolean, uuid, money_amount, money_amount, uuid, boolean)",
   "public.add_service_line(uuid, uuid, uuid, line_quantity, money_amount, money_amount, text)",
+  // D267: a part on the job, consigned stock received on use; the manager's check
+  "public.add_part_to_job(uuid, uuid, uuid, integer, uuid, money_amount)",
+  "public.check_received_on_use(uuid)",
   // Build packages (D247-D251)
   "public.set_work_order_build(uuid, uuid, uuid, money_amount)",
   "public.clear_work_order_build(uuid, text)",

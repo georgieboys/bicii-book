@@ -345,6 +345,7 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   build_package_online: "Take the package off Shopify before archiving it.",
   one_off_name_required: "Name the part.",
   one_off_cost_required: "Enter what each cost the shop (0 when nothing).",
+  consignor_required: "No consignor is set up yet. Add one under Consignment.",
   one_off_consignor_required: "Choose whose it is and what they're owed for each.",
   build_line_not_part:
     "Only a part from stock can be an extra. Services and manual lines are already charged on top of the package.",

@@ -405,11 +405,11 @@ export async function searchIndentProducts(
       p,
       // D265: consigned stock counted by quantity is proposed too (quoted,
       // then fitted from stock; never ordered).
-      // A consigned product with no stock could be quoted but never fitted.
+      // D265/D267: consigned stock is proposed whatever BICII holds; Fit
+      // receives what is missing from the consignor.
       orderable:
         p.tracking_type === "quantity" &&
-        (p.ownership_type === "shop_owned" ||
-          (p.ownership_type === "consignment" && (onHand.get(p.id) ?? 0) > 0)),
+        (p.ownership_type === "shop_owned" || p.ownership_type === "consignment"),
       stock: onHand.get(p.id) ?? 0,
     }))
     .filter(({ orderable, stock }) => orderable || stock > 0)

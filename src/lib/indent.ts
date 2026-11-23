@@ -199,11 +199,13 @@ export function consignedFitNote(
   locationName: string | null = null,
 ): string {
   const at = locationName ? ` at ${locationName}` : "";
-  return onHand >= quantity
-    ? `Consigned stock: ${onHand} in stock${at}. Fitting takes it from there, and the consignor is owed their agreed amount when the job is completed.`
-    : onHand > 0
-      ? `Consigned stock: ${onHand} in stock${at}, fewer than this needs. Receive more on the product's page, or cancel this part.`
-      : "No consigned stock of this part. Receive it on the product's page, or cancel this part.";
+  const owed = "the consignor is owed their agreed amount when the job is completed.";
+  if (onHand >= quantity) {
+    return `Consigned stock: ${onHand} in stock${at}. Fitting takes it from there, and ${owed}`;
+  }
+  // D267: what BICII doesn't hold is received from the consignor on fitting.
+  const missing = quantity - Math.max(onHand, 0);
+  return `Consigned stock: ${Math.max(onHand, 0)} recorded${at}. Fitting receives the other ${missing} from the consignor (a manager checks it later), and ${owed}`;
 }
 
 /**

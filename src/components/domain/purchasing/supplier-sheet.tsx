@@ -33,28 +33,47 @@ type State = ActionResult<unknown> | null;
 /**
  * New or edit supplier (manage_purchasing), in a sheet mounted only while
  * open. A new supplier's form carries its own id (the idempotency key, made
- * when the sheet opens); creating opens the supplier. A failed save shows
- * what was typed again (ActionResult.values).
+ * when the sheet opens); creating opens the supplier, or, with `onCreated`
+ * (a supplier picker's "New supplier"), hands the new supplier back
+ * and closes so the sheet underneath keeps what was typed. A failed save
+ * shows what was typed again (ActionResult.values).
  */
 export function SupplierSheet({
   open,
   onOpenChange,
   supplier,
+  initialName,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Edit this supplier; omit for a new one. */
   supplier?: SupplierFields;
+  /** A new supplier's name to start from (what was searched for). */
+  initialName?: string;
+  /** A new supplier is chosen where it was asked for instead of opened. */
+  onCreated?: (created: { id: string; name: string }) => void;
 }) {
-  return open ? <SupplierSheetBody onOpenChange={onOpenChange} supplier={supplier} /> : null;
+  return open ? (
+    <SupplierSheetBody
+      onOpenChange={onOpenChange}
+      supplier={supplier}
+      initialName={initialName}
+      onCreated={onCreated}
+    />
+  ) : null;
 }
 
 function SupplierSheetBody({
   onOpenChange,
   supplier,
+  initialName,
+  onCreated,
 }: {
   onOpenChange: (open: boolean) => void;
   supplier?: SupplierFields;
+  initialName?: string;
+  onCreated?: (created: { id: string; name: string }) => void;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -74,6 +93,11 @@ function SupplierSheetBody({
       if (supplier) {
         toast({ title: "Supplier saved", tone: "success" });
         onOpenChange(false);
+      } else if (onCreated) {
+        const typed = formData.get("name");
+        toast({ title: "Supplier created", tone: "success" });
+        onCreated({ id, name: typeof typed === "string" ? typed.trim() : "New supplier" });
+        onOpenChange(false);
       } else {
         toast({ title: "Supplier created", tone: "success" });
         router.push(`/purchasing/suppliers/${id}`);
@@ -84,7 +108,8 @@ function SupplierSheetBody({
   const formRef = useFocusFirstInvalid(state);
   const errors = state && !state.ok ? state.fieldErrors : undefined;
   const values = state && !state.ok ? state.values : undefined;
-  const value = (key: keyof Omit<SupplierFields, "id">) => values?.[key] ?? supplier?.[key] ?? "";
+  const value = (key: keyof Omit<SupplierFields, "id">) =>
+    values?.[key] ?? supplier?.[key] ?? (key === "name" ? (initialName ?? "") : "");
 
   return (
     <Sheet

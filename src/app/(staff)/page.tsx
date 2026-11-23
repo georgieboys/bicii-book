@@ -9,6 +9,7 @@ import { DayNavigator } from "@/components/domain/today/day-navigator";
 import { ExceptionList } from "@/components/domain/today/exception-list";
 import { FinancialEntries } from "@/components/domain/today/financial-entries";
 import { LowStockList } from "@/components/domain/today/low-stock-list";
+import { PayOwners } from "@/components/domain/today/pay-owners";
 import { RefreshButton } from "@/components/domain/today/refresh-button";
 import { SectionLoader, SectionSkeleton } from "@/components/domain/today/section-loader";
 import { MoneyTile, StatTile, TileGrid, TodaySection } from "@/components/domain/today/stat-tile";
@@ -28,7 +29,9 @@ import {
   shopToday,
 } from "@/lib/dates";
 import { DbError } from "@/lib/db-errors";
+import { owedToConsignors } from "@/lib/consignment";
 import { todaySummary } from "@/lib/domain/appointments";
+import { listConsignors } from "@/lib/domain/consignment";
 import { hasReorderSuggestions } from "@/lib/domain/purchasing";
 import {
   getDailySummaries,
@@ -151,6 +154,9 @@ async function TodayContent({
       ? await hasReorderSuggestions(supabase).catch(() => false)
       : false;
 
+  // "Pay owners" (manage_consignments): who is owed for consigned items
+  // that sold, from the consignor ledger; hidden when nobody is.
+  const payOwners = isToday && hasPermission(staff, "manage_consignments");
   const canSeeEntries = dash.money !== null && hasPermission(staff, "view_financial_reports");
   const showCosts = dash.money?.costs != null;
   const firstName = staff.displayName.split(/\s+/)[0];
@@ -389,6 +395,27 @@ async function TodayContent({
           ) : null}
         </div>
       </TodaySection>
+
+      {payOwners ? (
+        <Suspense fallback={null}>
+          <SectionLoader
+            name="pay-owners"
+            load={async () => {
+              // Archived consignors can still be owed, so both lists count.
+              // 199 + 1 rows is the RPC's cap, so `more` shows a cut-off list.
+              const [active, archived] = await Promise.all([
+                listConsignors(supabase, { q: "", limit: 199 }),
+                listConsignors(supabase, { q: "", archived: true, limit: 199 }),
+              ]);
+              return owedToConsignors([...active.items, ...archived.items], {
+                partial: active.more || archived.more,
+              });
+            }}
+          >
+            {(owed) => <PayOwners owed={owed} />}
+          </SectionLoader>
+        </Suspense>
+      ) : null}
 
       {dash.now ? (
         <TodaySection

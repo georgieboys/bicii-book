@@ -4,9 +4,10 @@
  * step3-critique C9, C20): sending a payment link (any staff member,
  * Stripe on, the link built from ADMIN_ORIGIN and never logged, the email
  * keyed by the link id, the replaced link's open Checkout expired);
- * recording a counter payment (admins only, works with Stripe off, the
- * job's stale open Checkouts expired whenever the RPC reports any, a
- * replay included); voiding one (admins only, nothing expired). staffAction is
+ * recording a counter payment (any staff member since D270, works with
+ * Stripe off, the job's stale open Checkouts expired whenever the RPC
+ * reports any, a replay included); voiding one and reviewing one (admins
+ * only, nothing expired). staffAction is
  * replaced by a stand-in that keeps its schema and options, so the zod
  * rules and the admin flag are checked here; the RPCs are the domain
  * functions' (tests/db for their rules).
@@ -54,7 +55,9 @@ vi.mock("@/lib/actions", () => ({
 const sendBalanceLink = vi.fn();
 const recordCounterPayment = vi.fn();
 const voidCounterPayment = vi.fn();
+const reviewCounterPayment = vi.fn();
 vi.mock("@/lib/domain/payments", () => ({
+  reviewCounterPayment: (...a: unknown[]) => reviewCounterPayment(...a),
   sendBalanceLink: (...a: unknown[]) => sendBalanceLink(...a),
   recordCounterPayment: (...a: unknown[]) => recordCounterPayment(...a),
   voidCounterPayment: (...a: unknown[]) => voidCounterPayment(...a),
@@ -88,6 +91,7 @@ const actions = await import("@/app/(staff)/jobs/payment-actions");
 const sendBalanceLinkAction = actions.sendBalanceLinkAction as unknown as Loose;
 const recordCounterPaymentAction = actions.recordCounterPaymentAction as unknown as Loose;
 const voidCounterPaymentAction = actions.voidCounterPaymentAction as unknown as Loose;
+const reviewCounterPaymentAction = actions.reviewCounterPaymentAction as unknown as Loose;
 
 const JOB = "66666666-7777-4888-9999-000000000000";
 const LINK = "33333333-4444-4555-8666-000000000001";
@@ -271,10 +275,9 @@ describe("recordCounterPaymentAction (D161)", () => {
     });
   });
 
-  it("is for an active admin only (D161a)", () => {
+  it("is for any active staff member (D270)", () => {
     expect(options["payments.record_counter_payment"]).toEqual({
       name: "payments.record_counter_payment",
-      admin: true,
     });
   });
 
@@ -453,5 +456,31 @@ describe("voidCounterPaymentAction (D161d)", () => {
       await expect(voidCounterPaymentAction(bad)).resolves.toMatchObject({ ok: false });
     }
     expect(voidCounterPayment).not.toHaveBeenCalled();
+  });
+});
+
+describe("reviewCounterPaymentAction (D270)", () => {
+  beforeEach(() => reviewCounterPayment.mockResolvedValue(undefined));
+
+  it("is for an active admin only", () => {
+    expect(options["payments.review_counter_payment"]).toEqual({
+      name: "payments.review_counter_payment",
+      admin: true,
+    });
+  });
+
+  it("reviews the payment and refreshes", async () => {
+    await expect(reviewCounterPaymentAction({ counterPaymentId: COUNTER })).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(reviewCounterPayment).toHaveBeenLastCalledWith({ client: "staff" }, COUNTER);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("needs a payment id", async () => {
+    await expect(reviewCounterPaymentAction({ counterPaymentId: "nope" })).resolves.toMatchObject({
+      ok: false,
+    });
+    expect(reviewCounterPayment).not.toHaveBeenCalled();
   });
 });

@@ -332,15 +332,20 @@ least S$0.50 left and nothing being confirmed by Stripe; the link works 1
 to 30 days (7 by default) and stops when a new one is sent, the job is
 reopened or it is collected; it is shown once (only its hash is stored),
 so a lost link is replaced by sending a new one. **Record counter
-payment** and its two voids, **Void (recorded in error)…** and **Given
-back…**, are for active admins only (D161a: `private.require_admin()` in
-the RPC, `canRecordCounterPayment` in the app, "Record counter payments"
-on Settings → Your profile); they work with Stripe off and move no money:
-a give-back happens at the counter first. Managers see counter problems
-on the card and in Exceptions but cannot void
+payment** is for any active staff member, a deposit included (D270,
+amending D161a: `private.require_staff()` in the RPC,
+`canRecordCounterPayment` in the app); one recorded by someone who is
+not an admin is listed on Today under **Counter payments to review** for
+an admin's **Looks right** (`review_counter_payment`). Its two voids,
+**Void (recorded in error)…** and **Given back…**, stay for active admins
+only (`private.require_admin()`, `canVoidCounterPayment`, "Record counter
+payments" on Settings → Your profile names it). They work with Stripe off
+and move no money: a give-back happens at the counter first. Managers
+see counter problems on the card and in Exceptions but cannot void
 ([R-090](RISKS.md#r-090--a-counter-payment-rests-on-an-admins-word)).
 The steps: [USER-GUIDE](USER-GUIDE.md#send-a-payment-link),
-[Record a counter payment](USER-GUIDE.md#record-a-counter-payment-admins);
+[Record a counter payment](USER-GUIDE.md#record-a-counter-payment),
+[Review counter payments](USER-GUIDE.md#review-counter-payments-admins);
 problems: [RUNBOOK](RUNBOOK.md#stripe-resolving-problems).
 (`tests/e2e/payments.spec.ts`.)
 

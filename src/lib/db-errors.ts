@@ -621,8 +621,9 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   // D160: voiding a fitted line puts its request back; a stale Fit with the
   // voided line's id (a retried form) is refused.
   part_request_line_voided: "That line was voided. Reload the job and fit the item again.",
-  // Counter payments (Phase 14 step 3, D161): an admin records money the
-  // shop took itself, and voids a record (recorded in error or given back).
+  // Counter payments (Phase 14 step 3, D161; D270): any active staff member
+  // records money the shop took itself; an admin voids a record (recorded in
+  // error or given back) and reviews one recorded by someone else.
   work_order_cancelled: "This job is cancelled. Nothing more can be recorded on it.",
   counter_payment_currency: "Counter payments are recorded in Singapore dollars only.",
   counter_payment_in_future: "A counter payment can't be dated in the future.",
@@ -1309,6 +1310,8 @@ export const CHECK_ERRORS: Record<string, string> = {
   counter_payments_reference_check: "Keep the reference under 200 characters.",
   counter_payments_note_check: "Keep the note under 2,000 characters.",
   counter_payment_voids_reason_check: "Give a reason, under 500 characters.",
+  // D270: a counter payment's review is set whole, once.
+  counter_payments_review_check: "That review is incomplete. Reload and press Looks right again.",
   // Balance links (Phase 14 step 3, D156).
   balance_links_token_hash_length: "That payment link is not valid.",
   balance_links_valid_days_check: "A payment link is valid for 1 to 30 days.",

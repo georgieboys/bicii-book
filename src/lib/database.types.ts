@@ -2964,12 +2964,15 @@ export type Database = {
           id: string;
           kind: Database["public"]["Enums"]["payment_kind"];
           method: Database["public"]["Enums"]["counter_payment_method"];
+          needs_review: boolean;
           note: string | null;
           quote_id: string | null;
           received_at: string;
           recorded_by: string;
           reference: string | null;
           request_fingerprint: string;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
           work_order_id: string;
         };
         Insert: {
@@ -2979,12 +2982,15 @@ export type Database = {
           id: string;
           kind: Database["public"]["Enums"]["payment_kind"];
           method: Database["public"]["Enums"]["counter_payment_method"];
+          needs_review?: boolean;
           note?: string | null;
           quote_id?: string | null;
           received_at: string;
           recorded_by: string;
           reference?: string | null;
           request_fingerprint: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
           work_order_id: string;
         };
         Update: {
@@ -2994,12 +3000,15 @@ export type Database = {
           id?: string;
           kind?: Database["public"]["Enums"]["payment_kind"];
           method?: Database["public"]["Enums"]["counter_payment_method"];
+          needs_review?: boolean;
           note?: string | null;
           quote_id?: string | null;
           received_at?: string;
           recorded_by?: string;
           reference?: string | null;
           request_fingerprint?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
           work_order_id?: string;
         };
         Relationships: [
@@ -3020,6 +3029,13 @@ export type Database = {
           {
             foreignKeyName: "counter_payments_recorded_by_fkey";
             columns: ["recorded_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "counter_payments_reviewed_by_fkey";
+            columns: ["reviewed_by"];
             isOneToOne: false;
             referencedRelation: "staff";
             referencedColumns: ["id"];
@@ -8139,6 +8155,23 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      add_manual_after_complete: {
+        Args: {
+          description: string;
+          line_id: string;
+          quantity?: unknown;
+          unit_direct_cost?: unknown;
+          unit_sale_price: unknown;
+          work_order_id: string;
+        };
+        Returns: Database["public"]["CompositeTypes"]["add_after_complete_result"];
+        SetofOptions: {
+          from: "*";
+          to: "add_after_complete_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       add_manual_line: {
         Args: {
           description: string;
@@ -8172,6 +8205,24 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      add_part_after_complete: {
+        Args: {
+          inventory_unit_id?: string;
+          line_id: string;
+          location_id?: string;
+          product_id: string;
+          quantity?: number;
+          unit_sale_price?: unknown;
+          work_order_id: string;
+        };
+        Returns: Database["public"]["CompositeTypes"]["add_after_complete_result"];
+        SetofOptions: {
+          from: "*";
+          to: "add_after_complete_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       add_part_to_job: {
         Args: {
           line_id: string;
@@ -8185,6 +8236,24 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "add_part_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      add_service_after_complete: {
+        Args: {
+          description?: string;
+          line_id: string;
+          quantity?: unknown;
+          service_id: string;
+          unit_direct_cost?: unknown;
+          unit_sale_price?: unknown;
+          work_order_id: string;
+        };
+        Returns: Database["public"]["CompositeTypes"]["add_after_complete_result"];
+        SetofOptions: {
+          from: "*";
+          to: "add_after_complete_result";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -11367,6 +11436,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      review_counter_payment: { Args: { p_counter_payment_id: string }; Returns: undefined };
       revoke_adventure_certificate: {
         Args: { certificate_id: string; reason: string };
         Returns: {
@@ -13332,6 +13402,16 @@ export type Database = {
         | "cancelled";
     };
     CompositeTypes: {
+      add_after_complete_result: {
+        line_id: string | null;
+        work_order_id: string | null;
+        job_number: string | null;
+        follow_up: boolean | null;
+        recompleted: boolean | null;
+        received_quantity: number | null;
+        location_id: string | null;
+        replayed: boolean | null;
+      };
       add_part_result: {
         line_id: string | null;
         line_count: number | null;

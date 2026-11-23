@@ -10,6 +10,7 @@ import {
   ROLE_DESCRIPTIONS,
   canRecordCounterPayment,
   canRecordRefund,
+  canVoidCounterPayment,
   isExceptionFor,
 } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
@@ -43,9 +44,9 @@ function Capability({
 /**
  * The signed-in person's role and what it lets them do (PLAN D90-D94): the
  * role's one line, every effective permission (an exception on top of the
- * role marked "Extra access", D92), refunds for admins and managers (D94)
- * and, for admins, counter payments (D161a) and the admin-only settings
- * (D91). The database enforces
+ * role marked "Extra access", D92), refunds for admins and managers (D94),
+ * counter payments for everyone (D270; voiding and reviewing them for
+ * admins, D161d) and, for admins, the admin-only settings (D91). The database enforces
  * each of these again; this page only explains them.
  */
 export default async function ProfilePage() {
@@ -53,7 +54,8 @@ export default async function ProfilePage() {
   const admin = staff.role === "admin";
   const refunds = canRecordRefund(staff);
   const counter = canRecordCounterPayment(staff);
-  const nothingExtra = staff.permissions.length === 0 && !refunds && !counter && !admin;
+  const voids = canVoidCounterPayment(staff);
+  const nothingExtra = staff.permissions.length === 0 && !refunds && !admin;
   return (
     <>
       <PageHeader eyebrow="Settings" title={staff.displayName} description={staff.email} />
@@ -61,8 +63,8 @@ export default async function ProfilePage() {
         <p className="mb-3 text-dust-700">{ROLE_DESCRIPTIONS[staff.role]}.</p>
         {nothingExtra ? (
           <p className="text-dust-700">
-            Workshop access only: jobs, intake, notes, photos, parts, services, scanning and labels.
-            Ask an admin if you need more.
+            Workshop access only: jobs, intake, notes, photos, parts, services, counter payments,
+            scanning and labels. Ask an admin if you need more.
           </p>
         ) : (
           <ul aria-label="Your permissions" className="flex flex-col gap-3">
@@ -83,7 +85,11 @@ export default async function ProfilePage() {
             {counter ? (
               <Capability
                 label="Record counter payments"
-                description="Record money the shop took at the counter on a job, and void one recorded in error or given back. Admins only."
+                description={
+                  voids
+                    ? "Record money the shop took at the counter on a job, check the ones others recorded, and void one recorded in error or given back. Voiding is admins only."
+                    : "Record money the shop took at the counter on a job, a deposit included. An admin checks it afterwards."
+                }
               />
             ) : null}
             {admin ? (

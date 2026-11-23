@@ -300,12 +300,21 @@ export function canOverrideDeposit(staff: Pick<StaffDTO, "role" | "active">): bo
 }
 
 /**
- * Recording money the shop took at the counter on a job, and voiding it
- * (D161a, Phase 14 step 3): mirrors private.require_admin() in
- * record_counter_payment and void_counter_payment: an active admin, by
- * role. No permission or exception grants it; every active staff member
- * still sees counter payments on the job (D154).
+ * Recording money the shop took at the counter on a job, a deposit
+ * included (D270, amending D161a): any active staff member, as
+ * private.require_staff() in record_counter_payment. One recorded by
+ * someone who is not an admin is listed for an admin to review.
  */
-export function canRecordCounterPayment(staff: Pick<StaffDTO, "role" | "active">): boolean {
+export function canRecordCounterPayment(staff: Pick<StaffDTO, "active">): boolean {
+  return staff.active;
+}
+
+/**
+ * Voiding a counter payment (D161d) and reviewing one a non-admin recorded
+ * (D270): mirrors private.require_admin() in void_counter_payment and
+ * review_counter_payment: an active admin, by role. No permission or
+ * exception grants it.
+ */
+export function canVoidCounterPayment(staff: Pick<StaffDTO, "role" | "active">): boolean {
   return staff.active && staff.role === "admin";
 }

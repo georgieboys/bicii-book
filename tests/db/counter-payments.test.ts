@@ -489,16 +489,23 @@ const counterEvents = (tx: pg.Client, workOrderId: string, type: string) =>
 // ---------------------------------------------------------------------------
 
 describe("Who can reach counter payments (D161a, DATA-MODEL §15)", () => {
-  it("only an active admin records or voids; managers, mechanics and customers get 42501; anon and the service role cannot execute", async () => {
+  it("any active staff member records (D270), only an active admin voids; customers get 42501; anon and the service role cannot execute", async () => {
     await inTransaction(conn, async (tx) => {
       const job = await billedJob(tx);
       const { counter_payment_id: id } = await record(tx, { workOrderId: job.id, amount: "10.00" });
       await ownerMode(tx);
       const login = await linkCustomerLogin(tx, job.customer_id);
-      for (const claims of [MANAGER, MECHANIC2, customerClaims(login), ANON, SERVICE]) {
+      for (const claims of [customerClaims(login), ANON, SERVICE]) {
         await actAs(tx, claims);
         await failsWith(tx, () => callRecord(tx, { workOrderId: job.id, amount: "5.00" }), DENIED);
         await failsWith(tx, () => callVoid(tx, id, "recorded_in_error", "No"), DENIED);
+      }
+      for (const claims of [MANAGER, MECHANIC2]) {
+        await actAs(tx, claims);
+        await failsWith(tx, () => callVoid(tx, id, "recorded_in_error", "No"), DENIED);
+        expect((await callRecord(tx, { workOrderId: job.id, amount: "5.00" })).replayed).toBe(
+          false,
+        );
       }
       expect(
         await readAsOwner(tx, () =>
@@ -508,7 +515,7 @@ describe("Who can reach counter payments (D161a, DATA-MODEL §15)", () => {
             [job.id],
           ),
         ),
-      ).toBe(1);
+      ).toBe(3);
     });
   });
 

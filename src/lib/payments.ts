@@ -347,8 +347,9 @@ export function showsPaymentTotals(payments: {
 /**
  * Whether the job page renders the Customer payments card (step3-critique
  * C15): when there is anything to show (a deposit, a Stripe payment, a
- * counter payment) or a control applies (Send payment link; an admin's
- * Record counter payment on a job that is not cancelled).
+ * counter payment) or a control applies (Send payment link; Record
+ * counter payment, any staff member since D270, on a job that is not
+ * cancelled).
  */
 export function showsPaymentsCard(input: {
   deposits: number;

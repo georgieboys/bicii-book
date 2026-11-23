@@ -2,8 +2,8 @@ import {
   PERMISSIONS,
   PERMISSION_LABELS,
   ROLE_LABELS,
-  canRecordCounterPayment,
   canRecordRefund,
+  canVoidCounterPayment,
   roleImplies,
   type PermissionKey,
   type StaffRole,
@@ -24,7 +24,7 @@ export function roleWithArticle(role: StaffRole): string {
 /** What a person in each role has, one sentence (D91, D94). */
 export const ROLE_GRANTS: Record<StaffRole, string> = {
   admin:
-    "Admins have every permission, manage staff and roles, change the shop settings, and can record refunds and counter payments.",
+    "Admins have every permission, manage staff and roles, change the shop settings, and can record refunds and void counter payments.",
   manager: "Managers have every permission except Manage staff, and can record refunds.",
   mechanic: "Mechanics have workshop access only, plus any extra access given to them.",
 };
@@ -52,7 +52,7 @@ export type RoleChangeSummary = {
  * includes and so removes (a later change back does not restore them,
  * D92); and what they lose (permissions the old role implied that neither
  * the new role nor an exception covers, refunds for admins and managers
- * (D94), counter payments for admins (D161a), and the admin settings).
+ * (D94), voiding counter payments for admins (D161d, D270), and the admin settings).
  */
 export function roleChangeSummary(
   from: StaffRole,
@@ -70,9 +70,9 @@ export function roleChangeSummary(
     !canRecordRefund({ role: to, active: true })
       ? ["Record refunds"]
       : []),
-    ...(canRecordCounterPayment({ role: from, active: true }) &&
-    !canRecordCounterPayment({ role: to, active: true })
-      ? ["Record counter payments"]
+    ...(canVoidCounterPayment({ role: from, active: true }) &&
+    !canVoidCounterPayment({ role: to, active: true })
+      ? ["Void counter payments"]
       : []),
     ...(from === "admin" && to !== "admin" ? ["Admin settings"] : []),
   ];

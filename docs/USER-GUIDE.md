@@ -19,7 +19,7 @@ fitted indent item's line (D160, PR #30, since 2026-10-16 SGT) and Phase
 14 step 3 (payment links D156, counter payments D161 and the Customer
 payments report D154; PR #36, since 2026-10-18 SGT): its tasks below
 ("Send a payment link", "Take payment at collection", "Record a counter
-payment (admins)", "Void a counter payment or record it as given back
+payment", "Void a counter payment or record it as given back
 (admins)", "Read Customer payments in Reports") apply in production. On
 a developer machine:
 http://localhost:3000. Staff sign in with an emailed code.
@@ -157,8 +157,10 @@ managers.
     keep items waiting."): press **Cancel item…** on each (no Fit: a line
     would stop the cancel), then **Cancel job…** in that sheet.
 - Success looks like: a toast "J-…: <new status>" and the status in the
-  timeline. A completed job says "Completed jobs are locked. Reopen to
-  change lines."
+  timeline. A completed job still takes new lines without a reopen (D269,
+  see [add lines](#add-services-parts-and-other-lines-to-a-job)); voiding
+  a line still needs a reopen. A collected or cancelled job says "This job
+  is closed, so its lines can't change."
 - **Tell the customer** (completed and ready-for-collection jobs): the
   button under the status buttons opens a message, ready to change: "Hi
   <first name>, your <bike> is ready for collection at BICII (job J-…).",
@@ -187,7 +189,29 @@ managers.
 
 ### Add services, parts and other lines to a job
 
-- Before you start: the job is open (not completed).
+- Before you start: the job is not collected or cancelled. A completed
+  (or ready for collection) job takes new lines too (D269): you don't
+  reopen it first and nobody asks for a reason.
+  - Completed today: the sheet says "This job is completed: the line is
+    added and the job completed again." The job is reopened with the
+    reason "Added after completion: <what you added>", the line is added
+    and the job is completed again (a job that was ready for collection
+    is ready again). The toast ends "The job is completed again." If
+    the job can't be reopened or completed again (for example a sold
+    bike already with its buyer, or an approved indent item not fitted),
+    the line goes on a follow-up job instead, as below.
+  - Completed on an earlier day: the sheet says "Completed on an earlier
+    day: this goes on a new follow-up job for the same bike." The
+    original job is left as it was; the line goes on a new job for the
+    same customer and bike ("Follow-up to J-…: <what you added>", same
+    lead mechanic), received, for you to complete and bill. The toast says
+    "Added to follow-up job J-…." with **Open J-…**. More lines added to
+    the original job the same day join the same follow-up.
+  - After completion, **New one-off item** in **Add part** opens **Add
+    manual line**, and **Charge on top of the build package** is not
+    offered.
+  - Someone completed the job while your sheet was open: the line is
+    still added, the same way as above (the toast says where it went).
 - Steps:
   - **Add service**: pick the service, adjust **Unit price** or
     **Quantity** if needed, press **Add service**. No service for it
@@ -490,8 +514,8 @@ while an approved or ordered item is neither fitted nor cancelled:
      keeps **Pay $… deposit**, now saying "The shop has ordered your
      parts. Ask the shop if you still need to pay the deposit." and "If you
      paid the deposit another way, ask the shop before paying here." When
-     the customer pays the deposit in the shop, an admin records it (see
-     "Record a counter payment (admins)"): it then reads **Deposit paid**,
+     the customer pays the deposit in the shop, whoever takes it records it
+     (see "Record a counter payment"): it then reads **Deposit paid**,
      the part is no longer held back and the customer's page stops asking
      for it. Until it is recorded the customer could still pay online; if
      both happen, the card says "The deposit of $… was paid online and at
@@ -1796,7 +1820,7 @@ trackers and handovers needs **Manage adventures**.
   (deposits and balances), **Refunded online**, **Recorded at the
   counter**, **Given back at the counter** and **Net taken**. They are not
   sales ("Not sales: money taken and given back by the day it moved."),
-  and the counter figure is only what an admin recorded, never the till's
+  and the counter figure is only what staff recorded, never the till's
   takings. **Held on jobs now** (this moment, whatever period) lists, each
   with its own total: **Paid on open jobs** (deposits and payments ahead
   of work not finished), **Paid on jobs awaiting collection** (paid up to
@@ -1955,7 +1979,7 @@ trackers and handovers needs **Manage adventures**.
   - Cash, the shop's card terminal or the shop's own PayNow: take what
     **Collected…** says ("Take only $…") and **Mark collected**. Nothing
     needs recording: money taken as the bike leaves is not recorded in
-    BICII (D161e). Ask an admin to record a counter payment only for
+    BICII (D161e). Record a counter payment only for
     money that came in **before** collection (a deposit, or part of the
     bill on an earlier visit), so the page, the link and Collected ask the
     right amount.
@@ -1969,11 +1993,13 @@ trackers and handovers needs **Manage adventures**.
   ([R-093](RISKS.md#r-093--mark-collected-is-allowed-while-stripe-is-confirming-a-payment)).
   Collected stops any payment link.
 
-### Record a counter payment (admins)
+### Record a counter payment
 
-- Before you start: you are an admin (D161a; a manager or mechanic sees
-  no **Record counter payment**). The job is not cancelled. BICII records
-  the money; it moves none. It works with Stripe off.
+- Before you start: anyone signed in records it (D270): an admin, a
+  manager or a mechanic, a deposit included. The job is not cancelled.
+  BICII records the money; it moves none. It works with Stripe off. One
+  you record without being an admin counts at once and is listed for an
+  admin to check (see "Review counter payments (admins)").
 - Steps: on the job's **Customer payments** card press **Record counter
   payment**. Under **What it is for** choose a deposit that is due (or
   was refunded in Stripe), "Record the $120.00 deposit for the quote
@@ -1997,9 +2023,11 @@ trackers and handovers needs **Manage adventures**.
   row under **At the counter** ("Deposit · PayNow", the amount, "Paid …
   · Ref … · recorded by …"), **Paid at the counter** in the totals and the
   timeline "Deposit of $… taken at the counter (PayNow)" or "$… taken at
-  the counter (Cash)". A recorded deposit reads **Deposit paid**: the part
-  is no longer held back from ordering and the customer's page stops
-  asking for it.
+  the counter (Cash)". A recorded deposit reads **Deposit paid** at once,
+  whoever recorded it: the part is no longer held back from ordering and
+  the customer's page stops asking for it. Recorded by someone who is not
+  an admin, the row also says "An admin will check this payment." until
+  an admin presses **Looks right** (on that row, or on Today).
 - When the customer had a Stripe page open for this job, BICII closes it.
   If a payment on it went through first, the sheet stays open and says
   "An online payment for this job has just gone through; refund it in
@@ -2039,7 +2067,28 @@ trackers and handovers needs **Manage adventures**.
   is refused. Managers see a counter problem in Exceptions, but only an
   admin voids
   ([R-090](RISKS.md#r-090--a-counter-payment-rests-on-an-admins-word)).
-  Covered by `tests/e2e/payments.spec.ts` (Given back).
+  Managers and mechanics who recorded a payment by mistake ask an admin
+  to void it. Covered by `tests/e2e/payments.spec.ts` (Given back).
+
+### Review counter payments (admins)
+
+- Before you start: you are an admin (D270). Nothing waits for you: the
+  payments already count on their jobs.
+- Steps: on **Today**, **Counter payments to review (N)** lists each
+  counter payment recorded by a manager or mechanic, oldest first: the
+  amount, "Deposit" or "Towards the bill", how it was paid, the job, the
+  day it was paid, the reference and who recorded it. Check it against
+  the till, the terminal or the PayNow record, then press **Looks right**.
+  The same **Looks right** sits on the payment's row in the job's
+  **Customer payments** card, so an admin on the job reviews it there.
+  One that is wrong: open its job and void it there (see "Void a counter
+  payment or record it as given back (admins)").
+- Success looks like: the row leaves the list; on the job the note "An
+  admin will check this payment." goes. A voided payment leaves the list
+  too. The list is not shown when nothing waits, or on an earlier day.
+- If it fails: "Not saved" with the database's sentence; press **Looks
+  right** again (it is safe to repeat). Covered by
+  `tests/db/staff-counter-payments.test.ts`.
 
 ### Invite a colleague
 
@@ -2113,12 +2162,13 @@ shown as a badge on Settings → Your profile and on Settings → Staff:
 
 | Role | What it lets you do |
 |---|---|
-| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, who gets booking emails (D163), appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157), **Record counter payment** and its two voids on a job (D161) and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
-| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify, Settings → Customer payments or recording counter payments |
+| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, who gets booking emails (D163), appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157), the two voids of a counter payment on a job (D161) and **Looks right** on the counter payments others recorded (D270), and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
+| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify, Settings → Customer payments, or voiding or reviewing counter payments |
 | Mechanic | The workshop: what everyone can do (next paragraph). Anything more only as extra access |
 
 Everyone signed in can use customers, bikes, photos, jobs and their lines,
-parts from stock, appointments and check-in, in-store sales, Scan, search,
+parts from stock, appointments and check-in, in-store sales, counter
+payments on a job, deposits included (D270), Scan, search,
 printing labels (and confirming or failing print jobs), and read the
 schedule, appointment types, services and locations. Selling prices and
 sale totals are visible to all; costs are not.
@@ -2131,8 +2181,8 @@ Manage staff. A mechanic can have any of them; a manager only Manage staff
 each one **Extra access**. Extra access never includes **Record refund**,
 ordering an indent part before its deposit is paid (D152) or cancelling
 an indent item on a collected or cancelled job (D149), which are for
-admins and managers only, or recording and voiding counter payments
-(D161) and changing a product's owner (D162), which are for admins
+admins and managers only, or voiding and reviewing counter payments
+(D161, D270) and changing a product's owner (D162), which are for admins
 only. Anyone signed in can send a payment
 link (D156). Each permission, whether it comes
 from your role or as extra access:

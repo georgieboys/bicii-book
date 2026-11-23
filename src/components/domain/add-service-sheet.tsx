@@ -9,17 +9,19 @@ import { PlusIcon } from "@/components/ui/icons";
 import { NumberInput } from "@/components/ui/number-input";
 import { SearchPicker, type PickerOption } from "@/components/ui/search-picker";
 import { Sheet } from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
+import type { LinePlacement } from "@/lib/domain/lines";
+import type { AfterComplete } from "@/lib/workshop";
 import type { ServiceOption } from "@/lib/domain/services";
 import { formatMoney, lineTotal, parseMoney } from "@/lib/money";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
+import { AfterCompleteNote, useAddedToast } from "./after-complete";
 import { ManualLineSheet } from "./manual-line-sheet";
 
-type State = ActionResult<{ id: string }> | null;
+type State = ActionResult<{ id: string } & LinePlacement> | null;
 type ServicePick = PickerOption & { service: ServiceOption };
 
 /** A preview of quantity × price, or null while either is not a valid amount yet. */
@@ -42,21 +44,25 @@ export function labourLineLabel(query: string): string {
  * service and editable by anyone (D14), and, only for view_costs holders,
  * the cost. The line total previews as it is typed; the database computes
  * the real one. The sheet's line id is the idempotency key, so a repeated
- * submit adds one line. When no service fits, the list's last row, "Add as
- * labour line", swaps to the manual line sheet with the typed words as its
- * description, so the labour goes on the job now; a manager can add the
- * service to the catalog later.
+ * submit adds one line. On a completed job (`afterComplete`, D269) it says
+ * beforehand what will happen. When no service fits, the list's last row,
+ * "Add as labour line", swaps to the manual line sheet with the typed words
+ * as its description, so the labour goes on the job now; a manager can add
+ * the service to the catalog later.
  */
 export function AddServiceButton({
   workOrderId,
   viewCosts,
   currency,
   disabled = false,
+  afterComplete = null,
 }: {
   workOrderId: string;
   viewCosts: boolean;
   currency: string;
   disabled?: boolean;
+  /** D269: the job is completed; what adding a line does. */
+  afterComplete?: AfterComplete | null;
 }) {
   const [sheet, setSheet] = useState<"service" | { labour: string } | null>(null);
   return (
@@ -75,6 +81,7 @@ export function AddServiceButton({
           workOrderId={workOrderId}
           viewCosts={viewCosts}
           currency={currency}
+          afterComplete={afterComplete}
           onLabour={(query) => setSheet({ labour: query })}
           onClose={() => setSheet(null)}
         />
@@ -84,6 +91,7 @@ export function AddServiceButton({
           viewCosts={viewCosts}
           currency={currency}
           initialDescription={sheet.labour}
+          afterComplete={afterComplete}
           onClose={() => setSheet(null)}
         />
       ) : null}
@@ -95,17 +103,19 @@ function AddServiceSheet({
   workOrderId,
   viewCosts,
   currency,
+  afterComplete,
   onLabour,
   onClose,
 }: {
   workOrderId: string;
   viewCosts: boolean;
   currency: string;
+  afterComplete: AfterComplete | null;
   /** Switch to a manual labour line, carrying what was searched for. */
   onLabour: (query: string) => void;
   onClose: () => void;
 }) {
-  const { toast } = useToast();
+  const added = useAddedToast();
   const formId = useId();
   const [lineId] = useState(newId);
   const [picked, setPicked] = useState<ServicePick | null>(null);
@@ -115,7 +125,7 @@ function AddServiceSheet({
   const [state, formAction, pending] = useActionState<State, FormData>(async (prev, formData) => {
     const result = await callAction(() => addServiceLine(prev, formData), formData);
     if (result.ok) {
-      toast({ title: `${picked?.service.name ?? "Service"} added`, tone: "success" });
+      added(`${picked?.service.name ?? "Service"} added`, result.data);
       onClose();
     }
     return result;
@@ -162,6 +172,7 @@ function AddServiceSheet({
       >
         <input type="hidden" name="lineId" value={lineId} />
         <input type="hidden" name="workOrderId" value={workOrderId} />
+        <AfterCompleteNote mode={afterComplete} />
         {state && !state.ok ? (
           <p role="alert" className="text-sm font-medium text-danger-deep">
             {state.error}

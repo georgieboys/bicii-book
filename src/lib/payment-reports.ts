@@ -72,7 +72,7 @@ export function paymentKindLabel(movement: string, kind: string): string {
   return kind;
 }
 
-/** How the money moved: Stripe online, or the counter method an admin recorded. */
+/** How the money moved: Stripe online, or the counter method staff recorded. */
 export function paymentMethodLabel(method: string): string {
   if (method === "stripe") return "Stripe";
   if (method === "shopify") return "Shopify";
@@ -88,7 +88,7 @@ export const PAYMENTS_SECTION_TITLE = "Customer payments";
 /** Under the tiles: what the figures are, and what they are not. */
 export const PAYMENTS_NOT_SALES_NOTE = "Not sales: money taken and given back by the day it moved.";
 export const COUNTER_RECORDED_NOTE =
-  "Recorded at the counter: only what an admin recorded in BICII; not the till's takings.";
+  "Recorded at the counter: only what staff recorded in BICII; not the till's takings.";
 
 /**
  * report_payment_summary's other_currency_count: movements in another
@@ -198,7 +198,7 @@ export type PaymentItem = {
   currency: string;
   /** Stripe took another currency: counted at the amount asked. */
   otherCurrency: boolean;
-  /** Counter rows only: when and by whom an admin recorded it (shows back-dating). */
+  /** Counter rows only: when and by whom staff recorded it (shows back-dating). */
   recordedAt: string | null;
   recordedByName: string | null;
 };

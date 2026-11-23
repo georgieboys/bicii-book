@@ -7,6 +7,7 @@ import {
   canRecordRefund,
   canViewConsignmentMoney,
   canViewSaleCosts,
+  canVoidCounterPayment,
   type PermissionKey,
   type StaffRole,
 } from "@/lib/auth/permissions";
@@ -394,16 +395,26 @@ describe("ordering an indent part before its deposit is paid (D152, Phase 14)", 
   });
 });
 
-describe("recording a counter payment (D161a, Phase 14 step 3)", () => {
-  it("is an active admin only, by role (private.require_admin)", () => {
+describe("recording a counter payment (D270, amending D161a)", () => {
+  it("is any active staff member (private.require_staff)", () => {
     expect(canRecordCounterPayment(who("admin"))).toBe(true);
+    expect(canRecordCounterPayment(who("manager"))).toBe(true);
+    expect(canRecordCounterPayment(who("mechanic"))).toBe(true);
+    expect(canRecordCounterPayment(who("mechanic", [], false))).toBe(false);
     expect(canRecordCounterPayment(who("admin", [], false))).toBe(false);
+  });
+});
+
+describe("voiding and reviewing a counter payment (D161d, D270)", () => {
+  it("is an active admin only, by role (private.require_admin)", () => {
+    expect(canVoidCounterPayment(who("admin"))).toBe(true);
+    expect(canVoidCounterPayment(who("admin", [], false))).toBe(false);
   });
 
   it("is never a manager or a mechanic, whatever permissions they hold", () => {
-    expect(canRecordCounterPayment(who("manager"))).toBe(false);
-    expect(canRecordCounterPayment(who("mechanic"))).toBe(false);
-    expect(canRecordCounterPayment(who("manager", [...PERMISSIONS]))).toBe(false);
-    expect(canRecordCounterPayment(who("mechanic", [...PERMISSIONS]))).toBe(false);
+    expect(canVoidCounterPayment(who("manager"))).toBe(false);
+    expect(canVoidCounterPayment(who("mechanic"))).toBe(false);
+    expect(canVoidCounterPayment(who("manager", [...PERMISSIONS]))).toBe(false);
+    expect(canVoidCounterPayment(who("mechanic", [...PERMISSIONS]))).toBe(false);
   });
 });

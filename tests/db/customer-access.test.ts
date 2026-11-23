@@ -576,12 +576,14 @@ describe("customer A and customer B", () => {
       `select public.record_attachment('${randomUUID()}', 'bike', '${BIKE.tanTarmac}',
          'media-internal', 'bike/x.jpg', 'image/jpeg')`,
       "select * from public.staff_directory()",
-      // Phase 14 step 3: counter payments (admin), balance links (staff)
-      // and the payment reports (view_financial_reports)
+      // Phase 14 step 3: counter payments (staff, D270; voids and reviews
+      // admin), balance links (staff) and the payment reports
+      // (view_financial_reports)
       `select * from public.record_counter_payment('${randomUUID()}', '${randomUUID()}', null,
          10::public.money_amount, 'cash'::public.counter_payment_method)`,
       `select * from public.void_counter_payment('${randomUUID()}',
          'given_back'::public.counter_void_kind, 'Mine')`,
+      `select public.review_counter_payment('${randomUUID()}')`,
       `select * from public.send_balance_link('${randomUUID()}', '${randomUUID()}',
          'link'::public.quote_channel)`,
       "select * from public.report_payment_summary(current_date, current_date)",

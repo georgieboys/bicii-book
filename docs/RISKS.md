@@ -3712,3 +3712,54 @@ URLs, or customer data in this file.
 - Revisit trigger: the first wrong match reported.
 - Last checked: 2026-11-22.
 
+
+## R-132 — Stock received on use can be wrong until a manager checks it
+
+- Category: Consignment, jobs, counter sales.
+- Status and owner: open, accepted; the owner (decisions D267, D268), the
+  build agent (code).
+- Trigger: a mechanic or the counter uses a consigned part BICII holds too
+  little of; the missing quantity is received from the product's latest
+  consignor at its last amount owed, else half the price
+  (`private.receive_for_use`).
+- Impact: the consignor or the amount owed can be wrong (a product with two
+  consignors, or a never-consigned product whose fair payout is not half
+  its price). The line's payout snapshot is taken when it is used, so a
+  later correction must be a settlement adjustment, not a rewrite; that
+  adjustment is not built yet (no settlement exists in production).
+- Evidence and confidence: high, by design. 122 of 155 products had no
+  consignment received on 2026-11-23, so most first uses go this way.
+- Workaround or containment: every such item is flagged
+  `received_on_use` and listed on Consignment ("Received on use · to
+  check") until a manager presses **Looks right**.
+- Still open: the settlement adjustment for a wrong amount; the list does
+  not show the amount owed (column-gated, D48), only the item page does;
+  `receive_for_use` locks the consignor after the stock lock, so a use
+  racing a consignor being archived can deadlock (one transaction aborts
+  and is retried by the user). Counter sales still refuse a named
+  consignment that went meanwhile (`consignment_item_not_active`) and a
+  backdated sale whose only covering stock arrived later
+  (`sale_before_stock`, D55); the sale sheet's note counts only the picked
+  consignment, so it can say stock will be received when another
+  consignment covers it.
+
+## R-133 — Keep-moving changes that move totals or wait on an admin
+
+- Category: Jobs, payments.
+- Status and owner: open, accepted; the owner (D269–D271), the build agent.
+- Trigger and impact:
+  - D271: a discount on a job completed on an earlier shop day reopens and
+    completes it again, so its sales move to today's shop day (the sheet
+    says so). Overpayment after a discount is shown, not refunded.
+  - D270: counter payments recorded by non-admins wait for an admin's
+    **Looks right**; only admins void a payment or review it (a manager
+    cannot), so a mistaken payment waits for an admin.
+  - D269: a line added to a job completed on an earlier day goes on a
+    follow-up job; if the follow-up can't be made (archived customer or
+    bike, or the bike changed owner) the add is refused. Voiding a line on
+    a completed job still needs a reopen.
+- Evidence and confidence: high, from the reviews of PRs #126–#130.
+- Workaround or containment: the sheets say what will happen before it
+  does; review lists on Today.
+- Still open: whether managers may review and void counter payments;
+  whether a discount should go on a follow-up instead of moving totals.

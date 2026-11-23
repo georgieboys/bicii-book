@@ -482,7 +482,7 @@ describe.skipIf(!isolatedDatabase())("consigned stock on a sale (D44, D45, D46)"
     });
   });
 
-  it("D45: a quantity line draws from one item, the oldest that covers it (FIFO) at its own price, or the item named; none covering it is consignment_quantity_unavailable", async () => {
+  it("D45: a quantity line draws from one item, the oldest that covers it (FIFO) at its own price, or the item named", async () => {
     await inTx(async (tx) => {
       const older = await createConsignor(tx, { displayName: "Older consignor" });
       const newer = await createConsignor(tx, { displayName: "Newer consignor" });
@@ -510,13 +510,10 @@ describe.skipIf(!isolatedDatabase())("consigned stock on a sale (D44, D45, D46)"
         unit_direct_cost_snapshot: "10.00",
         consignor_payout_snapshot: "10.00",
       });
-      // 4 are on hand (1 + 3), but no single consignment has 4 left.
+      // 4 are on hand (1 + 3), but no single consignment has 4 left: such a
+      // line is split and the rest received on use (D267,
+      // counter-receive-on-use.test.ts).
       expect(await onHand(tx, a.product_id)).toBe(4);
-      await failsWith(
-        tx,
-        () => recordSale(tx, { lines: [{ product_id: a.product_id, quantity: 4 }] }),
-        { code: "P0001", message: "consignment_quantity_unavailable" },
-      );
       const named = await recordSale(tx, {
         lines: [{ product_id: a.product_id, quantity: 1, consignment_item_id: b.item_id }],
       });
@@ -533,12 +530,7 @@ describe.skipIf(!isolatedDatabase())("consigned stock on a sale (D44, D45, D46)"
         sale_total: "80.00",
       });
       expect(await itemStatus(tx, b.item_id)).toBe("sold");
-      // Only 1 is left on hand: a retail sale never goes below zero.
-      await failsWith(
-        tx,
-        () => recordSale(tx, { lines: [{ product_id: a.product_id, quantity: 2 }] }),
-        { code: "P0001", message: "insufficient_stock" },
-      );
+      // A named item no longer with the shop is still refused.
       await failsWith(
         tx,
         () =>

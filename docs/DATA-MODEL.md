@@ -2166,6 +2166,31 @@ Built out of phase on 2026-11-23 (`20261123000100_receive_on_use.sql`).
 - `check_received_on_use(item_id)` (manage_consignments): sets
   `use_checked_at`/`use_checked_by` once; idempotent.
 
+At the counter (`20261123000200_counter_receive_on_use.sql`):
+
+- `private.receive_for_use` gains `received_at timestamptz default null`
+  (the item's `received_at`: the given time, never later than now; default
+  now), so a backdated sale receives at the sale's time and D55 holds. A
+  counter sale's note is "Received on use for counter sale S-…".
+- `record_retail_sale` (same signature and result): a consigned quantity
+  line (`product_id`, `location_id`, `quantity`, optional
+  `consignment_item_id`, `unit_sale_price`; active, unarchived product in
+  the sale's currency, active location) that no single consignment covers
+  at that location (the named one, else any active one) is split, one sale
+  line per consignment (D54), numbered on in array order: the named item's
+  stock there, then each other active item's there oldest first
+  (`received_at`, `short_id`), then the rest received with
+  `receive_for_use` (the line's price as asking price) and sold from that
+  new item. A line one consignment covers, a named item that is unknown,
+  another product's or not active, shop-owned stock (still
+  `insufficient_stock` below zero) and units go to `sell_line` unchanged.
+  Replay-safe as before: the fingerprint is of the caller's lines.
+- `saleable_stock` (same columns) also returns, for a consigned quantity
+  product with no active consignment holding stock anywhere, one `product`
+  row at the first active location: `on_hand` 0, no consignment item,
+  `unit_price` the latest item's asking price else the product's, subtitle
+  ending "Consigned · none recorded: received when sold".
+
 ### One-off parts (D264)
 
 Built out of phase on 2026-11-22 (`20261122001800_one_off_parts.sql`).

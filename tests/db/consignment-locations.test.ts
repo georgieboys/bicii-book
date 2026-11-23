@@ -189,31 +189,31 @@ describe.skipIf(!isolatedDatabase())("each consignor's stock where it is (D54)",
       expect(await itemHere(tx, s.beta, LOCATION.shopFloor)).toBe(4);
       expect(await itemHere(tx, s.alpha, LOCATION.workshopStore)).toBe(5);
 
-      // Naming Alpha's item where Alpha has nothing is refused.
-      await failsWith(
-        tx,
-        () =>
-          recordSale(tx, {
-            lines: [
-              {
-                product_id: s.productId,
-                location_id: LOCATION.shopFloor,
-                quantity: 1,
-                consignment_item_id: s.alpha,
-              },
-            ],
-          }),
-        { code: "P0001", message: "consignment_quantity_unavailable" },
-      );
-      // More than Beta has there, although the product has 9 in all.
-      await failsWith(
-        tx,
-        () =>
-          recordSale(tx, {
-            lines: [{ product_id: s.productId, location_id: LOCATION.shopFloor, quantity: 5 }],
-          }),
-        { code: "P0001", message: "insufficient_stock" },
-      );
+      // Naming Alpha's item where Alpha has nothing sells Beta's stock there
+      // instead (D267); Alpha's at the Workshop store never answers for it.
+      const named = await recordSale(tx, {
+        lines: [
+          {
+            product_id: s.productId,
+            location_id: LOCATION.shopFloor,
+            quantity: 1,
+            consignment_item_id: s.alpha,
+          },
+        ],
+      });
+      expect((await saleLines(tx, named.sale_id)).map((l) => l.consignment_item_id)).toEqual([
+        s.beta,
+      ]);
+      // More than Beta has there (3), although the product has 8 in all:
+      // Beta's 3, then 2 received on use from Beta, the latest consignor.
+      const more = await recordSale(tx, {
+        lines: [{ product_id: s.productId, location_id: LOCATION.shopFloor, quantity: 5 }],
+      });
+      const moreLines = await saleLines(tx, more.sale_id);
+      expect(moreLines.map((l) => l.quantity)).toEqual(["3.00", "2.00"]);
+      expect(moreLines[0].consignment_item_id).toBe(s.beta);
+      expect([s.alpha, s.beta]).not.toContain(moreLines[1].consignment_item_id);
+      expect(await itemHere(tx, s.alpha, LOCATION.workshopStore)).toBe(5);
       await assertItemsAddUp(tx, s.productId);
       await assertLedgerConsistent(tx);
     });

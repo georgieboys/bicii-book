@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AFTER_COMPLETE_NOTES,
   BOARD_GROUPS,
   CLOSED_MAX,
   CLOSED_PAGE,
@@ -8,6 +9,7 @@ import {
   OVERDUE_AFTER_DAYS,
   STATUS_LABELS,
   WORK_ORDER_STATUSES,
+  afterCompleteMode,
   allowedTransitions,
   boardGroupOf,
   boardQuery,
@@ -426,5 +428,46 @@ describe("board grouping", () => {
       visibleGroups({ group: null, statuses: ["collected", "paused"], jobNumber: null }),
     ).toEqual(open);
     expect(visibleGroups({ group: null, statuses: [], jobNumber: "J-000001" })).toContain("closed");
+  });
+});
+
+describe("afterCompleteMode (D269)", () => {
+  // 2026-11-23 10:00 in Singapore.
+  const now = new Date("2026-11-23T02:00:00Z");
+
+  it("leaves open and closed jobs alone", () => {
+    for (const status of WORK_ORDER_STATUSES) {
+      if (status === "completed" || status === "ready_for_collection") continue;
+      expect(afterCompleteMode({ status, completedAt: "2026-11-23T01:00:00Z" }, now)).toBeNull();
+    }
+  });
+
+  it("is same_day when the job was completed on today's shop day", () => {
+    // 00:30 on 23 Nov in Singapore is still 22 Nov in UTC.
+    expect(
+      afterCompleteMode({ status: "completed", completedAt: "2026-11-22T16:30:00Z" }, now),
+    ).toBe("same_day");
+    expect(
+      afterCompleteMode(
+        { status: "ready_for_collection", completedAt: "2026-11-23T01:00:00Z" },
+        now,
+      ),
+    ).toBe("same_day");
+  });
+
+  it("is follow_up when it was completed on an earlier shop day", () => {
+    // 23:30 on 22 Nov in Singapore.
+    expect(
+      afterCompleteMode({ status: "completed", completedAt: "2026-11-22T15:30:00Z" }, now),
+    ).toBe("follow_up");
+  });
+
+  it("says beforehand what will happen", () => {
+    expect(AFTER_COMPLETE_NOTES.same_day).toBe(
+      "This job is completed: the line is added and the job completed again.",
+    );
+    expect(AFTER_COMPLETE_NOTES.follow_up).toBe(
+      "Completed on an earlier day: this goes on a new follow-up job for the same bike.",
+    );
   });
 });

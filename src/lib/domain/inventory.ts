@@ -19,6 +19,7 @@ import type { WorkOrderStatus } from "@/lib/workshop";
 
 import { listPhotos, type Photo } from "./attachments";
 import { DomainError, staleEdit } from "./errors";
+import { placementOf, type LinePlacement } from "./lines";
 import type { ListPage } from "./list";
 import { staffSearch } from "./search";
 import { staffNames } from "@/lib/domain/staff-directory";
@@ -1888,6 +1889,8 @@ export type PartInput = {
   locationId: string | null;
   /** Null: the selling price (private.selling_price). Any staff may override (D14, D24). */
   unitSalePrice: Money | null;
+  /** D269: the job is completed, so add_part_after_complete places it. */
+  afterComplete?: boolean;
 };
 
 /**
@@ -1900,21 +1903,43 @@ export type PartInput = {
 export async function addPartToJob(
   supabase: ServerSupabase,
   input: PartInput,
-): Promise<{
-  lineId: string;
-  onHandAfter: number | null;
-  locationName: string | null;
-  replayed: boolean;
-  /** D267: consigned stock received on use because BICII held too little. */
-  receivedQuantity: number;
-}> {
+): Promise<
+  {
+    lineId: string;
+    onHandAfter: number | null;
+    locationName: string | null;
+    replayed: boolean;
+    /** D267: consigned stock received on use because BICII held too little. */
+    receivedQuantity: number;
+  } & LinePlacement
+> {
   let lineId = input.lineId;
   let locationId: string | null = null;
   let onHandAfter: number | null = null;
   let replayed = false;
   let receivedQuantity = 0;
+  let placement: LinePlacement = { followUp: null, recompleted: false };
   try {
-    if (input.unitId) {
+    if (input.afterComplete) {
+      // D269: the job is completed: added and completed again the same day,
+      // otherwise on a follow-up job (counted parts still receive on use).
+      const r = unwrap(
+        await supabase.rpc("add_part_after_complete", {
+          line_id: input.lineId,
+          work_order_id: input.workOrderId,
+          product_id: input.productId,
+          quantity: input.quantity,
+          location_id: input.locationId ?? undefined,
+          inventory_unit_id: input.unitId ?? undefined,
+          unit_sale_price: input.unitSalePrice ?? undefined,
+        }),
+      );
+      lineId = r?.line_id ?? lineId;
+      locationId = r?.location_id ?? input.locationId;
+      replayed = r?.replayed === true;
+      receivedQuantity = r?.received_quantity ?? 0;
+      placement = placementOf(r);
+    } else if (input.unitId) {
       const r = unwrap(
         await supabase.rpc("add_inventory_line", {
           line_id: input.lineId,
@@ -1968,7 +1993,7 @@ export async function addPartToJob(
     locationName = unwrap(loc)?.name ?? null;
     if (level) onHandAfter = unwrap(level)?.on_hand ?? 0;
   }
-  return { lineId, onHandAfter, locationName, replayed, receivedQuantity };
+  return { lineId, onHandAfter, locationName, replayed, receivedQuantity, ...placement };
 }
 
 const ONE_OFF_FIELDS: Record<string, string> = {

@@ -113,6 +113,11 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   // D267: a part on the job, consigned stock received on use; the manager's check
   "public.add_part_to_job(uuid, uuid, uuid, integer, uuid, money_amount)",
   "public.check_received_on_use(uuid)",
+  // D269: a line added after completion (same day: reopened and completed
+  // again; an earlier day: a follow-up job)
+  "public.add_manual_after_complete(uuid, uuid, text, money_amount, line_quantity, money_amount)",
+  "public.add_part_after_complete(uuid, uuid, uuid, integer, uuid, uuid, money_amount)",
+  "public.add_service_after_complete(uuid, uuid, uuid, line_quantity, money_amount, money_amount, text)",
   // Build packages (D247-D251)
   "public.set_work_order_build(uuid, uuid, uuid, money_amount)",
   "public.clear_work_order_build(uuid, text)",

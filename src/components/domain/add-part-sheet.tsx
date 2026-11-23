@@ -14,15 +14,17 @@ import { NumberInput } from "@/components/ui/number-input";
 import { SearchPicker, type PickerOption } from "@/components/ui/search-picker";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Sheet } from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
 import type { PartOption } from "@/lib/domain/inventory";
+import type { LinePlacement } from "@/lib/domain/lines";
+import type { AfterComplete } from "@/lib/workshop";
 import { overdrawWarning, signedQuantity } from "@/lib/inventory";
 import { formatMoney, lineTotal, parseMoney, toDecimal } from "@/lib/money";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
+import { AfterCompleteNote, useAddedToast } from "./after-complete";
 import { ManualLineSheet } from "./manual-line-sheet";
 import { OneOffPartSheet, type OneOffOptions } from "./one-off-part-sheet";
 import { NoActiveLocation } from "./no-active-location";
@@ -35,7 +37,7 @@ type Result = {
   locationName: string | null;
   replayed: boolean;
   receivedQuantity: number;
-};
+} & LinePlacement;
 type State = ActionResult<Result> | null;
 type PartPick = PickerOption & { part: PartOption };
 
@@ -76,8 +78,9 @@ function stockedLocation(part: PartOption | null): string | null {
 const plain = (n: number) => signedQuantity(n).replace(/^\+/, "");
 
 /**
- * "Add part" on an open job (D15; locked like Add service once completed).
- * Opens AddPartSheet.
+ * "Add part" on a job that is not collected or cancelled. On a completed
+ * job (`afterComplete`, D269) the sheet says what will happen and the line
+ * is placed by add_part_after_complete. Opens AddPartSheet.
  */
 export function AddPartButton({
   workOrderId,
@@ -87,6 +90,7 @@ export function AddPartButton({
   hasActiveLocation,
   hasBuild = false,
   oneOff,
+  afterComplete = null,
 }: {
   workOrderId: string;
   viewCosts: boolean;
@@ -99,6 +103,8 @@ export function AddPartButton({
   hasBuild?: boolean;
   /** D264: a new one-off item made on the job; without it, a manual line. */
   oneOff?: OneOffOptions;
+  /** D269: the job is completed; what adding a line does. */
+  afterComplete?: AfterComplete | null;
 }) {
   const [sheet, setSheet] = useState<"part" | { oneOff: string } | null>(null);
   return (
@@ -117,11 +123,12 @@ export function AddPartButton({
           workOrderId={workOrderId}
           viewCosts={viewCosts}
           hasActiveLocation={hasActiveLocation}
-          hasBuild={hasBuild}
+          hasBuild={hasBuild && !afterComplete}
+          afterComplete={afterComplete}
           onOneOff={(query) => setSheet({ oneOff: query })}
           onClose={() => setSheet(null)}
         />
-      ) : sheet && oneOff && (oneOff.canShop || oneOff.canConsign) ? (
+      ) : sheet && !afterComplete && oneOff && (oneOff.canShop || oneOff.canConsign) ? (
         // D264: a new one-off item, the shop's or consigned, made and added here.
         <OneOffPartSheet
           workOrderId={workOrderId}
@@ -138,6 +145,7 @@ export function AddPartButton({
           viewCosts={viewCosts}
           currency={currency}
           initialDescription={sheet.oneOff}
+          afterComplete={afterComplete}
           onClose={() => setSheet(null)}
         />
       ) : null}
@@ -165,6 +173,7 @@ function AddPartSheet({
   viewCosts,
   hasActiveLocation,
   hasBuild,
+  afterComplete,
   onOneOff,
   onClose,
 }: {
@@ -172,11 +181,12 @@ function AddPartSheet({
   viewCosts: boolean;
   hasActiveLocation: boolean;
   hasBuild: boolean;
+  afterComplete: AfterComplete | null;
   /** Switch to a one-off manual line, carrying what was searched for. */
   onOneOff: (query: string) => void;
   onClose: () => void;
 }) {
-  const { toast } = useToast();
+  const added = useAddedToast();
   const formId = useId();
   const [lineId] = useState(newId);
   const [picked, setPicked] = useState<PartPick | null>(null);
@@ -207,7 +217,7 @@ function AddPartSheet({
         receivedQuantity > 0
           ? ` ${receivedQuantity} received from the consignor (a manager checks it).`
           : "";
-      toast({ title: `${what} ${left}${extra}${received}`.trim(), tone: "success" });
+      added(`${what} ${left}${extra}${received}`.trim(), result.data);
       onClose();
     }
     return result;
@@ -308,6 +318,7 @@ function AddPartSheet({
           <input type="hidden" name="workOrderId" value={workOrderId} />
           <input type="hidden" name="productId" value={part?.productId ?? ""} />
           <input type="hidden" name="unitId" value={part?.unitId ?? ""} />
+          <AfterCompleteNote mode={afterComplete} />
           {state && !state.ok ? (
             <p role="alert" className="text-sm font-medium text-danger-deep">
               {state.error}

@@ -7,7 +7,7 @@
  * offer only the moves the database will accept. Pure.
  */
 import { Constants, type Database } from "@/lib/database.types";
-import { shopDayStart } from "@/lib/dates";
+import { shopDateKey, shopDayStart } from "@/lib/dates";
 import { isUuid } from "@/lib/uuid";
 
 export type WorkOrderStatus = Database["public"]["Enums"]["work_order_status"];
@@ -91,6 +91,32 @@ export function isOverdue(
   if (Number.isNaN(checkedIn)) return false;
   return now.getTime() - checkedIn > OVERDUE_AFTER_DAYS * DAY_MS;
 }
+
+/**
+ * D269: what adding a line to a job does once it is no longer open. Null:
+ * an open job (lines are added as usual) or a collected or cancelled one
+ * (closed for good). "same_day": completed on today's shop day, so the
+ * line is added and the job completed again. "follow_up": completed on an
+ * earlier shop day, so the line goes on a follow-up job for the same bike.
+ * The database decides (private.late_line_target); this only says
+ * beforehand what it will do.
+ */
+export type AfterComplete = "same_day" | "follow_up";
+
+export function afterCompleteMode(
+  job: { status: WorkOrderStatus; completedAt: string | Date | null },
+  now: Date = new Date(),
+): AfterComplete | null {
+  if (job.status !== "completed" && job.status !== "ready_for_collection") return null;
+  if (!job.completedAt) return "follow_up";
+  return shopDateKey(job.completedAt) === shopDateKey(now) ? "same_day" : "follow_up";
+}
+
+/** D269: what the Add sheets say beforehand, word for word. */
+export const AFTER_COMPLETE_NOTES: Readonly<Record<AfterComplete, string>> = {
+  same_day: "This job is completed: the line is added and the job completed again.",
+  follow_up: "Completed on an earlier day: this goes on a new follow-up job for the same bike.",
+};
 
 /**
  * Why a bike owned by an archived customer cannot be checked in yet: it is

@@ -278,4 +278,12 @@ describe("Today: Pay owners", () => {
       "/consignment/consignors/c2",
     );
   });
+
+  it("says 'at least' and offers See all when a consignor list was cut short", () => {
+    const owed = owedToConsignors(rows, { partial: true })!;
+    expect(owed.partial).toBe(true);
+    render(<PayOwners owed={owed} />);
+    expect(screen.getByText("Owed to consignors: at least $160.50 on 4 items")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /See all/ }).getAttribute("href")).toBe("/consignment");
+  });
 });

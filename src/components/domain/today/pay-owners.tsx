@@ -10,9 +10,12 @@ import { TodaySection } from "./stat-tile";
 /** Consignors listed on Today; the rest are on Consignment. */
 export const PAY_OWNER_ROWS = 5;
 
-/** The card's headline: what is owed and on how many items. */
-export function payOwnersHeadline(total: string, items: number): string {
-  return `Owed to consignors: ${formatMoney(total)} on ${plural(items, "item", "items")}`;
+/**
+ * The card's headline: what is owed and on how many items; "at least" when
+ * the consignor list was cut short (more consignors than one read returns).
+ */
+export function payOwnersHeadline(total: string, items: number, partial = false): string {
+  return `Owed to consignors: ${partial ? "at least " : ""}${formatMoney(total)} on ${plural(items, "item", "items")}`;
 }
 
 /**
@@ -28,9 +31,9 @@ export function PayOwners({ owed }: { owed: ReturnType<typeof owedToConsignors> 
     <TodaySection
       id="today-pay-owners"
       title="Pay owners"
-      description={payOwnersHeadline(owed.total, owed.items)}
+      description={payOwnersHeadline(owed.total, owed.items, owed.partial)}
       actions={
-        owed.consignors.length > shown.length ? (
+        owed.partial || owed.consignors.length > shown.length ? (
           <Link
             href="/consignment"
             className="inline-flex min-h-tap items-center text-sm font-semibold underline"

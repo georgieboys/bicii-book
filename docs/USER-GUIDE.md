@@ -1326,7 +1326,9 @@ website's account pages go live when the owner switches them on,
 - **Pay owners** (Manage consignments, today only): "Owed to
   consignors: $… on N items", then the consignors owed the most (up to
   five; **See all** opens Consignment), each with its amount and "N items
-  awaiting payment". A row opens the consignor, where **Record payment**
+  awaiting payment". Archived consignors who are still owed count too. With
+  more consignors than one list holds, it reads "Owed to consignors: at
+  least $… on N items". A row opens the consignor, where **Record payment**
   is. The card is hidden when nobody is owed anything.
 - Money (Gross sales) appears only with View financial reports; Direct
   costs (COGS), Yield, Cult Commons and BICII after Cult Commons also need

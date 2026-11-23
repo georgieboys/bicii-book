@@ -481,7 +481,9 @@ export type OwedConsignor = { id: string; name: string; outstanding: string; ite
  * reporting.consignor_ledger), most owed first, with the total and the
  * items awaiting payment. A display sum of the ledger's own figures, as the
  * consignor page sums its statement; null when nobody is owed anything, so
- * the card hides.
+ * the card hides. Pass active and archived consignors alike (an archived
+ * consignor can still be owed); `partial` says a list was cut short, so the
+ * total is a floor ("at least").
  */
 export function owedToConsignors(
   rows: readonly {
@@ -490,7 +492,8 @@ export function owedToConsignors(
     outstanding: string | null;
     awaitingItems: number | null;
   }[],
-): { total: string; items: number; consignors: OwedConsignor[] } | null {
+  { partial = false }: { partial?: boolean } = {},
+): { total: string; items: number; consignors: OwedConsignor[]; partial: boolean } | null {
   const owed = rows
     .filter((r) => r.outstanding !== null && toDecimal(r.outstanding).gt(0))
     .map((r) => ({
@@ -509,5 +512,6 @@ export function owedToConsignors(
     total: total.toFixed(2),
     items: owed.reduce((n, r) => n + r.items, 0),
     consignors: owed,
+    partial,
   };
 }

@@ -400,9 +400,17 @@ async function TodayContent({
         <Suspense fallback={null}>
           <SectionLoader
             name="pay-owners"
-            load={async () =>
-              owedToConsignors((await listConsignors(supabase, { q: "", limit: 199 })).items)
-            }
+            load={async () => {
+              // Archived consignors can still be owed, so both lists count.
+              // 199 + 1 rows is the RPC's cap, so `more` shows a cut-off list.
+              const [active, archived] = await Promise.all([
+                listConsignors(supabase, { q: "", limit: 199 }),
+                listConsignors(supabase, { q: "", archived: true, limit: 199 }),
+              ]);
+              return owedToConsignors([...active.items, ...archived.items], {
+                partial: active.more || archived.more,
+              });
+            }}
           >
             {(owed) => <PayOwners owed={owed} />}
           </SectionLoader>

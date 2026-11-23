@@ -2187,9 +2187,13 @@ changes.
   `note_id` per channel per opening of the sheet, so a second tap replays.
   No message is sent by BICII.
 - **Today → Pay owners** (manage_consignments) reads `list_consignors`
-  (max 200 rows; `outstanding` and `awaiting_settlement_items` are visible
-  to consignment money users, D48) and sums the positive `outstanding`
-  figures for display only, as the consignor page sums its statement.
+  twice, active and archived (an archived consignor can still be owed;
+  `include_archived` returns archived ones only), 199 rows each with one
+  more to detect a cut-off list (the RPC caps `max_rows` at 200);
+  `outstanding` and `awaiting_settlement_items` are visible to consignment
+  money users (D48). It sums the positive `outstanding` figures for display
+  only, as the consignor page sums its statement, and says "at least" when
+  either list was cut off.
 
 ### One-off parts (D264)
 

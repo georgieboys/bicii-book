@@ -856,10 +856,19 @@ while an approved or ordered item is neither fitted nor cancelled:
   unit or a counted product (it starts with that item). Search the name,
   SKU or U-/P-/C- number under **Add item** and choose a result (each
   shows where it is, how many and the price; consigned ones show
-  "Consigned · <consignor>"). The **Price** is the selling price; change
-  it if you agreed another. For several, set **Quantity** (a whole
-  number, up to what is there; "1.5" or "2x" is marked and **Record
-  sale** stays off). **Add item** adds more. Choose the **Customer** if they are on
+  "Consigned · <consignor>"; a consigned item with nothing recorded shows
+  "Consigned · none recorded: received when sold", D267). The **Price** is
+  the selling price; change it if you agreed another. For several, set
+  **Quantity** (a whole number, up to what is there; "1.5" or "2x" is
+  marked and **Record sale** stays off). **Consigned stock BICII holds too
+  little of** (D267) is not capped: the line says "2 not recorded at Shop
+  floor: it is received from the consignor when you record the sale, and
+  a manager checks it later." and **Record sale** stays on. Recording sells
+  what each consignor has there (oldest first, one line each) and
+  receives the rest from the product's usual consignor at the last amount
+  owed (never consigned before: half the price, D268), listed under
+  "Received on use · to check" on **Consignment**. Shop stock is still
+  capped at what is there. **Add item** adds more. Choose the **Customer** if they are on
   file (empty is a walk-in); someone new can be added from the list
   (**New customer "…"**) without leaving the sale. **Sold earlier?** lets you enter when it was
   sold (not in the future, and not before the item came into the shop:
@@ -877,9 +886,9 @@ while an approved or ordered item is neither fitted nor cancelled:
   changed: lower the quantity. "This item has no selling price. Enter
   one." needs a price. A date in the future is marked on **Sold at**;
   "A sale can't be dated before the item came into the shop." needs a
-  later date. "No single consignor has that many of this item at that
-  location." means the consigned stock there belongs to several
-  consignors: sell fewer, or pick each consignor's line. A sold bike is not
+  later date. "That consigned item is no longer with the shop." means the
+  consignment you picked went meanwhile: remove the line and search
+  again. A sold bike is not
   transferred to the buyer: use **Transfer** on the bike page (D51). The
   buyer isn't a customer yet? In **Transfer ownership** (and in a new
   bike's **Owner**), the customer search ends with **New customer "…"**:

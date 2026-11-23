@@ -19,6 +19,7 @@ import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
 
 import { AfterCompleteNote, useAddedToast } from "./after-complete";
+import { ManualLineSheet } from "./manual-line-sheet";
 
 type State = ActionResult<{ id: string } & LinePlacement> | null;
 type ServicePick = PickerOption & { service: ServiceOption };
@@ -31,6 +32,12 @@ export function previewTotal(quantity: string, price: string, currency: string):
   return formatMoney(lineTotal(q, p, currency), currency);
 }
 
+/** The service list's last row: the typed words as a labour line instead. */
+export function labourLineLabel(query: string): string {
+  const q = query.trim();
+  return q ? `Add “${q}” as labour line` : "Add as labour line";
+}
+
 /**
  * "Add service": find an active service (SearchPicker showing price and
  * category), a quantity with steppers, the price prefilled from the
@@ -38,7 +45,10 @@ export function previewTotal(quantity: string, price: string, currency: string):
  * the cost. The line total previews as it is typed; the database computes
  * the real one. The sheet's line id is the idempotency key, so a repeated
  * submit adds one line. On a completed job (`afterComplete`, D269) it says
- * beforehand what will happen.
+ * beforehand what will happen. When no service fits, the list's last row,
+ * "Add as labour line", swaps to the manual line sheet with the typed words
+ * as its description, so the labour goes on the job now; a manager can add
+ * the service to the catalog later.
  */
 export function AddServiceButton({
   workOrderId,
@@ -54,7 +64,7 @@ export function AddServiceButton({
   /** D269: the job is completed; what adding a line does. */
   afterComplete?: AfterComplete | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState<"service" | { labour: string } | null>(null);
   return (
     <>
       <Button
@@ -62,17 +72,27 @@ export function AddServiceButton({
         size="sm"
         icon={<PlusIcon className="size-4" />}
         disabled={disabled}
-        onClick={() => setOpen(true)}
+        onClick={() => setSheet("service")}
       >
         Add service
       </Button>
-      {open ? (
+      {sheet === "service" ? (
         <AddServiceSheet
           workOrderId={workOrderId}
           viewCosts={viewCosts}
           currency={currency}
           afterComplete={afterComplete}
-          onClose={() => setOpen(false)}
+          onLabour={(query) => setSheet({ labour: query })}
+          onClose={() => setSheet(null)}
+        />
+      ) : sheet ? (
+        <ManualLineSheet
+          workOrderId={workOrderId}
+          viewCosts={viewCosts}
+          currency={currency}
+          initialDescription={sheet.labour}
+          afterComplete={afterComplete}
+          onClose={() => setSheet(null)}
         />
       ) : null}
     </>
@@ -84,12 +104,15 @@ function AddServiceSheet({
   viewCosts,
   currency,
   afterComplete,
+  onLabour,
   onClose,
 }: {
   workOrderId: string;
   viewCosts: boolean;
   currency: string;
   afterComplete: AfterComplete | null;
+  /** Switch to a manual labour line, carrying what was searched for. */
+  onLabour: (query: string) => void;
   onClose: () => void;
 }) {
   const added = useAddedToast();
@@ -168,7 +191,8 @@ function AddServiceSheet({
               }
             }}
             placeholder="Search services"
-            emptyMessage="No active service matches."
+            emptyMessage="No active service matches. Add it as a labour line."
+            action={{ label: labourLineLabel, onSelect: (q) => onLabour(q.trim()) }}
           />
         </Field>
         <Field label="Quantity" error={errors?.quantity?.[0]} required>

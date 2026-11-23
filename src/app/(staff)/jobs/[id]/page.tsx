@@ -15,6 +15,7 @@ import { LineTable } from "@/components/domain/line-table";
 import { ManualLineButton } from "@/components/domain/manual-line-sheet";
 import { PhotoGrid } from "@/components/domain/photo-grid";
 import { ShortId } from "@/components/domain/short-id";
+import { TellCustomerButton } from "@/components/domain/tell-customer";
 import { TotalsSummary } from "@/components/domain/totals-summary";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -53,6 +54,7 @@ import {
   type WorkOrderDetail,
 } from "@/lib/domain/workshop";
 import { telHref } from "@/lib/people";
+import { canTellCustomer, readyMessage } from "@/lib/ready-message";
 import { listConsignors } from "@/lib/domain/consignment";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
@@ -302,6 +304,26 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
         paid={paid}
         settle={settle}
       />
+
+      {canTellCustomer(job.status) ? (
+        // The bike is ready: the counter tells the customer in place, with
+        // what is left to pay (balance_due) and where to collect it.
+        <div className="flex flex-wrap items-center gap-2 pb-2">
+          <TellCustomerButton
+            workOrderId={job.id}
+            jobNumber={job.jobNumber}
+            phone={job.customer.phone}
+            email={job.customer.email}
+            message={readyMessage({
+              firstName: job.customer.firstName,
+              jobNumber: job.jobNumber,
+              bikeTitle: job.bike.title,
+              balanceDue: payments?.totals?.balanceDue ?? null,
+              currency: payments?.totals?.currency ?? job.currency,
+            })}
+          />
+        </div>
+      ) : null}
 
       {intake ? (
         <Card

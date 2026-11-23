@@ -193,7 +193,14 @@ export function Sheet({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div ref={portalRef} className="fixed inset-0 z-50">
+    <div
+      ref={portalRef}
+      className="fixed inset-0 z-50"
+      // React events bubble through portals: a sheet opened from a picker
+      // inside another sheet's form (New customer, New supplier) must not
+      // submit that form too when its own form is submitted.
+      onSubmit={(e) => e.stopPropagation()}
+    >
       <div
         aria-hidden="true"
         className="absolute inset-0 animate-[fade-in_200ms_var(--ease-glide)] bg-ink/40"

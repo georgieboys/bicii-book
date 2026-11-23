@@ -2,7 +2,6 @@
 
 import { useId, useState, useTransition } from "react";
 
-import { searchConsignorsAction } from "@/app/(staff)/consignment/actions";
 import { addOneOffPartToJob } from "@/app/(staff)/jobs/actions";
 import { proposeOneOffPartAction } from "@/app/(staff)/jobs/indent-actions";
 import { Button } from "@/components/ui/button";
@@ -10,13 +9,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
-import { SearchPicker, type PickerOption } from "@/components/ui/search-picker";
+import type { PickerOption } from "@/components/ui/search-picker";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import type { ActionResult } from "@/lib/actions";
 import { callAction } from "@/lib/call-action";
 import { newId } from "@/lib/uuid";
+
+import { ConsignorPicker } from "./consignor-picker";
+import { ConsignorSheet } from "./consignor-sheet";
 
 /** What the job lets this staff member do with a one-off part (D264). */
 export type OneOffOptions = {
@@ -84,11 +86,8 @@ export function OneOffPartSheet({
     ...(options.canShop ? [{ value: "shop" as const, label: "The shop's" }] : []),
   ];
 
-  const searchConsignors = async (q: string) => {
-    const r = await callAction(() => searchConsignorsAction({ q }));
-    if (!r.ok) throw new Error(r.error);
-    return r.data;
-  };
+  // "New consignor" from the picker: the consignor sheet over this one.
+  const [newConsignor, setNewConsignor] = useState<string | null>(null);
 
   const submit = () =>
     start(async () => {
@@ -208,12 +207,10 @@ export function OneOffPartSheet({
         {whose === "consigned" ? (
           <>
             <Field label="Consigned from" error={errors?.consignorId?.[0]} required>
-              <SearchPicker
-                search={searchConsignors}
+              <ConsignorPicker
                 value={consignor}
                 onSelect={setConsignor}
-                placeholder="Search consignors"
-                emptyMessage="No consignor matches. Add them under Consignment first."
+                onNew={(q) => setNewConsignor(q)}
               />
             </Field>
             <Field
@@ -258,6 +255,15 @@ export function OneOffPartSheet({
           />
         ) : null}
       </form>
+      <ConsignorSheet
+        open={newConsignor !== null}
+        onOpenChange={(next) => (next ? null : setNewConsignor(null))}
+        initialName={newConsignor ?? ""}
+        onCreated={(created) => {
+          setNewConsignor(null);
+          setConsignor(created);
+        }}
+      />
     </Sheet>
   );
 }

@@ -6,7 +6,12 @@ import { z } from "zod";
 import { ActionError, staffAction } from "@/lib/actions";
 import { unwrap } from "@/lib/db-errors";
 import { getQuoteRecipient } from "@/lib/domain/indent";
-import { recordCounterPayment, sendBalanceLink, voidCounterPayment } from "@/lib/domain/payments";
+import {
+  recordCounterPayment,
+  reviewCounterPayment,
+  sendBalanceLink,
+  voidCounterPayment,
+} from "@/lib/domain/payments";
 import { balanceEmailEnabled, sendBalanceEmail } from "@/lib/integrations/email/balance";
 import { expireOpenCheckouts, refreshPaymentFromStripe } from "@/lib/integrations/stripe/checkout";
 import { stripeConnection } from "@/lib/integrations/stripe/client";
@@ -216,8 +221,9 @@ const optionalText = (max: number, what: string) =>
     .transform((v) => (v ? v : null));
 
 /**
- * Record money the shop took at the counter (D161; an active admin only,
- * the RPC's require_admin). With `quoteId` it settles that quote's
+ * Record money the shop took at the counter (D161; any active staff
+ * member since D270, the RPC's require_staff; one recorded by someone who
+ * is not an admin is listed on Today for an admin to review). With `quoteId` it settles that quote's
  * deposit (exactly its amount, which the sheet fixes); without, it counts
  * towards the bill. `receivedAt` null means now. After it commits, and
  * also on a replay of the same id, the job's open Checkout sessions it
@@ -261,7 +267,7 @@ export const recordCounterPaymentAction = staffAction(
     reference: optionalText(200, "reference"),
     note: optionalText(2_000, "note"),
   }),
-  { name: "payments.record_counter_payment", admin: true },
+  { name: "payments.record_counter_payment" },
   async (
     input,
     { supabase, correlationId, log },
@@ -312,5 +318,19 @@ export const voidCounterPaymentAction = staffAction(
     const result = await voidCounterPayment(supabase, input);
     refresh();
     return result;
+  },
+);
+
+/**
+ * "Looks right" on a counter payment someone who is not an admin recorded
+ * (D270; an active admin only, the RPC's require_admin): it leaves the
+ * review list on Today. Idempotent; it changes no money.
+ */
+export const reviewCounterPaymentAction = staffAction(
+  z.object({ counterPaymentId: z.guid({ error: "Unknown counter payment." }) }),
+  { name: "payments.review_counter_payment", admin: true },
+  async ({ counterPaymentId }, { supabase }): Promise<void> => {
+    await reviewCounterPayment(supabase, counterPaymentId);
+    refresh();
   },
 );

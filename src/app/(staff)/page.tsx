@@ -5,6 +5,7 @@ import { Suspense, type ReactNode } from "react";
 import { ActivityList } from "@/components/domain/today/activity-list";
 import { AdjustmentList } from "@/components/domain/today/adjustment-list";
 import { AppointmentsSection, TodayArrivals } from "@/components/domain/today/appointments-section";
+import { CounterReviewList } from "@/components/domain/today/counter-review-list";
 import { DayNavigator } from "@/components/domain/today/day-navigator";
 import { ExceptionList } from "@/components/domain/today/exception-list";
 import { FinancialEntries } from "@/components/domain/today/financial-entries";
@@ -15,7 +16,7 @@ import { SectionLoader, SectionSkeleton } from "@/components/domain/today/sectio
 import { MoneyTile, StatTile, TileGrid, TodaySection } from "@/components/domain/today/stat-tile";
 import { WeekStrip } from "@/components/domain/today/week-strip";
 import { EmptyState } from "@/components/ui/empty-state";
-import { hasPermission } from "@/lib/auth/permissions";
+import { canVoidCounterPayment, hasPermission } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
 import {
   EARLIEST_SHOP_DAY,
@@ -32,6 +33,7 @@ import { DbError } from "@/lib/db-errors";
 import { owedToConsignors } from "@/lib/consignment";
 import { todaySummary } from "@/lib/domain/appointments";
 import { listConsignors } from "@/lib/domain/consignment";
+import { listCounterPaymentsToReview } from "@/lib/domain/payments";
 import { hasReorderSuggestions } from "@/lib/domain/purchasing";
 import {
   getDailySummaries,
@@ -395,6 +397,15 @@ async function TodayContent({
           ) : null}
         </div>
       </TodaySection>
+
+      {/* D270: counter payments staff who aren't admins recorded, for an admin. */}
+      {isToday && canVoidCounterPayment(staff) ? (
+        <Suspense fallback={<SectionSkeleton rows={1} />}>
+          <SectionLoader name="counter-review" load={() => listCounterPaymentsToReview(supabase)}>
+            {(review) => <CounterReviewList rows={review.rows} total={review.total} />}
+          </SectionLoader>
+        </Suspense>
+      ) : null}
 
       {payOwners ? (
         <Suspense fallback={null}>

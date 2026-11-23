@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import {
   checkWithStripeAction,
+  reviewCounterPaymentAction,
   voidCounterPaymentAction,
 } from "@/app/(staff)/jobs/payment-actions";
 import { Badge } from "@/components/ui/badge";
@@ -68,9 +69,9 @@ export type PaymentsCardJob = {
  * triggers a read the server makes with its own key, and only for a
  * Stripe payment; refunds are made in Stripe (D155) and appear here on
  * their own. "Send payment link" (any staff member, while Stripe is on and
- * the bill is final) and "Record counter payment" (admins, on a job that
- * is not cancelled) sit in the header; an admin corrects a counter
- * payment by voiding it, as recorded in error or given back.
+ * the bill is final) and "Record counter payment" (any staff member, on a
+ * job that is not cancelled; D270) sit in the header; an admin corrects a
+ * counter payment by voiding it, as recorded in error or given back.
  */
 export function PaymentsCard({
   id,
@@ -80,6 +81,7 @@ export function PaymentsCard({
   canOpenStripe,
   payOnline,
   canRecordCounter = false,
+  canVoidCounter = false,
   customer = { firstName: null, phone: null, email: null },
   emailEnabled = false,
 }: {
@@ -93,8 +95,10 @@ export function PaymentsCard({
   canOpenStripe: boolean;
   /** Stripe is on: the customer can pay online (a due deposit, a payment link). */
   payOnline: boolean;
-  /** An active admin (D161a): Record counter payment and the void controls. */
+  /** Any active staff member (D270): Record counter payment. */
   canRecordCounter?: boolean;
+  /** An active admin (D161d): the void controls. */
+  canVoidCounter?: boolean;
   customer?: { firstName: string | null; phone: string | null; email: string | null };
   /** RESEND_API_KEY and EMAIL_FROM are set: links can be emailed. */
   emailEnabled?: boolean;
@@ -195,8 +199,8 @@ export function PaymentsCard({
                   </div>
                   {!payOnline && d.state === "due" && job.open ? (
                     <p className="text-sm text-dust-700">
-                      Stripe isn&apos;t set up, so the customer can&apos;t pay online. An admin or
-                      manager can order without the deposit.
+                      Stripe isn&apos;t set up, so the customer can&apos;t pay online. Take it at
+                      the counter, or an admin or manager can order without the deposit.
                     </p>
                   ) : null}
                 </li>
@@ -234,7 +238,7 @@ export function PaymentsCard({
             </h3>
             <ul className="flex flex-col divide-y divide-hairline">
               {counterPayments.map((c) => (
-                <CounterRow key={c.id} payment={c} canVoid={canRecordCounter} />
+                <CounterRow key={c.id} payment={c} canVoid={canVoidCounter} />
               ))}
             </ul>
           </section>
@@ -365,18 +369,28 @@ export function PaymentsCard({
 
 /**
  * One counter payment: what it was for, how it was paid, the amount, the
- * day, the reference and who recorded it; a voided one struck through
- * with why, who and when. An admin's two corrections on a live one, each
+ * day, the reference and who recorded it; one recorded by someone who is
+ * not an admin and not yet reviewed says an admin will check it, and an
+ * admin presses Looks right on it here as on Today (D270); a
+ * voided one struck through with why, who and when. An admin's two corrections on a live one, each
  * its own ReasonConfirm (D161d; step3-critique C18): "Void (recorded in
  * error)…" (it never came in) and "Given back…" (the shop handed it back
  * outside BICII). The void is replay-safe on the payment, its kind and
  * its reason, so no request id is needed.
  */
 function CounterRow({ payment: c, canVoid }: { payment: CounterPayment; canVoid: boolean }) {
+  const { toast } = useToast();
   const [confirming, setConfirming] = useState<CounterVoidKind | null>(null);
+  const [reviewing, startReview] = useTransition();
   const amount = formatMoney(c.amount, c.currency);
   const what = c.kind === "deposit" ? "Deposit" : "Towards the bill";
   const label = `${what} ${amount}, ${COUNTER_METHOD_LABELS[c.method]}`;
+  // D270: an admin reviews it here too, not only from Today.
+  const review = () =>
+    startReview(async () => {
+      const r = await callAction(() => reviewCounterPaymentAction({ counterPaymentId: c.id }));
+      if (!r.ok) toast({ title: "Not saved", description: r.error, tone: "error" });
+    });
   const voidControl = (kind: CounterVoidKind) => (
     <ReasonConfirm
       key={kind}
@@ -422,6 +436,9 @@ function CounterRow({ payment: c, canVoid }: { payment: CounterPayment; canVoid:
             {c.reference ? ` · Ref ${c.reference}` : ""} · recorded by {c.recordedBy}
           </span>
           {c.note ? <span className="text-sm text-dust-700">{c.note}</span> : null}
+          {c.awaitingReview && !c.voided ? (
+            <span className="text-sm text-waiting-deep">An admin will check this payment.</span>
+          ) : null}
         </span>
         <span
           className={cn("font-semibold tabular-nums", c.voided && "text-dust-500 line-through")}
@@ -436,6 +453,18 @@ function CounterRow({ payment: c, canVoid }: { payment: CounterPayment; canVoid:
         </p>
       ) : canVoid ? (
         <div className="flex flex-wrap gap-2">
+          {c.awaitingReview && confirming === null ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={review}
+              pending={reviewing}
+              pendingLabel="Saving…"
+              aria-label={`Looks right: ${label}`}
+            >
+              Looks right
+            </Button>
+          ) : null}
           {confirming !== "given_back" ? voidControl("recorded_in_error") : null}
           {confirming !== "recorded_in_error" ? voidControl("given_back") : null}
         </div>

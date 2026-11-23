@@ -104,7 +104,7 @@ describe("the copy", () => {
       "Not sales: money taken and given back by the day it moved.",
     );
     expect(COUNTER_RECORDED_NOTE).toBe(
-      "Recorded at the counter: only what an admin recorded in BICII; not the till's takings.",
+      "Recorded at the counter: only what staff recorded in BICII; not the till's takings.",
     );
     expect(HELD_BASIS_NOTE).toBe(
       "Not sales. On the Sale date basis, a job counts as sales on the day it is completed, so the second list is already in that figure and the others are not.",

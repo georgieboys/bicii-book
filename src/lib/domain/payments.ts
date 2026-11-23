@@ -159,7 +159,7 @@ export type CounterVoid = {
   voidedAt: string;
 };
 
-/** Money an admin recorded at the counter (public.counter_payments, D161). */
+/** Money staff recorded at the counter (public.counter_payments, D161, D270). */
 export type CounterPayment = {
   id: string;
   kind: PaymentKind;
@@ -172,9 +172,11 @@ export type CounterPayment = {
   receivedAt: string;
   reference: string | null;
   note: string | null;
-  /** The admin who recorded it (display name). */
+  /** Who recorded it (display name). */
   recordedBy: string;
   createdAt: string;
+  /** D270: recorded by someone who is not an admin and not yet reviewed by one. */
+  awaitingReview: boolean;
   /** The one correction (D161d), or null while it counts. */
   voided: CounterVoid | null;
 };
@@ -208,7 +210,7 @@ export type PaymentTotals = {
   paidAhead: string | null;
   /** Net paid online above the job total, in every status (R-082); null outside SGD. */
   heldOverTotal: string | null;
-  /** Live counter payments an admin recorded (D161); "0.00" when none. */
+  /** Live counter payments staff recorded (D161, D270); "0.00" when none. */
   paidAtCounter: string;
   /** Online net plus counter money: what balance_due and paid_ahead are taken from (D161j). */
   netPaid: string;
@@ -299,7 +301,7 @@ export async function getJobPayments(
       supabase
         .from("counter_payments")
         .select(
-          "id, kind, quote_id, amount, currency, method, received_at, reference, note, recorded_by, created_at, counter_payment_voids(kind, reason, voided_by, voided_at)",
+          "id, kind, quote_id, amount, currency, method, received_at, reference, note, recorded_by, created_at, needs_review, reviewed_at, counter_payment_voids(kind, reason, voided_by, voided_at)",
         )
         .eq("work_order_id", workOrderId)
         .order("received_at", { ascending: true })
@@ -371,6 +373,7 @@ export async function getJobPayments(
         note: c.note,
         recordedBy: nameOf(names, c.recorded_by),
         createdAt: c.created_at,
+        awaitingReview: c.needs_review && c.reviewed_at === null,
         voided: v
           ? {
               kind: voidKind(v.kind),
@@ -469,8 +472,8 @@ export async function sendBalanceLink(
 }
 
 /**
- * record_counter_payment (D161i): an active admin only (the RPC's
- * require_admin). With `quoteId` it settles that quote's deposit at
+ * record_counter_payment (D161i, D270): any active staff member (the RPC's
+ * require_staff). With `quoteId` it settles that quote's deposit at
  * exactly its amount; without, it counts towards the bill. `receivedAt`
  * null means now. Replay-safe on `id`. `openCheckouts` is how many of the
  * job's open Checkout sessions this money made stale (the action expires
@@ -531,4 +534,77 @@ export async function voidCounterPayment(
   const row = rows?.[0];
   if (!row) throw new Error("void_counter_payment returned nothing");
   return { replayed: row.replayed };
+}
+
+/**
+ * review_counter_payment (D270): an active admin confirms a counter
+ * payment someone who is not an admin recorded. Idempotent.
+ */
+export async function reviewCounterPayment(
+  supabase: ServerSupabase,
+  counterPaymentId: string,
+): Promise<void> {
+  unwrap(await supabase.rpc("review_counter_payment", { p_counter_payment_id: counterPaymentId }));
+}
+
+/** A counter payment waiting for an admin's review (D270), for Today. */
+export type CounterPaymentToReview = {
+  id: string;
+  workOrderId: string;
+  jobNumber: string | null;
+  kind: PaymentKind;
+  amount: string;
+  currency: string;
+  method: CounterMethod;
+  receivedAt: string;
+  reference: string | null;
+  recordedBy: string;
+  createdAt: string;
+};
+
+/** At most this many on Today; the rest follow as each is reviewed. */
+export const COUNTER_REVIEW_ROWS = 50;
+
+/**
+ * Counter payments recorded by someone who is not an admin, not yet
+ * reviewed and not voided (D270), oldest first, with how many wait in all.
+ * Read through RLS (any staff member reads counter payments; Today shows
+ * the list to admins only, who alone can review).
+ */
+export async function listCounterPaymentsToReview(
+  supabase: ServerSupabase,
+): Promise<{ rows: CounterPaymentToReview[]; total: number }> {
+  const [result, directory] = await Promise.all([
+    supabase
+      .from("counter_payments")
+      .select(
+        "id, work_order_id, kind, amount, currency, method, received_at, reference, recorded_by, created_at, work_orders(job_number), counter_payment_voids(counter_payment_id)",
+        { count: "exact" },
+      )
+      .eq("needs_review", true)
+      .is("reviewed_at", null)
+      // Anti-join on the embedded void: a voided payment needs no review.
+      .is("counter_payment_voids", null)
+      .order("created_at", { ascending: true })
+      .limit(COUNTER_REVIEW_ROWS),
+    staffDirectory(supabase),
+  ]);
+  const rows = unwrap(result) ?? [];
+  const names = new Map((unwrap(directory) ?? []).map((d) => [d.id, d.display_name]));
+  return {
+    total: result.count ?? rows.length,
+    rows: rows.map((r) => ({
+      id: r.id,
+      workOrderId: r.work_order_id,
+      jobNumber: r.work_orders?.job_number ?? null,
+      kind: r.kind,
+      amount: toMoneyString(r.amount),
+      currency: r.currency,
+      method: counterMethod(r.method),
+      receivedAt: r.received_at,
+      reference: r.reference,
+      recordedBy: nameOf(names, r.recorded_by),
+      createdAt: r.created_at,
+    })),
+  };
 }

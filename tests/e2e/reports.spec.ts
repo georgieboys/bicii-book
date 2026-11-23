@@ -375,7 +375,7 @@ test("Customer payments: the figures, the money held on jobs now, each payment a
     "Not sales: money taken and given back by the day it moved.",
   );
   await expect(payments).toContainText(
-    "Recorded at the counter: only what an admin recorded in BICII; not the till's takings.",
+    "Recorded at the counter: only what staff recorded in BICII; not the till's takings.",
   );
   // Outside Figures: the date basis does not apply.
   await expect(payments.getByRole("radiogroup", { name: "Date basis" })).toHaveCount(0);

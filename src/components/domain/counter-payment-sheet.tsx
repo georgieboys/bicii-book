@@ -37,8 +37,9 @@ import { callAction } from "@/lib/call-action";
 const BILL = "bill";
 
 /**
- * Record money the shop took at the counter (D161; an active admin, the
- * page offers it only then and the RPC checks again; step3-critique C19).
+ * Record money the shop took at the counter (D161; any active staff
+ * member since D270, the RPC checks again; one recorded by someone who is
+ * not an admin is listed on Today for an admin to review; C19).
  * What it is for: each deposit that is due or refunded ("Record the
  * $300.00 deposit for the quote answered 12 Oct", its amount fixed from
  * the quote, since the database takes only that amount), or "Towards the

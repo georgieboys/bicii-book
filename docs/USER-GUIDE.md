@@ -443,7 +443,13 @@ while an approved or ordered item is neither fitted nor cancelled:
      set its cost on the product's page first." with **Open the product**
      (anyone else gets "This part has no cost yet…" when they press **Fit
      part**; with the Bought outside option, the sheet switches to it and
-     asks what you paid). Once every approved item is fitted, the memo
+     asks what you paid). **A consigned part** (D265) is fitted from the
+     consigned stock: the sheet says "Consigned stock: 1 in stock. Fitting
+     takes it from there, and the consignor is owed their agreed amount
+     when the job is completed." with no Bought outside option and no cost
+     check (its cost is what the consignor is owed); with too little stock
+     it says "…fewer than this needs. Receive more under Consignment
+     first." and **Fit part** stays off. Once every approved item is fitted, the memo
      under the total goes, and the job can be completed.
      **Voiding a fitted item's line** (a wrong part, D160): **Void…** on
      its row in **Lines** says "Voiding puts <part> back to approved: fit

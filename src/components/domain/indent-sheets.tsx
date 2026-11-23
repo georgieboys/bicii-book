@@ -26,6 +26,7 @@ import {
   COST_MISSING_SWITCH_NOTE,
   COST_SET_ON_RECEIPT_NOTE,
   canBuyOutside,
+  consignedFitNote,
   neverOrderedNote,
 } from "@/lib/indent";
 import { formatMoney, formatQuantity, parseMoney } from "@/lib/money";
@@ -111,7 +112,9 @@ export function FitSheet({
   const errors = errorsOf(result);
   const outside = canBuy && source === "outside";
   const notArrived = request.kind === "part" && request.order !== null && !request.order.arrived;
-  const neverOrdered = request.kind === "part" && request.order === null;
+  const consigned = request.kind === "part" ? (request.consigned ?? null) : null;
+  const short = consigned !== null && consigned.onHand < Number(request.quantity);
+  const neverOrdered = request.kind === "part" && request.order === null && consigned === null;
   const costMissing = request.kind === "part" && request.costMissing === true;
   const parsedCost = parseMoney(cost);
   const costTotal =
@@ -192,7 +195,7 @@ export function FitSheet({
             onClick={submit}
             pending={pending}
             pendingLabel={outside ? "Recording…" : "Adding…"}
-            disabled={!outside && costMissing}
+            disabled={!outside && (costMissing || short)}
           >
             {outside ? "Record and fit" : request.kind === "service" ? "Add to job" : "Fit part"}
           </Button>
@@ -288,6 +291,18 @@ export function FitSheet({
               <p role="status" className="rounded-xl bg-waiting-soft p-3 text-sm text-waiting-deep">
                 Its order ({request.order!.poNumber}) has not been received yet. Fitting it now may
                 take the stock count below zero.
+              </p>
+            ) : null}
+            {consigned ? (
+              <p
+                role="status"
+                className={
+                  short
+                    ? "rounded-xl bg-danger-soft p-3 text-sm text-danger-deep"
+                    : "rounded-xl bg-info-soft p-3 text-sm text-info-deep"
+                }
+              >
+                {consignedFitNote(consigned.onHand, Number(request.quantity))}
               </p>
             ) : null}
             {neverOrdered ? (

@@ -256,6 +256,13 @@ describe("Bought outside BICII (D149a)", () => {
         }
       }
     }
+    // Consigned stock is never bought outside (D44).
+    expect(
+      canBuyOutside(
+        { kind: "part", status: "approved", order: null, consigned: { onHand: 1 } },
+        true,
+      ),
+    ).toBe(false);
   });
 });
 

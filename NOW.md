@@ -1,5 +1,13 @@
 # Current state
 
+Updated: 2026-11-23 SGT (Fit for consigned parts; branch
+`fix/fit-consigned`, no migration). The owner fitting consigned parts on
+J-000005 (Angelo) got the shop's Fit sheet: Bought outside BICII, "Never
+ordered in BICII" and, with no default cost, "no cost yet". The database
+already fits consigned stock (`fit_part_request` → `add_inventory_line`);
+the sheet now says "Consigned stock: N in stock", offers no outside
+purchase or cost check, and stops when there is too little stock.
+Before that,
 Updated: 2026-11-22 SGT (booking confirmation carries the address; branch
 `fix/booking-email-address`, no migration). Bobby noticed the site's booked
 notice gives the workshop's address but the customer's confirmation email

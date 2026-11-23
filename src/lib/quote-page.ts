@@ -126,15 +126,15 @@ export function answeredNext(deposit: QuoteDeposit | null): string {
     case "due":
       return ordered
         ? "The shop has ordered your parts. Ask the shop if you still need to pay the deposit."
-        : "The shop orders your parts once the deposit is paid.";
+        : "The shop goes ahead with your parts once the deposit is paid.";
     case "processing":
       return ordered
         ? "The shop has ordered your parts."
-        : "The shop orders your parts once the deposit is paid.";
+        : "The shop goes ahead with your parts once the deposit is paid.";
     case "paid":
       return ordered
         ? "Your deposit is paid and the shop has ordered your parts."
-        : "Your deposit is paid, so the shop will order your parts.";
+        : "Your deposit is paid, so the shop will go ahead with your parts.";
     default:
       return "The shop will be in touch.";
   }

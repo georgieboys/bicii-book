@@ -192,17 +192,17 @@ describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
       refunded: "0",
     });
     expect(answeredNext(d("due", false))).toBe(
-      "The shop orders your parts once the deposit is paid.",
+      "The shop goes ahead with your parts once the deposit is paid.",
     );
     expect(answeredNext(d("due", true))).toBe(
       "The shop has ordered your parts. Ask the shop if you still need to pay the deposit.",
     );
     expect(answeredNext(d("processing", false))).toBe(
-      "The shop orders your parts once the deposit is paid.",
+      "The shop goes ahead with your parts once the deposit is paid.",
     );
     expect(answeredNext(d("processing", true))).toBe("The shop has ordered your parts.");
     expect(answeredNext(d("paid", false))).toBe(
-      "Your deposit is paid, so the shop will order your parts.",
+      "Your deposit is paid, so the shop will go ahead with your parts.",
     );
     expect(answeredNext(d("paid", true))).toBe(
       "Your deposit is paid and the shop has ordered your parts.",
@@ -234,7 +234,7 @@ describe("the deposit on the quote page (Phase 14 step 2; D151, D158)", () => {
     expect(answeredNext(d("refunded", false, true))).toBe("The shop will be in touch.");
     // Open job: unchanged.
     expect(answeredNext(d("paid", false, false))).toBe(
-      "Your deposit is paid, so the shop will order your parts.",
+      "Your deposit is paid, so the shop will go ahead with your parts.",
     );
   });
 

@@ -107,7 +107,11 @@ describe("Propose part: parts already in the shop (D265)", () => {
   it("consigned stock counted by quantity can be proposed", async () => {
     const found = await pick([option({})]);
     expect(found.textContent).toContain("Consigned · 7 in stock");
-    expect(screen.queryByRole("status")).toBeNull();
+    // Fitted from the consigned stock: no purchase cost or supplier asked.
+    expect(screen.getByRole("status").textContent).toMatch(
+      /Fit takes it from the\s+consigned stock/,
+    );
+    expect(screen.queryByLabelText(/Expected cost each/)).toBeNull();
     const buttons = screen.getAllByRole("button", { name: "Propose part" });
     expect((buttons.at(-1) as HTMLButtonElement).disabled).toBe(false);
   });

@@ -129,7 +129,7 @@ async function answerAll(browser: Browser, page: Page, q: QuotedJob) {
   await customer.getByLabel("Your name").fill(`Intake ${q.tag}`);
   await customer.getByRole("button", { name: "Send my answer" }).click();
   await expect(customer.getByRole("main")).toContainText(
-    "The shop orders your parts once the deposit is paid.",
+    "The shop goes ahead with your parts once the deposit is paid.",
   );
   return { context, customer };
 }
@@ -292,7 +292,7 @@ test("deposit: asked, paid through Stripe (fake) and a signed webhook, then orde
     )
     .toBe(1);
   await expect(customer.getByRole("main")).toContainText(
-    "Your deposit is paid, so the shop will order your parts.",
+    "Your deposit is paid, so the shop will go ahead with your parts.",
   );
   const quoteUrl = customer.url().split("?")[0];
   await context.close();
@@ -407,7 +407,7 @@ test("an admin orders before the deposit is paid, with a reason", async ({
     "The shop has ordered your parts. Ask the shop if you still need to pay the deposit.",
   );
   await expect(customer.getByRole("main")).not.toContainText(
-    "The shop orders your parts once the deposit is paid.",
+    "The shop goes ahead with your parts once the deposit is paid.",
   );
   await expect(section(customer, "Deposit")).toContainText(
     "The shop has already ordered your parts. If you paid the deposit another way, ask the shop before paying here.",
@@ -594,10 +594,12 @@ test("a deposit for parts not fitted: the memo, Complete's checklist, and an adm
   await expect(part).toContainText(
     "Not on the bill, and it can no longer be fitted: the job is collected. An admin or manager can cancel it and refund any deposit in Stripe.",
   );
-  // The customer's page no longer says the shop will order the parts.
+  // The customer's page no longer says the shop will go ahead with the parts.
   await customer.goto(q.link);
   await expect(customer.getByRole("main")).toContainText("Ask the shop about your deposit.");
-  await expect(customer.getByRole("main")).not.toContainText("the shop will order your parts");
+  await expect(customer.getByRole("main")).not.toContainText(
+    "the shop will go ahead with your parts",
+  );
   await context.close();
 
   // 5. D149: a mechanic gets no Cancel on the collected job; the admin does.

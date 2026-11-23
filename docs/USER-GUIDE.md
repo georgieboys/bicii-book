@@ -448,8 +448,18 @@ while an approved or ordered item is neither fitted nor cancelled:
      takes it from there, and the consignor is owed their agreed amount
      when the job is completed." with no Bought outside option and no cost
      check (its cost is what the consignor is owed); with too little stock
-     it says "…fewer than this needs. Receive more under Consignment
-     first." and **Fit part** stays off. Once every approved item is fitted, the memo
+     it says "…fewer than this needs. Receive more on the product's page
+     first." (with no stock at all: "No consigned stock of this part.
+     Receive it on the product's page, or cancel this part.") and **Fit
+     part** stays off. Fit takes a never-ordered part from
+     the location holding the most of it, and names it ("Consigned stock: 1
+     in stock at Pandan Loop Warehouse."). A shop part already in stock (a
+     one-off taken in when proposed) says "In stock: 1 at RV Shop floor.
+     Fitting takes it from there. Choose Bought outside BICII only if you
+     bought another one for this job." **Order approved parts** leaves
+     consigned parts out, and Propose part offers consigned items only
+     while they have stock, without the purchase cost and supplier fields.
+     Once every approved item is fitted, the memo
      under the total goes, and the job can be completed.
      **Voiding a fitted item's line** (a wrong part, D160): **Void…** on
      its row in **Lines** says "Voiding puts <part> back to approved: fit

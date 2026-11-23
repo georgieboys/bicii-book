@@ -1,5 +1,20 @@
 # Current state
 
+Updated: 2026-11-23 SGT (consigned parts through the indent flow; branch
+`fix/indent-consigned`, no migration). A sweep for shop-only assumptions
+(29 verified findings, about 14 distinct) found, on the job side: Order
+approved parts offered consigned parts (the whole order was refused); Fit
+sent no location, so stock kept away from the default location could not
+be fitted; a shop one-off proposed in stock was steered to Bought outside
+BICII (stock counted twice); consigned items with no stock could be
+proposed but never fitted; Propose part asked purchase cost and supplier
+for consigned parts; the customer's quote said the shop orders every part.
+All fixed here. The product side (receiving consigned stock onto an
+existing product, sale price, reorder and refund wording) is on its own
+branch. Left open: whether a quote's deposit should count consigned parts
+(owner decision), split consignments in Add part's preview and online
+orders, and a database guard on proposing consigned parts without stock.
+Before that,
 Updated: 2026-11-23 SGT (Fit for consigned parts; branch
 `fix/fit-consigned`, no migration). The owner fitting consigned parts on
 J-000005 (Angelo) got the shop's Fit sheet: Bought outside BICII, "Never

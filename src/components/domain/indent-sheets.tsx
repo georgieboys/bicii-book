@@ -27,6 +27,7 @@ import {
   COST_SET_ON_RECEIPT_NOTE,
   canBuyOutside,
   consignedFitNote,
+  inStockFitNote,
   neverOrderedNote,
 } from "@/lib/indent";
 import { formatMoney, formatQuantity, parseMoney } from "@/lib/money";
@@ -114,7 +115,16 @@ export function FitSheet({
   const notArrived = request.kind === "part" && request.order !== null && !request.order.arrived;
   const consigned = request.kind === "part" ? (request.consigned ?? null) : null;
   const short = consigned !== null && consigned.onHand < Number(request.quantity);
-  const neverOrdered = request.kind === "part" && request.order === null && consigned === null;
+  const inStock =
+    request.kind === "part" && request.order === null ? (request.inStock ?? null) : null;
+  const neverOrdered =
+    request.kind === "part" && request.order === null && consigned === null && inStock === null;
+  // Where Fit takes it from: the receipt's location for an arrived order,
+  // otherwise the location holding the stock (add_inventory_line takes it
+  // from one location).
+  const fromLocation = request.order?.arrived
+    ? (request.order.locationId ?? "")
+    : (consigned?.locationId ?? inStock?.locationId ?? "");
   const costMissing = request.kind === "part" && request.costMissing === true;
   const parsedCost = parseMoney(cost);
   const costTotal =
@@ -151,7 +161,7 @@ export function FitSheet({
         fitPartRequestAction({
           requestId: request.id,
           lineId,
-          locationId: request.order?.arrived ? (request.order.locationId ?? "") : "",
+          locationId: fromLocation,
         }),
       );
       if (!r.ok && r.code === "part_cost_missing") {
@@ -302,7 +312,16 @@ export function FitSheet({
                     : "rounded-xl bg-info-soft p-3 text-sm text-info-deep"
                 }
               >
-                {consignedFitNote(consigned.onHand, Number(request.quantity))}
+                {consignedFitNote(
+                  consigned.onHand,
+                  Number(request.quantity),
+                  consigned.locationName,
+                )}
+              </p>
+            ) : null}
+            {inStock ? (
+              <p role="status" className="rounded-xl bg-info-soft p-3 text-sm text-info-deep">
+                {inStockFitNote(inStock.onHand, inStock.locationName)}
               </p>
             ) : null}
             {neverOrdered ? (

@@ -1,7 +1,12 @@
 import "server-only";
 
 import { bikeTitle } from "@/lib/bikes";
-import type { ChargeBearer, ConsignmentEventType, ConsignmentStatus } from "@/lib/consignment";
+import {
+  intakeProductArgs,
+  type ChargeBearer,
+  type ConsignmentEventType,
+  type ConsignmentStatus,
+} from "@/lib/consignment";
 import { DbError, constraintOf, mapDbError, unwrap } from "@/lib/db-errors";
 import type { TrackingType, UnitStatus } from "@/lib/inventory";
 import { DEFAULT_CURRENCY, Decimal, toDecimal, toMoneyString } from "@/lib/money";
@@ -1051,6 +1056,11 @@ const INTAKE_FIELDS: Record<string, string> = {
   inventory_units_serial_number_check: "serialNumber",
   inventory_units_condition_check: "condition",
   category_kind_mismatch: "categoryId",
+  // An intake onto an existing product (its page): shown on its name.
+  product_archived: "productName",
+  product_inactive: "productName",
+  product_not_consignment: "productName",
+  consignment_tracking_mismatch: "productName",
   bike_has_owner: "bikeId",
   bike_already_linked: "bikeId",
   bike_archived: "bikeId",
@@ -1075,6 +1085,12 @@ export type IntakeInput = {
   locationId: string;
   agreedAmountOwed: Money;
   askingPrice: Money | null;
+  /**
+   * An existing consignment product to take the stock in on (its page's
+   * Receive consigned stock); null makes a new product from the fields
+   * below. When set, only the tracking type is sent with it.
+   */
+  productId: string | null;
   productName: string;
   brand: string | null;
   description: string | null;
@@ -1123,10 +1139,7 @@ export async function receiveConsignmentItem(
         location_id: input.locationId,
         agreed_amount_owed: input.agreedAmountOwed,
         asking_price: input.askingPrice ?? undefined,
-        product_name: input.productName,
-        brand: input.brand ?? undefined,
-        description: input.description ?? undefined,
-        category_id: input.categoryId ?? undefined,
+        ...intakeProductArgs(input),
         tracking_type: input.trackingType,
         quantity: input.quantity,
         serial_number: input.serialNumber ?? undefined,
@@ -1134,7 +1147,6 @@ export async function receiveConsignmentItem(
         received_at: input.receivedAt ?? undefined,
         agreement_notes: input.agreementNotes ?? undefined,
         internal_notes: input.internalNotes ?? undefined,
-        new_product_id: input.newProductId,
         new_unit_id: input.newUnitId ?? undefined,
         bike_id: input.bikeId ?? undefined,
       }),

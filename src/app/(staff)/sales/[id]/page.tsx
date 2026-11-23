@@ -21,6 +21,9 @@ import { getSale, type SaleLine } from "@/lib/domain/sales";
 import { formatMoney, formatQuantity, lineTotal, sumMoney, toDecimal } from "@/lib/money";
 import {
   BIKE_NOT_TRANSFERRED,
+  REFUND_NOT_RESTOCK_CONSIGNED,
+  hasConsignedQuantityLine,
+  refundStockNote,
   refundableAmount,
   saleStatusLabel,
   saleStatusTone,
@@ -126,6 +129,7 @@ export default async function SalePage({ params }: PageProps<"/sales/[id]">) {
               saleNumber={sale.saleNumber}
               refundable={refundable}
               currency={c}
+              stockNote={refundStockNote(sale.lines)}
             />
           </div>
         ) : null}
@@ -293,7 +297,9 @@ export default async function SalePage({ params }: PageProps<"/sales/[id]">) {
             </>
           )}
           <p className="mt-3 text-sm text-dust-500">
-            A refund is money only: nothing goes back into stock unless the item is restocked.
+            {hasConsignedQuantityLine(sale.lines)
+              ? REFUND_NOT_RESTOCK_CONSIGNED
+              : "A refund is money only: nothing goes back into stock unless the item is restocked."}
           </p>
         </Card>
       </div>

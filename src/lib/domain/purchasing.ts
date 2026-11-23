@@ -1369,6 +1369,16 @@ export type ReorderSuggestion = {
   defaultCost?: { unitCost: Money; source: string };
 };
 
+/**
+ * Whether Reorder has anything to offer: a shop-owned product is low
+ * (reorder_suggestions keeps only shop-owned stock, D62). Consigned
+ * products also count as low stock, but they are restocked by intake.
+ */
+export async function hasReorderSuggestions(supabase: ServerSupabase): Promise<boolean> {
+  const rows = unwrap(await supabase.rpc("reorder_suggestions", {}).select("product_id").limit(1));
+  return (rows ?? []).length > 0;
+}
+
 /** reorder_suggestions for `supplierId` (or none chosen), with the default cost for cost-visible staff. */
 export async function getReorderSuggestions(
   supabase: ServerSupabase,

@@ -90,6 +90,8 @@ export const intakeSchema = z
     locationId: z.guid({ error: "Choose where it is kept." }),
     agreedAmountOwed: money("amount owed to the consignor"),
     askingPrice: optionalMoney("asking price"),
+    /** An existing consignment product (Receive consigned stock on its page); none makes a new one. */
+    productId: optionalId("Unknown product."),
     productName: z
       .string({ error: "Name the item." })
       .trim()

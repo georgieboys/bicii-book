@@ -2695,6 +2695,21 @@ consignor is refused (`consignor_archived`, D47: an archived consignor
 keeps no stock with the shop and a balance of 0), as is a restock of a
 consigned unit whose consignor is archived.
 
+Intake onto an existing product: the product page's **Receive consigned
+stock** (manage_consignments, offered on an active, unarchived
+consignment product) calls `create_consignment_item` with that
+`product_id` and its tracking type, and no product name, details or
+`new_product_id`; the RPC's existing-product checks (`product_archived`,
+`product_inactive`, `product_not_consignment`,
+`consignment_tracking_mismatch`) show on the sheet's product. This is how a
+consigned product with no consignment, or none with stock left, gets stock
+again. While an active consignment has stock, `private.selling_price` uses
+the oldest one's asking price, so the product's own `default_sale_price`
+(Edit details) applies only when none has stock. A consigned product at or
+below its reorder point counts as low stock (`reporting.low_stock`), but
+`reorder_suggestions` lists only shop-owned products (D62), so the app
+offers **Reorder** only when one of those is low.
+
 Bikes (D51): a unique intake may link a shop bike record (not archived, no
 owner, not already a unit: `bike_archived`, `bike_has_owner`,
 `bike_already_linked`); a consignor's own bike is first transferred to the
@@ -2804,7 +2819,7 @@ does. In one transaction it:
 
 The product keeps its id, P- number, labels, photos and publication. With
 no stock, step 2 alone runs and no item is made; a later intake works as
-usual. The ledger keeps the shop's counts and the adjustment that offsets
+usual (Receive consigned stock on the product's page, above). The ledger keeps the shop's counts and the adjustment that offsets
 them, then the consignor's intake; nothing earlier is rewritten. From then
 on the product is ordinary consigned stock (D44, D46, D50), and
 `default_direct_cost` is no longer what a consigned line costs (D44: the

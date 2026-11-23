@@ -659,11 +659,33 @@ while an approved or ordered item is neither fitted nor cancelled:
 - If it fails: "That consignor is archived. Unarchive them first."; "The
   intake date can't be in the future."; "That bike belongs to a customer
   …" (transfer it to the shop first). Change terms later with **Edit
-  terms** (a new amount owed needs a reason). Add work on the item with
+  terms** (a new amount owed needs a reason); the asking price set there is
+  what the product sells for while that consignment has stock, so **Sale
+  price** in the product's **Edit details** applies only when no
+  consignment has stock (the field and the Prices card say so). Add work on the item with
   **Add charge**: choose **Consignor pays** (deducted from what we owe
   them) or **Shop pays** (added to the cost of the sale, so it lowers
   yield; one item only, before it is on a job or sold). There is no
   default (D4); void a charge with **Void…** and a reason.
+
+### Receive more stock on a consigned product
+
+- Before you start: you need **Manage consignments**. The product is
+  consigned, active and not archived. Use this when a consigned product
+  has no consignment yet, or its consignments have nothing left: it can't
+  be sold or added to a job until stock comes in.
+- Steps: open the product → **Consignments** → **Receive consigned
+  stock**. The sheet shows the product's name and how it is counted (both
+  fixed). Choose the **Consignor**, the **Quantity** (several identical)
+  or the **Serial number** and **Condition** (one item), **Kept at**, the
+  **Amount owed to the consignor when it sells**, the **Asking price**,
+  **Received** and notes. Press **Receive stock**.
+- Success looks like: "C-000124 received" and the new consignment's page;
+  the product's stock goes up and it can be sold or added to a job.
+- If it fails: "That product is archived. Unarchive it first.", "That
+  product is inactive." or "That product is tracked differently (unique or
+  by quantity)." show under the product; the other messages are those of
+  Receive item.
 
 ### Use a consigned item on a job
 
@@ -674,7 +696,10 @@ while an approved or ordered item is neither fitted nor cancelled:
   the oldest one with stock left; at the location you take it from, the
   part comes from the oldest consignment that has that many there). The
   price is the asking price;
-  **Price each** may change it. Press **Add part**.
+  **Price each** may change it. Press **Add part**. A consigned product
+  with nothing left in any consignment is listed as "Consigned · nothing
+  in stock" and can't be chosen: receive more with **Receive consigned
+  stock** on its product page instead of making a new one-off item.
 - Success looks like: "Added … It is on hold for this job." The line shows
   "Consigned · <consignor>", linked to the item. When the job is
   **Completed** the item reads "Sold, awaiting payment" and the consignor
@@ -771,7 +796,10 @@ while an approved or ordered item is neither fitted nor cancelled:
   being refunded?" and press **Refund $x**.
 - Success looks like: "Refund of $x recorded"; the sale reads Partly
   refunded or Refunded and lists the refund with its reason. Nothing goes
-  back into stock: if the item came back, restock it (below) (D7).
+  back into stock: if the item came back, restock it (below) (D7). A sale
+  with consigned stock counted by quantity says "A returned consigned item
+  can't be restocked yet; keep it aside and tell a manager.": only units
+  can be restocked.
 - If it fails: "That's more than is left to refund on this sale." The
   financial reports still count the sale in full: the period reports
   (Phase 9, screens to come) show refunds as "refunds recorded" beside
@@ -1023,8 +1051,9 @@ while an approved or ordered item is neither fitted nor cancelled:
 - Only shop-owned products are listed. A consigned product below its
   reorder point still counts on Today and the Inventory low-stock filter,
   but it is never reordered here: more of it comes from its consignor
-  through intake. If only consigned products are low, the list says
-  "Nothing is at or below its reorder point".
+  through intake. Its row and its page say "Consigned: restock it from the
+  consignor (Receive consigned stock)". **Reorder** on Today and on the
+  low-stock filter shows only when a shop-owned product is low.
 
 ### Publish a product
 

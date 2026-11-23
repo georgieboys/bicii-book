@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { useFocusFirstInvalid } from "@/components/ui/use-focus-invalid";
 import type { ActionResult } from "@/lib/actions";
+import { CONSIGNED_PRICE_NOTE } from "@/lib/consignment";
 import type { TrackingType } from "@/lib/inventory";
 import { formatMoney } from "@/lib/money";
 import { isStaleRefusal, STALE_TOAST } from "@/lib/stale-edit-toast";
@@ -190,6 +191,7 @@ export function ProductSheet({
   locations,
   defaultLocationId,
   viewCosts,
+  consigned = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -200,6 +202,8 @@ export function ProductSheet({
   locations: SheetLocationOption[];
   defaultLocationId: string | null;
   viewCosts: boolean;
+  /** A consignment product: its price is its consignment's asking price while one has stock. */
+  consigned?: boolean;
 }) {
   return open ? (
     <ProductSheetBody
@@ -210,6 +214,7 @@ export function ProductSheet({
       locations={locations}
       defaultLocationId={defaultLocationId}
       viewCosts={viewCosts}
+      consigned={consigned}
     />
   ) : null;
 }
@@ -222,6 +227,7 @@ function ProductSheetBody({
   locations,
   defaultLocationId,
   viewCosts,
+  consigned,
 }: {
   onOpenChange: (open: boolean) => void;
   product?: ProductFields;
@@ -230,6 +236,7 @@ function ProductSheetBody({
   locations: SheetLocationOption[];
   defaultLocationId: string | null;
   viewCosts: boolean;
+  consigned: boolean;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -444,7 +451,13 @@ function ProductSheetBody({
         </Field>
         <Field
           label="Sale price"
-          hint={tracking === "unique" ? "Optional when the unit has its own price." : undefined}
+          hint={
+            consigned
+              ? CONSIGNED_PRICE_NOTE
+              : tracking === "unique"
+                ? "Optional when the unit has its own price."
+                : undefined
+          }
           error={errors?.salePrice?.[0]}
         >
           <NumberInput kind="money" name="salePrice" value={price} onValueChange={setPrice} />
@@ -480,7 +493,11 @@ function ProductSheetBody({
         {tracking === "quantity" ? (
           <Field
             label="Reorder point"
-            hint="Listed under Low stock at or below this count."
+            hint={
+              consigned
+                ? "Listed under Low stock at or below this count. Consigned stock is restocked from the consignor, not reordered."
+                : "Listed under Low stock at or below this count."
+            }
             error={errors?.reorderPoint?.[0]}
           >
             <NumberInput
@@ -541,6 +558,7 @@ export function EditProductButton(props: {
   categories: CategoryOption[];
   frameGrades: FrameGradeOption[];
   viewCosts: boolean;
+  consigned?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (

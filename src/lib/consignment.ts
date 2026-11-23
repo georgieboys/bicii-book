@@ -87,7 +87,72 @@ export function chargeBearerLabel(bearer: ChargeBearer): string {
 
 /** D50: what replaces the adjust, write-off and split controls on consigned stock. */
 export const CONSIGNED_STOCK_NOTE =
-  "Consigned stock changes through sale, restock, a job or return to the consignor.";
+  "Consigned stock changes through intake (Receive consigned stock), sale, restock, a job or return to the consignor.";
+
+/**
+ * A consigned product's price (private.selling_price): the asking price of
+ * its oldest consignment with stock, and its own sale price only when none
+ * has stock. The product sheet's Sale price hint and the Prices card.
+ */
+export const CONSIGNED_PRICE_NOTE =
+  "While a consignment has stock, this product sells at that consignment's asking price: change it with Edit terms on the item. This price applies only when no consignment has stock.";
+
+/** A consigned product's low-stock sentence: it is restocked by intake, never reordered (D62). */
+export const CONSIGNED_LOW_STOCK_NOTE =
+  "Consigned: restock it from the consignor (Receive consigned stock).";
+
+/**
+ * "Receive consigned stock" on a product's page: an intake onto this
+ * product (create_consignment_item with its product_id), offered on an
+ * active, unarchived consignment product to manage_consignments holders.
+ * The RPC checks all of it again.
+ */
+export function canReceiveOntoProduct(
+  product: { ownershipType: string; active: boolean; archived: boolean },
+  canManageConsignments: boolean,
+): boolean {
+  return (
+    canManageConsignments &&
+    product.ownershipType === "consignment" &&
+    product.active &&
+    !product.archived
+  );
+}
+
+/** The intake's product fields as they are typed, or an existing product's id. */
+export type IntakeProductInput = {
+  productId: string | null;
+  productName: string;
+  brand: string | null;
+  description: string | null;
+  categoryId: string | null;
+  newProductId: string;
+};
+
+/**
+ * The product arguments of create_consignment_item: an intake onto an
+ * existing consignment product sends only its product_id (the RPC then
+ * creates no product); otherwise the new product's name, details and
+ * client-made id.
+ */
+export function intakeProductArgs(input: IntakeProductInput):
+  | { product_id: string }
+  | {
+      product_name: string;
+      brand?: string;
+      description?: string;
+      category_id?: string;
+      new_product_id: string;
+    } {
+  if (input.productId) return { product_id: input.productId };
+  return {
+    product_name: input.productName,
+    brand: input.brand ?? undefined,
+    description: input.description ?? undefined,
+    category_id: input.categoryId ?? undefined,
+    new_product_id: input.newProductId,
+  };
+}
 
 /** D45: shop-borne charges exist only on unique items. */
 export const SHOP_CHARGE_UNIQUE_ONLY =

@@ -25,12 +25,15 @@ export function RecordRefundButton({
   saleNumber,
   refundable,
   currency,
+  stockNote = REFUND_NOT_RESTOCK,
 }: {
   saleId: string;
   saleNumber: string;
   /** What is left to refund (refundableAmount), fixed-2. */
   refundable: string;
   currency: string;
+  /** What happens to stock (refundStockNote: consigned quantity lines can't be restocked). */
+  stockNote?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -44,6 +47,7 @@ export function RecordRefundButton({
           saleNumber={saleNumber}
           refundable={refundable}
           currency={currency}
+          stockNote={stockNote}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -64,12 +68,14 @@ function RefundSheet({
   saleNumber,
   refundable,
   currency,
+  stockNote,
   onClose,
 }: {
   saleId: string;
   saleNumber: string;
   refundable: string;
   currency: string;
+  stockNote: string;
   onClose: () => void;
 }) {
   const [refundId] = useState(newId);
@@ -101,7 +107,7 @@ function RefundSheet({
           <NumberInput kind="money" value={amount} onValueChange={setAmount} />
         </Field>
         <p role="note" className="rounded-xl bg-info-soft p-3 text-sm text-info-deep">
-          {REFUND_NOT_RESTOCK}
+          {stockNote}
         </p>
         <ReasonConfirm
           startLabel={label ? `Record refund of ${label}…` : "Record refund…"}

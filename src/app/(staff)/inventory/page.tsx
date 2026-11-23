@@ -25,6 +25,8 @@ import {
   type ProductSort,
   type ProductFilter,
 } from "@/lib/domain/inventory";
+import { hasReorderSuggestions } from "@/lib/domain/purchasing";
+import { CONSIGNED_LOW_STOCK_NOTE } from "@/lib/consignment";
 import { publicationLabel, publicationTone } from "@/lib/inventory";
 import { canManagePurchasing } from "@/lib/purchasing";
 import { readQuery, withParam } from "@/lib/search-params";
@@ -84,12 +86,18 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
   // Sorting applies to browsing All and Archived; Low stock is by shortfall.
   const sortable = !q && filter !== "low";
   const sort = sortable ? readSort(params.sort) : "recent";
-  const [{ items: products, more, total }, categories, locations, frameGrades] = await Promise.all([
-    listProducts(supabase, { q, filter, page, sort }),
-    manage ? listProductCategories(supabase) : Promise.resolve([]),
-    manage ? listLocations(supabase) : Promise.resolve(null),
-    manage ? listFrameGrades(supabase) : Promise.resolve([]),
-  ]);
+  const [{ items: products, more, total }, categories, locations, frameGrades, reorder] =
+    await Promise.all([
+      listProducts(supabase, { q, filter, page, sort }),
+      manage ? listProductCategories(supabase) : Promise.resolve([]),
+      manage ? listLocations(supabase) : Promise.resolve(null),
+      manage ? listFrameGrades(supabase) : Promise.resolve([]),
+      // Reorder lists only shop-owned stock (D62); consigned products are
+      // low too but are restocked by intake.
+      filter === "low" && !q && canManagePurchasing(staff)
+        ? hasReorderSuggestions(supabase)
+        : Promise.resolve(false),
+    ]);
 
   const newButton =
     manage && locations ? (
@@ -173,7 +181,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
             {heading}
           </h2>
           {/* Purchasing (Phase 7): a draft order from what is low (D66). */}
-          {filter === "low" && !q && canManagePurchasing(staff) ? (
+          {reorder ? (
             <ButtonLink href="/purchasing/reorder" variant="outline" size="sm">
               Reorder
             </ButtonLink>
@@ -244,6 +252,9 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
                       unique={p.trackingType === "unique"}
                       availableUnits={p.availableUnits}
                     />
+                    {p.low && p.ownershipType === "consignment" ? (
+                      <span>{CONSIGNED_LOW_STOCK_NOTE}</span>
+                    ) : null}
                   </span>
                 </span>
                 <ChevronRightIcon className="size-5 shrink-0 text-dust-500" />

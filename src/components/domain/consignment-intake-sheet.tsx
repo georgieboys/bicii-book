@@ -24,6 +24,7 @@ import type { ActionResult } from "@/lib/actions";
 import { paidAtFromDate } from "@/lib/consignment";
 import { lineEconomics } from "@/lib/cult-commons";
 import { shopToday } from "@/lib/dates";
+import type { TrackingType } from "@/lib/inventory";
 import { formatMoney, parseMoney } from "@/lib/money";
 import { newId } from "@/lib/uuid";
 import { callAction } from "@/lib/call-action";
@@ -48,17 +49,26 @@ type BikePick = PickerOption & { brand: string | null; serialNumber: string | nu
 
 type Result = { id: string; shortId: string };
 
+/** An existing consignment product the stock goes on (its page's Receive consigned stock). */
+export type IntakeProductPreset = { productId: string; name: string; trackingType: TrackingType };
+
 /**
  * "Receive item" (manage_consignments): opens ConsignmentIntakeSheet.
- * `presetConsignor` fixes the consignor (the consignor page).
+ * `presetConsignor` fixes the consignor (the consignor page);
+ * `presetProduct` takes the stock in on that existing consignment product
+ * (the product page: "Receive consigned stock"), so no new product is made.
  */
 export function ReceiveItemButton({
   context,
   presetConsignor,
+  presetProduct,
+  label = "Receive item",
   variant = "solid",
 }: {
   context: IntakeContext;
   presetConsignor?: { id: string; label: string };
+  presetProduct?: IntakeProductPreset;
+  label?: string;
   variant?: "solid" | "outline";
 }) {
   const [open, setOpen] = useState(false);
@@ -69,12 +79,13 @@ export function ReceiveItemButton({
         icon={<PlusIcon className="size-5" />}
         onClick={() => setOpen(true)}
       >
-        Receive item
+        {label}
       </Button>
       {open ? (
         <ConsignmentIntakeSheet
           context={context}
           presetConsignor={presetConsignor}
+          presetProduct={presetProduct}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -97,6 +108,10 @@ export function ReceiveItemButton({
  *      price, D45); a yield preview for view_costs holders.
  *   4. Received date (today unless changed; sent as NULL then) and notes.
  *
+ * With `presetProduct` the stock goes on that consignment product: its
+ * name is shown, not typed, its tracking type is fixed, and the brand,
+ * description and category (the new product's) are not asked for.
+ *
  * Every id (item, product, unit, new consignor) is made when the sheet
  * opens and every value is held in state as it is set, so a retry sends
  * the identical request and the database replays it.
@@ -104,10 +119,12 @@ export function ReceiveItemButton({
 function ConsignmentIntakeSheet({
   context,
   presetConsignor,
+  presetProduct,
   onClose,
 }: {
   context: IntakeContext;
   presetConsignor?: { id: string; label: string };
+  presetProduct?: IntakeProductPreset;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -128,9 +145,9 @@ function ConsignmentIntakeSheet({
   const [newEmail, setNewEmail] = useState("");
   const [newCustomer, setNewCustomer] = useState<PickerOption | null>(null);
 
-  const [kind, setKind] = useState<"unique" | "quantity">("unique");
+  const [kind, setKind] = useState<"unique" | "quantity">(presetProduct?.trackingType ?? "unique");
   const [bike, setBike] = useState<BikePick | null>(null);
-  const [productName, setProductName] = useState("");
+  const [productName, setProductName] = useState(presetProduct?.name ?? "");
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -205,10 +222,11 @@ function ConsignmentIntakeSheet({
       locationId: locationId ?? "",
       agreedAmountOwed: agreed,
       askingPrice: asking || null,
+      productId: presetProduct?.productId ?? null,
       productName,
-      brand: brand || null,
-      description: description || null,
-      categoryId: categoryId || null,
+      brand: presetProduct ? null : brand || null,
+      description: presetProduct ? null : description || null,
+      categoryId: presetProduct ? null : categoryId || null,
       trackingType: kind,
       quantity: unique ? "1" : quantity,
       serialNumber: unique ? serialNumber || null : null,
@@ -251,15 +269,19 @@ function ConsignmentIntakeSheet({
       open
       onOpenChange={(next) => (next ? null : onClose())}
       dismissible={!pending}
-      title="Receive item"
-      description="Take a consigned item in. It goes on sale at its asking price; the consignor is owed the agreed amount when it sells."
+      title={presetProduct ? "Receive consigned stock" : "Receive item"}
+      description={
+        presetProduct
+          ? `Take consigned stock in on ${presetProduct.name}. It goes on sale at its asking price; the consignor is owed the agreed amount when it sells.`
+          : "Take a consigned item in. It goes on sale at its asking price; the consignor is owed the agreed amount when it sells."
+      }
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
           <Button type="submit" form={formId} pending={pending} pendingLabel="Receiving…">
-            Receive item
+            {presetProduct ? "Receive stock" : "Receive item"}
           </Button>
         </>
       }
@@ -351,15 +373,17 @@ function ConsignmentIntakeSheet({
           <legend className="mb-2 font-display text-xs font-bold tracking-wide uppercase">
             2. What
           </legend>
-          <SegmentedControl
-            label="How many"
-            value={kind}
-            onValueChange={(v) => setKind(v)}
-            options={[
-              { value: "unique", label: "One item (bike, frame, wheelset)" },
-              { value: "quantity", label: "Several identical" },
-            ]}
-          />
+          {presetProduct ? null : (
+            <SegmentedControl
+              label="How many"
+              value={kind}
+              onValueChange={(v) => setKind(v)}
+              options={[
+                { value: "unique", label: "One item (bike, frame, wheelset)" },
+                { value: "quantity", label: "Several identical" },
+              ]}
+            />
+          )}
           {kind === "unique" ? (
             <Field
               label="Shop bike record"
@@ -375,24 +399,47 @@ function ConsignmentIntakeSheet({
               />
             </Field>
           ) : null}
-          <Field label="Name" required error={err("productName")}>
-            <Input
-              autoComplete="off"
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-            />
-          </Field>
-          <Field label="Brand" error={err("brand")}>
-            <Input autoComplete="off" value={brand} onChange={(e) => setBrand(e.target.value)} />
-          </Field>
-          <Field label="Description" error={err("description")}>
-            <Textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </Field>
-          {context.categories.length > 0 ? (
+          {presetProduct ? (
+            <div className="flex flex-col gap-1">
+              <span className="font-display text-xs font-bold tracking-wide uppercase">
+                Product
+              </span>
+              <p className="font-medium">{presetProduct.name}</p>
+              <p className="text-sm text-dust-500">
+                {presetProduct.trackingType === "unique"
+                  ? "One item, with its own U- number."
+                  : "Counted by quantity."}
+              </p>
+              {err("productName") ? (
+                <p className="text-sm text-danger-deep">{err("productName")}</p>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <Field label="Name" required error={err("productName")}>
+                <Input
+                  autoComplete="off"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                />
+              </Field>
+              <Field label="Brand" error={err("brand")}>
+                <Input
+                  autoComplete="off"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                />
+              </Field>
+              <Field label="Description" error={err("description")}>
+                <Textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </Field>
+            </>
+          )}
+          {!presetProduct && context.categories.length > 0 ? (
             <Field label="Category" error={err("categoryId")}>
               <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
                 <option value="">No category</option>

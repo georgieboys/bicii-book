@@ -245,6 +245,8 @@ export type ProductListItem = {
   sku: string | null;
   brand: string | null;
   trackingType: TrackingType;
+  /** Consigned stock is restocked by intake, never reordered (D62). */
+  ownershipType: OwnershipType;
   /** Ledger on-hand across every location (D23: may be below zero). */
   onHand: number;
   /** Unique products: units available to sell. */
@@ -262,8 +264,10 @@ export type ProductListItem = {
   archived: boolean;
 };
 
+type OwnershipType = Database["public"]["Enums"]["ownership_type"];
+
 const LIST_COLUMNS =
-  "id, short_id, name, sku, brand, tracking_type, publication_status, currency, reorder_point, active, archived_at, updated_at";
+  "id, short_id, name, sku, brand, tracking_type, ownership_type, publication_status, currency, reorder_point, active, archived_at, updated_at";
 
 type ListRow = {
   id: string;
@@ -272,6 +276,7 @@ type ListRow = {
   sku: string | null;
   brand: string | null;
   tracking_type: TrackingType;
+  ownership_type: OwnershipType;
   publication_status: PublicationStatus;
   currency: string;
   reorder_point: number | null;
@@ -318,6 +323,7 @@ async function productItems(
         sku: r.sku,
         brand: r.brand,
         trackingType: r.tracking_type,
+        ownershipType: r.ownership_type,
         onHand,
         availableUnits: s?.available_units ?? 0,
         negativeLocations,
@@ -1530,6 +1536,12 @@ export type PartOption = {
    * draws from when it covers the quantity. Absent for shop-owned stock.
    */
   consigned?: { consignorName: string; itemId: string; itemShortId: string };
+  /**
+   * A consigned quantity product with no active consignment that has stock
+   * left: listed so staff see why it can't be added, never choosable.
+   * More is taken in with Receive consigned stock on its page.
+   */
+  consignedEmpty?: true;
 };
 
 /**
@@ -1538,9 +1550,10 @@ export type PartOption = {
  * offered too (D27 as changed by the owner, D44), marked with its
  * consignor and C- number; customer-owned stock never is. Left out:
  * archived or inactive products, units that are not available (on another
- * job, sold, written off), consigned units whose item is no longer active
- * and consigned quantity products with nothing left. A unique product
- * found by name is offered as its available units.
+ * job, sold, written off) and consigned units whose item is no longer
+ * active. A consigned quantity product with nothing left is listed but not
+ * choosable (`consignedEmpty`). A unique product found by name is offered
+ * as its available units.
  *
  * For a view_costs holder, a consigned part's cost preview is what
  * add_inventory_line snapshots (D44): a unit's agreed amount plus its
@@ -1730,7 +1743,7 @@ const consignedRef = (itemId: string) => ({ consignorName: "", itemId, itemShort
  * Fills in the consignor and C- number of consigned options, picks a
  * consigned quantity product's FIFO-head item (D45: the oldest active item
  * by received_at, then short_id, with stock left; none -> the product is
- * not offered) and, for view_costs, the cost add_inventory_line snapshots
+ * listed as `consignedEmpty`, not choosable) and, for view_costs, the cost add_inventory_line snapshots
  * (D44). Reads consignor_statement, so money stays gated by the database.
  */
 async function withConsignments(
@@ -1783,8 +1796,12 @@ async function withConsignments(
           (i) => i.product_id === option.productId && (ledger.get(i.id)?.remaining_qty ?? 0) > 0,
         )
       : items.find((i) => i.id === option.consigned?.itemId);
-    // No active item with stock left (or the unit's item left the shop).
-    if (!item) continue;
+    // No active item with stock left: listed, not choosable. A unit whose
+    // item left the shop is not offered.
+    if (!item) {
+      if (consignedProduct) out.push({ ...option, consignedEmpty: true });
+      continue;
+    }
     const row = ledger.get(item.id);
     const next: PartOption = {
       ...option,

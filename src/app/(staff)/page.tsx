@@ -29,6 +29,7 @@ import {
 } from "@/lib/dates";
 import { DbError } from "@/lib/db-errors";
 import { todaySummary } from "@/lib/domain/appointments";
+import { hasReorderSuggestions } from "@/lib/domain/purchasing";
 import {
   getDailySummaries,
   getFinancialEntriesOn,
@@ -142,6 +143,13 @@ async function TodayContent({
   const supabase = await createClient();
   const dash = await loadDashboard(supabase, asked);
   const { day, isToday } = dash;
+  // Reorder only when a shop-owned product is low (D62): consigned
+  // products count as low stock too, but are restocked by intake. A
+  // failed check only hides the link.
+  const reorder =
+    dash.now !== null && dash.now.lowStock > 0 && canManagePurchasing(staff)
+      ? await hasReorderSuggestions(supabase).catch(() => false)
+      : false;
 
   const canSeeEntries = dash.money !== null && hasPermission(staff, "view_financial_reports");
   const showCosts = dash.money?.costs != null;
@@ -349,7 +357,7 @@ async function TodayContent({
                 </dl>
                 <div className="flex flex-wrap items-center justify-end gap-x-4">
                   {/* Purchasing (Phase 7): a draft order from what is low (D66). */}
-                  {dash.now.lowStock > 0 && canManagePurchasing(staff) ? (
+                  {reorder ? (
                     <Link
                       href="/purchasing/reorder"
                       className="inline-flex min-h-tap items-center text-sm font-semibold underline"

@@ -186,6 +186,26 @@ export function refundableAmount(
 export const REFUND_NOT_RESTOCK =
   "A refund does not put anything back in stock. If the item came back, restock it separately.";
 
+/**
+ * D7 for a sale with a consigned quantity line: such a line cannot be
+ * restocked (adjust_stock refuses consigned stock, D50; restock exists only
+ * for units).
+ */
+export const REFUND_NOT_RESTOCK_CONSIGNED =
+  "A refund doesn't put anything back in stock. A returned consigned item can't be restocked yet; keep it aside and tell a manager.";
+
+/** Whether a sale has a consigned quantity line (a consignment and no unit). */
+export function hasConsignedQuantityLine(
+  lines: readonly { consignment: unknown; unit: unknown }[],
+): boolean {
+  return lines.some((l) => l.consignment !== null && l.consignment !== undefined && !l.unit);
+}
+
+/** The refund's stock sentence for this sale's lines. */
+export function refundStockNote(lines: readonly { consignment: unknown; unit: unknown }[]): string {
+  return hasConsignedQuantityLine(lines) ? REFUND_NOT_RESTOCK_CONSIGNED : REFUND_NOT_RESTOCK;
+}
+
 /** D46, said where a consigned unit is restocked. */
 export const CONSIGNED_RESTOCK_NOTE =
   "It goes back on sale for the consignor and is no longer owed to them.";

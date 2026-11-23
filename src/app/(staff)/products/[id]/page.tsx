@@ -8,6 +8,7 @@ import { HistoryList, MovementList } from "@/components/domain/movement-list";
 import { NoActiveLocation } from "@/components/domain/no-active-location";
 import { PhotoGrid } from "@/components/domain/photo-grid";
 import { ChangeOwnerButton } from "@/components/domain/change-owner-sheet";
+import { ReceiveItemButton } from "@/components/domain/consignment-intake-sheet";
 import { ConsignmentItemRow } from "@/components/domain/consignment-item-row";
 import { HeaderPrintLabel, LabelsCard } from "@/components/domain/labels-card";
 import { ProductGroupButton } from "@/components/domain/product-group-controls";
@@ -30,7 +31,13 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { hasPermission } from "@/lib/auth/permissions";
 import { reconciliationHref } from "@/lib/reconciliation";
 import { requireStaff } from "@/lib/auth/session";
-import { CONSIGNED_STOCK_NOTE, consignmentStatusPill } from "@/lib/consignment";
+import {
+  CONSIGNED_LOW_STOCK_NOTE,
+  CONSIGNED_PRICE_NOTE,
+  CONSIGNED_STOCK_NOTE,
+  canReceiveOntoProduct,
+  consignmentStatusPill,
+} from "@/lib/consignment";
 import { consignmentsForProduct } from "@/lib/domain/consignment";
 import { getIndentReservations } from "@/lib/domain/indent";
 import {
@@ -58,6 +65,8 @@ import { qrUrl } from "@/lib/qr";
 import { offlineReason, publishBlockedReason, relativeAgo } from "@/lib/shopify";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
+
+import { loadIntakeContext } from "../../consignment/intake-context";
 
 export const metadata: Metadata = { title: "Product" };
 
@@ -87,6 +96,9 @@ const plain = (n: number) => signedQuantity(n).replace(/^\+/, "");
  * D84, D86).
  * D162: Change owner (admins only, the highest role) on an active shop
  * product counted by quantity makes its stock a consignor's.
+ * Receive consigned stock (manage_consignments) on an active, unarchived
+ * consignment product takes stock in on it (create_consignment_item with
+ * its product_id), so a consigned product with no stock can be restocked.
  */
 export default async function ProductPage({ params, searchParams }: PageProps<"/products/[id]">) {
   const staff = await requireStaff();
@@ -136,6 +148,11 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
   ]);
 
   const archived = product.archivedAt !== null;
+  const receive = canReceiveOntoProduct(
+    { ownershipType: product.ownershipType, active: product.active, archived },
+    hasPermission(staff, "manage_consignments"),
+  );
+  const intake = receive ? await loadIntakeContext(supabase, staff) : null;
   const sellable =
     counted &&
     !archived &&
@@ -224,6 +241,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                   frameGrade: product.frameGrade,
                   updatedAt: product.updatedAt,
                 }}
+                consigned={consigned}
                 frameGrades={frameGrades}
                 categories={
                   // An archived category stays choosable for a product
@@ -353,6 +371,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
           {counted && product.low && negative.length === 0 && product.reorderPoint !== null ? (
             <p className="mt-3 text-sm text-waiting-deep">
               Low stock: at or below the reorder point of {product.reorderPoint}.
+              {consigned ? ` ${CONSIGNED_LOW_STOCK_NOTE}` : ""}
             </p>
           ) : null}
           {consigned ? <p className="mt-3 text-sm text-dust-700">{CONSIGNED_STOCK_NOTE}</p> : null}
@@ -375,6 +394,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
             <dt>Selling price</dt>
             <dd className="text-right font-semibold tabular-nums">{money(product.salePrice)}</dd>
           </dl>
+          {consigned ? <p className="mt-2 text-sm text-dust-700">{CONSIGNED_PRICE_NOTE}</p> : null}
           {viewCosts ? (
             <section aria-labelledby="cost-and-yield" className="mt-4 flex flex-col gap-2">
               <h3
@@ -456,9 +476,29 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
       ) : null}
 
       {consigned ? (
-        <Card title="Consignments" eyebrow="Consigned stock">
+        <Card
+          title="Consignments"
+          eyebrow="Consigned stock"
+          actions={
+            receive && intake ? (
+              <ReceiveItemButton
+                context={intake}
+                presetProduct={{
+                  productId: product.id,
+                  name: product.name,
+                  trackingType: product.trackingType,
+                }}
+                label="Receive consigned stock"
+                variant="outline"
+              />
+            ) : null
+          }
+        >
           {consignments.length === 0 ? (
-            <p className="text-dust-700">No consignment on this product.</p>
+            <p className="text-dust-700">
+              No consignment on this product.
+              {receive ? " Take stock in with Receive consigned stock." : ""}
+            </p>
           ) : (
             <RowList label="Consignments">
               {consignments.map((c) => (

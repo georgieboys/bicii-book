@@ -56,6 +56,9 @@ function consignedLabel(part: PartOption): string {
     : `Consigned · ${who}`;
 }
 
+/** A consigned product with no consignment stock left (listed, not choosable). */
+const CONSIGNED_EMPTY = "Consigned · nothing in stock";
+
 /** "−1" for a negative count, "37" otherwise. */
 const plain = (n: number) => signedQuantity(n).replace(/^\+/, "");
 
@@ -201,11 +204,14 @@ function AddPartSheet({
     return result.data.map((p) => ({
       id: `${p.kind}:${p.unitId ?? p.productId}`,
       label: p.title,
+      // A consigned product with nothing left is listed, not choosable.
+      disabled: p.consignedEmpty === true,
       description: [
         p.shortId,
         p.sku,
         p.serialNumber ? `S/N ${p.serialNumber}` : null,
         p.consigned ? consignedLabel(p) : null,
+        p.consignedEmpty ? CONSIGNED_EMPTY : null,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -300,7 +306,7 @@ function AddPartSheet({
                 setLocationId(option?.part.defaultLocationId ?? null);
               }}
               placeholder="Name, SKU, P- or U- number"
-              emptyMessage="No part in stock matches. Archived, inactive and customer-owned items are not offered."
+              emptyMessage="No part in stock matches. Archived, inactive and customer-owned items are not offered. A consigned item with nothing left shows as not in stock: receive more with Receive consigned stock on its product page."
               renderOption={(o) => (
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="flex items-center justify-between gap-2">
@@ -311,10 +317,16 @@ function AddPartSheet({
                     <ShortId value={o.part.shortId} />
                     {o.part.sku ? <span>{o.part.sku}</span> : null}
                     {o.part.consigned ? <Badge tone="info">{consignedLabel(o.part)}</Badge> : null}
-                    <StockBadge
-                      onHand={o.part.kind === "unit" ? 1 : o.part.onHandAtDefault}
-                      label={stockSummary(o.part, o.part.defaultLocationId)}
-                    />
+                    {o.part.consignedEmpty ? (
+                      <span>
+                        {CONSIGNED_EMPTY}: receive more with Receive consigned stock on its page
+                      </span>
+                    ) : (
+                      <StockBadge
+                        onHand={o.part.kind === "unit" ? 1 : o.part.onHandAtDefault}
+                        label={stockSummary(o.part, o.part.defaultLocationId)}
+                      />
+                    )}
                   </span>
                 </span>
               )}

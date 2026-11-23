@@ -18,7 +18,8 @@ set local statement_timeout = '120s';
 --     customer and bike, made through private.create_work_order. The
 --     follow-up's id is md5('follow_up:<job id>:<shop day>:<n>'), so lines
 --     added the same day share one follow-up (n moves on only past a
---     collected or cancelled one); it starts received, with the original's
+--     collected or cancelled one, or one completed earlier today whose
+--     reopen is refused); it starts received, with the original's
 --     lead when they are still active, for staff to complete and bill.
 --     A follow-up completed earlier today is reopened and completed again
 --     the same way.
@@ -94,7 +95,9 @@ revoke all on function private.late_line_replay(public.work_orders, uuid)
 
 -- Reopens a completed or ready job (locked by the caller) with the D269
 -- reason. False when the job's own reopen rules refuse (bike_with_customer,
--- consignor_archived and the like): the caller then uses a follow-up.
+-- consignor_archived and the like) or when completing it again would be
+-- refused (approved or ordered indent items): the caller then uses a
+-- follow-up.
 create function private.reopen_for_late_line(wo public.work_orders, what text)
 returns boolean
 language plpgsql
@@ -103,6 +106,15 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Completing it again would be refused (D149b: an approved or ordered
+  -- indent item, possible only on a job completed before that guard), so
+  -- do not reopen at all: the caller uses a follow-up instead.
+  if exists (
+    select 1 from public.job_part_requests r
+    where r.work_order_id = wo.id and r.status in ('approved', 'ordered')
+  ) then
+    return false;
+  end if;
   begin
     perform public.set_work_order_status(
       wo.id, 'in_progress',
@@ -157,37 +169,37 @@ begin
     end if;
   end if;
 
-  -- An earlier day: today's follow-up for this job, skipping closed ones.
+  -- An earlier day: today's follow-up for this job, skipping closed ones
+  -- and ones completed earlier today that cannot be reopened.
   loop
     n := n + 1;
     follow_up_id := pg_catalog.md5('follow_up:' || wo.id::text || ':' || today::text || ':' || n::text)::uuid;
     select w.* into job from public.work_orders w where w.id = follow_up_id for update;
-    exit when not found or not private.work_order_status_is_closed(job.status);
+    if not found then
+      select s.id into lead_id from public.staff s where s.id = wo.lead_mechanic_id and s.active;
+      perform private.create_work_order(
+        actor, follow_up_id, wo.customer_id, wo.bike_id,
+        pg_catalog.left(
+          'Follow-up to ' || wo.job_number || ': '
+            || coalesce(nullif(pg_catalog.btrim(what), ''), 'a line added after completion'),
+          2000
+        ),
+        null, lead_id, '{}'::uuid[], null, null
+      );
+      target_id := follow_up_id;
+      return;
+    end if;
+    if private.work_order_status_is_open(job.status) then
+      target_id := follow_up_id;
+      return;
+    end if;
+    -- The follow-up was completed earlier today: the same-day rule.
+    if not private.work_order_status_is_closed(job.status) and private.reopen_for_late_line(job, what) then
+      target_id := follow_up_id;
+      restore := job.status;
+      return;
+    end if;
   end loop;
-  target_id := follow_up_id;
-
-  if job.id is null then
-    select s.id into lead_id from public.staff s where s.id = wo.lead_mechanic_id and s.active;
-    perform private.create_work_order(
-      actor, follow_up_id, wo.customer_id, wo.bike_id,
-      pg_catalog.left(
-        'Follow-up to ' || wo.job_number || ': '
-          || coalesce(nullif(pg_catalog.btrim(what), ''), 'a line added after completion'),
-        2000
-      ),
-      null, lead_id, '{}'::uuid[], null, null
-    );
-    return;
-  end if;
-  if private.work_order_status_is_open(job.status) then
-    return;
-  end if;
-  -- The follow-up was completed earlier today: the same-day rule.
-  if private.reopen_for_late_line(job, what) then
-    restore := job.status;
-    return;
-  end if;
-  perform private.require_open_work_order(job.id);
 end;
 $$;
 

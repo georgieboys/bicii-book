@@ -389,6 +389,15 @@ const IN_PLACE: LinePlacement = { followUp: null, recompleted: false };
 
 type AfterCompleteRow = Database["public"]["CompositeTypes"]["add_after_complete_result"];
 
+/**
+ * D269: the plain line RPC refused because the job was completed after the
+ * sheet opened (a stale page). The caller then places the line through the
+ * add_*_after_complete RPC instead of refusing.
+ */
+export function completedMeanwhile(err: unknown): boolean {
+  return err instanceof DbError && err.code === "P0001" && err.message === "work_order_locked";
+}
+
 /** D269: the placement an add_*_after_complete RPC reports. */
 export function placementOf(row: AfterCompleteRow | null | undefined): LinePlacement {
   if (!row) return IN_PLACE;
@@ -422,12 +431,16 @@ export async function addServiceLine(
     description: input.description ?? undefined,
   };
   try {
-    if (input.afterComplete) {
-      const row = unwrap(await supabase.rpc("add_service_after_complete", args));
-      return { id: row?.line_id ?? input.lineId, ...placementOf(row) };
+    if (!input.afterComplete) {
+      try {
+        const id = unwrap(await supabase.rpc("add_service_line", args));
+        return { id: id ?? input.lineId, ...IN_PLACE };
+      } catch (err) {
+        if (!completedMeanwhile(err)) throw err;
+      }
     }
-    const id = unwrap(await supabase.rpc("add_service_line", args));
-    return { id: id ?? input.lineId, ...IN_PLACE };
+    const row = unwrap(await supabase.rpc("add_service_after_complete", args));
+    return { id: row?.line_id ?? input.lineId, ...placementOf(row) };
   } catch (err) {
     rethrowOnField(err, LINE_FIELDS);
   }
@@ -462,12 +475,16 @@ export async function addManualLine(
     unit_direct_cost: input.unitDirectCost ?? undefined,
   };
   try {
-    if (input.afterComplete) {
-      const row = unwrap(await supabase.rpc("add_manual_after_complete", args));
-      return { id: row?.line_id ?? input.lineId, ...placementOf(row) };
+    if (!input.afterComplete) {
+      try {
+        const id = unwrap(await supabase.rpc("add_manual_line", args));
+        return { id: id ?? input.lineId, ...IN_PLACE };
+      } catch (err) {
+        if (!completedMeanwhile(err)) throw err;
+      }
     }
-    const id = unwrap(await supabase.rpc("add_manual_line", args));
-    return { id: id ?? input.lineId, ...IN_PLACE };
+    const row = unwrap(await supabase.rpc("add_manual_after_complete", args));
+    return { id: row?.line_id ?? input.lineId, ...placementOf(row) };
   } catch (err) {
     rethrowOnField(err, LINE_FIELDS);
   }

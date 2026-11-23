@@ -184,7 +184,10 @@ managers.
     added and the job completed again." The job is reopened with the
     reason "Added after completion: <what you added>", the line is added
     and the job is completed again (a job that was ready for collection
-    is ready again). The toast ends "The job is completed again."
+    is ready again). The toast ends "The job is completed again." If
+    the job can't be reopened or completed again (for example a sold
+    bike already with its buyer, or an approved indent item not fitted),
+    the line goes on a follow-up job instead, as below.
   - Completed on an earlier day: the sheet says "Completed on an earlier
     day: this goes on a new follow-up job for the same bike." The
     original job is left as it was; the line goes on a new job for the
@@ -195,6 +198,8 @@ managers.
   - After completion, **New one-off item** in **Add part** opens **Add
     manual line**, and **Charge on top of the build package** is not
     offered.
+  - Someone completed the job while your sheet was open: the line is
+    still added, the same way as above (the toast says where it went).
 - Steps:
   - **Add service**: pick the service, adjust **Unit price** or
     **Quantity** if needed, press **Add service**.

@@ -19,7 +19,7 @@ import type { WorkOrderStatus } from "@/lib/workshop";
 
 import { listPhotos, type Photo } from "./attachments";
 import { DomainError, staleEdit } from "./errors";
-import { placementOf, type LinePlacement } from "./lines";
+import { completedMeanwhile, placementOf, type LinePlacement } from "./lines";
 import type { ListPage } from "./list";
 import { staffSearch } from "./search";
 import { staffNames } from "@/lib/domain/staff-directory";
@@ -1920,7 +1920,50 @@ export async function addPartToJob(
   let receivedQuantity = 0;
   let placement: LinePlacement = { followUp: null, recompleted: false };
   try {
-    if (input.afterComplete) {
+    let late = input.afterComplete === true;
+    if (!late) {
+      try {
+        if (input.unitId) {
+          const r = unwrap(
+            await supabase.rpc("add_inventory_line", {
+              line_id: input.lineId,
+              work_order_id: input.workOrderId,
+              product_id: input.productId,
+              quantity: input.quantity,
+              location_id: input.locationId ?? undefined,
+              inventory_unit_id: input.unitId,
+              unit_sale_price: input.unitSalePrice ?? undefined,
+            }),
+          );
+          lineId = r?.line_id ?? lineId;
+          locationId = r?.location_id ?? null;
+          onHandAfter = r?.on_hand_after ?? null;
+          replayed = r?.replayed === true;
+        } else {
+          // D267: a counted part; consigned stock BICII holds too little of is
+          // received from its consignor on use, so the mechanic is never stopped.
+          const r = unwrap(
+            await supabase.rpc("add_part_to_job", {
+              line_id: input.lineId,
+              work_order_id: input.workOrderId,
+              product_id: input.productId,
+              quantity: input.quantity,
+              location_id: input.locationId ?? undefined,
+              unit_sale_price: input.unitSalePrice ?? undefined,
+            }),
+          );
+          lineId = r?.line_id ?? lineId;
+          locationId = r?.location_id ?? input.locationId;
+          replayed = r?.replayed === true;
+          receivedQuantity = r?.received_quantity ?? 0;
+        }
+      } catch (err) {
+        // D269: completed after the sheet opened: placed as after completion.
+        if (!completedMeanwhile(err)) throw err;
+        late = true;
+      }
+    }
+    if (late) {
       // D269: the job is completed: added and completed again the same day,
       // otherwise on a follow-up job (counted parts still receive on use).
       const r = unwrap(
@@ -1939,39 +1982,6 @@ export async function addPartToJob(
       replayed = r?.replayed === true;
       receivedQuantity = r?.received_quantity ?? 0;
       placement = placementOf(r);
-    } else if (input.unitId) {
-      const r = unwrap(
-        await supabase.rpc("add_inventory_line", {
-          line_id: input.lineId,
-          work_order_id: input.workOrderId,
-          product_id: input.productId,
-          quantity: input.quantity,
-          location_id: input.locationId ?? undefined,
-          inventory_unit_id: input.unitId,
-          unit_sale_price: input.unitSalePrice ?? undefined,
-        }),
-      );
-      lineId = r?.line_id ?? lineId;
-      locationId = r?.location_id ?? null;
-      onHandAfter = r?.on_hand_after ?? null;
-      replayed = r?.replayed === true;
-    } else {
-      // D267: a counted part; consigned stock BICII holds too little of is
-      // received from its consignor on use, so the mechanic is never stopped.
-      const r = unwrap(
-        await supabase.rpc("add_part_to_job", {
-          line_id: input.lineId,
-          work_order_id: input.workOrderId,
-          product_id: input.productId,
-          quantity: input.quantity,
-          location_id: input.locationId ?? undefined,
-          unit_sale_price: input.unitSalePrice ?? undefined,
-        }),
-      );
-      lineId = r?.line_id ?? lineId;
-      locationId = r?.location_id ?? input.locationId;
-      replayed = r?.replayed === true;
-      receivedQuantity = r?.received_quantity ?? 0;
     }
   } catch (err) {
     rethrowFields(err, PART_FIELDS);

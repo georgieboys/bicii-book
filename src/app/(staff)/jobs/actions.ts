@@ -215,7 +215,7 @@ export const addPartToJob = staffAction(
     // replays the add (same line id) and marks it again.
     // D269: not after completion (the job is completed again, or the line
     // is on a follow-up job without the package).
-    if (input.buildExtra && !input.afterComplete) {
+    if (input.buildExtra && !input.afterComplete && !result.followUp && !result.recompleted) {
       try {
         await setBuildLineExtra(supabase, result.lineId, true);
       } catch {

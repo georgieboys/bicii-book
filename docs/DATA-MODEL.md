@@ -2194,8 +2194,11 @@ No table changes.
   → ready_for_collection again when it was; completed_at is restamped on
   the same shop day). An earlier day, or a same-day reopen the job's own
   rules refuse (any P0001, e.g. `bike_with_customer`; rolled back in a
-  sub-block), → the follow-up job `md5('follow_up:<job id>:<shop day>:<n>')
-  ::uuid`, n = 1 upward past collected or cancelled ones: created when
+  sub-block) or that could not be completed again (an approved or ordered
+  `job_part_requests` row, D149b: not reopened at all), → the follow-up job
+  `md5('follow_up:<job id>:<shop day>:<n>')::uuid`, n = 1 upward past
+  collected or cancelled ones and past one completed earlier today whose
+  reopen is refused the same way: created when
   missing through `private.create_work_order` (same customer and bike,
   requested work "Follow-up to J-…: <description>", the original's lead
   when active, received); a follow-up completed earlier today is reopened
@@ -2207,9 +2210,13 @@ No table changes.
   `line_added`, `completed` (`ready_for_collection`).
 - Reopening has its usual effects (sold units held again and sold again on
   completion; a live balance link is withdrawn, D156d).
-- The app calls these only on completed and ready jobs (`afterComplete`
-  in the Add sheets); open jobs keep `add_part_to_job`, `add_inventory_line`,
-  `add_service_line` and `add_manual_line`.
+- The app calls these on completed and ready jobs (`afterComplete` in the
+  Add sheets); open jobs keep `add_part_to_job`, `add_inventory_line`,
+  `add_service_line` and `add_manual_line`, and when one of those refuses
+  with `work_order_locked` (the job was completed after the sheet opened)
+  the domain layer places the same line id through the matching
+  `add_*_after_complete` instead (`completedMeanwhile` in
+  `src/lib/domain/lines.ts`).
 
 ### One-off parts (D264)
 

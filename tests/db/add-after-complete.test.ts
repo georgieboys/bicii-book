@@ -243,6 +243,36 @@ describe.skipIf(!isolatedDatabase())("add after complete (D269)", () => {
     });
   });
 
+  it("earlier day: a follow-up completed earlier today is completed again; a collected one is skipped", async () => {
+    await inTx(async (tx) => {
+      const job = await newJob(tx);
+      await completeJob(tx, job.id);
+      await backdate(tx, job.id);
+
+      const first = await addManual(tx, { workOrderId: job.id, description: "Bar tape" });
+      expect(first.follow_up).toBe(true);
+      await completeJob(tx, first.work_order_id);
+
+      // The same follow-up, reopened and completed again (same-day rule).
+      const second = await addManual(tx, { workOrderId: job.id, description: "Bottle cage" });
+      expect(second).toMatchObject({
+        work_order_id: first.work_order_id,
+        follow_up: true,
+        recompleted: true,
+      });
+      expect((await workOrder(tx, first.work_order_id)).status).toBe("completed");
+      expect(await liveLines(tx, first.work_order_id)).toBe(2);
+
+      // Collected: the next line starts a second follow-up.
+      await setStatus(tx, first.work_order_id, "collected");
+      const third = await addManual(tx, { workOrderId: job.id, description: "Bell" });
+      expect(third.follow_up).toBe(true);
+      expect(third.work_order_id).not.toBe(first.work_order_id);
+      expect((await workOrder(tx, third.work_order_id)).status).toBe("received");
+      expect(await liveLines(tx, third.work_order_id)).toBe(1);
+    });
+  });
+
   it("an open job takes the line as usual", async () => {
     await inTx(async (tx) => {
       const job = await newJob(tx);

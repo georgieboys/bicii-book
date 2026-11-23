@@ -162,7 +162,7 @@ function BikeSheetBody({
             hint="Leave empty for a shop or consigned bike."
             error={errors?.customerId?.[0]}
           >
-            <CustomerPicker name="customerId" value={picked} onSelect={setPicked} />
+            <CustomerPicker name="customerId" value={picked} onSelect={setPicked} allowCreate />
           </Field>
         )}
         <div className="grid gap-5 sm:grid-cols-2">

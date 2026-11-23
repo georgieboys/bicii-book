@@ -10164,10 +10164,7 @@ export type Database = {
           storage_path: string;
         }[];
       };
-      preview_job_discount: {
-        Args: { amount: unknown; work_order_id: string };
-        Returns: Json;
-      };
+      preview_job_discount: { Args: { amount: unknown; work_order_id: string }; Returns: Json };
       process_shopify_event: {
         Args: { event_id: string };
         Returns: {

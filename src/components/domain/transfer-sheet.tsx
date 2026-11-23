@@ -144,7 +144,13 @@ function TransferSheet({
         </div>
         {destination === "customer" ? (
           <Field label="Customer" error={errors.to} required>
-            <CustomerPicker value={to} onSelect={setTo} currentId={currentOwner?.id} required />
+            <CustomerPicker
+              value={to}
+              onSelect={setTo}
+              currentId={currentOwner?.id}
+              required
+              allowCreate
+            />
           </Field>
         ) : (
           <p className="text-sm text-dust-700">

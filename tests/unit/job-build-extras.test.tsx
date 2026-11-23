@@ -29,6 +29,12 @@ vi.mock("@/app/(staff)/inventory/actions", () => ({
   searchParts: (...args: unknown[]) => searchParts(...args),
 }));
 vi.mock("@/app/(staff)/jobs/indent-actions", () => ({ proposeOneOffPartAction: vi.fn() }));
+// The one-off sheet's "New consignor" sheet links a customer record.
+vi.mock("@/app/(staff)/customers/actions", () => ({
+  searchCustomers: vi.fn(),
+  createCustomer: vi.fn(),
+  updateCustomer: vi.fn(),
+}));
 vi.mock("@/app/(staff)/consignment/actions", () => ({ searchConsignorsAction: vi.fn() }));
 vi.mock("@/app/(staff)/jobs/actions", () => ({
   addPartToJob: vi.fn(),

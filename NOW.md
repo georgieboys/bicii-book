@@ -1,5 +1,12 @@
 # Current state
 
+Updated: 2026-11-23 SGT (D266; branch `docs/d266-deposit-consigned`, docs
+only). The owner decided a quote's deposit keeps counting consigned parts
+the shop already holds (D151 unchanged). The consigned-stock sweep's fixes
+are merged (#122 job side, #123 product side). Still open: split
+consignments in Add part's preview and online orders, and a database guard
+on proposing consigned parts without stock.
+Before that,
 Updated: 2026-11-23 SGT (consigned parts through the indent flow; branch
 `fix/indent-consigned`, no migration). A sweep for shop-only assumptions
 (29 verified findings, about 14 distinct) found, on the job side: Order
@@ -11,8 +18,7 @@ proposed but never fitted; Propose part asked purchase cost and supplier
 for consigned parts; the customer's quote said the shop orders every part.
 All fixed here. The product side (receiving consigned stock onto an
 existing product, sale price, reorder and refund wording) is on its own
-branch. Left open: whether a quote's deposit should count consigned parts
-(owner decision), split consignments in Add part's preview and online
+branch. Left open: split consignments in Add part's preview and online
 orders, and a database guard on proposing consigned parts without stock.
 Before that,
 Updated: 2026-11-23 SGT (Fit for consigned parts; branch

@@ -6979,6 +6979,87 @@ export type Database = {
           },
         ];
       };
+      work_order_discounts: {
+        Row: {
+          amount: number;
+          applied_amount: number;
+          created_at: string;
+          created_by: string | null;
+          currency: string;
+          id: string;
+          reason: string;
+          reopened: boolean;
+          result: NonNullable<Json>;
+          total_after: number;
+          total_before: number;
+          work_order_id: string;
+        };
+        Insert: {
+          amount: number;
+          applied_amount: number;
+          created_at?: string;
+          created_by?: string | null;
+          currency: string;
+          id: string;
+          reason: string;
+          reopened?: boolean;
+          result: NonNullable<Json>;
+          total_after: number;
+          total_before: number;
+          work_order_id: string;
+        };
+        Update: {
+          amount?: number;
+          applied_amount?: number;
+          created_at?: string;
+          created_by?: string | null;
+          currency?: string;
+          id?: string;
+          reason?: string;
+          reopened?: boolean;
+          result?: NonNullable<Json>;
+          total_after?: number;
+          total_before?: number;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "work_order_discounts_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "work_order_discounts_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_discounts_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_discounts_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "work_order_discounts_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       work_order_events: {
         Row: {
           actor_staff_id: string | null;
@@ -8253,6 +8334,10 @@ export type Database = {
         }[];
       };
       answer_quote: { Args: { decisions: Json; name: string; token: string }; Returns: Json };
+      apply_job_discount: {
+        Args: { amount: unknown; reason: string; request_id: string; work_order_id: string };
+        Returns: Json;
+      };
       appointment_daily: {
         Args: { from_day?: string; to_day?: string };
         Returns: {
@@ -10078,6 +10163,10 @@ export type Database = {
           max_bytes: number;
           storage_path: string;
         }[];
+      };
+      preview_job_discount: {
+        Args: { amount: unknown; work_order_id: string };
+        Returns: Json;
       };
       process_shopify_event: {
         Args: { event_id: string };
@@ -13229,7 +13318,8 @@ export type Database = {
         | "line_repriced"
         | "build_order_linked"
         | "build_extra_marked"
-        | "build_extra_unmarked";
+        | "build_extra_unmarked"
+        | "discount_applied";
       work_order_note_kind: "note" | "diagnosis";
       work_order_status:
         | "received"
@@ -14491,6 +14581,7 @@ export const Constants = {
         "build_order_linked",
         "build_extra_marked",
         "build_extra_unmarked",
+        "discount_applied",
       ],
       work_order_note_kind: ["note", "diagnosis"],
       work_order_status: [

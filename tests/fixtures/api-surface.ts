@@ -120,6 +120,9 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.fit_build_to_budget(uuid)",
   // Build extras (D261)
   "public.set_build_line_extra(uuid, boolean)",
+  // D271: a discount or round-off spread over the job's lines (preview, apply)
+  "public.preview_job_discount(uuid, money_amount)",
+  "public.apply_job_discount(uuid, uuid, money_amount, text)",
   // Selling full builds online (D252, D255), with frame options (D257, D258)
   "public.record_build_package_push(uuid, text, text, text, text, money_amount)",
   "public.link_build_order(uuid, uuid, uuid, uuid)",
@@ -480,6 +483,8 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.work_order_builds": ["SELECT"],
   "public.work_order_build_summary": ["SELECT"],
   "public.work_order_build_extras": ["SELECT"],
+  // D271: the discounts given on jobs (written only by apply_job_discount)
+  "public.work_order_discounts": ["SELECT"],
   "public.build_orders": ["SELECT"],
   "public.frame_grades": ["SELECT", "UPDATE"],
   "public.work_order_totals_staff": ["SELECT"],

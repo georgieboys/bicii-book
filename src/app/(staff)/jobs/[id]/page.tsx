@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { AddPartButton } from "@/components/domain/add-part-sheet";
 import { AddServiceButton } from "@/components/domain/add-service-sheet";
 import { AssignmentsCard } from "@/components/domain/assignments-card";
+import { DiscountButton } from "@/components/domain/discount-sheet";
 import { JobBuildPanel } from "@/components/domain/build-package-controls";
 import { IndentCard } from "@/components/domain/indent-card";
 import { ApprovalSwitch, EditDetailsButton, NoteButtons } from "@/components/domain/job-notes";
@@ -392,6 +393,17 @@ export default async function JobPage({ params, searchParams }: PageProps<"/jobs
             <div className="mt-3">
               <TotalsSummary totals={job.totals} ccRate={sharedRate(job)} report={report} />
             </div>
+            {!closed && Number(job.totals.saleTotal) > 0 ? (
+              // D271: any staff member, open or completed (it reopens and
+              // completes again); the database spreads it over the lines.
+              <div className="flex justify-end px-4 pb-3 sm:px-5">
+                <DiscountButton
+                  workOrderId={job.id}
+                  currency={job.currency}
+                  total={job.totals.saleTotal}
+                />
+              </div>
+            ) : null}
             {memo ? (
               // R-082, D140: approved indent items reach the total only
               // when fitted; this memo is never added to it, to the yield

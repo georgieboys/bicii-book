@@ -12585,7 +12585,10 @@ export type Database = {
       };
       stripe_fees_due: {
         Args: { max_rows: number; p_livemode: boolean };
-        Returns: { payment_id: string; payment_intent_id: string }[];
+        Returns: {
+          payment_id: string;
+          payment_intent_id: string;
+        }[];
       };
       submit_my_adventure_evidence: {
         Args: { booking_id: string; rider_statement: string };
@@ -13967,6 +13970,8 @@ export type Database = {
           service_id: string | null;
           source: string | null;
           source_line_id: string | null;
+          stripe_fee: number | null;
+          stripe_fee_pending: boolean | null;
           unit_direct_cost: number | null;
           unit_sale_price: number | null;
           yield_total: number | null;
@@ -14157,6 +14162,8 @@ export type Database = {
           service_id: string | null;
           source: string | null;
           source_line_id: string | null;
+          stripe_fee: number | null;
+          stripe_fee_pending: boolean | null;
           unit_direct_cost: number | null;
           unit_sale_price: number | null;
           yield_total: number | null;
@@ -14314,6 +14321,23 @@ export type Database = {
           work_order_id: string | null;
         };
         Relationships: [];
+      };
+      work_order_stripe_fees: {
+        Row: {
+          stripe_fee_count: number | null;
+          stripe_fee_pending_count: number | null;
+          stripe_fees: number | null;
+          work_order_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payments_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_activity";
+            referencedColumns: ["work_order_id"];
+          },
+        ];
       };
     };
     Functions: {

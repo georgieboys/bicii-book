@@ -38,7 +38,7 @@ import {
 } from "./inventory-fixtures";
 import { SERVICE, deliver, paidSession, pay, tag, type Pay } from "./payment-fixtures";
 import { shopToday } from "./reporting-fixtures";
-import { addManualLine, failsWith, ownerMode, setStatus } from "./workshop-fixtures";
+import { addManualLine, failsWith, ownerMode, setStatus, voidLine } from "./workshop-fixtures";
 
 let conn: pg.Client;
 
@@ -824,15 +824,23 @@ describe.skipIf(!isolatedDatabase())(
 
     it("a cancelled job deducts nothing (BICII bears its fees); a pending fee is flagged, not zero", async () => {
       await inTransaction(conn, async (tx) => {
-        const cancelled = await jobWithLine(tx, "200.00");
+        // A job is cancelled only once its lines are voided (work_order_has_lines).
+        const cancelled = await newJob(tx);
+        await actAs(tx, ADMIN);
+        const lineId = await addManualLine(tx, {
+          workOrderId: cancelled.id,
+          price: "200.00",
+          cost: "0.00",
+        });
         await readFee(tx, await paidPayment(tx, cancelled.id), { feeCents: 300 });
         await actAs(tx, ADMIN);
+        await voidLine(tx, lineId, "Customer withdrew");
         await setStatus(tx, cancelled.id, "cancelled", "Customer withdrew");
         expect(await feeEntry(tx, cancelled.id)).toBeNull();
         expect(await totalsOf(tx, cancelled.id)).toMatchObject({
           stripe_fees: "3.00",
           stripe_fees_borne: "0.00",
-          cult_commons_after_fees: "60.00",
+          cult_commons_after_fees: "0.00",
         });
         expect(await yieldOf(tx, cancelled.id)).toMatchObject({ stripe_fees_borne: "0.00" });
 

@@ -1287,14 +1287,15 @@ they are only logged (`stripe_rejected_rate_limited`).
 ### Stripe: restricted key
 
 Developers → API keys → Create restricted key ("BICII Admin") with
-exactly three permissions, as Stripe's permissions reference
+exactly four permissions, as Stripe's permissions reference
 (docs.stripe.com/keys/permissions-reference) names them:
 
 | Dashboard resource | Access | Permission | What BICII calls with it |
 |---|---|---|---|
 | Checkout Sessions | Write | `checkout_session_write` (includes read) | create, retrieve and expire a session |
 | Charges | Read | `charge_read` | list a payment's refunds (`GET /v1/refunds`: Stripe files refunds under Charges) |
-| PaymentIntents | Read | `payment_intent_read` | *Check with Stripe* on a Checkout that completed unpaid ([R-086](RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)) |
+| PaymentIntents | Read | `payment_intent_read` | *Check with Stripe* on a Checkout that completed unpaid ([R-086](RISKS.md#r-086--a-payment-stays-pending-until-stripes-webhook-arrives)), and the fee read below |
+| Balance | Read | `balance_read` | D273: the fee Stripe charged, read as the PaymentIntent with `latest_charge.balance_transaction` expanded (`GET /v1/balance_transactions/{id}` is `balance_read` in the reference; the expansion reaches the same object). **Owner action**: add it to the existing key (Edit key → Balance: Read), no redeploy needed |
 
 Nothing else. Copy it once (`rk_live_…`) into Vercel Production as
 `STRIPE_SECRET_KEY` (Sensitive). A full secret key (`sk_…`) also works
@@ -1365,9 +1366,37 @@ fake together with `STRIPE_SECRET_KEY` and when `VERCEL_ENV` is
 **Switching off:** set the deposit to 0 first (so no quote asks for a
 payment nobody can make), then remove the keys and redeploy.
 
+### Stripe: fees (D273)
+
+Cult Commons of a completed job bears the Stripe fees (less GST) on the
+job's paid Stripe payments, never below 0 per job; BICII bears the rest
+and every fee on a cancelled job ([DATA-MODEL §19](DATA-MODEL.md#stripe-fees-borne-by-cult-commons-d273)).
+The fee is Stripe's fact, read by BICII with its own key:
+
+- The integration cron (`/api/cron/integrations`, every 5 minutes) reads
+  up to 5 paid payments with no fee a run, oldest first, beside the
+  Shopify jobs, starting none after 20 seconds (`stripeFees` in its JSON
+  answer: `recorded`, `pending`, `failed`, `permission`). The first runs
+  after the deploy are the backfill of every earlier payment
+  (production had 3 on 2026-11-24): past days' Cult Commons restate (D101).
+- **Check with Stripe** on a paid payment reads its fee too.
+- `pending` means Stripe had no balance transaction yet (cards settle
+  within minutes; PayNow after the payment); the sweep backs off (5 min
+  doubling, at most a day, 20 tries). The job's totals and Reports say
+  "Provisional: Stripe has not reported the fee…" until it is read.
+- `permission: true`, or *Check with Stripe* saying Stripe refused the
+  key: the key lacks **Balance: Read** ([Stripe: restricted key](#stripe-restricted-key)).
+  Add it; the next run reads the fees. Payments are never blocked.
+- Exceptions (admins): "Stripe's fee on a payment for this job has not
+  been read yet…" (warning, a day after payment) or "Stripe charged this
+  payment's fee in another currency…" (danger; nothing is recorded: ask
+  engineering, R-134).
+- Not covered: dispute fees, Shopify Payments fees, card-terminal fees on
+  counter payments, adventure payments (R-134).
+
 ### Stripe: rotating keys
 
-- Secret key: create a new restricted key with the same three permissions,
+- Secret key: create a new restricted key with the same four permissions,
   set it in Vercel, redeploy, check Settings → Customer payments says
   Live, then roll or delete the old key in Stripe.
 - Webhook secret: use the endpoint's **Roll secret** with a 24-hour

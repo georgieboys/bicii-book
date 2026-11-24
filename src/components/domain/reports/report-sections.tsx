@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RowLink, RowList } from "@/components/ui/row-list";
 import { cn } from "@/lib/cn";
 import { formatShopDay, toShopLocal } from "@/lib/dates";
-import { formatQuantity, toDecimal } from "@/lib/money";
+import { formatMoney, formatQuantity, toDecimal } from "@/lib/money";
 import {
   DIMENSIONS,
   DIMENSION_VALUES,
@@ -106,6 +106,11 @@ export function SummaryTiles({
   const c = summary.currency;
   const costs = showCosts && summary.costTotal !== null;
   const provisional = provisionalNote(summary.costPendingLines);
+  const feePending = summary.stripeFeePendingJobs;
+  const fees =
+    costs && summary.stripeFees !== null && !toDecimal(summary.stripeFees).isZero()
+      ? summary.stripeFees
+      : null;
   return (
     <div className="flex flex-col gap-2">
       <div role="group" aria-label="Period figures" className={tileGrid}>
@@ -132,8 +137,20 @@ export function SummaryTiles({
               label="Cult Commons"
               amount={summary.cultCommons!}
               currency={c}
-              hint="Sum of 30% of each line's positive yield"
+              hint={
+                fees
+                  ? `30% of each line's positive yield, less ${formatMoney(summary.stripeFeesBorne ?? "0", c)} of Stripe fees`
+                  : "Sum of 30% of each line's positive yield"
+              }
             />
+            {fees ? (
+              <MoneyTile
+                label="Stripe fees"
+                amount={fees}
+                currency={c}
+                hint="Borne by Cult Commons, up to each job's share"
+              />
+            ) : null}
             <MoneyTile label="BICII after Cult Commons" amount={summary.afterCc!} currency={c} />
           </>
         ) : null}
@@ -146,6 +163,13 @@ export function SummaryTiles({
       {provisional ? (
         <p role="note" className="text-sm font-medium text-waiting-deep">
           {provisional}
+        </p>
+      ) : null}
+      {costs && feePending > 0 ? (
+        <p role="note" className="text-sm font-medium text-waiting-deep">
+          {feePending === 1
+            ? "Provisional: Stripe has not reported the fee on 1 job yet, so Cult Commons may still go down."
+            : `Provisional: Stripe has not reported the fees on ${feePending} jobs yet, so Cult Commons may still go down.`}
         </p>
       ) : null}
     </div>

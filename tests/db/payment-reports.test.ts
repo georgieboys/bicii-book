@@ -1403,7 +1403,10 @@ describe.skipIf(!isolated)("report_payments_held (D154c)", () => {
 // ---------------------------------------------------------------------------
 
 describe.skipIf(!isolated)("Customer payments are not sales (D154)", () => {
-  it("report_period_summary on every basis, daily_summary and the job's totals are unchanged by any movement", async () => {
+  // D273 rewrote this on purpose: Stripe's fee on a job's paid payments is
+  // borne by its Cult Commons, so the summary's fee columns move (here only
+  // the pending count: no fee is read). Every other figure is unchanged.
+  it("report_period_summary on every basis (but its Stripe fee columns), daily_summary and the job's totals are unchanged by any movement", async () => {
     await inTransaction(conn, async (tx) => {
       const today = await shopToday(tx);
       const job = await pastJob(tx, addDays(today, -3), { total: "150.00", status: "completed" });
@@ -1414,8 +1417,9 @@ describe.skipIf(!isolated)("Customer payments are not sales (D154)", () => {
           out.push(
             (
               await tx.query<{ t: string }>(
-                `select coalesce(json_agg(x order by x::text)::text, '[]') as t
-                   from public.report_period_summary($1::date, $2::date, $3::public.report_date_basis) x`,
+                `select coalesce(json_agg(j order by j::text)::text, '[]') as t
+                   from (select to_jsonb(x) - array['stripe_fees', 'stripe_fees_borne', 'stripe_fee_pending_jobs'] as j
+                           from public.report_period_summary($1::date, $2::date, $3::public.report_date_basis) x) s`,
                 [addDays(today, -3), today, basis],
               )
             ).rows[0].t,
@@ -1457,6 +1461,15 @@ describe.skipIf(!isolated)("Customer payments are not sales (D154)", () => {
         net: "150.00",
       });
       expect(await snapshot()).toEqual(before);
+      // D273: the completed job's fees are pending until they are read.
+      await actAs(tx, ADMIN);
+      expect(
+        await scalar<number>(
+          tx,
+          "select stripe_fee_pending_jobs from public.report_period_summary($1::date, $2::date)",
+          [addDays(today, -3), today],
+        ),
+      ).toBeGreaterThanOrEqual(1);
     });
   });
 });

@@ -1,6 +1,6 @@
 import { formatShopDay } from "@/lib/dates";
 import type { Totals } from "@/lib/domain/lines";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, toDecimal } from "@/lib/money";
 import { formatRateRange, lossNote, type WorkOrderYield } from "@/lib/reports";
 
 /**
@@ -21,7 +21,26 @@ import { formatRateRange, lossNote, type WorkOrderYield } from "@/lib/reports";
  * completed" while it is open or after a reopen, or that it is never
  * counted once cancelled (final, D15; D32). Without view_costs the
  * page passes neither `report` nor costs, so only the sale total shows.
+ *
+ * D273: when the job has a paid Stripe payment, the Stripe fees (less
+ * GST), what Cult Commons bears of them (never more than its share; none
+ * on a cancelled job, BICII bears those), Cult Commons after them and
+ * BICII's yield after both, all from the database. An open job's fees are
+ * taken off when it is completed; a fee Stripe has not reported yet makes
+ * the after-fees figures provisional.
  */
+
+/** The fee note for a job with Stripe fees: when they are deducted, and by whom. */
+function feeNote(report: WorkOrderYield | null | undefined): string | null {
+  if (!report) return null;
+  if (report.status === "cancelled") {
+    return "This job is cancelled, so BICII bears its Stripe fees, not Cult Commons.";
+  }
+  if (!report.recognizedDay) {
+    return "Stripe fees come off Cult Commons when the job is completed.";
+  }
+  return null;
+}
 /** When the job counts in reports (D32): its completion day, never once cancelled, or later. */
 function recognitionNote(report: WorkOrderYield): string {
   if (report.recognizedDay) {
@@ -41,6 +60,10 @@ export function TotalsSummary({
   report?: WorkOrderYield | null;
 }) {
   const money = (v: string) => formatMoney(v, totals.currency);
+  const feePending = totals.costs?.stripeFeePendingCount ?? 0;
+  const hasFees =
+    Boolean(totals.costs) &&
+    (feePending > 0 || !toDecimal(totals.costs?.stripeFees ?? "0").isZero());
   const rows: { label: string; value: string; strong?: boolean }[] = [
     { label: "Total", value: money(totals.saleTotal), strong: true },
   ];
@@ -52,8 +75,26 @@ export function TotalsSummary({
       { label: "Cost", value: money(totals.costs.costTotal) },
       { label: "Yield", value: money(totals.costs.yieldTotal) },
       { label: `Cult Commons${rate ? ` (${rate})` : ""}`, value: money(totals.costs.ccShare) },
-      { label: "BICII yield after Cult Commons", value: money(totals.costs.yieldAfterCc) },
     );
+    if (hasFees) {
+      rows.push(
+        { label: "Stripe fees", value: money(totals.costs.stripeFees) },
+        {
+          label: "Stripe fees borne by Cult Commons",
+          value: `−${money(totals.costs.stripeFeesBorne)}`,
+        },
+        { label: "Cult Commons after Stripe fees", value: money(totals.costs.ccAfterFees) },
+        {
+          label: "BICII yield after Cult Commons and Stripe fees",
+          value: money(totals.costs.yieldAfterFees),
+        },
+      );
+    } else {
+      rows.push({
+        label: "BICII yield after Cult Commons",
+        value: money(totals.costs.yieldAfterCc),
+      });
+    }
   }
   const pending = totals.costs?.costPendingCount ?? 0;
   const loss =
@@ -82,6 +123,16 @@ export function TotalsSummary({
             ? "Provisional: 1 line has no cost entered, so cost, yield and Cult Commons count it at 0. Void it and add it again with its cost."
             : `Provisional: ${pending} lines have no cost entered, so cost, yield and Cult Commons count them at 0. Void each and add it again with its cost.`}
         </p>
+      ) : null}
+      {feePending > 0 ? (
+        <p role="note" className="mt-2 text-sm font-medium text-waiting-deep">
+          {feePending === 1
+            ? "Provisional: Stripe has not reported the fee on 1 payment yet, so Cult Commons after Stripe fees may still go down."
+            : `Provisional: Stripe has not reported the fee on ${feePending} payments yet, so Cult Commons after Stripe fees may still go down.`}
+        </p>
+      ) : null}
+      {hasFees && feeNote(report) ? (
+        <p className="mt-2 text-sm text-dust-700">{feeNote(report)}</p>
       ) : null}
       {recognition ? <p className="mt-2 text-sm text-dust-700">{recognition}</p> : null}
     </div>

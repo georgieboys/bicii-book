@@ -95,6 +95,18 @@ export type Totals = {
     yieldAfterCc: string;
     /** Live lines with no cost entered (D14): while > 0 the figures above are provisional. */
     costPendingCount: number;
+    /**
+     * D273: Stripe's fees (less GST) on the job's paid Stripe payments, what
+     * Cult Commons bears of them (never more than ccShare; none once
+     * cancelled), Cult Commons after them and BICII's yield after both.
+     * Reports deduct them when the job is completed.
+     */
+    stripeFees: string;
+    stripeFeesBorne: string;
+    ccAfterFees: string;
+    yieldAfterFees: string;
+    /** Paid Stripe payments whose fee is not read yet: the after-fees figures are provisional. */
+    stripeFeePendingCount: number;
   };
 };
 
@@ -306,7 +318,7 @@ export async function getTotals(
       await supabase
         .from("work_order_totals_staff")
         .select(
-          "currency, line_count, sale_total, cost_total, yield_total, cult_commons_share, bicii_yield_after_cc, cost_pending_count",
+          "currency, line_count, sale_total, cost_total, yield_total, cult_commons_share, bicii_yield_after_cc, cost_pending_count, stripe_fees, stripe_fees_borne, cult_commons_after_fees, bicii_yield_after_fees, stripe_fee_pending_count",
         )
         .eq("work_order_id", workOrderId)
         .maybeSingle(),
@@ -321,6 +333,11 @@ export async function getTotals(
         ccShare: money(row?.cult_commons_share),
         yieldAfterCc: money(row?.bicii_yield_after_cc),
         costPendingCount: row?.cost_pending_count ?? 0,
+        stripeFees: money(row?.stripe_fees),
+        stripeFeesBorne: money(row?.stripe_fees_borne),
+        ccAfterFees: money(row?.cult_commons_after_fees ?? row?.cult_commons_share),
+        yieldAfterFees: money(row?.bicii_yield_after_fees ?? row?.bicii_yield_after_cc),
+        stripeFeePendingCount: row?.stripe_fee_pending_count ?? 0,
       },
     };
   }

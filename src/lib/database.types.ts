@@ -6263,6 +6263,97 @@ export type Database = {
           },
         ];
       };
+      stripe_payment_fees: {
+        Row: {
+          created_at: string;
+          currency: string;
+          fee: number;
+          fee_ex_tax: number | null;
+          fee_tax: number;
+          id: string;
+          livemode: boolean;
+          payment_id: string;
+          read_event_id: string;
+          stripe_balance_transaction_id: string;
+          stripe_charge_id: string | null;
+          stripe_created_at: string | null;
+          work_order_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          currency: string;
+          fee: number;
+          fee_ex_tax?: number | null;
+          fee_tax: number;
+          id?: string;
+          livemode: boolean;
+          payment_id: string;
+          read_event_id: string;
+          stripe_balance_transaction_id: string;
+          stripe_charge_id?: string | null;
+          stripe_created_at?: string | null;
+          work_order_id: string;
+        };
+        Update: {
+          created_at?: string;
+          currency?: string;
+          fee?: number;
+          fee_ex_tax?: number | null;
+          fee_tax?: number;
+          id?: string;
+          livemode?: boolean;
+          payment_id?: string;
+          read_event_id?: string;
+          stripe_balance_transaction_id?: string;
+          stripe_charge_id?: string | null;
+          stripe_created_at?: string | null;
+          work_order_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "stripe_payment_fees_payment_id_fkey";
+            columns: ["payment_id"];
+            isOneToOne: true;
+            referencedRelation: "payments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stripe_payment_fees_read_event_id_fkey";
+            columns: ["read_event_id"];
+            isOneToOne: false;
+            referencedRelation: "stripe_events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stripe_payment_fees_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_payment_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "stripe_payment_fees_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "stripe_payment_fees_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_order_totals_staff";
+            referencedColumns: ["work_order_id"];
+          },
+          {
+            foreignKeyName: "stripe_payment_fees_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: false;
+            referencedRelation: "work_orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       supplier_products: {
         Row: {
           created_at: string;
@@ -8056,12 +8147,17 @@ export type Database = {
       work_order_totals_staff: {
         Row: {
           bicii_yield_after_cc: number | null;
+          bicii_yield_after_fees: number | null;
           cost_pending_count: number | null;
           cost_total: number | null;
+          cult_commons_after_fees: number | null;
           cult_commons_share: number | null;
           currency: string | null;
           line_count: number | null;
           sale_total: number | null;
+          stripe_fee_pending_count: number | null;
+          stripe_fees: number | null;
+          stripe_fees_borne: number | null;
           work_order_id: string | null;
           yield_total: number | null;
         };
@@ -11270,6 +11366,9 @@ export type Database = {
           sale_count: number;
           sale_total: number;
           settlements_paid_total: number;
+          stripe_fee_pending_jobs: number;
+          stripe_fees: number;
+          stripe_fees_borne: number;
           to_date: string;
           yield_after_cc: number;
           yield_total: number;
@@ -12476,6 +12575,10 @@ export type Database = {
         };
         Returns: number;
       };
+      stripe_fees_due: {
+        Args: { max_rows: number; p_livemode: boolean };
+        Returns: { payment_id: string; payment_intent_id: string }[];
+      };
       submit_my_adventure_evidence: {
         Args: { booking_id: string; rider_statement: string };
         Returns: {
@@ -13071,8 +13174,10 @@ export type Database = {
         Args: { target_work_order_id: string };
         Returns: {
           bicii_yield_after_cc: number;
+          bicii_yield_after_fees: number;
           cost_pending_count: number;
           cost_total: number;
+          cult_commons_after_fees: number;
           cult_commons_rates: number[];
           cult_commons_share: number;
           currency: string;
@@ -13084,6 +13189,9 @@ export type Database = {
           recognized_day: string;
           sale_total: number;
           status: Database["public"]["Enums"]["work_order_status"];
+          stripe_fee_pending_count: number;
+          stripe_fees: number;
+          stripe_fees_borne: number;
           work_order_id: string;
           yield_total: number;
         }[];

@@ -747,6 +747,9 @@ describe("startBalanceCheckout (D156h)", () => {
         retrievePaymentIntent: async () => {
           throw new StripeError("stripe_not_found", false, 404);
         },
+        retrievePaymentIntentWithFee: async () => {
+          throw new StripeError("stripe_not_found", false, 404);
+        },
       };
       const { deps, lines } = makeDeps(
         {

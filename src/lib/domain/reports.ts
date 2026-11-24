@@ -288,5 +288,10 @@ export async function getWorkOrderYield(
     recognizedAt: n.recognized_at,
     recognizedDay: n.recognized_day,
     costPendingCount: r.cost_pending_count ?? 0,
+    stripeFees: money(r.stripe_fees, r.currency),
+    stripeFeesBorne: money(r.stripe_fees_borne, r.currency),
+    ccAfterFees: money(r.cult_commons_after_fees ?? r.cult_commons_share, r.currency),
+    biciiAfterFees: money(r.bicii_yield_after_fees ?? r.bicii_yield_after_cc, r.currency),
+    stripeFeePendingCount: r.stripe_fee_pending_count ?? 0,
   };
 }

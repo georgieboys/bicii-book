@@ -686,4 +686,12 @@ export type WorkOrderYield = {
   recognizedAt: string | null;
   recognizedDay: string | null;
   costPendingCount: number;
+  /** D273: Stripe's fees less GST on the job's paid Stripe payments. */
+  stripeFees: string;
+  /** What Cult Commons bears of them: least(fees, cultCommons); "0.00" once cancelled. */
+  stripeFeesBorne: string;
+  ccAfterFees: string;
+  biciiAfterFees: string;
+  /** Paid Stripe payments whose fee is not read yet (the after-fees figures are provisional). */
+  stripeFeePendingCount: number;
 };

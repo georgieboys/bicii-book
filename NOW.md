@@ -1,5 +1,24 @@
 # Current state
 
+Updated: 2026-11-24 SGT (D273 Stripe fees borne by Cult Commons; branch
+`feat/stripe-fees-cc`, migration `20261124000100`, pushed, no PR yet).
+The owner decided a completed job's Cult Commons is its gross share less
+the Stripe fees (less GST) on the job's Stripe payments, refunded and
+duplicate ones included, never below 0 per job (BICII absorbs the rest
+and all fees on cancelled jobs), with history restated. Built:
+`stripe_payment_fees` (insert-only, view_costs), the fee read through
+`record_stripe_read` (PaymentIntent with `latest_charge.balance_transaction`
+expanded) from the integration cron's sweep and Check with Stripe, one
+`stripe_fee` entry per completed job in `financial_lines`, the fee columns
+on job totals, `work_order_yield` and the period summary, the Stripe fees
+rows on the job and the tile on Reports. Verified locally: prettier,
+eslint, `tsc --noEmit`, `vitest run tests/unit`; the migration and
+`tests/db/stripe-fees.test.ts` run only in CI (the local database is the
+hosted one). Owner action before the backfill reads anything: add
+**Balance: Read** (`balance_read`) to the restricted key (RUNBOOK
+"Stripe: restricted key"). Next: open the PR, CI green, merge; then
+watch the cron's `stripeFees` for the 3 production payments (R-134).
+Before that,
 Updated: 2026-11-23 SGT (D272; branch `feat/manager-counter-payments`,
 migration `20261123000600`). The owner decided managers also review and
 void counter payments ("Yes, managers too"); a manager's or admin's own

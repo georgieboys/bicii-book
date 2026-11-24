@@ -595,6 +595,12 @@ export const WORK_ORDER_YIELD_COLUMNS = [
   "recognized_at",
   "recognized_day",
   "cost_pending_count",
+  // D273: the job's Stripe fees, appended
+  "stripe_fees",
+  "stripe_fees_borne",
+  "cult_commons_after_fees",
+  "bicii_yield_after_fees",
+  "stripe_fee_pending_count",
 ] as const;
 
 /** A money value as a fixed-2 string (null stays null), for comparing numerics of any scale. */

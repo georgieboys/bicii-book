@@ -468,6 +468,40 @@ the Stripe test-mode balance rehearsal above, the owner's
 [PRODUCT question 35](../PRODUCT.md#open-assumptions-and-owner-questions)
 and R-093's decision.
 
+## Amendment 2026-11-24: Stripe fees borne by Cult Commons (D273)
+
+The owner: "stripe fees are borne by cult commons. so the cult commons cut
+needs to be the amount less the total fees charged by stripe for the full
+order", and the same day: floored at 0 per job with BICII absorbing the
+rest; a completed job's Cult Commons bears every Stripe fee on it,
+refunded payments and duplicate deposits included; a cancelled job has
+none and BICII bears its fees; past jobs are recalculated; the GST on
+Stripe's fee is not counted. This amends D154 (payments changed nothing in
+Cult Commons) and is the explicit later rule SPEC §10 allows.
+
+Decision: keep the line shares gross (D1, the snapshots) and add one
+job-level Stripe fee entry to `reporting.financial_lines`, dated by the
+job's current completion, so every report inherits the deduction with the
+floor per job; record each fee as an insert-only fact
+(`public.stripe_payment_fees`, view_costs only) from a server read of the
+PaymentIntent with `latest_charge.balance_transaction` expanded, stored
+and applied through `record_stripe_read` like every other Stripe fact
+(D153, D159a). The read runs from the integration cron and from *Check
+with Stripe*, never inside a webhook (the balance transaction can lag; a
+webhook must stay store-and-apply). The restricted key gains Balance:
+Read (`balance_read`).
+
+Rejected: folding fees into the generated line column (it cannot read
+another table, and lines are frozen); spreading the fee over lines (an
+arbitrary key, and it breaks the snapshots); dating it by the payment
+(splits the fee from its revenue; a reopen would not move it); deducting
+before the 30% (Cult Commons would bear only 30% of it); estimating from
+published rates (not what Stripe charged); a fee column on `payments`
+(every staff member reads payments; RLS cannot hide one column). Not
+included: dispute fees, Shopify Payments and terminal fees, adventures
+(R-134). Built in `20261124000100_stripe_fees.sql`
+([DATA-MODEL §19](../DATA-MODEL.md#stripe-fees-borne-by-cult-commons-d273)).
+
 ## Revisit trigger
 
 A request for staff other than admins to record counter payments, for

@@ -90,6 +90,14 @@ export interface StripeGateway {
   expireCheckoutSession(id: string): Promise<CheckoutSession>;
   listRefunds(paymentIntentId: string): Promise<StripeRefundObject[]>;
   retrievePaymentIntent(id: string): Promise<StripePaymentIntent>;
+  /**
+   * D273: the PaymentIntent with latest_charge.balance_transaction
+   * expanded, for the fee Stripe charged (read by the fee sweep and Check
+   * with Stripe; recorded by record_stripe_read). Needs the key's Balance:
+   * Read permission (RUNBOOK "Stripe: restricted key"); without it Stripe
+   * refuses (stripe_auth_failed) and the fee stays pending.
+   */
+  retrievePaymentIntentWithFee(id: string): Promise<StripePaymentIntent>;
 }
 
 export type StripeErrorCode =

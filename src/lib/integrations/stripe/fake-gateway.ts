@@ -30,12 +30,15 @@ import {
  */
 
 export type FakeCall = {
-  op: "create" | "retrieve" | "expire" | "list" | "retrieve_pi";
+  op: "create" | "retrieve" | "expire" | "list" | "retrieve_pi" | "retrieve_pi_fee";
   key?: string;
   id?: string;
 };
 
 type Op = FakeCall["op"];
+
+/** A fake balance transaction's fee, in integer cents (D273). */
+export type FakeFee = { id?: string; feeCents: number; taxCents?: number; currency?: string };
 
 export type FakeStripeGateway = StripeGateway & {
   readonly calls: FakeCall[];
@@ -57,6 +60,13 @@ export type FakeStripeGateway = StripeGateway & {
     paymentIntent: string,
     refund: { id?: string; amountCents: number; status: string },
   ): StripeRefundObject;
+  /**
+   * D273: the fee Stripe charged on the intent's charge (its balance
+   * transaction), in integer cents; `taxCents` is the GST on the fee
+   * (fee_details type tax). Null (the default) reads as Stripe not having
+   * made the balance transaction yet.
+   */
+  setFee(paymentIntent: string, fee: FakeFee | null): void;
   /** The next call of `op` throws `error` (once). */
   failNext(op: Op, error: StripeError): void;
   reset(): void;
@@ -74,6 +84,7 @@ export function createFakeStripeGateway({
   const bodies = new Map<string, { body: string; sessionId: string }>();
   const refunds = new Map<string, StripeRefundObject[]>();
   const failures = new Map<Op, StripeError>();
+  const fees = new Map<string, FakeFee | null>();
   let refundSeq = 0;
 
   function failIfAsked(op: Op): void {
@@ -202,6 +213,43 @@ export function createFakeStripeGateway({
       return intent;
     },
 
+    async retrievePaymentIntentWithFee(id: string) {
+      calls.push({ op: "retrieve_pi_fee", id });
+      failIfAsked("retrieve_pi_fee");
+      const intent = intents.get(id);
+      if (!intent) throw new StripeError("stripe_not_found", false, 404);
+      const fee = fees.get(id) ?? null;
+      const suffix = id.slice("pi_".length);
+      const currency = fee?.currency ?? "sgd";
+      const tax = fee?.taxCents ?? 0;
+      const balanceTransaction: Record<string, Json> | null = fee
+        ? {
+            id: fee.id ?? `txn_${suffix}`,
+            object: "balance_transaction",
+            amount: typeof intent.raw.amount === "number" ? intent.raw.amount : 0,
+            fee: fee.feeCents,
+            currency,
+            created: Math.floor(now() / 1000),
+            // Stripe itemises the fee; the GST on it is type tax.
+            fee_details: [
+              { type: "stripe_fee", amount: fee.feeCents - tax, currency },
+              ...(tax > 0 ? [{ type: "tax", amount: tax, currency }] : []),
+            ],
+          }
+        : null;
+      return toPaymentIntent(
+        {
+          ...intent.raw,
+          latest_charge: {
+            id: `ch_${suffix}`,
+            object: "charge",
+            balance_transaction: balanceTransaction,
+          },
+        },
+        false,
+      );
+    },
+
     complete(sessionId, { paid = true, paymentIntent } = {}) {
       const session = existing(sessionId);
       const pi = paymentIntent ?? `pi_fake_${sessionId.slice("cs_test_fake_".length)}`;
@@ -252,6 +300,10 @@ export function createFakeStripeGateway({
       return refund;
     },
 
+    setFee(paymentIntent, fee) {
+      fees.set(paymentIntent, fee);
+    },
+
     failNext(op, error) {
       failures.set(op, error);
     },
@@ -263,6 +315,7 @@ export function createFakeStripeGateway({
       bodies.clear();
       refunds.clear();
       failures.clear();
+      fees.clear();
       refundSeq = 0;
     },
   };

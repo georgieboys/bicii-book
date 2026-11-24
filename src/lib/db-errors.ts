@@ -599,6 +599,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   payment_immutable: "A customer payment changes only when Stripe confirms it.",
   payment_refund_immutable: "A refund changes only when Stripe reports it.",
   stripe_event_immutable: "A received Stripe event is kept as evidence and can't be changed.",
+  // D273: a Stripe fee is Stripe's word, recorded once from a server read.
+  stripe_fee_immutable: "A Stripe fee is recorded only from Stripe and can't be changed.",
   // Indent deposits (Phase 14 step 2, D151, D152, D157, D158): the setting,
   // the quote's snapshot, starting Checkout and the ordering gate.
   deposit_percent_out_of_range: "Choose a deposit from 0 to 100%.",
@@ -1280,6 +1282,11 @@ export const CHECK_ERRORS: Record<string, string> = {
   payments_kind_quote: "A deposit belongs to a quote; a balance does not.",
   payments_amount_check: `A payment must be between ${formatMoney("0.50")} and ${formatMoney("999999.99")}.`,
   payments_currency_check: "Online payments are in Singapore dollars.",
+  // D273: Stripe fee facts (written only by record_stripe_read's apply).
+  stripe_payment_fees_txn_check: "Stripe sent a balance transaction BICII could not read.",
+  stripe_payment_fees_charge_check: "Stripe sent a charge BICII could not read.",
+  stripe_payment_fees_amounts_check: "A Stripe fee can't be negative or less than the tax on it.",
+  stripe_payment_fees_currency_check: "Stripe fees are recorded in Singapore dollars only.",
   payments_amount_received_check: "The amount received can't be negative.",
   payments_refunded_amount_check: "The amount refunded can't be negative.",
   payments_paid_shape: "A paid payment needs the time Stripe confirmed it.",

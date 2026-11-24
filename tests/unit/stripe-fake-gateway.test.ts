@@ -169,6 +169,43 @@ describe("createFakeStripeGateway", () => {
     expect(fake.calls.filter((c) => c.op === "retrieve_pi")).toHaveLength(3);
   });
 
+  it("D273: the expanded intent carries the fee set for it, or no balance transaction yet", async () => {
+    const fake = createFakeStripeGateway({ now: () => NOW_MS });
+    const s = await fake.createCheckoutSession(INPUT, KEY);
+    fake.complete(s.id, { paymentIntent: "pi_fee" });
+    const before = await fake.retrievePaymentIntentWithFee("pi_fee");
+    expect(before.raw.latest_charge).toEqual({
+      id: "ch_fee",
+      object: "charge",
+      balance_transaction: null,
+    });
+    fake.setFee("pi_fee", { feeCents: 410, taxCents: 34 });
+    const after = await fake.retrievePaymentIntentWithFee("pi_fee");
+    expect(after.raw.latest_charge).toMatchObject({
+      id: "ch_fee",
+      balance_transaction: {
+        id: "txn_fee",
+        object: "balance_transaction",
+        amount: 12000,
+        fee: 410,
+        currency: "sgd",
+        fee_details: [
+          { type: "stripe_fee", amount: 376, currency: "sgd" },
+          { type: "tax", amount: 34, currency: "sgd" },
+        ],
+      },
+    });
+    expect(await code(fake.retrievePaymentIntentWithFee("pi_unknown"))).toBe("stripe_not_found");
+    fake.failNext("retrieve_pi_fee", new StripeError("stripe_auth_failed", false, 403));
+    expect(await code(fake.retrievePaymentIntentWithFee("pi_fee"))).toBe("stripe_auth_failed");
+    expect(fake.calls.filter((c) => c.op === "retrieve_pi_fee")).toHaveLength(4);
+    fake.reset();
+    fake.complete((await fake.createCheckoutSession(INPUT, KEY)).id, { paymentIntent: "pi_fee" });
+    expect((await fake.retrievePaymentIntentWithFee("pi_fee")).raw.latest_charge).toMatchObject({
+      balance_transaction: null,
+    });
+  });
+
   it("fails the next call of one op once, records calls, and resets", async () => {
     const fake = createFakeStripeGateway({ now: () => NOW_MS });
     fake.failNext("create", new StripeError("stripe_unavailable", true));

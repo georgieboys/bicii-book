@@ -406,6 +406,18 @@ balance link paid through the fake with a signed webhook and an admin's
 counter deposit given back (`tests/unit/stripe-balance-checkout.test.ts`
 the balance loop and `expireOpenCheckouts`).
 
+D273 (Stripe fees borne by Cult Commons, `20261124000100_stripe_fees.sql`,
+`fees.ts`): Stripe's fee is read, never computed. The integration cron
+runs `sweepStripeFees` beside the Shopify jobs (5 payments a run, none
+started after 20 s) over `stripe_fees_due`, and *Check with Stripe* does
+the same for a paid payment: `GET /v1/payment_intents/{id}?expand[]=
+latest_charge.balance_transaction` (`retrievePaymentIntentWithFee`), then
+`record_stripe_read`, whose apply stores the fee in
+`stripe_payment_fees`. Never inside the webhook: the balance transaction
+may not exist yet, and a webhook stays store-and-apply. The deduction is
+one `stripe_fee` entry per completed job in `reporting.financial_lines`,
+so every report inherits it ([DATA-MODEL §19](DATA-MODEL.md#stripe-fees-borne-by-cult-commons-d273)).
+
 ## Component map
 
 | Responsibility | Location | Dependency | Failure consequence |

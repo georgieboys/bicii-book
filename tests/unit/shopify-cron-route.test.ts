@@ -8,7 +8,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { bearerMatches, handleCronRequest } = await import("@/lib/integrations/shopify/cron");
+const { bearerMatches, handleCronRequest, STRIPE_FEE_BUDGET_MS } =
+  await import("@/lib/integrations/shopify/cron");
 const {
   MAX_JOB_MS,
   RUNNER_MARGIN_MS,
@@ -52,20 +53,49 @@ describe("handleCronRequest", () => {
 
   it("200 with the run's summary for the right bearer", async () => {
     const runDue = vi.fn(async () => SUMMARY);
+    const fees = { recorded: 1, pending: 0, failed: 0, permission: false };
+    const sweepFees = vi.fn(async () => fees);
     const res = await handleCronRequest(req("Bearer secret-1"), {
       secret: "secret-1",
       runDue,
+      sweepFees,
       log,
       now: () => 1_800_000_000_000,
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(await res.json()).toEqual(SUMMARY);
+    expect(await res.json()).toEqual({ ...SUMMARY, stripeFees: fees });
+    // D273: the fee sweep runs beside the jobs and starts nothing after 20 s.
+    expect(sweepFees).toHaveBeenCalledExactlyOnceWith(
+      1_800_000_000_000 + STRIPE_FEE_BUDGET_MS,
+      expect.any(String),
+    );
+    expect(STRIPE_FEE_BUDGET_MS).toBe(20_000);
     // A job claimed at the last instant still ends 5 s before maxDuration.
     expect(runDue).toHaveBeenCalledExactlyOnceWith(
       { limit: 25, claimUntil: 1_800_000_000_000 + 10_000 },
       expect.any(String),
     );
+  });
+
+  it("D273: a failing fee sweep (even one throwing at once) leaves the jobs' summary", async () => {
+    for (const sweepFees of [
+      vi.fn(async () => {
+        throw Object.assign(new Error("x"), { code: "P0001" });
+      }),
+      vi.fn(() => {
+        throw new Error("no env");
+      }),
+    ]) {
+      const res = await handleCronRequest(req("Bearer secret-1"), {
+        secret: "secret-1",
+        runDue: async () => SUMMARY,
+        sweepFees: sweepFees as never,
+        log,
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ...SUMMARY, stripeFees: { error: "failed" } });
+    }
   });
 
   it("compares the bearer exactly", () => {

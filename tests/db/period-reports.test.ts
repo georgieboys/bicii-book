@@ -287,6 +287,10 @@ describe("Report RPCs answer with the documented columns (DATA-MODEL §16)", () 
         "settlements_paid_total",
         "purchases_received_total",
         "excluded_foreign_line_count",
+        // D273
+        "stripe_fees",
+        "stripe_fees_borne",
+        "stripe_fee_pending_jobs",
       ]);
       expect(
         await cols("select * from public.report_period_series('2025-03-01', '2025-03-02')"),

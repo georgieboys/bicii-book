@@ -434,6 +434,9 @@ describe("startDepositCheckout (D158)", () => {
         retrievePaymentIntent: async () => {
           throw new StripeError("stripe_not_found", false, 404);
         },
+        retrievePaymentIntentWithFee: async () => {
+          throw new StripeError("stripe_not_found", false, 404);
+        },
       };
       const { deps, lines } = makeDeps(
         {
@@ -788,11 +791,13 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
       changed: true,
       incomplete: null,
     });
+    // D273: once paid (here partly refunded), the fee is read too.
     expect(gateway.calls).toEqual([
       { op: "retrieve", id: s.id },
       { op: "list", id: "pi_t1" },
+      { op: "retrieve_pi_fee", id: "pi_t1" },
     ]);
-    expect(calls.map((c) => (c.args.object as Row).id)).toEqual([s.id, "re_1", "re_2"]);
+    expect(calls.map((c) => (c.args.object as Row).id)).toEqual([s.id, "re_1", "re_2", "pi_t1"]);
     expect(calls.every((c) => c.args.payment_id === P1)).toBe(true);
   });
 
@@ -885,7 +890,8 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
     const second = makeDeps({ record_stripe_read: [readResult("paid")] }, { rows: [row()] });
     second.deps.gateway = paid;
     await refreshPaymentFromStripe(P1, second.deps);
-    expect(paid.calls.map((c) => c.op)).toEqual(["retrieve", "list"]);
+    // D273: the fee read is the expanded intent, not the async-failure read.
+    expect(paid.calls.map((c) => c.op)).toEqual(["retrieve", "list", "retrieve_pi_fee"]);
   });
 
   it("the session recorded but the intent or refunds unreadable: incomplete with its kind, not unavailable", async () => {

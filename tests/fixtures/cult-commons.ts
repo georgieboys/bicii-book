@@ -247,3 +247,49 @@ export const JOB_FIXTURES: readonly JobFixture[] = [
     afterCc: "13.00",
   },
 ];
+
+/**
+ * D273: Stripe fees on a completed job (Σ Stripe's fee less GST over its
+ * paid, partly refunded or refunded Stripe payments). Cult Commons bears
+ * least(fees, its gross share); BICII the rest. Per job: a floor at 0, and
+ * one job's fees never reach another's share. Worked by hand: borne =
+ * min(fees, cc), ccAfterFees = cc − borne, afterFees = yield − ccAfterFees
+ * − fees. Run through stripeFeeEconomics (tests/unit) and the database
+ * (tests/db/stripe-fees.test.ts).
+ */
+export type FeeFixture = {
+  name: string;
+  /** The job (a JOB_FIXTURES index). */
+  job: number;
+  fees: string;
+  borne: string;
+  ccAfterFees: string;
+  afterFees: string;
+};
+
+export const FEE_FIXTURES: readonly FeeFixture[] = [
+  {
+    name: "D273: fees under the share come off Cult Commons only (BICII after CC unchanged)",
+    job: 0,
+    fees: "7.15",
+    borne: "7.15",
+    ccAfterFees: "172.85",
+    afterFees: "420.00",
+  },
+  {
+    name: "D273: fees above the share floor Cult Commons at 0; BICII bears the rest",
+    job: 2,
+    fees: "15.00",
+    borne: "12.00",
+    ccAfterFees: "0.00",
+    afterFees: "10.00",
+  },
+  {
+    name: "D273: no fees change nothing",
+    job: 1,
+    fees: "0.00",
+    borne: "0.00",
+    ccAfterFees: "180.00",
+    afterFees: "390.00",
+  },
+];

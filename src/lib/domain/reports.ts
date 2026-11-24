@@ -250,6 +250,9 @@ export async function getFinancialEntriesOn(
         isLoss: n.is_loss,
         costPending: r.cost_pending === true,
         currency: r.currency,
+        entryKind: r.entry_kind === "stripe_fee" ? "stripe_fee" : "line",
+        stripeFee: moneyOrNull(n.stripe_fee, r.currency),
+        stripeFeePending: n.stripe_fee_pending === true,
       });
     }
     if (rows.length < ENTRY_PAGE) return out;
@@ -288,5 +291,10 @@ export async function getWorkOrderYield(
     recognizedAt: n.recognized_at,
     recognizedDay: n.recognized_day,
     costPendingCount: r.cost_pending_count ?? 0,
+    stripeFees: money(r.stripe_fees, r.currency),
+    stripeFeesBorne: money(r.stripe_fees_borne, r.currency),
+    ccAfterFees: money(r.cult_commons_after_fees ?? r.cult_commons_share, r.currency),
+    biciiAfterFees: money(r.bicii_yield_after_fees ?? r.bicii_yield_after_cc, r.currency),
+    stripeFeePendingCount: r.stripe_fee_pending_count ?? 0,
   };
 }

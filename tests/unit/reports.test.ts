@@ -15,6 +15,7 @@ import {
   groupEntries,
   lossNote,
   provisionalNote,
+  stripeFeePendingNote,
   toTodayDashboard,
   weekStrip,
   type DailySummary,
@@ -68,6 +69,9 @@ function row(patch: Partial<TodayDashboardRow> = {}): TodayDashboardRow {
     low_stock_now: 3,
     exceptions_now: 3,
     cost_pending_lines: 0,
+    stripe_fees: 0,
+    stripe_fees_borne: 0,
+    stripe_fee_pending_jobs: 0,
     ...patch,
   };
 }
@@ -111,6 +115,9 @@ describe("toTodayDashboard", () => {
         lossTotal: "0.00",
         lossLines: 0,
         newConsignorLiability: "0.00",
+        stripeFees: "0.00",
+        stripeFeesBorne: "0.00",
+        stripeFeePendingJobs: 0,
       },
     });
     expect(d.stock).toEqual({
@@ -120,6 +127,22 @@ describe("toTodayDashboard", () => {
       adjustments: 1,
       significantAdjustments: 0,
     });
+  });
+
+  it("D273: carries the day's Stripe fees, what Cult Commons bore and the jobs still pending", () => {
+    const d = toTodayDashboard(
+      row({ stripe_fees: 3.76, stripe_fees_borne: 3.76, stripe_fee_pending_jobs: 2 }),
+    );
+    expect(d.money?.costs).toMatchObject({
+      stripeFees: "3.76",
+      stripeFeesBorne: "3.76",
+      stripeFeePendingJobs: 2,
+    });
+    expect(stripeFeePendingNote(0)).toBeNull();
+    expect(stripeFeePendingNote(1)).toBe(
+      "Provisional: Stripe has not reported the fee on 1 job yet, so Cult Commons may still go down.",
+    );
+    expect(stripeFeePendingNote(2)).toMatch(/fees on 2 jobs yet/);
   });
 
   it("has no money without view_financial_reports (mechanic1: view_costs only)", () => {
@@ -501,6 +524,9 @@ describe("financial entries", () => {
     isLoss: null,
     costPending: false,
     currency: "SGD",
+    entryKind: "line",
+    stripeFee: null,
+    stripeFeePending: false,
   });
 
   it("groups by job in arrival order and links workshop jobs", () => {

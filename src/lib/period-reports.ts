@@ -71,15 +71,17 @@ export const DIMENSIONS: Readonly<Record<ReportDimension, { label: string }>> = 
  */
 export const PSEUDO_KEYS: Readonly<Record<ReportDimension, Readonly<Record<string, string>>>> = {
   job: {},
-  product: { none: "Services and labour" },
-  category: { none: "Uncategorised" },
-  service: { products: "Parts and products", manual: "Custom lines" },
+  // D273: a completed job's Stripe fee entry groups as stripe_fees.
+  product: { none: "Services and labour", stripe_fees: "Stripe fees" },
+  category: { none: "Uncategorised", stripe_fees: "Stripe fees" },
+  service: { products: "Parts and products", manual: "Custom lines", stripe_fees: "Stripe fees" },
   mechanic: { unassigned: "Unassigned", not_workshop: "Not workshop" },
   ownership: {
     shop_owned: "Shop-owned stock",
     consignment: "Consignment",
     customer_owned: "Customer-owned",
     service: "Services and labour",
+    stripe_fees: "Stripe fees",
   },
   channel: { workshop: "Workshop", retail: "Retail", online: "Online" },
 };
@@ -114,6 +116,9 @@ export const COST_GATED = {
     "new_consignor_liability",
     "settlements_paid_total",
     "purchases_received_total",
+    "stripe_fees",
+    "stripe_fees_borne",
+    "stripe_fee_pending_jobs",
   ],
   series: [
     "cost_total",
@@ -125,7 +130,7 @@ export const COST_GATED = {
     "settlements_paid_total",
   ],
   breakdown: ["cost_total", "yield_total", "cult_commons_share", "yield_after_cc"],
-  lines: ["cost_total", "yield_total", "cult_commons_share"],
+  lines: ["cost_total", "yield_total", "cult_commons_share", "stripe_fee", "bicii_yield_after_cc"],
   stockValue: ["value_at_cost"],
 } as const satisfies {
   summary: readonly (keyof SummaryRow)[];
@@ -429,10 +434,17 @@ export type PeriodSummary = {
   /** View costs only (D30). */
   costTotal: string | null;
   yieldTotal: string | null;
+  /** D273: net of what each completed job's Cult Commons bears of its Stripe fees. */
   cultCommons: string | null;
+  /** Yield less Cult Commons (net) less Stripe fees. */
   afterCc: string | null;
   lossLineCount: number | null;
   costPendingLines: number;
+  /** D273, view costs only: Stripe's fees (less GST) on the jobs counted, and what Cult Commons bore. */
+  stripeFees: string | null;
+  stripeFeesBorne: string | null;
+  /** Jobs whose Stripe fee is not read yet: Cult Commons is provisional. */
+  stripeFeePendingJobs: number;
   /** Sale basis only (D102): refunds recorded in the range, beside gross, never netted. */
   refundsTotal: string | null;
   refundCount: number | null;
@@ -520,6 +532,17 @@ export type ReportLine = {
   categoryName: string | null;
   mechanicName: string | null;
   currency: string;
+  /**
+   * D273, view costs only: on a job's Stripe fee entry (lineType
+   * "stripe_fee") the fees less GST; "0.00" on a line.
+   */
+  stripeFee: string | null;
+  /**
+   * View costs only: yield − Cult Commons, and on a fee entry minus the
+   * part of the fees BICII bears (fees above the job's share), so the
+   * column sums to the summary's BICII after Cult Commons.
+   */
+  afterCc: string | null;
 };
 
 export type PeriodActivity = {

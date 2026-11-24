@@ -434,6 +434,9 @@ describe("startDepositCheckout (D158)", () => {
         retrievePaymentIntent: async () => {
           throw new StripeError("stripe_not_found", false, 404);
         },
+        retrievePaymentIntentWithFee: async () => {
+          throw new StripeError("stripe_not_found", false, 404);
+        },
       };
       const { deps, lines } = makeDeps(
         {
@@ -736,9 +739,31 @@ describe("confirmDepositReturn (R-086)", () => {
       });
       deps.gateway = gateway;
       expect(await confirmDepositReturn(TOKEN, deps), status).toEqual({ state });
-      expect(calls.map((c) => c.name)).toEqual(["prepare_deposit_checkout", "record_stripe_read"]);
+      // D273: a paid (or refunded) payment's fee is read once on the return, best effort.
+      const fee = (status === "paid" || status === "refunded") && complete;
+      expect(calls.map((c) => c.name)).toEqual([
+        "prepare_deposit_checkout",
+        "record_stripe_read",
+        ...(fee ? ["record_stripe_read"] : []),
+      ]);
+      expect(gateway.calls.some((c) => c.op === "retrieve_pi_fee")).toBe(fee);
       expect(gateway.calls.filter((c) => c.op === "create")).toHaveLength(1);
     }
+  });
+
+  it("a fee read that fails on the return never changes what the customer is told (D273)", async () => {
+    const gateway = fakeStripe();
+    const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
+    gateway.complete(s.id, { paid: true });
+    gateway.failNext("retrieve_pi_fee", new StripeError("stripe_unavailable", true, 503));
+    const { deps, calls } = makeDeps({
+      prepare_deposit_checkout: [prepared("check", { stripe_checkout_session_id: s.id })],
+      record_stripe_read: [readResult("paid")],
+    });
+    deps.gateway = gateway;
+    expect(await confirmDepositReturn(TOKEN, deps)).toEqual({ state: "paid" });
+    // The fee was not recorded; the cron's sweep reads it later.
+    expect(calls.map((c) => c.name)).toEqual(["prepare_deposit_checkout", "record_stripe_read"]);
   });
 
   it("passes paid, processing and refunded through; null when refused or unavailable", async () => {
@@ -788,11 +813,13 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
       changed: true,
       incomplete: null,
     });
+    // D273: once paid (here partly refunded), the fee is read too.
     expect(gateway.calls).toEqual([
       { op: "retrieve", id: s.id },
       { op: "list", id: "pi_t1" },
+      { op: "retrieve_pi_fee", id: "pi_t1" },
     ]);
-    expect(calls.map((c) => (c.args.object as Row).id)).toEqual([s.id, "re_1", "re_2"]);
+    expect(calls.map((c) => (c.args.object as Row).id)).toEqual([s.id, "re_1", "re_2", "pi_t1"]);
     expect(calls.every((c) => c.args.payment_id === P1)).toBe(true);
   });
 
@@ -885,7 +912,8 @@ describe("refreshPaymentFromStripe (Check with Stripe)", () => {
     const second = makeDeps({ record_stripe_read: [readResult("paid")] }, { rows: [row()] });
     second.deps.gateway = paid;
     await refreshPaymentFromStripe(P1, second.deps);
-    expect(paid.calls.map((c) => c.op)).toEqual(["retrieve", "list"]);
+    // D273: the fee read is the expanded intent, not the async-failure read.
+    expect(paid.calls.map((c) => c.op)).toEqual(["retrieve", "list", "retrieve_pi_fee"]);
   });
 
   it("the session recorded but the intent or refunds unreadable: incomplete with its kind, not unavailable", async () => {

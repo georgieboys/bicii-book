@@ -1653,9 +1653,15 @@ describe("Server reads with the secret key (D159a)", () => {
       ).toMatchObject({
         outcome: "paid_after_failed",
       });
+      // D273: a paid payment's intent read is its fee read; without an
+      // expanded balance transaction the fee is still pending, nothing else moves.
       expect(
         await read(tx, p.id, paymentIntentObject({ id: p.pi, status: "requires_payment_method" })),
-      ).toMatchObject({ event_status: "ignored", outcome: "stale", payment_status: "paid" });
+      ).toMatchObject({
+        event_status: "ignored",
+        outcome: "stripe_fee_pending",
+        payment_status: "paid",
+      });
 
       // canceled after completion also means failed.
       const q = await setupPayment(tx);
@@ -1708,11 +1714,15 @@ describe("Server reads with the secret key (D159a)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 15. D154: money held, not revenue
+// 15. D154: money held, not revenue (amended by D273: Stripe's fee)
 // ---------------------------------------------------------------------------
 
 describe("D154: payments are money held, not revenue", () => {
-  it("nothing in totals, yield, daily or period reports, the job or sales changes", async () => {
+  // D273 rewrote this test on purpose: a paid Stripe payment now brings its
+  // job one stripe_fee entry (pending until the fee is read) and the
+  // totals' and summary's fee columns. Everything else is still unchanged;
+  // the fee's own effect is asserted at the end and in stripe-fees.test.ts.
+  it("nothing in the lines, totals, yield, daily or period reports, the job or sales changes, except the Stripe fee", async () => {
     await inTransaction(conn, async (tx) => {
       const job = await newJob(tx);
       await ownerMode(tx);
@@ -1736,8 +1746,9 @@ describe("D154: payments are money held, not revenue", () => {
           out.push(
             (
               await tx.query<{ t: string }>(
-                `select coalesce(json_agg(x order by x::text)::text, '[]') as t
-                   from public.report_period_summary($1::date, $1::date, $2::public.report_date_basis) x`,
+                `select coalesce(json_agg(j order by j::text)::text, '[]') as t
+                   from (select to_jsonb(x) - array['stripe_fees', 'stripe_fees_borne', 'stripe_fee_pending_jobs'] as j
+                           from public.report_period_summary($1::date, $1::date, $2::public.report_date_basis) x) s`,
                 [day, basis],
               )
             ).rows[0].t,
@@ -1757,17 +1768,18 @@ describe("D154: payments are money held, not revenue", () => {
           ).rows[0].t;
         const owner = await readAsOwner(tx, async () => ({
           financial: await asText(
-            "select * from reporting.financial_lines where document_id = $1",
+            "select * from reporting.financial_lines where document_id = $1 and entry_kind = 'line'",
             [job.id],
           ),
-          report: await asText("select * from reporting.report_lines where document_id = $1", [
-            job.id,
-          ]),
+          report: await asText(
+            "select * from reporting.report_lines where document_id = $1 and entry_kind = 'line'",
+            [job.id],
+          ),
           totals: await asText("select * from public.work_order_totals where work_order_id = $1", [
             job.id,
           ]),
           totalsStaff: await asText(
-            "select * from public.work_order_totals_staff where work_order_id = $1",
+            "select to_jsonb(t) - array['stripe_fees', 'stripe_fees_borne', 'cult_commons_after_fees', 'bicii_yield_after_fees', 'stripe_fee_pending_count'] as j from public.work_order_totals_staff t where work_order_id = $1",
             [job.id],
           ),
           job: await asText(
@@ -1783,7 +1795,10 @@ describe("D154: payments are money held, not revenue", () => {
         }));
         return {
           ...owner,
-          yield: await asText("select * from public.work_order_yield($1)", [job.id]),
+          yield: await asText(
+            "select to_jsonb(y) - array['stripe_fees', 'stripe_fees_borne', 'cult_commons_after_fees', 'bicii_yield_after_fees', 'stripe_fee_pending_count'] as j from public.work_order_yield($1) y",
+            [job.id],
+          ),
           daily: await asText("select * from public.daily_summary($1::date, $1::date)", [day]),
           periods: await periods(),
         };
@@ -1838,6 +1853,48 @@ describe("D154: payments are money held, not revenue", () => {
         given_back_total: "30.00",
         net_total: "120.00",
       });
+
+      // D273: the job's one Stripe fee entry, pending (0, flagged) until
+      // each paid payment's fee is read; then Cult Commons bears it.
+      const feeEntry = () =>
+        readAsOwner(tx, async () => {
+          const { rows } = await tx.query<{
+            n: number;
+            fee: string;
+            pending: boolean;
+            cc: string;
+            lines_cc: string;
+          }>(
+            `select (count(*) filter (where entry_kind = 'stripe_fee'))::int as n,
+                    coalesce(sum(stripe_fee), 0)::numeric(12,2)::text as fee,
+                    coalesce(bool_or(stripe_fee_pending), false) as pending,
+                    sum(cult_commons_share)::numeric(12,2)::text as cc,
+                    (sum(cult_commons_share) filter (where entry_kind = 'line'))::numeric(12,2)::text as lines_cc
+               from reporting.financial_lines where document_id = $1`,
+            [job.id],
+          );
+          return rows[0];
+        });
+      const pending = await feeEntry();
+      expect(pending).toMatchObject({ n: 1, fee: "0.00", pending: true });
+      expect(pending.cc).toBe(pending.lines_cc);
+      await read(tx, p.id, {
+        ...paymentIntentObject({ id: p.pi, status: "succeeded" }),
+        latest_charge: {
+          id: `ch_${tag()}`,
+          object: "charge",
+          balance_transaction: {
+            id: `txn_${tag()}`,
+            object: "balance_transaction",
+            fee: 100,
+            currency: "sgd",
+            fee_details: [{ type: "stripe_fee", amount: 100, currency: "sgd" }],
+          },
+        },
+      });
+      const after = await feeEntry();
+      expect(after).toMatchObject({ n: 1, fee: "1.00", pending: true }); // the balance payment's fee is still unread
+      expect(Number(after.lines_cc) - Number(after.cc)).toBeCloseTo(1.0, 2);
     });
   });
 });

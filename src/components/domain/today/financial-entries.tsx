@@ -1,6 +1,6 @@
 import { ShortIdLink, ShortId } from "@/components/domain/short-id";
 import { Badge } from "@/components/ui/badge";
-import { formatQuantity, formatMoney } from "@/lib/money";
+import { formatQuantity, formatMoney, toDecimal } from "@/lib/money";
 import { documentHref, formatSignedMoney, groupEntries, type FinancialEntry } from "@/lib/reports";
 
 /**
@@ -9,6 +9,11 @@ import { documentHref, formatSignedMoney, groupEntries, type FinancialEntry } fr
  * its yield and Cult Commons when the database returned them (view_costs,
  * D30). A loss-making line says "Sold at a loss"; a line without a cost
  * says "Cost pending" (D14). It lists; it adds nothing up.
+ *
+ * D273: a completed job's Stripe fee entry (view_costs only; the database
+ * leaves it out otherwise) is not a line: it is shown under its job as the
+ * deduction it is, "Stripe fees (less GST)" and what Cult Commons bore,
+ * and the count in the header counts lines only (as lines_recognised).
  */
 export function FinancialEntries({
   entries,
@@ -18,6 +23,7 @@ export function FinancialEntries({
   open?: boolean;
 }) {
   const groups = groupEntries(entries);
+  const lineCount = entries.filter((e) => e.entryKind === "line").length;
   return (
     <details
       id="financial-entries"
@@ -27,7 +33,7 @@ export function FinancialEntries({
       <summary className="flex min-h-tap cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 py-2 font-semibold focus-inset">
         What makes up these figures
         <span className="text-sm font-normal text-dust-500 tabular-nums">
-          {entries.length === 1 ? "1 line" : `${entries.length} lines`}
+          {lineCount === 1 ? "1 line" : `${lineCount} lines`}
         </span>
       </summary>
       <div className="flex flex-col gap-4 px-4 pt-1 pb-4">
@@ -49,31 +55,54 @@ export function FinancialEntries({
                   aria-label={`Lines of ${g.documentNumber}`}
                   className="flex flex-col divide-y divide-hairline text-dense"
                 >
-                  {g.entries.map((e) => (
-                    <li key={e.entryKey} className="flex flex-col gap-0.5 py-1.5">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="min-w-0">
-                          {e.description}
-                          {formatQuantity(e.quantity) !== "1" ? (
-                            <span className="text-dust-500"> × {formatQuantity(e.quantity)}</span>
+                  {g.entries.map((e) =>
+                    e.entryKind === "stripe_fee" ? (
+                      <li key={e.entryKey} className="flex flex-col gap-0.5 py-1.5">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="min-w-0">Stripe fees (less GST)</span>
+                          <span className="shrink-0 font-semibold tabular-nums">
+                            {e.stripeFeePending && toDecimal(e.stripeFee ?? "0").isZero()
+                              ? "Not reported yet"
+                              : formatMoney(e.stripeFee ?? "0", e.currency)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-dust-500 tabular-nums">
+                          {e.cultCommons !== null ? (
+                            <span>
+                              Borne by Cult Commons {formatSignedMoney(e.cultCommons, e.currency)}
+                            </span>
                           ) : null}
-                        </span>
-                        <span className="shrink-0 font-semibold tabular-nums">
-                          {formatMoney(e.saleTotal, e.currency)}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-dust-500 tabular-nums">
-                        {e.yield !== null ? (
-                          <span>Yield {formatSignedMoney(e.yield, e.currency)}</span>
-                        ) : null}
-                        {e.cultCommons !== null ? (
-                          <span>Cult Commons {formatMoney(e.cultCommons, e.currency)}</span>
-                        ) : null}
-                        {e.isLoss ? <Badge tone="danger">Sold at a loss</Badge> : null}
-                        {e.costPending ? <Badge tone="waiting">Cost pending</Badge> : null}
-                      </div>
-                    </li>
-                  ))}
+                          {e.stripeFeePending ? (
+                            <Badge tone="waiting">Fee not reported yet</Badge>
+                          ) : null}
+                        </div>
+                      </li>
+                    ) : (
+                      <li key={e.entryKey} className="flex flex-col gap-0.5 py-1.5">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="min-w-0">
+                            {e.description}
+                            {formatQuantity(e.quantity) !== "1" ? (
+                              <span className="text-dust-500"> × {formatQuantity(e.quantity)}</span>
+                            ) : null}
+                          </span>
+                          <span className="shrink-0 font-semibold tabular-nums">
+                            {formatMoney(e.saleTotal, e.currency)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-dust-500 tabular-nums">
+                          {e.yield !== null ? (
+                            <span>Yield {formatSignedMoney(e.yield, e.currency)}</span>
+                          ) : null}
+                          {e.cultCommons !== null ? (
+                            <span>Cult Commons {formatMoney(e.cultCommons, e.currency)}</span>
+                          ) : null}
+                          {e.isLoss ? <Badge tone="danger">Sold at a loss</Badge> : null}
+                          {e.costPending ? <Badge tone="waiting">Cost pending</Badge> : null}
+                        </div>
+                      </li>
+                    ),
+                  )}
                 </ul>
               </div>
             );

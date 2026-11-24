@@ -747,6 +747,9 @@ describe("startBalanceCheckout (D156h)", () => {
         retrievePaymentIntent: async () => {
           throw new StripeError("stripe_not_found", false, 404);
         },
+        retrievePaymentIntentWithFee: async () => {
+          throw new StripeError("stripe_not_found", false, 404);
+        },
       };
       const { deps, lines } = makeDeps(
         {
@@ -978,10 +981,20 @@ describe("confirmBalanceReturn (R-086)", () => {
         { gateway },
       );
       expect(await confirmBalanceReturn(TOKEN, deps), status).toEqual({ state });
-      expect(calls.map((c) => c.name)).toEqual(["prepare_balance_checkout", "record_stripe_read"]);
+      // D273: a paid payment's fee is read once on the return, best effort.
+      const fee = ["paid", "partially_refunded", "refunded"].includes(status);
+      expect(calls.map((c) => c.name)).toEqual([
+        "prepare_balance_checkout",
+        "record_stripe_read",
+        ...(fee ? ["record_stripe_read"] : []),
+      ]);
       expect(calls[1].args).toMatchObject({ payment_id: P1 });
-      // One read; never an expiry or a new session.
-      expect(gateway.calls).toEqual([{ op: "retrieve", id: s.id }]);
+      // One session read; never an expiry or a new session.
+      expect(gateway.calls.map((c) => c.op)).toEqual([
+        "retrieve",
+        ...(fee ? ["retrieve_pi_fee"] : []),
+      ]);
+      expect(gateway.calls[0]).toEqual({ op: "retrieve", id: s.id });
     }
   });
 
@@ -1000,7 +1013,9 @@ describe("confirmBalanceReturn (R-086)", () => {
       { gateway },
     );
     expect(await confirmBalanceReturn(TOKEN, deps)).toEqual({ state: "paid" });
-    expect(gateway.calls).toEqual([{ op: "retrieve", id: s.id }]);
+    // The session re-read, then (D273) its fee: never an expiry.
+    expect(gateway.calls.map((c) => c.op)).toEqual(["retrieve", "retrieve_pi_fee"]);
+    expect(gateway.calls[0]).toEqual({ op: "retrieve", id: s.id });
     expect(calls[1].args).toMatchObject({ payment_id: P3 });
   });
 

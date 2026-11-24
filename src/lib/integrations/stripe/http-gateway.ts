@@ -249,8 +249,22 @@ export function createHttpStripeGateway(
       });
       return toPaymentIntent(raw, livemode);
     },
+
+    async retrievePaymentIntentWithFee(id: string): Promise<StripePaymentIntent> {
+      if (!PAYMENT_INTENT_ID.test(id)) throw new StripeError("stripe_request_failed", false);
+      const raw = await request({
+        method: "GET",
+        path: `/v1/payment_intents/${encodeURIComponent(id)}?${FEE_EXPAND}`,
+      });
+      return toPaymentIntent(raw, livemode);
+    },
   };
 }
+
+/** D273: the expansion that carries the fee (`expand[]=latest_charge.balance_transaction`). */
+export const FEE_EXPAND = `${encodeURIComponent("expand[]")}=${encodeURIComponent(
+  "latest_charge.balance_transaction",
+)}`;
 
 /**
  * The payment method names a session offers (Stripe's

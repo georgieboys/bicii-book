@@ -367,6 +367,42 @@ describe("retrieve, expire and list refunds", () => {
     expect(none).toEqual([]);
   });
 
+  it("D273: retrieves a PaymentIntent with its charge's balance transaction expanded", async () => {
+    const intent = {
+      id: "pi_123",
+      object: "payment_intent",
+      livemode: false,
+      status: "succeeded",
+      latest_charge: {
+        id: "ch_1",
+        object: "charge",
+        balance_transaction: { id: "txn_1", object: "balance_transaction", fee: 410 },
+      },
+    };
+    const { calls, fetch } = fetchReturning(json(200, intent));
+    expect(await gateway(fetch).retrievePaymentIntentWithFee("pi_123")).toMatchObject({
+      id: "pi_123",
+      status: "succeeded",
+      raw: intent,
+    });
+    expect(calls[0].url).toBe(
+      "https://api.stripe.com/v1/payment_intents/pi_123?expand%5B%5D=latest_charge.balance_transaction",
+    );
+    expect(calls[0].init.method).toBe("GET");
+    const { calls: none, fetch: f2 } = fetchReturning();
+    expect((await caught(gateway(f2).retrievePaymentIntentWithFee("pi_1?x=1"))).code).toBe(
+      "stripe_request_failed",
+    );
+    expect(none).toEqual([]);
+    // A key without Balance: Read is refused by Stripe: stripe_auth_failed.
+    const { fetch: f3 } = fetchReturning(
+      json(403, { error: { type: "invalid_request_error", code: "secret_key_required" } }),
+    );
+    expect((await caught(gateway(f3).retrievePaymentIntentWithFee("pi_123"))).code).toBe(
+      "stripe_auth_failed",
+    );
+  });
+
   it("lists a payment intent's refunds, validated, keeping refund objects only", async () => {
     const { calls, fetch } = fetchReturning(
       json(200, {

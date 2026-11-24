@@ -202,6 +202,28 @@ function DocumentLink({ line }: { line: ReportLine }) {
   );
 }
 
+/**
+ * D273: a completed job's Stripe fee entry (view costs only) is not a sold
+ * line: it reads as the deduction, with what Cult Commons bore and the
+ * part BICII bears when the fees were more than the job's share.
+ */
+const isFee = (l: ReportLine) => l.lineType === "stripe_fee";
+
+function feeText(l: ReportLine): string {
+  const fee = formatSignedMoney(l.stripeFee ?? "0", l.currency);
+  const borne = l.cultCommons === null ? null : toDecimal(l.cultCommons).negated().toFixed(2);
+  const bicii = l.afterCc === null ? null : toDecimal(l.afterCc).negated().toFixed(2);
+  return [
+    `Stripe fees (less GST) ${fee}`,
+    borne !== null ? `borne by Cult Commons ${formatSignedMoney(borne, l.currency)}` : null,
+    bicii !== null && !toDecimal(bicii).isZero()
+      ? `by BICII ${formatSignedMoney(bicii, l.currency)}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 /** Phones: one card row per line. */
 function LineList({ lines, showCosts }: { lines: readonly ReportLine[]; showCosts: boolean }) {
   return (
@@ -209,30 +231,39 @@ function LineList({ lines, showCosts }: { lines: readonly ReportLine[]; showCost
       aria-label="Lines"
       className="divide-y divide-hairline rounded-2xl border border-hairline bg-card md:hidden"
     >
-      {lines.map((l) => (
-        <li key={l.sourceLineId} className="flex flex-col gap-0.5 px-4 py-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate">{l.description}</span>
-            <span className="shrink-0 font-semibold tabular-nums">
-              {formatSignedMoney(l.saleTotal, l.currency)}
-            </span>
-          </div>
-          <div className="text-sm text-dust-500">
-            <DocumentLink line={l} /> · {lineDate(l)}
-          </div>
-          <div className="text-sm text-dust-700 tabular-nums">
-            {formatQuantity(l.quantity)} × {formatSignedMoney(l.unitSalePrice, l.currency)}
-            {showCosts && l.yieldTotal !== null && l.cultCommons !== null ? (
-              <span className={isNegative(l.yieldTotal) ? "text-danger-deep" : undefined}>
-                {" "}
-                · Yield {formatSignedMoney(l.yieldTotal, l.currency)} · CC{" "}
-                {formatSignedMoney(l.cultCommons, l.currency)}
+      {lines.map((l) =>
+        isFee(l) ? (
+          <li key={l.sourceLineId} className="flex flex-col gap-0.5 px-4 py-3">
+            <span className="min-w-0">{feeText(l)}</span>
+            <div className="text-sm text-dust-500">
+              <DocumentLink line={l} /> · {lineDate(l)}
+            </div>
+          </li>
+        ) : (
+          <li key={l.sourceLineId} className="flex flex-col gap-0.5 px-4 py-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate">{l.description}</span>
+              <span className="shrink-0 font-semibold tabular-nums">
+                {formatSignedMoney(l.saleTotal, l.currency)}
               </span>
-            ) : null}
-            {l.costPending ? <span className="text-waiting-deep"> · cost pending</span> : null}
-          </div>
-        </li>
-      ))}
+            </div>
+            <div className="text-sm text-dust-500">
+              <DocumentLink line={l} /> · {lineDate(l)}
+            </div>
+            <div className="text-sm text-dust-700 tabular-nums">
+              {formatQuantity(l.quantity)} × {formatSignedMoney(l.unitSalePrice, l.currency)}
+              {showCosts && l.yieldTotal !== null && l.cultCommons !== null ? (
+                <span className={isNegative(l.yieldTotal) ? "text-danger-deep" : undefined}>
+                  {" "}
+                  · Yield {formatSignedMoney(l.yieldTotal, l.currency)} · CC{" "}
+                  {formatSignedMoney(l.cultCommons, l.currency)}
+                </span>
+              ) : null}
+              {l.costPending ? <span className="text-waiting-deep"> · cost pending</span> : null}
+            </div>
+          </li>
+        ),
+      )}
     </ul>
   );
 }
@@ -295,12 +326,14 @@ function LineTable({
                 <DocumentLink line={l} />
               </td>
               <td className="min-w-56 px-3 py-2">
-                {l.description}
+                {isFee(l) ? feeText(l) : l.description}
                 {l.costPending ? <span className="text-waiting-deep"> · cost pending</span> : null}
               </td>
-              <td className="px-3 py-2 text-right">{formatQuantity(l.quantity)}</td>
               <td className="px-3 py-2 text-right">
-                {formatSignedMoney(l.unitSalePrice, l.currency)}
+                {isFee(l) ? "—" : formatQuantity(l.quantity)}
+              </td>
+              <td className="px-3 py-2 text-right">
+                {isFee(l) ? "—" : formatSignedMoney(l.unitSalePrice, l.currency)}
               </td>
               <td className="px-3 py-2 text-right">{formatSignedMoney(l.saleTotal, l.currency)}</td>
               {showCosts ? (

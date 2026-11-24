@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RowLink, RowList } from "@/components/ui/row-list";
 import { cn } from "@/lib/cn";
 import { formatShopDay, toShopLocal } from "@/lib/dates";
-import { formatQuantity, toDecimal } from "@/lib/money";
+import { formatMoney, formatQuantity, toDecimal } from "@/lib/money";
 import {
   DIMENSIONS,
   DIMENSION_VALUES,
@@ -27,7 +27,7 @@ import {
   type StockValueRow,
 } from "@/lib/period-reports";
 import { plural } from "@/lib/plural";
-import { formatSignedMoney, provisionalNote } from "@/lib/reports";
+import { formatSignedMoney, provisionalNote, stripeFeePendingNote } from "@/lib/reports";
 
 /**
  * The server-rendered parts of /reports and /reports/lines (Phase 9; SPEC
@@ -106,6 +106,11 @@ export function SummaryTiles({
   const c = summary.currency;
   const costs = showCosts && summary.costTotal !== null;
   const provisional = provisionalNote(summary.costPendingLines);
+  const feePending = costs ? stripeFeePendingNote(summary.stripeFeePendingJobs) : null;
+  const fees =
+    costs && summary.stripeFees !== null && !toDecimal(summary.stripeFees).isZero()
+      ? summary.stripeFees
+      : null;
   return (
     <div className="flex flex-col gap-2">
       <div role="group" aria-label="Period figures" className={tileGrid}>
@@ -132,9 +137,25 @@ export function SummaryTiles({
               label="Cult Commons"
               amount={summary.cultCommons!}
               currency={c}
-              hint="Sum of 30% of each line's positive yield"
+              hint={
+                fees
+                  ? `30% of each line's positive yield, less ${formatMoney(summary.stripeFeesBorne ?? "0", c)} of Stripe fees`
+                  : "Sum of 30% of each line's positive yield"
+              }
             />
-            <MoneyTile label="BICII after Cult Commons" amount={summary.afterCc!} currency={c} />
+            {fees ? (
+              <MoneyTile
+                label="Stripe fees"
+                amount={fees}
+                currency={c}
+                hint="Less GST; borne by Cult Commons up to each job's share"
+              />
+            ) : null}
+            <MoneyTile
+              label={fees ? "BICII after Cult Commons and Stripe fees" : "BICII after Cult Commons"}
+              amount={summary.afterCc!}
+              currency={c}
+            />
           </>
         ) : null}
       </div>
@@ -146,6 +167,11 @@ export function SummaryTiles({
       {provisional ? (
         <p role="note" className="text-sm font-medium text-waiting-deep">
           {provisional}
+        </p>
+      ) : null}
+      {feePending ? (
+        <p role="note" className="text-sm font-medium text-waiting-deep">
+          {feePending}
         </p>
       ) : null}
     </div>

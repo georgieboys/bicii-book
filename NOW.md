@@ -1,5 +1,33 @@
 # Current state
 
+Updated: 2026-11-24 SGT (D273 Stripe fees borne by Cult Commons; branch
+`feat/stripe-fees-cc`, migration `20261124000100`, pushed, no PR yet).
+The owner decided a completed job's Cult Commons is its gross share less
+the Stripe fees (less GST) on the job's Stripe payments, refunded and
+duplicate ones included, never below 0 per job (BICII absorbs the rest
+and all fees on cancelled jobs), with history restated. Built:
+`stripe_payment_fees` (insert-only, view_costs), the fee read through
+`record_stripe_read` (PaymentIntent with `latest_charge.balance_transaction`
+expanded) from the integration cron's sweep and Check with Stripe, one
+`stripe_fee` entry per completed job in `financial_lines`, the fee columns
+on job totals, `work_order_yield` and the period summary, the Stripe fees
+rows on the job and the tile on Reports. Review fixes (same branch): the
+migration's unclosed `apply_stripe_payment_intent` body (it could not
+have applied) is closed; Today shows the day's Stripe fees, the
+provisional note and the fee entry as a deduction; fee entries reach
+view_costs callers only; the line list and its export carry `stripe_fee`
+and BICII's part (`after_cc`); failed fee reads back off
+(`note_stripe_fee_read_failed`); the fee is read once on the customer's
+Checkout return; the job panel says "Not reported yet" and "Not counted
+(cancelled)". Verified locally: prettier, eslint, `tsc --noEmit`,
+`vitest run tests/unit`; the migration and `tests/db/stripe-fees.test.ts`
+(collection basis, series, failed-read backoff and fee-entry gating
+added) run only in CI (the local database is the hosted one): not run
+here. Owner action before the backfill reads anything: add
+**Balance: Read** (`balance_read`) to the restricted key (RUNBOOK
+"Stripe: restricted key"). Next: open the PR, CI green, merge; then
+watch the cron's `stripeFees` for the 3 production payments (R-134).
+Before that,
 Updated: 2026-11-23 SGT (D272; branch `feat/manager-counter-payments`,
 migration `20261123000600`). The owner decided managers also review and
 void counter payments ("Yes, managers too"); a manager's or admin's own

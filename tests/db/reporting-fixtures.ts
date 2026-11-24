@@ -462,6 +462,10 @@ export const TODAY_DASHBOARD_COLUMNS = [
   "low_stock_now",
   "exceptions_now",
   "cost_pending_lines",
+  // D273: the day's Stripe fees (view_costs), appended
+  "stripe_fees",
+  "stripe_fees_borne",
+  "stripe_fee_pending_jobs",
 ] as const;
 
 export const SNAPSHOT_COLUMNS = TODAY_DASHBOARD_COLUMNS.filter((c) => c.endsWith("_now"));
@@ -565,6 +569,9 @@ export const FINANCIAL_LINES_COLUMNS = [
   "is_loss",
   "currency",
   "cost_pending",
+  // D273, appended
+  "stripe_fee",
+  "stripe_fee_pending",
 ] as const;
 
 /** financial_lines columns that need view_costs (D30). */
@@ -576,6 +583,8 @@ export const FINANCIAL_LINES_COST_COLUMNS = [
   "cult_commons_share",
   "bicii_yield_after_cc",
   "is_loss",
+  "stripe_fee",
+  "stripe_fee_pending",
 ] as const;
 
 export const WORK_ORDER_YIELD_COLUMNS = [
@@ -595,6 +604,12 @@ export const WORK_ORDER_YIELD_COLUMNS = [
   "recognized_at",
   "recognized_day",
   "cost_pending_count",
+  // D273: the job's Stripe fees, appended
+  "stripe_fees",
+  "stripe_fees_borne",
+  "cult_commons_after_fees",
+  "bicii_yield_after_fees",
+  "stripe_fee_pending_count",
 ] as const;
 
 /** A money value as a fixed-2 string (null stays null), for comparing numerics of any scale. */

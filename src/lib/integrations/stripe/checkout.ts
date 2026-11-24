@@ -7,6 +7,7 @@ import type { ServiceSupabase } from "../shopify/deps";
 import { CHECKOUT_HOST, REUSE_MARGIN_SECONDS, checkoutIdempotencyKey } from "./config";
 import { StripeError, type CheckoutSession, type WorkshopCheckoutInput } from "./gateway";
 import type { StripeDeps } from "./deps";
+import { readStripeFee } from "./fees";
 import {
   prepareBalanceCheckout,
   prepareDepositCheckout,
@@ -44,7 +45,8 @@ import {
  *   refreshPaymentFromStripe  staff's Check with Stripe: re-read the
  *                             session, its PaymentIntent when Checkout
  *                             completed unpaid (an asynchronous failure
- *                             shows only there), and its refunds (R-086)
+ *                             shows only there), its refunds (R-086)
+ *                             and, once paid, its Stripe fee (D273)
  *
  * The quote or link token appears only in the success and cancel URLs,
  * which are built from ADMIN_ORIGIN (never from the request's Host): never
@@ -240,6 +242,8 @@ export function validateRedirect(
 }
 
 const PAID_GROUP: ReadonlySet<PaymentStatus> = new Set(["paid", "partially_refunded"]);
+/** D273: Stripe keeps its fee on a refund, so a refunded payment still has one. */
+const FEE_GROUP: ReadonlySet<PaymentStatus> = new Set(["paid", "partially_refunded", "refunded"]);
 
 function logStripeError(
   deps: StripeDeps,
@@ -278,6 +282,29 @@ async function read(
     object,
     correlation_id: r.deps.correlationId,
   });
+}
+
+/**
+ * D273: after the customer's return found the payment paid, read its
+ * Stripe fee once, best effort: the return never waits on it failing (a
+ * Stripe or database error is logged and the cron's sweep reads it later).
+ * A card's balance transaction is usually there by now, so the job's Cult
+ * Commons is final without waiting for the next sweep.
+ */
+async function readFeeOnReturn(
+  r: Ready,
+  deps: StripeDeps,
+  paymentId: string,
+  paymentIntentId: string | null,
+  status: PaymentStatus | null,
+): Promise<void> {
+  if (!paymentIntentId || !status || !FEE_GROUP.has(status) || pastDeadline(r)) return;
+  try {
+    const fee = await readStripeFee(r.deps, paymentId, paymentIntentId);
+    if (fee.kind === "failed") logStripeError(deps, "return_fee", paymentId, fee.error);
+  } catch (error) {
+    logStripeError(deps, "return_fee", paymentId, error);
+  }
 }
 
 /**
@@ -771,8 +798,10 @@ export async function confirmDepositReturn(
     const session = await r.deps.gateway.retrieveCheckoutSession(
       row.stripe_checkout_session_id ?? "",
     );
-    const result = await read(r, required(row.payment_id, "payment_id"), session.raw);
+    const depositId = required(row.payment_id, "payment_id");
+    const result = await read(r, depositId, session.raw);
     const status = result.payment_status;
+    await readFeeOnReturn(r, deps, depositId, session.paymentIntent, status);
     if (status && PAID_GROUP.has(status)) return { state: "paid" };
     if (status === "refunded") return { state: "refunded" };
     if (status === "pending" && session.status === "complete") return { state: "processing" };
@@ -830,6 +859,7 @@ export async function confirmBalanceReturn(
     if (!row.payment_id || !row.stripe_checkout_session_id) return { state: otherwise };
     const session = await r.deps.gateway.retrieveCheckoutSession(row.stripe_checkout_session_id);
     const status = (await read(r, row.payment_id, session.raw)).payment_status;
+    await readFeeOnReturn(r, deps, row.payment_id, session.paymentIntent, status);
     if (status && PAID_GROUP.has(status)) return { state: "paid" };
     if (status === "pending" && session.status === "complete") return { state: "processing" };
     return { state: otherwise };
@@ -982,6 +1012,7 @@ export async function refreshPaymentFromStripe(
       throw error;
     }
     const recorded = await read(r, paymentId, session.raw);
+    let status = recorded.payment_status;
     let incomplete: IncompleteCheck | null = null;
     const pi = session.paymentIntent ?? row.stripe_payment_intent_id;
     if (
@@ -1002,12 +1033,20 @@ export async function refreshPaymentFromStripe(
     if (pi) {
       try {
         for (const refund of await gateway.listRefunds(pi)) {
-          await read(r, paymentId, refund.raw);
+          status = (await read(r, paymentId, refund.raw)).payment_status ?? status;
         }
       } catch (error) {
         if (!(error instanceof StripeError)) throw error;
         logStripeError(deps, "refresh_refunds", paymentId, error);
         incomplete = worseIncomplete(incomplete, incompleteCheckKind(error));
+      }
+    }
+    // D273: a paid payment's fee (recorded once; a repeat changes nothing).
+    if (pi && status && FEE_GROUP.has(status)) {
+      const fee = await readStripeFee(r.deps, paymentId, pi);
+      if (fee.kind === "failed") {
+        logStripeError(deps, "refresh_fee", paymentId, fee.error);
+        incomplete = worseIncomplete(incomplete, incompleteCheckKind(fee.error));
       }
     }
 

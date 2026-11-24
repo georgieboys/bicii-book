@@ -603,6 +603,9 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.payment_refunds": ["SELECT"],
   "public.payments": ["SELECT"],
   "public.stripe_events": ["SELECT"],
+  // D273: Stripe's fee per payment, view_costs only by RLS; written only
+  // inside record_stripe_read's apply
+  "public.stripe_payment_fees": ["SELECT"],
   // Indent deposits (Phase 14 step 2, D151, D154, D158, D159b): security
   // invoker views over the tables above, read through their RLS
   "public.payment_issues": ["SELECT"],
@@ -731,6 +734,10 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   // Audit fixes (D225): payments whose webhook never came, read back from Stripe
   "public.record_adventure_stripe_read(uuid, jsonb, text)",
   "public.stale_adventure_payments(integer)",
+  // D273: the integration cron's Stripe fee sweep (paid payments with no fee)
+  "public.stripe_fees_due(integer, boolean)",
+  // and counts a fee read that failed at Stripe, so the sweep backs off on it
+  "public.note_stripe_fee_read_failed(uuid, text)",
   // Audit fixes (D228, D230): file reading released, unused objects deleted
   "public.release_adventure_parse(uuid)",
   "public.adventure_evidence_objects_to_delete(integer)",

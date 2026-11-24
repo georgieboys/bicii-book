@@ -6,9 +6,10 @@ import {
   jobEconomics,
   lineEconomics,
   percentToRate,
+  stripeFeeEconomics,
 } from "@/lib/cult-commons";
 
-import { JOB_FIXTURES, LINE_FIXTURES } from "../fixtures/cult-commons";
+import { FEE_FIXTURES, JOB_FIXTURES, LINE_FIXTURES } from "../fixtures/cult-commons";
 
 describe("Cult Commons is 30% of positive yield after direct costs (SPEC §10)", () => {
   it.each(LINE_FIXTURES)("$name", (f) => {
@@ -51,6 +52,24 @@ describe("a job's Cult Commons is the sum of its lines' shares (D1)", () => {
     expect([e.sale, e.cost, e.yield, e.ccShare, e.yieldAfterCc].map((d) => d.toFixed(2))).toEqual(
       Array(5).fill("0.00"),
     );
+  });
+});
+
+describe("D273: a completed job's Cult Commons bears its Stripe fees, never below 0", () => {
+  it.each(FEE_FIXTURES)("$name", (f) => {
+    const job = jobEconomics(JOB_FIXTURES[f.job].lines.map((i) => LINE_FIXTURES[i]));
+    const e = stripeFeeEconomics(job, f.fees);
+    expect({
+      fees: e.fees.toFixed(2),
+      borne: e.borne.toFixed(2),
+      ccAfterFees: e.ccAfterFees.toFixed(2),
+      afterFees: e.yieldAfterFees.toFixed(2),
+    }).toEqual({
+      fees: f.fees,
+      borne: f.borne,
+      ccAfterFees: f.ccAfterFees,
+      afterFees: f.afterFees,
+    });
   });
 });
 

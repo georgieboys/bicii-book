@@ -9,6 +9,8 @@
  *   yield = sale − cost
  *   Cult Commons = round(max(yield, 0) × rate, 2)        per line (D1)
  *   BICII yield after CC = yield − Cult Commons
+ *   D273, per completed job: Cult Commons bears least(Stripe fees, its
+ *   share); BICII after CC and fees = yield − (share − borne) − fees
  *
  * A job's figures are the sums of its lines': a loss-making line contributes
  * no Cult Commons and does not reduce another line's. Rounding is half up
@@ -59,6 +61,27 @@ export function jobEconomics(lines: readonly LineInput[]): Economics {
     }),
     { sale: zero, cost: zero, yield: zero, ccShare: zero, yieldAfterCc: zero },
   );
+}
+
+/**
+ * D273: a completed job's Stripe fees (Stripe's fee less GST, summed over
+ * its paid Stripe payments) against its economics. Cult Commons bears them
+ * up to its own share, never below 0, per job; BICII bears the rest. DISPLAY
+ * ONLY, the authority is reporting.financial_lines' stripe_fee entry and
+ * work_order_totals_staff; this copies their arithmetic.
+ */
+export type FeeEconomics = {
+  fees: Decimal;
+  borne: Decimal;
+  ccAfterFees: Decimal;
+  yieldAfterFees: Decimal;
+};
+
+export function stripeFeeEconomics(job: Economics, fees: MoneyInput): FeeEconomics {
+  const f = toDecimal(fees);
+  const borne = Decimal.min(f, Decimal.max(job.ccShare, 0));
+  const ccAfterFees = job.ccShare.minus(borne);
+  return { fees: f, borne, ccAfterFees, yieldAfterFees: job.yield.minus(ccAfterFees).minus(f) };
 }
 
 // ---------------------------------------------------------------------------

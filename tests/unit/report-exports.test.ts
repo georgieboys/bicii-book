@@ -102,6 +102,10 @@ describe("the export kind table", () => {
       "mechanic",
       "currency",
     ]);
+    // D273: the fee entry's fees and BICII's part of them travel with the lines.
+    expect(headers("lines", true)).toEqual(
+      expect.arrayContaining(["cost", "yield", "cult_commons", "stripe_fee", "after_cc"]),
+    );
     expect(headers("stock_value", false)).not.toContain("value_at_cost");
     expect(headers("stock_value", true)).toContain("value_at_cost");
     expect(headers("mechanics", false)).toEqual(headers("mechanics", true));
@@ -123,6 +127,9 @@ describe("the export kind table", () => {
       afterCc: null,
       lossLineCount: null,
       costPendingLines: 0,
+      stripeFees: null,
+      stripeFeesBorne: null,
+      stripeFeePendingJobs: 0,
       refundsTotal: "0.00",
       refundCount: 0,
       consignmentSales: 0,

@@ -96,6 +96,14 @@ export type TodayDashboard = {
       lossLines: number;
       /** What that day's consigned lines owe their consignors (D46; view_costs, D30). */
       newConsignorLiability: string;
+      /**
+       * D273: Stripe's fees (less GST) on the jobs completed that day, and
+       * what their Cult Commons bore (cultCommons above is already net of
+       * it); jobs whose fee Stripe has not reported yet (provisional).
+       */
+      stripeFees: string;
+      stripeFeesBorne: string;
+      stripeFeePendingJobs: number;
     };
   };
   stock: {
@@ -179,6 +187,9 @@ export function toTodayDashboard(row: TodayDashboardRow): TodayDashboard {
                     lossTotal: amount(row.loss_total ?? 0, currency)!,
                     lossLines: int(row.loss_lines),
                     newConsignorLiability: amount(row.new_consignor_liability ?? 0, currency)!,
+                    stripeFees: amount(row.stripe_fees ?? 0, currency)!,
+                    stripeFeesBorne: amount(row.stripe_fees_borne ?? 0, currency)!,
+                    stripeFeePendingJobs: int(row.stripe_fee_pending_jobs),
                   }
                 : null,
           }
@@ -225,6 +236,17 @@ export function provisionalNote(costPendingLines: number): string | null {
   return costPendingLines === 1
     ? "Provisional: 1 line has no cost entered, so cost, yield and Cult Commons count it at 0."
     : `Provisional: ${costPendingLines} lines have no cost entered, so cost, yield and Cult Commons count them at 0.`;
+}
+
+/**
+ * D273: the provisional note while Stripe has not reported the fee on some
+ * of the jobs counted (Today and Reports); null when every fee is read.
+ */
+export function stripeFeePendingNote(jobs: number): string | null {
+  if (jobs <= 0) return null;
+  return jobs === 1
+    ? "Provisional: Stripe has not reported the fee on 1 job yet, so Cult Commons may still go down."
+    : `Provisional: Stripe has not reported the fees on ${jobs} jobs yet, so Cult Commons may still go down.`;
 }
 
 /**
@@ -632,6 +654,15 @@ export type FinancialEntry = {
   isLoss: boolean | null;
   costPending: boolean;
   currency: string;
+  /**
+   * D273: "stripe_fee" for a completed job's Stripe fee entry (view_costs
+   * only: sale and yield 0, cultCommons = minus what Cult Commons bore,
+   * stripeFee = the fees less GST); "line" for every sold line. Count lines
+   * with entryKind "line".
+   */
+  entryKind: "line" | "stripe_fee";
+  stripeFee: string | null;
+  stripeFeePending: boolean;
 };
 
 /** Entries grouped by their document (job), in the order they arrive. */
@@ -686,4 +717,12 @@ export type WorkOrderYield = {
   recognizedAt: string | null;
   recognizedDay: string | null;
   costPendingCount: number;
+  /** D273: Stripe's fees less GST on the job's paid Stripe payments. */
+  stripeFees: string;
+  /** What Cult Commons bears of them: least(fees, cultCommons); "0.00" once cancelled. */
+  stripeFeesBorne: string;
+  ccAfterFees: string;
+  biciiAfterFees: string;
+  /** Paid Stripe payments whose fee is not read yet (the after-fees figures are provisional). */
+  stripeFeePendingCount: number;
 };

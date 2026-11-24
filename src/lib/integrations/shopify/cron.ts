@@ -8,6 +8,8 @@ import { getServerEnv } from "@/lib/env";
 import { child } from "@/lib/logger";
 import { newRequestId } from "@/lib/request-id";
 
+import { defaultStripeDeps } from "../stripe/deps";
+import { sweepStripeFees, type FeeSweepSummary } from "../stripe/fees";
 import { defaultDeps } from "./deps";
 import { lastClaimAt } from "./config";
 import { runDueJobs, type DueJobsSummary } from "./queue";
@@ -20,7 +22,19 @@ import { runDueJobs, type DueJobsSummary } from "./queue";
  *   503  CRON_SECRET unset (the route is off)
  *   401  a missing or wrong bearer
  *   200  the run's summary { claimed, done, failed, needsAttention, deferred }
+ *        and `stripeFees`: the Stripe fee sweep beside it (D273; null while
+ *        Stripe is off, { error } when the step failed)
+ *
+ * The fee sweep runs alongside the Shopify jobs, not after them: they may
+ * use the whole budget. It starts no read after STRIPE_FEE_BUDGET_MS, and
+ * each read is at most two 8-second calls, so it ends well inside
+ * maxDuration.
  */
+
+/** D273: the fee sweep reads at most this many payments a run... */
+export const STRIPE_FEES_PER_RUN = 5;
+/** ...and starts none this long after the run began. */
+export const STRIPE_FEE_BUDGET_MS = 20_000;
 
 export type CronDeps = {
   secret: string | undefined;
@@ -28,6 +42,8 @@ export type CronDeps = {
     options: { limit: number; claimUntil: number },
     correlationId: string,
   ) => Promise<DueJobsSummary>;
+  /** D273: the Stripe fee sweep (null while Stripe is off). */
+  sweepFees: (deadlineMs: number, correlationId: string) => Promise<FeeSweepSummary | null>;
   log: Logger;
   /** The clock (tests pass a fake one). */
   now: () => number;
@@ -60,6 +76,10 @@ export async function handleCronRequest(
       ? overrides.secret
       : getServerEnv().CRON_SECRET,
     runDue: overrides.runDue ?? ((options, cid) => runDueJobs(options, defaultDeps(cid))),
+    sweepFees:
+      overrides.sweepFees ??
+      ((deadlineMs, cid) =>
+        sweepStripeFees(defaultStripeDeps(cid), { max: STRIPE_FEES_PER_RUN, deadlineMs })),
     log: overrides.log ?? child(correlationId, { integration: "shopify", route: "cron" }),
     now,
   };
@@ -72,9 +92,19 @@ export async function handleCronRequest(
     return respond(401, { error: "unauthorized" });
   }
   // Claim only while a job's worst case still ends inside maxDuration (D87).
-  const summary = await deps.runDue(
-    { limit: 25, claimUntil: lastClaimAt(startedAt) },
-    correlationId,
-  );
-  return respond(200, summary);
+  const [summary, stripeFees] = await Promise.all([
+    deps.runDue({ limit: 25, claimUntil: lastClaimAt(startedAt) }, correlationId),
+    // A step that throws at once (its configuration) still leaves the jobs running.
+    Promise.resolve()
+      .then(() => deps.sweepFees(startedAt + STRIPE_FEE_BUDGET_MS, correlationId))
+      .catch((err: unknown) => {
+        const e = err as { name?: string; code?: string };
+        deps.log.error(
+          { step: "stripe_fees", error: e?.name ?? "Error", code: e?.code ?? null },
+          "stripe fee sweep failed",
+        );
+        return { error: "failed" as const };
+      }),
+  ]);
+  return respond(200, { ...summary, stripeFees });
 }

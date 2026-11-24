@@ -87,6 +87,9 @@ async function readSummary(
     afterCc: moneyOrNull(r.yield_after_cc, c),
     lossLineCount: intOrNull(r.loss_line_count),
     costPendingLines: int(r.cost_pending_lines),
+    stripeFees: moneyOrNull(r.stripe_fees, c),
+    stripeFeesBorne: moneyOrNull(r.stripe_fees_borne, c),
+    stripeFeePendingJobs: int(r.stripe_fee_pending_jobs),
     refundsTotal: moneyOrNull(r.refunds_total, c),
     refundCount: intOrNull(r.refund_count),
     consignmentSales: intOrNull(r.consignment_sales),
@@ -289,6 +292,8 @@ function toLine(r: LineRpcRow): ReportLine {
     categoryName: r.category_name,
     mechanicName: r.mechanic_name,
     currency: c,
+    stripeFee: moneyOrNull(r.stripe_fee, c),
+    afterCc: moneyOrNull(r.bicii_yield_after_cc, c),
   };
 }
 

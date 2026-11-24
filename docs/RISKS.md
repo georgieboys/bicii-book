@@ -3764,3 +3764,48 @@ URLs, or customer data in this file.
   does; review lists on Today.
 - Still open: whether managers may review and void counter payments;
   whether a discount should go on a follow-up instead of moving totals.
+
+## R-134 — Stripe fees borne by Cult Commons: what is left out
+
+- Category: Payments, reporting.
+- Status and owner: open, accepted; the owner (D273), the build agent.
+- Trigger and impact:
+  - Dispute (chargeback) fees are not read or recorded (no
+    `charge.dispute.*` event is subscribed, R-089); a dispute's fee stays
+    with BICII and Cult Commons is overstated by it.
+  - Shopify Payments fees on online sales and card-terminal fees on
+    counter payments are not Stripe fees BICII can read: those sales keep
+    their gross Cult Commons.
+  - The backfill restates past days: every completed job paid through
+    Stripe loses its fees from Cult Commons on its completion day once the
+    sweep reads them (production held 3 Stripe payments on 2026-11-24, 1
+    paid, 2 refunded). Until then the job and the period are flagged
+    provisional.
+  - The read needs the restricted key's **Balance: Read** (`balance_read`,
+    RUNBOOK "Stripe: restricted key"); without it every fee stays pending
+    and the cron reports `permission: true`. Payments are not affected.
+  - A fee Stripe charged in another currency than SGD is not recorded; the
+    payment stays pending and Exceptions says so (engineering).
+  - Test-mode payments are swept only by a test key and live ones by a
+    live key; a payment in the other mode stays pending. It keeps its job's
+    `stripe_fee_pending_count` above 0, so the job, its day and Reports
+    stay "Provisional" and Exceptions keeps the "fee not read" warning,
+    which *Check with Stripe* cannot clear (the live key does not know a
+    test session). The database does not store which mode the deployment
+    runs in, so the pending count cannot filter on it; inferring it from
+    the newest payment would hide live payments whenever a test-mode
+    payment is created against the same database. Production held only
+    live payments on 2026-11-24. Next action, if one appears: the owner
+    decides whether other-mode payments leave the fee rule (a stored
+    running mode, or marking the payment), and engineering adds it with a
+    DB test.
+- Evidence and confidence: high, from the build (`20261124000100`,
+  `tests/db/stripe-fees.test.ts`); the restricted-key permission is from
+  Stripe's permissions reference (`GET /v1/balance_transactions/{id}` →
+  `balance_read`); that the same permission covers the expansion is
+  inferred, not tried against a live key.
+- Workaround or containment: provisional notes on the job and Reports; the
+  Exceptions warning a day after payment; *Check with Stripe* reads a fee
+  on demand.
+- Still open: whether dispute fees should come off Cult Commons once
+  disputes are recorded; whether Shopify Payments fees should.

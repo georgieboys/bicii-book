@@ -49,9 +49,11 @@ import {
   TILE_LINKS,
   lossNote,
   provisionalNote,
+  stripeFeePendingNote,
   weekStrip,
   type TodayDashboard,
 } from "@/lib/reports";
+import { formatMoney, toDecimal } from "@/lib/money";
 import { canManagePurchasing } from "@/lib/purchasing";
 import { createClient, type ServerSupabase } from "@/lib/supabase/server";
 import { OVERDUE_AFTER_DAYS } from "@/lib/workshop";
@@ -514,6 +516,9 @@ function MoneySection({ dash, children }: { dash: TodayDashboard; children: Reac
   const c = money.currency;
   const loss = costs ? lossNote(costs.lossLines, costs.lossTotal, c) : null;
   const provisional = costs ? provisionalNote(money.costPendingLines) : null;
+  // D273: Cult Commons and BICII after it are net of the day's Stripe fees.
+  const fees = costs && !toDecimal(costs.stripeFees).isZero() ? costs : null;
+  const feePending = costs ? stripeFeePendingNote(costs.stripeFeePendingJobs) : null;
   return (
     <TodaySection
       id="today-money"
@@ -529,9 +534,25 @@ function MoneySection({ dash, children }: { dash: TodayDashboard; children: Reac
             label="Cult Commons"
             amount={costs.cultCommons}
             currency={c}
-            hint="Each line's share of its positive yield, at the rate it was added with"
+            hint={
+              fees
+                ? `Each line's share of its positive yield, less ${formatMoney(fees.stripeFeesBorne, c)} of Stripe fees`
+                : "Each line's share of its positive yield, at the rate it was added with"
+            }
           />
-          <MoneyTile label="BICII after Cult Commons" amount={costs.biciiAfterCc} currency={c} />
+          {fees ? (
+            <MoneyTile
+              label="Stripe fees"
+              amount={fees.stripeFees}
+              currency={c}
+              hint="Less GST; borne by Cult Commons up to each job's share"
+            />
+          ) : null}
+          <MoneyTile
+            label={fees ? "BICII after Cult Commons and Stripe fees" : "BICII after Cult Commons"}
+            amount={costs.biciiAfterCc}
+            currency={c}
+          />
         </TileGrid>
       ) : (
         <p className="text-sm text-dust-700">
@@ -546,6 +567,11 @@ function MoneySection({ dash, children }: { dash: TodayDashboard; children: Reac
       {provisional ? (
         <p role="note" className="text-sm font-medium text-waiting-deep">
           {provisional}
+        </p>
+      ) : null}
+      {feePending ? (
+        <p role="note" className="text-sm font-medium text-waiting-deep">
+          {feePending}
         </p>
       ) : null}
       {dash.isToday ? null : (

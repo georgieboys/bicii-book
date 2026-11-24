@@ -736,6 +736,8 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.stale_adventure_payments(integer)",
   // D273: the integration cron's Stripe fee sweep (paid payments with no fee)
   "public.stripe_fees_due(integer, boolean)",
+  // and counts a fee read that failed at Stripe, so the sweep backs off on it
+  "public.note_stripe_fee_read_failed(uuid, text)",
   // Audit fixes (D228, D230): file reading released, unused objects deleted
   "public.release_adventure_parse(uuid)",
   "public.adventure_evidence_objects_to_delete(integer)",

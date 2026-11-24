@@ -296,6 +296,50 @@ comment on function private.apply_stripe_fee(public.stripe_events, public.paymen
   'D273: record a paid-group payment''s Stripe fee from the stored read of its PaymentIntent (expanded latest_charge.balance_transaction): fee and the GST in fee_details (type tax), from integer cents. stripe_fee_unchanged when already recorded; stripe_fee_pending (ignored) when there is no balance transaction yet; object_invalid or stripe_fee_currency_mismatch (needs attention, nothing recorded) otherwise.';
 
 -- ---------------------------------------------------------------------------
+-- private.stripe_fee_read_failures: a fee read that failed at Stripe (a
+-- 404, a refused request, a timeout) or in the database leaves no
+-- stripe_events row, so the sweep counts it here and backs off on it like a
+-- pending read (5 minutes doubling, at most a day, never giving up: a key
+-- or account fixed later is picked up). Written only by
+-- public.note_stripe_fee_read_failed (service_role); nobody reads it
+-- directly (RLS on, no policy).
+-- ---------------------------------------------------------------------------
+create table private.stripe_fee_read_failures (
+  payment_id uuid primary key references public.payments (id) on delete cascade,
+  failures integer not null check (failures > 0),
+  last_failed_at timestamptz not null,
+  last_error text not null check (last_error ~ '^[a-z0-9_]{1,64}$')
+);
+
+comment on table private.stripe_fee_read_failures is
+  'D273: per payment, how many Stripe fee reads failed without a stored read (Stripe or database error) and the last one; the sweep (public.stripe_fees_due) backs off on it. Written only by public.note_stripe_fee_read_failed.';
+
+alter table private.stripe_fee_read_failures enable row level security;
+revoke all on table private.stripe_fee_read_failures from public, anon, authenticated, service_role;
+
+create function public.note_stripe_fee_read_failed(p_payment_id uuid, p_error text)
+returns void
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  insert into private.stripe_fee_read_failures as x (payment_id, failures, last_failed_at, last_error)
+  select p.id, 1, pg_catalog.now(),
+         case when coalesce(p_error, '') ~ '^[a-z0-9_]{1,64}$' then p_error else 'unknown' end
+  from public.payments p
+  where p.id = note_stripe_fee_read_failed.p_payment_id
+    and not exists (select 1 from public.stripe_payment_fees f where f.payment_id = p.id)
+  on conflict (payment_id) do update
+    set failures = least(x.failures + 1, 1000),
+        last_failed_at = excluded.last_failed_at,
+        last_error = excluded.last_error;
+$$;
+
+comment on function public.note_stripe_fee_read_failed(uuid, text) is
+  'service_role (the integration cron''s fee sweep, src/lib/integrations/stripe/fees.ts): count one failed Stripe fee read of a payment (p_error: the StripeError code, else unknown) so public.stripe_fees_due backs off on it. An unknown payment, or one whose fee is recorded, changes nothing (D273).';
+
+-- ---------------------------------------------------------------------------
 -- public.stripe_fees_due (service_role): the paid-group payments whose fee
 -- is not recorded yet, for the integration cron's sweep (and the backfill
 -- of every earlier payment, D273). A read that found no balance
@@ -303,7 +347,10 @@ comment on function private.apply_stripe_fee(public.stripe_events, public.paymen
 -- day, and after 20 pending reads the sweep stops asking (the payment stays
 -- pending and on Exceptions). A read left needing attention (another
 -- currency, an unreadable fee) is not repeated by the sweep; Check with
--- Stripe can still read it.
+-- Stripe can still read it. A read that failed (Stripe or database error,
+-- private.stripe_fee_read_failures) backs off the same way, without a
+-- limit. Never-tried payments come first, then the longest untried, so a
+-- payment that always fails cannot take every run's slots.
 -- ---------------------------------------------------------------------------
 create function public.stripe_fees_due(max_rows integer, p_livemode boolean)
 returns table (payment_id uuid, payment_intent_id text)
@@ -319,6 +366,7 @@ as $$
     from public.stripe_events e
     where e.payment_id = p.id and e.event_type = 'read.payment_intent' and e.outcome = 'stripe_fee_pending'
   ) r on true
+  left join private.stripe_fee_read_failures x on x.payment_id = p.id
   where p.status in ('paid', 'partially_refunded', 'refunded')
     and p.stripe_payment_intent_id is not null
     and p.livemode = stripe_fees_due.p_livemode
@@ -332,12 +380,16 @@ as $$
     and (r.last_at is null
          or r.last_at < pg_catalog.now()
               - least(interval '5 minutes' * pg_catalog.power(2, r.reads - 1)::integer, interval '1 day'))
-  order by p.paid_at, p.id
+    and (x.payment_id is null
+         or x.last_failed_at < pg_catalog.now()
+              - least(interval '5 minutes' * pg_catalog.power(2, least(x.failures, 20) - 1)::integer,
+                      interval '1 day'))
+  order by greatest(r.last_at, x.last_failed_at) nulls first, p.paid_at, p.id
   limit greatest(1, least(coalesce(stripe_fees_due.max_rows, 5), 20));
 $$;
 
 comment on function public.stripe_fees_due(integer, boolean) is
-  'service_role (the integration cron, src/lib/integrations/stripe/fees.ts): up to max_rows (1..20, default 5) paid, partially refunded or refunded Stripe payments in the given mode with a PaymentIntent and no recorded fee, oldest paid first, skipping those whose last pending fee read is within its backoff (5 min x 2^(n-1), at most a day; none after 20 pending reads) and those whose fee read needs attention (D273).';
+  'service_role (the integration cron, src/lib/integrations/stripe/fees.ts): up to max_rows (1..20, default 5) paid, partially refunded or refunded Stripe payments in the given mode with a PaymentIntent and no recorded fee, never-tried first, then the longest since their last attempt (then oldest paid), skipping those whose last pending fee read is within its backoff (5 min x 2^(n-1), at most a day; none after 20 pending reads), those whose last failed read (private.stripe_fee_read_failures) is within the same backoff (no limit), and those whose fee read needs attention (D273).';
 
 -- ---------------------------------------------------------------------------
 -- reporting.work_order_stripe_fees: per job, aggregated before any join
@@ -753,6 +805,9 @@ declare
   v_before timestamptz := least(coalesce(p_after_at, v_end), v_end);
   v_t_wo timestamptz;
   v_t_sa timestamptz;
+  -- D273, D30: a Stripe fee entry is a cost figure: only view_costs
+  -- callers get it (its amounts and that a job carried a fee at all).
+  v_costs boolean := private.has_permission('view_costs');
 begin
   if p_limit is not null and p_limit > 0 then
     if v_basis in ('sale', 'completion') then
@@ -821,6 +876,7 @@ begin
         and rl.recognized_at >= v_start
         and rl.recognized_at < v_end
         and (rl.currency = v_currency) is distinct from p_foreign
+        and (v_costs or rl.entry_kind <> 'stripe_fee')
         and (rl.source <> 'work_order' or rl.recognized_at >= v_t_wo)
         and (rl.source <> 'sale' or rl.recognized_at >= v_t_sa)
         and (p_after_at is null or (rl.recognized_at, rl.source_line_id) < (p_after_at, p_after_id))
@@ -843,6 +899,7 @@ begin
         and rl.recognized_at >= v_start
         and rl.recognized_at < v_end
         and (rl.currency = v_currency) is distinct from p_foreign
+        and (v_costs or rl.entry_kind <> 'stripe_fee')
         and rl.recognized_at >= v_t_wo
         and (p_after_at is null or (rl.recognized_at, rl.source_line_id) < (p_after_at, p_after_id))
       order by rl.recognized_at desc, rl.source_line_id desc
@@ -862,6 +919,7 @@ begin
         and rl.collected_at >= v_start
         and rl.collected_at < v_end
         and (rl.currency = v_currency) is distinct from p_foreign
+        and (v_costs or rl.entry_kind <> 'stripe_fee')
         and rl.collected_at >= v_t_wo
         and (p_after_at is null or (rl.collected_at, rl.source_line_id) < (p_after_at, p_after_id))
       order by rl.collected_at desc, rl.source_line_id desc
@@ -882,6 +940,7 @@ begin
         and rl.checked_in_at >= v_start
         and rl.checked_in_at < v_end
         and (rl.currency = v_currency) is distinct from p_foreign
+        and (v_costs or rl.entry_kind <> 'stripe_fee')
         and rl.checked_in_at >= v_t_wo
         and (p_after_at is null or (rl.checked_in_at, rl.source_line_id) < (p_after_at, p_after_id))
       order by rl.checked_in_at desc, rl.source_line_id desc
@@ -891,7 +950,7 @@ end;
 $$;
 
 comment on function private.report_rows(date, date, public.report_date_basis, timestamptz, uuid, integer, boolean) is
-  'D100/D104: the report_lines a basis counts in the shop days p_from..p_to (no range check: callers check), in the shop currency (p_foreign: in any other), newest basis_at first; the keyset cursor (basis_at, source_line_id) < (p_after_at, p_after_id) and p_limit apply inside each per-basis query, with p_limit also bounding the instants read (the p_limit-th newest document with a counted line before the cursor). basis_at = recognized_at (sale, completion), collected_at or checked_in_at; D273 Stripe fee entries come with their job (stripe_fee, stripe_fee_pending appended; 0 and false on lines).';
+  'D100/D104: the report_lines a basis counts in the shop days p_from..p_to (no range check: callers check), in the shop currency (p_foreign: in any other), newest basis_at first; the keyset cursor (basis_at, source_line_id) < (p_after_at, p_after_id) and p_limit apply inside each per-basis query, with p_limit also bounding the instants read (the p_limit-th newest document with a counted line before the cursor). basis_at = recognized_at (sale, completion), collected_at or checked_in_at; D273 Stripe fee entries come with their job (stripe_fee, stripe_fee_pending appended; 0 and false on lines), for view_costs callers only (a fee is a cost figure, D30).';
 
 -- report_period_summary: D273 columns appended; lines counted by entry_kind.
 drop function public.report_period_summary(date, date, public.report_date_basis);
@@ -1036,14 +1095,14 @@ begin
       private.report_foreign_rows(p_from, p_to, v_basis),
       case when v_costs then a.stripe_fees end,
       case when v_costs then a.stripe_fees_borne end,
-      a.stripe_fee_pending_jobs
+      case when v_costs then a.stripe_fee_pending_jobs end
     from agg a
     cross join cons c;
 end;
 $$;
 
 comment on function public.report_period_summary(date, date, public.report_date_basis) is
-  'view_financial_reports: one row of period totals for shop days p_from..p_to on a date basis (D100; null = sale): line, job and sale counts, gross sale_total, cost-pending lines and the foreign-currency exclusions (D104) for every caller; loss_line_count, cost_total, yield_total, cult_commons_share (Σ line shares, D1, less what each completed job''s Cult Commons bears of its Stripe fees, D273), yield_after_cc (Σ bicii_yield_after_cc: yield less net Cult Commons less Stripe fees), stripe_fees and stripe_fees_borne need view_costs (NULL otherwise, D30). stripe_fee_pending_jobs (jobs whose Stripe fee is not read yet: Cult Commons provisional) for every caller; line_count and job_count count lines only. Sale basis only (NULL otherwise): refunds_total and refund_count (D102, by sale_refunds.created_at, never netted), consignment_sales and consignment_sales_total, and (view_costs) new_consignor_liability, settlements_paid_total (not reversed) and purchases_received_total (D105). report_range_invalid / report_range_too_long.';
+  'view_financial_reports: one row of period totals for shop days p_from..p_to on a date basis (D100; null = sale): line, job and sale counts, gross sale_total, cost-pending lines and the foreign-currency exclusions (D104) for every caller; loss_line_count, cost_total, yield_total, cult_commons_share (Σ line shares, D1, less what each completed job''s Cult Commons bears of its Stripe fees, D273), yield_after_cc (Σ bicii_yield_after_cc: yield less net Cult Commons less Stripe fees), stripe_fees, stripe_fees_borne and stripe_fee_pending_jobs (jobs whose Stripe fee is not read yet: Cult Commons provisional) need view_costs (NULL otherwise, D30; private.report_rows gives fee entries to view_costs callers only); line_count and job_count count lines only. Sale basis only (NULL otherwise): refunds_total and refund_count (D102, by sale_refunds.created_at, never netted), consignment_sales and consignment_sales_total, and (view_costs) new_consignor_liability, settlements_paid_total (not reversed) and purchases_received_total (D105). report_range_invalid / report_range_too_long.';
 
 -- report_period_series: the same D273 definitions per bucket.
 create or replace function public.report_period_series(
@@ -1565,6 +1624,8 @@ begin
   end if;
   -- succeeded, processing or anything else: the session read records paid.
   return query select 'ignored'::public.stripe_event_status, 'already_processing'::text, pay.id, pay.work_order_id;
+end;
+$$;
 
 comment on function private.apply_stripe_payment_intent(public.stripe_events, jsonb) is
   'R-086, D273: apply a PaymentIntent the server read: a paid, partially refunded or refunded payment records its Stripe fee from the expanded latest_charge.balance_transaction (private.apply_stripe_fee); a pending payment whose Checkout completed unpaid moves to failed when the intent is requires_payment_method or canceled; anything else changes nothing.';
@@ -1855,6 +1916,429 @@ comment on function public.work_order_yield(uuid) is
   'view_costs: one job''s running economics over its live lines (sale, cost, yield, Cult Commons = sum of line shares (D1), BICII after CC, losses, snapshot rates, cost-pending count (D14)) and its recognition (completed_at and its shop day, D32; NULL while open, cancelled or reopened). D273: stripe_fees (less GST), stripe_fees_borne (least(fees, Cult Commons); 0 once cancelled), cult_commons_after_fees, bicii_yield_after_fees and stripe_fee_pending_count; reports deduct the fees on completion. Unknown job P0002.';
 
 -- ---------------------------------------------------------------------------
+-- public.financial_lines: the 20261004002600 definition with stripe_fee and
+-- stripe_fee_pending appended (the return type grows: drop and create). A
+-- D273 fee entry is a cost figure: only view_costs callers get it (D30).
+-- ---------------------------------------------------------------------------
+drop function public.financial_lines(date, date);
+
+create function public.financial_lines(from_day date, to_day date)
+returns table (
+  entry_key text,
+  source text,
+  entry_kind text,
+  source_line_id uuid,
+  document_id uuid,
+  document_number text,
+  channel text,
+  recognized_at timestamptz,
+  recognized_day date,
+  line_type text,
+  service_id uuid,
+  product_id uuid,
+  inventory_unit_id uuid,
+  category_id uuid,
+  ownership_type text,
+  consignment_item_id uuid,
+  customer_id uuid,
+  bike_id uuid,
+  lead_mechanic_id uuid,
+  description text,
+  quantity numeric,
+  unit_sale_price numeric,
+  unit_direct_cost numeric,
+  cult_commons_rate numeric,
+  sale_total numeric,
+  cost_total numeric,
+  yield_total numeric,
+  cult_commons_share numeric,
+  bicii_yield_after_cc numeric,
+  is_loss boolean,
+  currency text,
+  cost_pending boolean,
+  stripe_fee numeric,
+  stripe_fee_pending boolean
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  costs boolean;
+  first_day date;
+  last_day date;
+begin
+  perform private.require_permission('view_financial_reports');
+  costs := private.has_permission('view_costs');
+
+  first_day := coalesce(financial_lines.from_day, financial_lines.to_day, private.shop_today());
+  last_day := coalesce(financial_lines.to_day, financial_lines.from_day, private.shop_today());
+  if first_day > last_day then
+    raise exception using
+      errcode = 'P0001',
+      message = 'report_range_invalid',
+      detail = 'The start day is after the end day.';
+  end if;
+  if last_day - first_day > 30 then
+    raise exception using
+      errcode = 'P0001',
+      message = 'report_range_invalid',
+      detail = 'Financial lines cover at most 31 days at a time.';
+  end if;
+
+  return query
+    select
+      fl.entry_key,
+      fl.source,
+      fl.entry_kind,
+      fl.source_line_id,
+      fl.document_id,
+      fl.document_number,
+      fl.channel,
+      fl.recognized_at,
+      fl.recognized_day,
+      fl.line_type,
+      fl.service_id,
+      fl.product_id,
+      fl.inventory_unit_id,
+      fl.category_id,
+      fl.ownership_type,
+      fl.consignment_item_id,
+      fl.customer_id,
+      fl.bike_id,
+      fl.lead_mechanic_id,
+      fl.description,
+      fl.quantity,
+      fl.unit_sale_price,
+      case when costs then fl.unit_direct_cost end,
+      case when costs then fl.cult_commons_rate end,
+      fl.sale_total,
+      case when costs then fl.cost_total end,
+      case when costs then fl.yield_total end,
+      case when costs then fl.cult_commons_share end,
+      case when costs then fl.bicii_yield_after_cc end,
+      case when costs then fl.is_loss end,
+      fl.currency,
+      fl.cost_pending,
+      case when costs then fl.stripe_fee end,
+      case when costs then fl.stripe_fee_pending end
+    from reporting.financial_lines fl
+    where fl.recognized_at >= private.shop_day_start(first_day)
+      and fl.recognized_at < private.shop_day_start(last_day + 1)
+      and (costs or fl.entry_kind <> 'stripe_fee')
+    order by fl.recognized_at, fl.document_number, fl.entry_kind, fl.source_line_id;
+end;
+$$;
+
+comment on function public.financial_lines(date, date) is
+  'view_financial_reports: recognised entries (D32) of from_day..to_day inclusive (at most 31 days, else report_range_invalid); cost-derived columns need view_costs, NULL otherwise (D30). D273: stripe_fee and stripe_fee_pending appended (view_costs); the stripe_fee entries (entry_kind stripe_fee, one per completed job with Stripe fees) only for view_costs callers. Count lines with entry_kind = ''line''. Callers page with .range().';
+
+-- ---------------------------------------------------------------------------
+-- public.report_line_items: the 20261006001000 definition with stripe_fee
+-- and bicii_yield_after_cc appended (view_costs, D30), so the line list and
+-- its export carry the part of a job's Stripe fees BICII bears (on a fee
+-- entry whose fees exceed the job's gross share, yield - CC is not
+-- bicii_yield_after_cc). Drop and create (the return type grows).
+-- ---------------------------------------------------------------------------
+drop function public.report_line_items(date, date, public.report_date_basis, public.report_dimension, text, integer, timestamptz, uuid);
+
+create function public.report_line_items(
+  p_from date,
+  p_to date,
+  p_basis public.report_date_basis default 'sale',
+  p_dimension public.report_dimension default null,
+  p_key text default null,
+  p_max_rows integer default 100,
+  p_after_at timestamptz default null,
+  p_after_id uuid default null
+)
+returns table (
+  source_line_id uuid,
+  source text,
+  channel text,
+  basis_at timestamptz,
+  document_id uuid,
+  document_number text,
+  line_type text,
+  description text,
+  quantity numeric,
+  unit_sale_price numeric,
+  sale_total numeric,
+  cost_total numeric,
+  yield_total numeric,
+  cult_commons_share numeric,
+  cost_pending boolean,
+  ownership_type text,
+  category_name text,
+  mechanic_name text,
+  currency text,
+  stripe_fee numeric,
+  bicii_yield_after_cc numeric
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_costs boolean;
+  v_basis public.report_date_basis;
+  v_max integer;
+begin
+  perform private.require_permission('view_financial_reports');
+  v_costs := private.has_permission('view_costs');
+  perform private.report_require_range(p_from, p_to);
+  v_basis := coalesce(p_basis, 'sale');
+  if (p_dimension is null) <> (p_key is null)
+     or (p_key is not null and not private.report_key_valid(p_dimension, p_key))
+     or (p_after_at is null) <> (p_after_id is null) then
+    raise exception using
+      errcode = 'P0001',
+      message = 'report_key_invalid',
+      detail = 'The dimension, key or cursor of the line list does not fit.';
+  end if;
+  v_max := greatest(1, least(coalesce(p_max_rows, 100), 1000));
+
+  return query
+    select
+      r.source_line_id,
+      r.source,
+      r.channel,
+      r.basis_at,
+      r.document_id,
+      r.document_number,
+      r.line_type,
+      r.description,
+      r.quantity,
+      r.unit_sale_price,
+      r.sale_total,
+      case when v_costs then r.cost_total end,
+      case when v_costs then r.yield_total end,
+      case when v_costs then r.cult_commons_share end,
+      r.cost_pending,
+      r.ownership_type,
+      cat.name::text,
+      st.display_name::text,
+      r.currency,
+      case when v_costs then r.stripe_fee end,
+      case when v_costs then r.bicii_yield_after_cc end
+    from private.report_rows(
+      p_from, p_to, v_basis, p_after_at, p_after_id,
+      -- Without a key filter the page limit goes into the per-basis query.
+      case when p_dimension is null then v_max end
+    ) r
+    left join public.categories cat on cat.id = r.category_id
+    left join public.staff st on st.id = r.lead_mechanic_id
+    where p_dimension is null
+       or private.report_key(
+            p_dimension, r.source, r.document_id, r.product_id, r.category_id, r.service_id, r.line_type,
+            r.lead_mechanic_id, r.ownership_type, r.channel
+          ) = p_key
+    order by r.basis_at desc, r.source_line_id desc
+    limit v_max;
+end;
+$$;
+
+comment on function public.report_line_items(date, date, public.report_date_basis, public.report_dimension, text, integer, timestamptz, uuid) is
+  'view_financial_reports: the lines a basis counts in p_from..p_to (optionally one breakdown group: p_dimension and p_key together), newest basis_at first; keyset (p_after_at, p_after_id) = the last row''s (basis_at, source_line_id); p_max_rows clamped 1..1000. cost_total, yield_total, cult_commons_share, stripe_fee and bicii_yield_after_cc need view_costs (NULL otherwise, D30); a 0.00 price or cost is a known value (D24 amended). D273: a completed job''s Stripe fee entry (line_type stripe_fee) is listed for view_costs callers only, with stripe_fee = its fees and bicii_yield_after_cc = -(fees - what Cult Commons bore), so the Σ of bicii_yield_after_cc over the list is the summary''s yield_after_cc. report_key_invalid for half a dimension/key pair, a key that fits no dimension value, or half a cursor.';
+
+-- ---------------------------------------------------------------------------
+-- public.today_dashboard: the 20261006001300 definition with the day's
+-- Stripe fees appended (D273; view_costs, NULL otherwise): stripe_fees,
+-- stripe_fees_borne (what Cult Commons bore of them) and
+-- stripe_fee_pending_jobs (jobs completed that day whose fee is not read
+-- yet). cult_commons_share and bicii_yield_after_cc already come net of the
+-- fees (reporting.daily_summary sums the fee entries). Drop and create.
+-- ---------------------------------------------------------------------------
+drop function public.today_dashboard(date);
+
+create function public.today_dashboard(on_day date default null)
+returns table (
+  day date,
+  is_today boolean,
+  generated_at timestamptz,
+  can_see_financials boolean,
+  can_see_costs boolean,
+  jobs_checked_in integer,
+  jobs_started integer,
+  jobs_completed integer,
+  jobs_ready_for_collection integer,
+  jobs_collected integer,
+  jobs_cancelled integer,
+  currency text,
+  lines_recognised integer,
+  gross_sales numeric,
+  cogs numeric,
+  yield_total numeric,
+  cult_commons_share numeric,
+  bicii_yield_after_cc numeric,
+  loss_lines integer,
+  loss_total numeric,
+  parts_consumed_qty integer,
+  parts_consumed_lines integer,
+  parts_returned_qty integer,
+  stock_adjustments integer,
+  significant_stock_adjustments integer,
+  appointments_scheduled integer,
+  appointments_arrived integer,
+  appointments_no_show integer,
+  consignment_sales integer,
+  consignment_sales_total numeric,
+  new_consignor_liability numeric,
+  received_now integer,
+  waiting_now integer,
+  ready_to_start_now integer,
+  in_progress_now integer,
+  awaiting_collection_now integer,
+  open_jobs_now integer,
+  overdue_now integer,
+  low_stock_now integer,
+  exceptions_now integer,
+  cost_pending_lines integer,
+  stripe_fees numeric,
+  stripe_fees_borne numeric,
+  stripe_fee_pending_jobs integer
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  fin boolean;
+  costs boolean;
+  today date;
+  d date;
+  snap_received integer;
+  snap_waiting integer;
+  snap_ready integer;
+  snap_in_progress integer;
+  snap_awaiting integer;
+  snap_open integer;
+  snap_overdue integer;
+  snap_low_stock integer;
+  snap_exceptions integer;
+  pending integer;
+  fee_total numeric;
+  fee_borne numeric;
+  fee_pending integer;
+begin
+  perform private.require_staff();
+  fin := private.has_permission('view_financial_reports');
+  costs := fin and private.has_permission('view_costs');
+  today := private.shop_today();
+  d := coalesce(today_dashboard.on_day, today);
+  if d > today then
+    raise exception using
+      errcode = 'P0001',
+      message = 'report_range_invalid',
+      detail = 'The dashboard shows today or an earlier day.';
+  end if;
+
+  -- D31: the current snapshot, from status, for today only (grouped as
+  -- BOARD_GROUPS in src/lib/workshop.ts).
+  if d = today then
+    select
+      (count(*) filter (where wo.status in ('received', 'diagnosing')))::integer,
+      (count(*) filter (where wo.status in ('awaiting_customer', 'awaiting_parts', 'paused')))::integer,
+      (count(*) filter (where wo.status = 'ready_to_start'))::integer,
+      (count(*) filter (where wo.status = 'in_progress'))::integer,
+      (count(*) filter (where wo.status in ('completed', 'ready_for_collection')))::integer,
+      (count(*) filter (where private.work_order_status_is_open(wo.status)))::integer
+    into snap_received, snap_waiting, snap_ready, snap_in_progress, snap_awaiting, snap_open
+    from public.work_orders wo;
+
+    select count(*)::integer into snap_overdue from reporting.work_order_activity wa where wa.is_overdue;
+    select count(*)::integer into snap_low_stock from reporting.low_stock ls;
+    -- D108: only the kinds this caller may see (the visibility of each kind
+    -- is decided once, by private.exception_visible).
+    with oe as materialized (
+      select o.kind from reporting.operational_exceptions o
+    )
+    select count(*)::integer into snap_exceptions
+    from oe
+    where oe.kind in (
+      select k.kind from (select distinct x.kind from oe x) k where private.exception_visible(k.kind)
+    );
+  end if;
+
+  if fin then
+    select count(*)::integer into pending
+    from reporting.financial_lines fl
+    where fl.recognized_at >= private.shop_day_start(d)
+      and fl.recognized_at < private.shop_day_start(d + 1)
+      and fl.currency = private.shop_currency()
+      and fl.cost_pending;
+  end if;
+
+  -- D273: the day's Stripe fee entries (cost figures, view_costs only).
+  if costs then
+    select coalesce(sum(fl.stripe_fee), 0.00)::numeric,
+           coalesce(-sum(fl.cult_commons_share), 0.00)::numeric,
+           (count(*) filter (where fl.stripe_fee_pending))::integer
+      into fee_total, fee_borne, fee_pending
+    from reporting.financial_lines fl
+    where fl.entry_kind = 'stripe_fee'
+      and fl.recognized_at >= private.shop_day_start(d)
+      and fl.recognized_at < private.shop_day_start(d + 1)
+      and fl.currency = private.shop_currency();
+  end if;
+
+  return query
+    select
+      d,
+      d = today,
+      pg_catalog.now(),
+      fin,
+      costs,
+      s.jobs_checked_in,
+      s.jobs_started,
+      s.jobs_completed,
+      s.jobs_ready_for_collection,
+      s.jobs_collected,
+      s.jobs_cancelled,
+      s.currency,
+      s.lines_recognised,
+      s.gross_sales,
+      s.cogs,
+      s.yield_total,
+      s.cult_commons_share,
+      s.bicii_yield_after_cc,
+      s.loss_lines,
+      s.loss_total,
+      s.parts_consumed_qty,
+      s.parts_consumed_lines,
+      s.parts_returned_qty,
+      s.stock_adjustments,
+      s.significant_stock_adjustments,
+      s.appointments_scheduled,
+      s.appointments_arrived,
+      s.appointments_no_show,
+      s.consignment_sales,
+      s.consignment_sales_total,
+      s.new_consignor_liability,
+      snap_received,
+      snap_waiting,
+      snap_ready,
+      snap_in_progress,
+      snap_awaiting,
+      snap_open,
+      snap_overdue,
+      snap_low_stock,
+      snap_exceptions,
+      pending,
+      fee_total,
+      fee_borne,
+      fee_pending
+    from public.daily_summary(d, d) s;
+end;
+$$;
+
+comment on function public.today_dashboard(date) is
+  'Active staff: one row for on_day (null = today; a future day raises report_range_invalid): the daily summary (gated by D30) plus, for today only, the current job snapshot grouped as BOARD_GROUPS, overdue (D20), low stock and the exceptions the caller may see (D31, D108: private.exception_visible), and the day''s cost-pending entries (D14; NULL without view_financial_reports). D273, view_costs (NULL otherwise): the day''s stripe_fees (less GST), stripe_fees_borne (what Cult Commons bore; cult_commons_share is already net of it) and stripe_fee_pending_jobs (jobs completed that day whose Stripe fee is not read yet: provisional).';
+
+-- ---------------------------------------------------------------------------
 -- Privileges and RLS (DATA-MODEL §15)
 -- ---------------------------------------------------------------------------
 revoke all on function
@@ -1874,16 +2358,26 @@ revoke all on function
   public.report_period_summary(date, date, public.report_date_basis),
   public.report_period_series(date, date, public.report_date_basis, public.report_grain),
   public.report_breakdown(date, date, public.report_date_basis, public.report_dimension, integer, text, numeric, text),
-  public.work_order_yield(uuid)
+  public.work_order_yield(uuid),
+  public.note_stripe_fee_read_failed(uuid, text),
+  public.financial_lines(date, date),
+  public.report_line_items(date, date, public.report_date_basis, public.report_dimension, text, integer, timestamptz, uuid),
+  public.today_dashboard(date)
 from public, anon, authenticated, service_role;
 
-grant execute on function public.stripe_fees_due(integer, boolean) to service_role;
+grant execute on function
+  public.stripe_fees_due(integer, boolean),
+  public.note_stripe_fee_read_failed(uuid, text)
+to service_role;
 
 grant execute on function
   public.report_period_summary(date, date, public.report_date_basis),
   public.report_period_series(date, date, public.report_date_basis, public.report_grain),
   public.report_breakdown(date, date, public.report_date_basis, public.report_dimension, integer, text, numeric, text),
-  public.work_order_yield(uuid)
+  public.work_order_yield(uuid),
+  public.financial_lines(date, date),
+  public.report_line_items(date, date, public.report_date_basis, public.report_dimension, text, integer, timestamptz, uuid),
+  public.today_dashboard(date)
 to authenticated;
 
 alter table public.stripe_payment_fees enable row level security;

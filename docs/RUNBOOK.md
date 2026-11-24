@@ -1379,7 +1379,14 @@ The fee is Stripe's fact, read by BICII with its own key:
   answer: `recorded`, `pending`, `failed`, `permission`). The first runs
   after the deploy are the backfill of every earlier payment
   (production had 3 on 2026-11-24): past days' Cult Commons restate (D101).
-- **Check with Stripe** on a paid payment reads its fee too.
+- **Check with Stripe** on a paid payment reads its fee too, and so does
+  the customer's return from a deposit or balance Checkout that finds the
+  payment paid (once, best effort: a failure there is only logged).
+- `failed`: Stripe or the database failed on that payment (a 404 after a
+  key or account change, a refused request, a timeout). The sweep notes it
+  (`note_stripe_fee_read_failed`) and backs off on that payment (5 min
+  doubling, at most a day, no limit), reading never-tried payments first,
+  so one stuck payment never blocks the rest.
 - `pending` means Stripe had no balance transaction yet (cards settle
   within minutes; PayNow after the payment); the sweep backs off (5 min
   doubling, at most a day, 20 tries). The job's totals and Reports say

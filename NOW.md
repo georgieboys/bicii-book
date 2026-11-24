@@ -11,10 +11,19 @@ and all fees on cancelled jobs), with history restated. Built:
 expanded) from the integration cron's sweep and Check with Stripe, one
 `stripe_fee` entry per completed job in `financial_lines`, the fee columns
 on job totals, `work_order_yield` and the period summary, the Stripe fees
-rows on the job and the tile on Reports. Verified locally: prettier,
-eslint, `tsc --noEmit`, `vitest run tests/unit`; the migration and
-`tests/db/stripe-fees.test.ts` run only in CI (the local database is the
-hosted one). Owner action before the backfill reads anything: add
+rows on the job and the tile on Reports. Review fixes (same branch): the
+migration's unclosed `apply_stripe_payment_intent` body (it could not
+have applied) is closed; Today shows the day's Stripe fees, the
+provisional note and the fee entry as a deduction; fee entries reach
+view_costs callers only; the line list and its export carry `stripe_fee`
+and BICII's part (`after_cc`); failed fee reads back off
+(`note_stripe_fee_read_failed`); the fee is read once on the customer's
+Checkout return; the job panel says "Not reported yet" and "Not counted
+(cancelled)". Verified locally: prettier, eslint, `tsc --noEmit`,
+`vitest run tests/unit`; the migration and `tests/db/stripe-fees.test.ts`
+(collection basis, series, failed-read backoff and fee-entry gating
+added) run only in CI (the local database is the hosted one): not run
+here. Owner action before the backfill reads anything: add
 **Balance: Read** (`balance_read`) to the restricted key (RUNBOOK
 "Stripe: restricted key"). Next: open the PR, CI green, merge; then
 watch the cron's `stripeFees` for the 3 production payments (R-134).

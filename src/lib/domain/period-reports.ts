@@ -292,6 +292,8 @@ function toLine(r: LineRpcRow): ReportLine {
     categoryName: r.category_name,
     mechanicName: r.mechanic_name,
     currency: c,
+    stripeFee: moneyOrNull(r.stripe_fee, c),
+    afterCc: moneyOrNull(r.bicii_yield_after_cc, c),
   };
 }
 

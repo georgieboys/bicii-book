@@ -204,6 +204,11 @@ export const EXPORT_KINDS: {
       costMoney("cost", (r) => r.costTotal),
       costMoney("yield", (r) => r.yieldTotal),
       costMoney("cult_commons", (r) => r.cultCommons),
+      // D273: on a job's Stripe fee entry (type stripe_fee), the fees less
+      // GST and (after_cc) minus the part BICII bears; after_cc sums to the
+      // period's BICII after Cult Commons.
+      costMoney("stripe_fee", (r) => r.stripeFee),
+      costMoney("after_cc", (r) => r.afterCc),
       { header: "cost_pending", kind: "boolean", value: (r) => r.costPending },
       text("ownership", (r) => r.ownershipType),
       text("category", (r) => r.categoryName),

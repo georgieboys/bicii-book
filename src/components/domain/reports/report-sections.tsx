@@ -27,7 +27,7 @@ import {
   type StockValueRow,
 } from "@/lib/period-reports";
 import { plural } from "@/lib/plural";
-import { formatSignedMoney, provisionalNote } from "@/lib/reports";
+import { formatSignedMoney, provisionalNote, stripeFeePendingNote } from "@/lib/reports";
 
 /**
  * The server-rendered parts of /reports and /reports/lines (Phase 9; SPEC
@@ -106,7 +106,7 @@ export function SummaryTiles({
   const c = summary.currency;
   const costs = showCosts && summary.costTotal !== null;
   const provisional = provisionalNote(summary.costPendingLines);
-  const feePending = summary.stripeFeePendingJobs;
+  const feePending = costs ? stripeFeePendingNote(summary.stripeFeePendingJobs) : null;
   const fees =
     costs && summary.stripeFees !== null && !toDecimal(summary.stripeFees).isZero()
       ? summary.stripeFees
@@ -148,10 +148,14 @@ export function SummaryTiles({
                 label="Stripe fees"
                 amount={fees}
                 currency={c}
-                hint="Borne by Cult Commons, up to each job's share"
+                hint="Less GST; borne by Cult Commons up to each job's share"
               />
             ) : null}
-            <MoneyTile label="BICII after Cult Commons" amount={summary.afterCc!} currency={c} />
+            <MoneyTile
+              label={fees ? "BICII after Cult Commons and Stripe fees" : "BICII after Cult Commons"}
+              amount={summary.afterCc!}
+              currency={c}
+            />
           </>
         ) : null}
       </div>
@@ -165,11 +169,9 @@ export function SummaryTiles({
           {provisional}
         </p>
       ) : null}
-      {costs && feePending > 0 ? (
+      {feePending ? (
         <p role="note" className="text-sm font-medium text-waiting-deep">
-          {feePending === 1
-            ? "Provisional: Stripe has not reported the fee on 1 job yet, so Cult Commons may still go down."
-            : `Provisional: Stripe has not reported the fees on ${feePending} jobs yet, so Cult Commons may still go down.`}
+          {feePending}
         </p>
       ) : null}
     </div>

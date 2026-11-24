@@ -118,6 +118,7 @@ export const COST_GATED = {
     "purchases_received_total",
     "stripe_fees",
     "stripe_fees_borne",
+    "stripe_fee_pending_jobs",
   ],
   series: [
     "cost_total",
@@ -129,7 +130,7 @@ export const COST_GATED = {
     "settlements_paid_total",
   ],
   breakdown: ["cost_total", "yield_total", "cult_commons_share", "yield_after_cc"],
-  lines: ["cost_total", "yield_total", "cult_commons_share"],
+  lines: ["cost_total", "yield_total", "cult_commons_share", "stripe_fee", "bicii_yield_after_cc"],
   stockValue: ["value_at_cost"],
 } as const satisfies {
   summary: readonly (keyof SummaryRow)[];
@@ -531,6 +532,17 @@ export type ReportLine = {
   categoryName: string | null;
   mechanicName: string | null;
   currency: string;
+  /**
+   * D273, view costs only: on a job's Stripe fee entry (lineType
+   * "stripe_fee") the fees less GST; "0.00" on a line.
+   */
+  stripeFee: string | null;
+  /**
+   * View costs only: yield − Cult Commons, and on a fee entry minus the
+   * part of the fees BICII bears (fees above the job's share), so the
+   * column sums to the summary's BICII after Cult Commons.
+   */
+  afterCc: string | null;
 };
 
 export type PeriodActivity = {

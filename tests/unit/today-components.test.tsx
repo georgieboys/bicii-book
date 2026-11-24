@@ -3,12 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AdjustmentList } from "@/components/domain/today/adjustment-list";
 import { ExceptionList } from "@/components/domain/today/exception-list";
+import { FinancialEntries } from "@/components/domain/today/financial-entries";
 import { MoneyTile, StatTile, moneySizeClass } from "@/components/domain/today/stat-tile";
 import {
   ADJUSTMENT_ROWS,
   NOT_TRACKED,
   splitAdjustments,
   type AdjustmentRow,
+  type FinancialEntry,
   type OperationalException,
 } from "@/lib/reports";
 
@@ -211,5 +213,68 @@ describe("AdjustmentList", () => {
   it("has no disclosure when every adjustment fits", () => {
     render(<AdjustmentList rows={[adjustment(1), adjustment(2)]} />);
     expect(screen.queryByText(/Show \d+ more/)).toBeNull();
+  });
+});
+
+describe("FinancialEntries (D273: a Stripe fee entry is a deduction, not a line)", () => {
+  const base: FinancialEntry = {
+    entryKey: "wol:1",
+    source: "work_order",
+    documentId: "d5000000-0000-4000-8000-000000000004",
+    documentNumber: "J-000014",
+    channel: "workshop",
+    recognizedAt: "2026-10-05T03:00:00Z",
+    lineType: "service",
+    description: "Basic Service",
+    quantity: "1.00",
+    unitSalePrice: "40.00",
+    saleTotal: "40.00",
+    costTotal: "0.00",
+    yield: "40.00",
+    cultCommons: "12.00",
+    ccRate: "0.3000",
+    isLoss: false,
+    costPending: false,
+    currency: "SGD",
+    entryKind: "line",
+    stripeFee: "0.00",
+    stripeFeePending: false,
+  };
+  const fee = (patch: Partial<FinancialEntry> = {}): FinancialEntry => ({
+    ...base,
+    entryKey: "fee:1",
+    lineType: "stripe_fee",
+    description: "Stripe fees",
+    quantity: "0.00",
+    unitSalePrice: "0.00",
+    saleTotal: "0.00",
+    yield: "0.00",
+    cultCommons: "-3.76",
+    ccRate: null,
+    entryKind: "stripe_fee",
+    stripeFee: "3.76",
+    ...patch,
+  });
+
+  it("counts lines only and shows the fee and what Cult Commons bore", () => {
+    render(<FinancialEntries entries={[base, fee()]} open />);
+    expect(screen.getByText("1 line")).toBeInTheDocument();
+    const list = screen.getByLabelText("Lines of J-000014");
+    expect(within(list).getByText("Stripe fees (less GST)")).toBeInTheDocument();
+    expect(within(list).getByText("$3.76")).toBeInTheDocument();
+    expect(within(list).getByText("Borne by Cult Commons −$3.76")).toBeInTheDocument();
+    expect(within(list).queryByText(/× 0/)).toBeNull();
+  });
+
+  it("a fee Stripe has not reported yet says so, never $0.00", () => {
+    render(
+      <FinancialEntries
+        entries={[base, fee({ stripeFee: "0.00", cultCommons: "0.00", stripeFeePending: true })]}
+        open
+      />,
+    );
+    const list = screen.getByLabelText("Lines of J-000014");
+    expect(within(list).getByText("Not reported yet")).toBeInTheDocument();
+    expect(within(list).getByText("Fee not reported yet")).toBeInTheDocument();
   });
 });

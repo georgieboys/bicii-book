@@ -66,6 +66,7 @@ function makeDeps(outcomes: string[], due = [0, 1]) {
         error: null,
       };
     }
+    if (name === "note_stripe_fee_read_failed") return { data: null, error: null };
     throw new Error(`unexpected rpc ${name}`);
   };
   const lines: string[] = [];
@@ -142,6 +143,23 @@ describe("sweepStripeFees (D273)", () => {
       failed: 1,
       permission: false,
     });
+  });
+
+  it("each failed read is noted so the work list backs off on it (never the key refusal)", async () => {
+    const { deps, gateway, calls } = makeDeps(["stripe_fee_currency_mismatch"]);
+    await paidIntent(gateway, 0);
+    // pi_fee1 is unknown to this fake: Stripe answers not found.
+    await sweepStripeFees(deps, { max: 5, deadlineMs: NOW_MS + 20_000 });
+    expect(calls.filter((c) => c.name === "note_stripe_fee_read_failed")).toEqual([
+      {
+        name: "note_stripe_fee_read_failed",
+        args: { p_payment_id: P[0], p_error: "stripe_fee_currency_mismatch" },
+      },
+      {
+        name: "note_stripe_fee_read_failed",
+        args: { p_payment_id: P[1], p_error: "stripe_not_found" },
+      },
+    ]);
   });
 
   it("starts nothing past the deadline, and is off without Stripe", async () => {

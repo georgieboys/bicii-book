@@ -250,6 +250,9 @@ export async function getFinancialEntriesOn(
         isLoss: n.is_loss,
         costPending: r.cost_pending === true,
         currency: r.currency,
+        entryKind: r.entry_kind === "stripe_fee" ? "stripe_fee" : "line",
+        stripeFee: moneyOrNull(n.stripe_fee, r.currency),
+        stripeFeePending: n.stripe_fee_pending === true,
       });
     }
     if (rows.length < ENTRY_PAGE) return out;

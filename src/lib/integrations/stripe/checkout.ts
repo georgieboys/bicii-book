@@ -285,6 +285,29 @@ async function read(
 }
 
 /**
+ * D273: after the customer's return found the payment paid, read its
+ * Stripe fee once, best effort: the return never waits on it failing (a
+ * Stripe or database error is logged and the cron's sweep reads it later).
+ * A card's balance transaction is usually there by now, so the job's Cult
+ * Commons is final without waiting for the next sweep.
+ */
+async function readFeeOnReturn(
+  r: Ready,
+  deps: StripeDeps,
+  paymentId: string,
+  paymentIntentId: string | null,
+  status: PaymentStatus | null,
+): Promise<void> {
+  if (!paymentIntentId || !status || !FEE_GROUP.has(status) || pastDeadline(r)) return;
+  try {
+    const fee = await readStripeFee(r.deps, paymentId, paymentIntentId);
+    if (fee.kind === "failed") logStripeError(deps, "return_fee", paymentId, fee.error);
+  } catch (error) {
+    logStripeError(deps, "return_fee", paymentId, error);
+  }
+}
+
+/**
  * Expire a session BICII has just created and will not use (best effort;
  * Stripe expires it in 60 minutes anyway). It has no payment row, so
  * nothing is recorded.
@@ -775,8 +798,10 @@ export async function confirmDepositReturn(
     const session = await r.deps.gateway.retrieveCheckoutSession(
       row.stripe_checkout_session_id ?? "",
     );
-    const result = await read(r, required(row.payment_id, "payment_id"), session.raw);
+    const depositId = required(row.payment_id, "payment_id");
+    const result = await read(r, depositId, session.raw);
     const status = result.payment_status;
+    await readFeeOnReturn(r, deps, depositId, session.paymentIntent, status);
     if (status && PAID_GROUP.has(status)) return { state: "paid" };
     if (status === "refunded") return { state: "refunded" };
     if (status === "pending" && session.status === "complete") return { state: "processing" };
@@ -834,6 +859,7 @@ export async function confirmBalanceReturn(
     if (!row.payment_id || !row.stripe_checkout_session_id) return { state: otherwise };
     const session = await r.deps.gateway.retrieveCheckoutSession(row.stripe_checkout_session_id);
     const status = (await read(r, row.payment_id, session.raw)).payment_status;
+    await readFeeOnReturn(r, deps, row.payment_id, session.paymentIntent, status);
     if (status && PAID_GROUP.has(status)) return { state: "paid" };
     if (status === "pending" && session.status === "complete") return { state: "processing" };
     return { state: otherwise };

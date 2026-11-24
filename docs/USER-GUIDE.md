@@ -281,10 +281,13 @@ managers.
     **Cult Commons after Stripe fees** and **BICII yield after Cult Commons
     and Stripe fees**. They come off Cult Commons when the job is completed
     ("Stripe fees come off Cult Commons when the job is completed." on an
-    open job); a cancelled job's fees are BICII's. Until Stripe reports a
+    open job); a cancelled job's fees are BICII's, and its Cult Commons
+    after Stripe fees reads "Not counted (cancelled)". Until Stripe reports a
     fee: "Provisional: Stripe has not reported the fee on 1 payment yet, so
-    Cult Commons after Stripe fees may still go down." A refund does not
-    give the fee back.
+    Cult Commons after Stripe fees may still go down."; while no fee is
+    reported at all, Stripe fees reads "Not reported yet". A refund does
+    not give the fee back. A paid card payment's fee is usually read as
+    soon as the customer is back from Stripe.
   - "No part in stock matches. Archived, inactive and customer-owned items
     are not offered." Consigned items are offered, marked "Consigned ·
     <consignor>" (see [Use a consigned item on a job](#use-a-consigned-item-on-a-job)).
@@ -1430,6 +1433,16 @@ website's account pages go live when the owner switches them on,
 - Money (Gross sales) appears only with View financial reports; Direct
   costs (COGS), Yield, Cult Commons and BICII after Cult Commons also need
   View costs.
+- Stripe fees (D273, View costs): Cult Commons is after the Stripe fees
+  (less GST) of the jobs completed that day, each job's fees up to its own
+  share. On a day with fees the **Stripe fees** tile shows them, the Cult
+  Commons hint says "less $… of Stripe fees" and the last tile reads
+  **BICII after Cult Commons and Stripe fees** (fees above a job's share
+  are BICII's). "Provisional: Stripe has not reported the fee on 1 job
+  yet, so Cult Commons may still go down." means a fee is still to be
+  read. Under **What makes up these figures** a job's fees show as
+  "Stripe fees (less GST) $…" and "Borne by Cult Commons −$…", not as a
+  line (the count counts lines only).
 - Success looks like: tiles that link to the jobs behind them.
 - Money counts jobs completed and in-store sales recorded on the day.
   **Consignment sales** (sales and completed jobs with a consigned item)
@@ -1806,7 +1819,13 @@ trackers and handovers needs **Manage adventures**.
   (D273: each job's fees up to its own share; the **Stripe fees** tile
   shows them, and the **Breakdown** has a **Stripe fees** group by
   product, category, service and ownership). "Provisional: Stripe has not
-  reported the fees on N jobs yet" means a fee is still to be read. Below: the period day by day (or week by week), the
+  reported the fees on N jobs yet" means a fee is still to be read; with
+  fees the last tile reads **BICII after Cult Commons and Stripe fees**.
+  On the lines list a job's fees show as "Stripe fees (less GST) $…,
+  borne by Cult Commons $…" (and "by BICII $…" when they were more than
+  its share); the lines export carries them in `stripe_fee` and
+  `after_cc`. Without View costs no Stripe fees row, group or note shows.
+  Below: the period day by day (or week by week), the
   **Breakdown** by job or sale, product, category, service, mechanic,
   ownership or channel (tap a row for the job, the sale or its lines),
   **Stock at cost now** (stock at this moment, whatever period you chose)

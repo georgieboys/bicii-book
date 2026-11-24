@@ -27,7 +27,9 @@ import { formatRateRange, lossNote, type WorkOrderYield } from "@/lib/reports";
  * on a cancelled job, BICII bears those), Cult Commons after them and
  * BICII's yield after both, all from the database. An open job's fees are
  * taken off when it is completed; a fee Stripe has not reported yet makes
- * the after-fees figures provisional.
+ * the after-fees figures provisional, and while no fee is reported at all
+ * the fee reads "Not reported yet" (never a known $0.00). A cancelled job
+ * has no Cult Commons, so its after-fees Cult Commons reads "Not counted".
  */
 
 /** The fee note for a job with Stripe fees: when they are deducted, and by whom. */
@@ -77,13 +79,23 @@ export function TotalsSummary({
       { label: `Cult Commons${rate ? ` (${rate})` : ""}`, value: money(totals.costs.ccShare) },
     );
     if (hasFees) {
+      const cancelled = report?.status === "cancelled";
+      const noneReported = toDecimal(totals.costs.stripeFees).isZero();
+      const borne = toDecimal(totals.costs.stripeFeesBorne).isZero()
+        ? money(totals.costs.stripeFeesBorne)
+        : `−${money(totals.costs.stripeFeesBorne)}`;
+      rows.push({
+        label: "Stripe fees",
+        value: noneReported ? "Not reported yet" : money(totals.costs.stripeFees),
+      });
+      if (!noneReported && !cancelled) {
+        rows.push({ label: "Stripe fees borne by Cult Commons", value: borne });
+      }
       rows.push(
-        { label: "Stripe fees", value: money(totals.costs.stripeFees) },
         {
-          label: "Stripe fees borne by Cult Commons",
-          value: `−${money(totals.costs.stripeFeesBorne)}`,
+          label: "Cult Commons after Stripe fees",
+          value: cancelled ? "Not counted (cancelled)" : money(totals.costs.ccAfterFees),
         },
-        { label: "Cult Commons after Stripe fees", value: money(totals.costs.ccAfterFees) },
         {
           label: "BICII yield after Cult Commons and Stripe fees",
           value: money(totals.costs.yieldAfterFees),

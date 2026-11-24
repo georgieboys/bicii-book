@@ -6283,7 +6283,7 @@ export type Database = {
           created_at?: string;
           currency: string;
           fee: number;
-          fee_ex_tax?: number | null;
+          fee_ex_tax?: never;
           fee_tax: number;
           id?: string;
           livemode: boolean;
@@ -6298,7 +6298,7 @@ export type Database = {
           created_at?: string;
           currency?: string;
           fee?: number;
-          fee_ex_tax?: number | null;
+          fee_ex_tax?: never;
           fee_tax?: number;
           id?: string;
           livemode?: boolean;
@@ -9613,6 +9613,8 @@ export type Database = {
           service_id: string;
           source: string;
           source_line_id: string;
+          stripe_fee: number;
+          stripe_fee_pending: boolean;
           unit_direct_cost: number;
           unit_sale_price: number;
           yield_total: number;
@@ -10217,6 +10219,10 @@ export type Database = {
           bucket_key: string;
           hit_count: number;
         }[];
+      };
+      note_stripe_fee_read_failed: {
+        Args: { p_error: string; p_payment_id: string };
+        Returns: undefined;
       };
       operational_exceptions: {
         Args: { max_rows?: number };
@@ -11230,6 +11236,7 @@ export type Database = {
         };
         Returns: {
           basis_at: string;
+          bicii_yield_after_cc: number;
           category_name: string;
           channel: string;
           cost_pending: boolean;
@@ -11246,6 +11253,7 @@ export type Database = {
           sale_total: number;
           source: string;
           source_line_id: string;
+          stripe_fee: number;
           unit_sale_price: number;
           yield_total: number;
         }[];
@@ -12678,6 +12686,9 @@ export type Database = {
           received_now: number;
           significant_stock_adjustments: number;
           stock_adjustments: number;
+          stripe_fee_pending_jobs: number;
+          stripe_fees: number;
+          stripe_fees_borne: number;
           waiting_now: number;
           yield_total: number;
         }[];

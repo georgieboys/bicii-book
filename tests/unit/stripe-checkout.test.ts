@@ -739,9 +739,31 @@ describe("confirmDepositReturn (R-086)", () => {
       });
       deps.gateway = gateway;
       expect(await confirmDepositReturn(TOKEN, deps), status).toEqual({ state });
-      expect(calls.map((c) => c.name)).toEqual(["prepare_deposit_checkout", "record_stripe_read"]);
+      // D273: a paid (or refunded) payment's fee is read once on the return, best effort.
+      const fee = (status === "paid" || status === "refunded") && complete;
+      expect(calls.map((c) => c.name)).toEqual([
+        "prepare_deposit_checkout",
+        "record_stripe_read",
+        ...(fee ? ["record_stripe_read"] : []),
+      ]);
+      expect(gateway.calls.some((c) => c.op === "retrieve_pi_fee")).toBe(fee);
       expect(gateway.calls.filter((c) => c.op === "create")).toHaveLength(1);
     }
+  });
+
+  it("a fee read that fails on the return never changes what the customer is told (D273)", async () => {
+    const gateway = fakeStripe();
+    const s = await gateway.createCheckoutSession(input(P1), `bicii-checkout-${P1}`);
+    gateway.complete(s.id, { paid: true });
+    gateway.failNext("retrieve_pi_fee", new StripeError("stripe_unavailable", true, 503));
+    const { deps, calls } = makeDeps({
+      prepare_deposit_checkout: [prepared("check", { stripe_checkout_session_id: s.id })],
+      record_stripe_read: [readResult("paid")],
+    });
+    deps.gateway = gateway;
+    expect(await confirmDepositReturn(TOKEN, deps)).toEqual({ state: "paid" });
+    // The fee was not recorded; the cron's sweep reads it later.
+    expect(calls.map((c) => c.name)).toEqual(["prepare_deposit_checkout", "record_stripe_read"]);
   });
 
   it("passes paid, processing and refunded through; null when refused or unavailable", async () => {

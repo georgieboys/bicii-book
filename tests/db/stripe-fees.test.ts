@@ -248,7 +248,7 @@ type Summary = {
   yield_total: string | null;
   stripe_fees: string | null;
   stripe_fees_borne: string | null;
-  stripe_fee_pending_jobs: number;
+  stripe_fee_pending_jobs: number | null;
 };
 
 const summary = async (tx: pg.Client, day: string, basis = "sale", claims = ADMIN) => {
@@ -272,8 +272,19 @@ const delta = (before: Summary, after: Summary) => ({
   yield: cents(after.yield_total) - cents(before.yield_total),
   fees: cents(after.stripe_fees) - cents(before.stripe_fees),
   borne: cents(after.stripe_fees_borne) - cents(before.stripe_fees_borne),
-  pending: after.stripe_fee_pending_jobs - before.stripe_fee_pending_jobs,
+  pending: (after.stripe_fee_pending_jobs ?? 0) - (before.stripe_fee_pending_jobs ?? 0),
 });
+
+/** The day's bucket of report_period_series (sale basis, by day), as the admin. */
+const seriesDay = async (tx: pg.Client, day: string) => {
+  await actAs(tx, ADMIN);
+  const { rows } = await tx.query<{ cult_commons_share: string; yield_after_cc: string }>(
+    `select cult_commons_share::text, yield_after_cc::text
+       from public.report_period_series($1::date, $1::date, 'sale', 'day')`,
+    [day],
+  );
+  return rows[0];
+};
 
 const feeRows = (tx: pg.Client, paymentId: string) =>
   readAsOwner(tx, async () => {
@@ -409,6 +420,53 @@ describe.skipIf(!isolatedDatabase())("D273: a Stripe fee is Stripe's word, recor
     });
   });
 
+  it("a read that failed at Stripe backs off too, and never takes the never-tried payments' slots", async () => {
+    await inTransaction(conn, async (tx) => {
+      const job = await jobWithLine(tx, "50.00");
+      // Both paid long ago; `stuck` first, so it would lead an oldest-paid list.
+      const stuck = await paidPayment(tx, job.id, "10.00", 1_577_836_000);
+      const fresh = await paidPayment(tx, job.id, "10.00", 1_577_836_800);
+      const due = async (n: number) => {
+        await actAs(tx, SERVICE);
+        return (
+          await tx.query<{ payment_id: string }>(
+            "select payment_id from public.stripe_fees_due($1, false)",
+            [n],
+          )
+        ).rows.map((x) => x.payment_id);
+      };
+      const before = await due(20);
+      expect(before.indexOf(stuck.paymentId)).toBeLessThan(before.indexOf(fresh.paymentId));
+      // A 404 at Stripe leaves no stored read: the sweep notes it.
+      await actAs(tx, SERVICE);
+      await tx.query("select public.note_stripe_fee_read_failed($1, 'stripe_not_found')", [
+        stuck.paymentId,
+      ]);
+      const after = await due(20);
+      expect(after).not.toContain(stuck.paymentId);
+      expect(after).toContain(fresh.paymentId);
+      // Past its backoff it comes back, after every never-tried payment.
+      await ownerMode(tx);
+      await tx.query(
+        "update private.stripe_fee_read_failures set last_failed_at = now() - interval '1 hour' where payment_id = $1",
+        [stuck.paymentId],
+      );
+      const later = await due(20);
+      expect(later.indexOf(stuck.paymentId)).toBeGreaterThan(later.indexOf(fresh.paymentId));
+      // Nobody but the service role notes a failure, and nobody reads the counts.
+      await actAs(tx, ADMIN);
+      await failsWith(
+        tx,
+        () => tx.query("select public.note_stripe_fee_read_failed($1, 'x')", [stuck.paymentId]),
+        { code: "42501" },
+      );
+      await actAs(tx, SERVICE);
+      await failsWith(tx, () => tx.query("select * from private.stripe_fee_read_failures"), {
+        code: "42501",
+      });
+    });
+  });
+
   it("insert-only, written only inside a read's apply, view_costs to read", async () => {
     await inTransaction(conn, async (tx) => {
       const job = await jobWithLine(tx, "50.00");
@@ -483,7 +541,42 @@ describe.skipIf(!isolatedDatabase())("D273: a Stripe fee is Stripe's word, recor
       expect(s.stripe_fees).toBeNull();
       expect(s.stripe_fees_borne).toBeNull();
       expect(s.cult_commons_share).toBeNull();
+      expect(s.stripe_fee_pending_jobs).toBeNull();
       expect(await totalsOf(tx, job.id, MECHANIC2)).toBeUndefined();
+      // The fee entry itself is a cost figure: no row of it reaches them,
+      // not in the day's entries, the line list or a breakdown group.
+      const day = await shopToday(tx);
+      await actAs(tx, MECHANIC2);
+      const kinds = async (sql: string) =>
+        (await tx.query<{ k: string }>(sql, [day, job.id])).rows.map((x) => x.k);
+      expect(
+        await kinds(
+          "select entry_kind as k from public.financial_lines($1::date, $1::date) where document_id = $2",
+        ),
+      ).toEqual(["line"]);
+      expect(
+        await kinds(
+          "select line_type as k from public.report_line_items($1::date, $1::date) where document_id = $2",
+        ),
+      ).not.toContain("stripe_fee");
+      expect(
+        (
+          await tx.query(
+            "select 1 from public.report_breakdown($1::date, $1::date, 'sale', 'product', 10, 'stripe_fees')",
+            [day],
+          )
+        ).rows,
+      ).toEqual([]);
+      // With view_costs the entry is there, with its fee.
+      await actAs(tx, ADMIN);
+      const own = await tx.query<{ entry_kind: string; stripe_fee: string | null }>(
+        "select entry_kind, stripe_fee::numeric(12,2)::text as stripe_fee from public.financial_lines($1::date, $1::date) where document_id = $2 order by entry_kind",
+        [day, job.id],
+      );
+      expect(own.rows).toEqual([
+        { entry_kind: "line", stripe_fee: "0.00" },
+        { entry_kind: "stripe_fee", stripe_fee: "1.00" },
+      ]);
     });
   });
 });
@@ -502,7 +595,9 @@ describe.skipIf(!isolatedDatabase())(
           sale: await summary(tx, day, "sale"),
           completion: await summary(tx, day, "completion"),
           check_in: await summary(tx, day, "check_in"),
+          collection: await summary(tx, day, "collection"),
         };
+        const seriesBefore = await seriesDay(tx, day);
         const dailyBefore = await (async () => {
           await actAs(tx, ADMIN);
           return (
@@ -568,6 +663,27 @@ describe.skipIf(!isolatedDatabase())(
             pending: 0,
           });
         }
+        // The series bucket of the day says the same.
+        const seriesAfter = await seriesDay(tx, day);
+        expect(cents(seriesAfter.cult_commons_share) - cents(seriesBefore.cult_commons_share)).toBe(
+          5624,
+        );
+        expect(cents(seriesAfter.yield_after_cc) - cents(seriesBefore.yield_after_cc)).toBe(14000);
+        // Collection basis (dated by collected_at, its own branch): once
+        // collected, the same line and the same fee entry, once.
+        expect(delta(before.collection, await summary(tx, day, "collection")).line_count).toBe(0);
+        await actAs(tx, ADMIN);
+        await setStatus(tx, job.id, "collected");
+        expect(delta(before.collection, await summary(tx, day, "collection"))).toEqual({
+          line_count: 1,
+          job_count: 1,
+          cc: 5624,
+          afterCc: 14000,
+          yield: 20000,
+          fees: 376,
+          borne: 376,
+          pending: 0,
+        });
         await actAs(tx, ADMIN);
         const daily = (
           await tx.query<{ lines: number; cc: string; after: string }>(

@@ -179,6 +179,35 @@ describe("TotalsSummary (the job yield panel)", () => {
     ).toBeInTheDocument();
   });
 
+  it("D273: a fee not reported yet reads as such, never as a known $0.00 or −$0.00", () => {
+    render(
+      <TotalsSummary
+        totals={withFees({
+          stripeFees: "0.00",
+          stripeFeesBorne: "0.00",
+          ccAfterFees: "12.00",
+          stripeFeePendingCount: 1,
+        })}
+        report={report()}
+      />,
+    );
+    expect(totals()).toHaveTextContent("Stripe feesNot reported yet");
+    expect(totals()).not.toHaveTextContent("borne by Cult Commons");
+    expect(totals()).not.toHaveTextContent("−$0.00");
+    expect(screen.getByText(/Provisional: Stripe has not reported the fee/)).toBeInTheDocument();
+  });
+
+  it("D273: a cancelled job's Cult Commons after fees is not counted", () => {
+    render(
+      <TotalsSummary
+        totals={withFees({ stripeFeesBorne: "0.00", ccAfterFees: "12.00", yieldAfterFees: "8.90" })}
+        report={report({ status: "cancelled", recognizedAt: null, recognizedDay: null })}
+      />,
+    );
+    expect(totals()).toHaveTextContent("Cult Commons after Stripe feesNot counted (cancelled)");
+    expect(totals()).not.toHaveTextContent("borne by Cult Commons");
+  });
+
   it("without fees keeps the plain BICII row", () => {
     render(<TotalsSummary totals={withCosts} />);
     expect(totals()).not.toHaveTextContent(/Stripe/);

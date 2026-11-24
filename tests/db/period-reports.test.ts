@@ -355,6 +355,8 @@ describe("Report RPCs answer with the documented columns (DATA-MODEL §16)", () 
         "category_name",
         "mechanic_name",
         "currency",
+        "stripe_fee",
+        "bicii_yield_after_cc",
       ]);
       expect(
         await cols("select * from public.report_activity('2025-03-01', '2025-03-02')"),
@@ -1491,6 +1493,10 @@ describe.skipIf(!isolated)("period reports on the March 2025 scenario", () => {
         "new_consignor_liability",
         "settlements_paid_total",
         "purchases_received_total",
+        // D273
+        "stripe_fees",
+        "stripe_fees_borne",
+        "stripe_fee_pending_jobs",
       ],
       series: [
         "cost_total",
@@ -1502,7 +1508,13 @@ describe.skipIf(!isolated)("period reports on the March 2025 scenario", () => {
         "settlements_paid_total",
       ],
       breakdown: ["cost_total", "yield_total", "cult_commons_share", "yield_after_cc"],
-      lines: ["cost_total", "yield_total", "cult_commons_share"],
+      lines: [
+        "cost_total",
+        "yield_total",
+        "cult_commons_share",
+        "stripe_fee",
+        "bicii_yield_after_cc",
+      ],
       stock: ["value_at_cost"],
     };
 

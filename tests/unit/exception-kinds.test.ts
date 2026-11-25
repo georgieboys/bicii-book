@@ -151,6 +151,9 @@ describe("exception kinds (D34, D106–D108)", () => {
     // subject is the actionable sentence and the text only says where to act.
     expect(exceptionSubjectIsSentence("payment_attention")).toBe(true);
     expect(exceptionSubjectIsSentence("stripe_attention")).toBe(true);
+    // D274: a sale's unread Shopify fee says what to do; a queue job's row does not.
+    expect(exceptionSubjectIsSentence("integration_failed", "sale")).toBe(true);
+    expect(exceptionSubjectIsSentence("integration_failed", "integration_job")).toBe(false);
     for (const kind of [
       "overdue_job",
       "uncollected_job",

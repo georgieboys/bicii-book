@@ -3831,8 +3831,15 @@ URLs, or customer data in this file.
     R-047) and `read_all_orders` for orders older than 60 days. Until a
     new version with both is released and approved (**Update** in the
     store), every read is refused: the sweep stops, each sale stays
-    pending, and a day on, admins see "Shopify's fee on this online sale
-    has not been read yet". Sales are never blocked.
+    pending, and a day on, admins see "Shopify refused to show this sale's
+    order… Check the Shopify app has the read_orders and read_all_orders
+    scopes". Sales within 60 days are read first, so an old order refused
+    for lack of `read_all_orders` alone never holds back recent ones.
+    Sales are never blocked.
+  - **Orders with 100 or more transactions** are refused by the read (it
+    asks for 100 and a fee row is never corrected), so such a sale stays
+    pending and becomes an admin exception; none is expected at BICII's
+    volumes.
   - **The live adapter has never run against a real store** (R-011,
     R-047): the query and the shape are from Shopify's reference, tried
     only against the fake.

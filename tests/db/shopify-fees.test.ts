@@ -45,10 +45,11 @@ import {
   makeProduct,
   newJob,
   readAsOwner,
+  reopenJob,
 } from "./inventory-fixtures";
 import { pay, tag, type Pay } from "./payment-fixtures";
 import { addDays, shopToday } from "./reporting-fixtures";
-import { failsWith, makeService, ownerMode } from "./workshop-fixtures";
+import { failsWith, makeService, ownerMode, setStatus, voidLine } from "./workshop-fixtures";
 
 const SERVICE: Claims = { role: "service_role" };
 
@@ -321,14 +322,19 @@ type Summary = {
   shopify_fee_pending_jobs: number | null;
 };
 
-const summary = async (tx: pg.Client, day: string, claims = ADMIN) => {
+const summary = async (
+  tx: pg.Client,
+  day: string,
+  claims = ADMIN,
+  basis: "sale" | "completion" | "collection" | "check_in" = "sale",
+) => {
   await actAs(tx, claims);
   const { rows } = await tx.query<Summary>(
     `select line_count, sale_count, job_count, cult_commons_share::text, yield_after_cc::text,
             shopify_fees::text, shopify_fees_borne::text, shopify_fee_pending_sales,
             shopify_fee_pending_jobs
-       from public.report_period_summary($1::date, $1::date, 'sale')`,
-    [day],
+       from public.report_period_summary($1::date, $1::date, $2::public.report_date_basis)`,
+    [day, basis],
   );
   await actAs(tx, ADMIN);
   return rows[0];
@@ -397,14 +403,21 @@ const yieldOf = async (tx: pg.Client, jobId: string) => {
     .rows[0];
 };
 
-/** A package bought online, linked to a fresh job with a part, fitted (as build-package-sales.test.ts). */
-async function linkedBuild(tx: pg.Client, order: Order) {
+/**
+ * A package bought online (the order's `index`-th build order, by id),
+ * linked to a fresh job with a part, fitted (as build-package-sales.test.ts).
+ */
+async function linkedBuild(tx: pg.Client, order: Order, index = 0) {
   const { rows } = await tx.query<{ id: string }>(
-    "select id from public.build_orders where sale_id = $1",
+    "select id from public.build_orders where sale_id = $1 order by id",
     [order.saleId],
   );
   const job = await newJob(tx, MECHANIC1);
-  await tx.query("select public.link_build_order($1, $2, $3)", [rows[0].id, job.id, randomUUID()]);
+  await tx.query("select public.link_build_order($1, $2, $3)", [
+    rows[index].id,
+    job.id,
+    randomUUID(),
+  ]);
   await ownerMode(tx);
   const part = await makeProduct(tx, { price: "300.00", cost: "120.00" });
   await actAs(tx, ADMIN);
@@ -587,7 +600,8 @@ describe.skipIf(!isolatedDatabase())("D274: a Shopify fee is Shopify's word, rec
       });
       const ids = async () => (await due(tx)).map((r) => r.sale_id);
       const before = await ids();
-      expect(before.indexOf(stuck.saleId)).toBeLessThan(before.indexOf(fresh.saleId));
+      // Never tried, both within 60 days: newest first.
+      expect(before.indexOf(fresh.saleId)).toBeLessThan(before.indexOf(stuck.saleId));
       const listed = async () => {
         await actAs(tx, ADMIN);
         return (
@@ -618,6 +632,34 @@ describe.skipIf(!isolatedDatabase())("D274: a Shopify fee is Shopify's word, rec
       );
       const later = await ids();
       expect(later.indexOf(stuck.saleId)).toBeGreaterThan(later.indexOf(fresh.saleId));
+
+      // The warning's words follow the last attempt (only a refusal names the scopes).
+      const subject = async () => {
+        await actAs(tx, ADMIN);
+        return scalar<string>(
+          tx,
+          "select subject_label from public.operational_exceptions(500) where entity_id = $1",
+          [stuck.saleId],
+        );
+      };
+      expect(await subject()).toContain("read_orders and read_all_orders");
+      expect(await readFee(tx, stuck.saleId, orderRead(stuck, [{ amount: "100.00" }]))).toBe(
+        "shopify_fee_pending",
+      );
+      expect(await subject()).toBe(
+        "Shopify has not reported the fee on this online sale yet, so its Cult Commons is provisional. BICII keeps reading it.",
+      );
+      for (const [code, words] of [
+        ["shopify_order_not_found", "Shopify no longer has this sale's order"],
+        ["shopify_unavailable", "BICII could not read this sale's order from Shopify"],
+        ["database_error", "BICII could not read this sale's order from Shopify"],
+      ] as const) {
+        await actAs(tx, SERVICE);
+        await tx.query("select public.note_shopify_fee_read_failed($1, $2)", [stuck.saleId, code]);
+        const said = await subject();
+        expect(said, code).toContain(words);
+        expect(said, code).not.toContain("read_orders");
+      }
 
       // Only the service role reads the list, records or notes; nobody reads the counts.
       await actAs(tx, ADMIN);
@@ -1084,6 +1126,230 @@ describe.skipIf(!isolatedDatabase())(
         );
         expect(sum).toBe("0.00");
         expect(await yieldOf(tx, job.id)).toEqual(t);
+      }));
+
+    it("a mixed order (a frame line, two build orders, shipping): the shares and the sale's rest add up to the order's fee exactly", () =>
+      inTx(async (tx) => {
+        const frame = await product(tx, "150.00", "50.00"); // yield 100.00, Cult Commons 30.00
+        const a = await onlinePackage(tx, "390.00");
+        const b = await onlinePackage(tx, "390.00");
+        const order = await deliverOrder(tx, [
+          line(frame, "150.00"),
+          line(a, "390.00"),
+          line(b, "390.00"),
+        ]);
+        // 940.00 charged (150 + 390 + 390 + 10 shipping), fee 7.91: each build
+        // order's share trunc(7.91 x 390 / 940, 2) = 3.28 (3.2818…), the sale
+        // keeps the rest, 7.91 - 6.56 = 1.35 (the residue included).
+        await readFee(tx, order.saleId, orderRead(order, [charge("940.00", "7.91", "0.71")]));
+        const shares = await readAsOwner(tx, async () => {
+          const { rows } = await tx.query<{ shopify_fee: string; pending: boolean }>(
+            `select shopify_fee::numeric(12,2)::text as shopify_fee, pending
+               from reporting.build_order_shopify_fees where sale_id = $1 order by build_order_id`,
+            [order.saleId],
+          );
+          return rows;
+        });
+        expect(shares).toEqual([
+          { shopify_fee: "3.28", pending: false },
+          { shopify_fee: "3.28", pending: false },
+        ]);
+        const exact = () =>
+          readAsOwner(tx, () =>
+            tx
+              .query<{ total: string; fee: string; sale_share: string }>(
+                `select ((select sum(bf.shopify_fee) from reporting.build_order_shopify_fees bf where bf.sale_id = $1)
+                         + s.shopify_fees)::numeric(12,2)::text as total,
+                        f.fee_ex_tax::numeric(12,2)::text as fee,
+                        s.shopify_fees::numeric(12,2)::text as sale_share
+                   from reporting.sale_shopify_fees s
+                   join public.shopify_sale_fees f on f.sale_id = s.sale_id
+                  where s.sale_id = $1`,
+                [order.saleId],
+              )
+              .then((r) => r.rows[0]),
+          );
+        expect(await exact()).toEqual({ total: "7.91", fee: "7.91", sale_share: "1.35" });
+        expect((await saleFees(tx, order.saleId))[0]).toEqual({
+          cult_commons_share: "30.00",
+          shopify_fees: "1.35",
+          shopify_fees_borne: "1.35",
+          cult_commons_after_fees: "28.65",
+          shopify_fee_pending: false,
+          build_order_fees: "6.56",
+        });
+        const saleEntry = await shopifyEntry(tx, order.saleId);
+        expect([saleEntry!.shopify_fee, saleEntry!.cult_commons_share].map(cents)).toEqual([
+          135, -135,
+        ]);
+
+        // Both jobs completed: their entries add up to the sale's build_order_fees.
+        const first = await linkedBuild(tx, order, 0);
+        const second = await linkedBuild(tx, order, 1);
+        await actAs(tx, ADMIN);
+        await completeJob(tx, first.job.id);
+        await completeJob(tx, second.job.id);
+        const jobFees = [
+          (await shopifyEntry(tx, first.job.id))!,
+          (await shopifyEntry(tx, second.job.id))!,
+        ];
+        expect(jobFees.map((e) => cents(e.shopify_fee))).toEqual([328, 328]);
+        expect(jobFees.map((e) => cents(e.cult_commons_share))).toEqual([-328, -328]);
+        expect(cents(saleEntry!.shopify_fee) + 328 + 328).toBe(791);
+      }));
+
+    it("the sale's share is never negative: shares are of the larger of the charge and the build orders' total", () =>
+      inTx(async (tx) => {
+        const a = await onlinePackage(tx, "390.00");
+        const b = await onlinePackage(tx, "390.00");
+        const order = await deliverOrder(tx, [line(a, "390.00"), line(b, "390.00")]);
+        // Charged less than the build orders' total (780.00): each share is
+        // trunc(7.00 x 390 / 780, 2) = 3.50, never 7.00 x 390 / 700 = 3.90.
+        await readFee(tx, order.saleId, orderRead(order, [charge("700.00", "7.00")]));
+        expect((await saleFees(tx, order.saleId))[0]).toMatchObject({
+          shopify_fees: "0.00",
+          build_order_fees: "7.00",
+        });
+        expect(await shopifyEntry(tx, order.saleId)).toBeNull();
+      }));
+
+    it("a linked job that is cancelled deducts nothing (BICII bears its share); the sale's share is unchanged", () =>
+      inTx(async (tx) => {
+        const variant = await onlinePackage(tx, "390.00");
+        const order = await deliverOrder(tx, [line(variant, "390.00")]);
+        const buildOrderId = await scalar<string>(
+          tx,
+          "select id from public.build_orders where sale_id = $1",
+          [order.saleId],
+        );
+        const job = await newJob(tx, MECHANIC1);
+        await tx.query("select public.link_build_order($1, $2, $3)", [
+          buildOrderId,
+          job.id,
+          randomUUID(),
+        ]);
+        await readFee(tx, order.saleId, orderRead(order, [charge("400.00", "4.00")]));
+        // A job is cancelled only once its lines are voided (work_order_has_lines).
+        await actAs(tx, ADMIN);
+        const { rows: live } = await tx.query<{ id: string }>(
+          "select id from public.work_order_line_items where work_order_id = $1 and voided_at is null",
+          [job.id],
+        );
+        for (const l of live) await voidLine(tx, l.id, "Customer withdrew");
+        await setStatus(tx, job.id, "cancelled", "Customer withdrew");
+        expect(await shopifyEntry(tx, job.id)).toBeNull();
+        const t = await totalsOf(tx, job.id);
+        expect(t).toMatchObject({ shopify_fees: "3.90", shopify_fees_borne: "0.00" });
+        expect(t.cult_commons_after_fees).toBe(t.cult_commons_share);
+        expect(await yieldOf(tx, job.id)).toEqual(t);
+        expect((await saleFees(tx, order.saleId))[0]).toMatchObject({
+          shopify_fees: "0.10",
+          build_order_fees: "3.90",
+        });
+      }));
+
+    it("a reopen takes the job's entry back; completing again on a later day puts it on that day", () =>
+      inTx(async (tx) => {
+        const today = await shopToday(tx);
+        const earlier = addDays(today, -3);
+        const beforeEarlier = await summary(tx, earlier);
+        const variant = await onlinePackage(tx, "390.00");
+        const order = await deliverOrder(tx, [line(variant, "390.00")]);
+        const { job } = await linkedBuild(tx, order);
+        await readFee(tx, order.saleId, orderRead(order, [charge("400.00", "4.00")]));
+        await actAs(tx, ADMIN);
+        await completeJob(tx, job.id);
+        // The first completion three shop days back (as the owner, triggers off).
+        await ownerMode(tx);
+        await tx.query("set local session_replication_role = replica");
+        await tx.query(
+          `update public.work_orders
+              set checked_in_at = checked_in_at - interval '3 days',
+                  status_changed_at = status_changed_at - interval '3 days',
+                  started_at = started_at - interval '3 days',
+                  completed_at = completed_at - interval '3 days'
+            where id = $1`,
+          [job.id],
+        );
+        await tx.query("set local session_replication_role = origin");
+        await actAs(tx, ADMIN);
+        const first = await readAsOwner(tx, () =>
+          scalar<Date>(tx, "select completed_at from public.work_orders where id = $1", [job.id]),
+        );
+        expect((await shopifyEntry(tx, job.id))?.recognized_at).toEqual(first);
+        expect(delta(beforeEarlier, await summary(tx, earlier))).toMatchObject({
+          fees: 390,
+          borne: 390,
+          pendingJobs: 0,
+        });
+
+        await actAs(tx, ADMIN);
+        await reopenJob(tx, job.id);
+        expect(await shopifyEntry(tx, job.id)).toBeNull();
+        expect(
+          await readAsOwner(tx, () =>
+            scalar<number>(
+              tx,
+              "select count(*)::int from reporting.report_lines where document_id = $1 and entry_kind = 'shopify_fee'",
+              [job.id],
+            ),
+          ),
+        ).toBe(0);
+        expect(delta(beforeEarlier, await summary(tx, earlier))).toMatchObject({
+          fees: 0,
+          borne: 0,
+        });
+
+        const beforeToday = await summary(tx, today);
+        await actAs(tx, ADMIN);
+        const again = await completeJob(tx, job.id);
+        expect((await shopifyEntry(tx, job.id))?.recognized_at).toEqual(again.completed_at);
+        expect(delta(beforeToday, await summary(tx, today))).toMatchObject({
+          fees: 390,
+          borne: 390,
+        });
+        expect(delta(beforeEarlier, await summary(tx, earlier))).toMatchObject({ fees: 0 });
+      }));
+
+    it("off the sale basis: the job's entry on completion, collection and check-in; the sale's entry not at all", () =>
+      inTx(async (tx) => {
+        const day = await shopToday(tx);
+        const bases = ["completion", "collection", "check_in"] as const;
+        const before = {} as Record<(typeof bases)[number], Summary>;
+        for (const basis of bases) before[basis] = await summary(tx, day, ADMIN, basis);
+        const variant = await onlinePackage(tx, "390.00");
+        const order = await deliverOrder(tx, [line(variant, "390.00")]);
+        const { job } = await linkedBuild(tx, order);
+        await actAs(tx, ADMIN);
+        await completeJob(tx, job.id);
+        await setStatus(tx, job.id, "collected");
+        // Unread: the job is pending on every basis; the sale on none of these.
+        for (const basis of bases) {
+          expect(delta(before[basis], await summary(tx, day, ADMIN, basis)), basis).toMatchObject({
+            fees: 0,
+            pendingJobs: 1,
+            pendingSales: 0,
+          });
+        }
+        await readFee(tx, order.saleId, orderRead(order, [charge("400.00", "4.00")]));
+        for (const basis of bases) {
+          // 3.90 is the job's; the sale's 0.10 is on the sale basis only.
+          expect(delta(before[basis], await summary(tx, day, ADMIN, basis)), basis).toMatchObject({
+            fees: 390,
+            borne: 390,
+            pendingJobs: 0,
+            pendingSales: 0,
+          });
+        }
+        expect(
+          await readAsOwner(tx, () =>
+            scalar<number>(
+              tx,
+              "select count(*)::int from reporting.report_lines where document_id = $1 and entry_kind = 'shopify_fee'",
+              [job.id],
+            ),
+          ),
+        ).toBe(1);
       }));
   },
 );

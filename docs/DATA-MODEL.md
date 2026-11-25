@@ -4440,9 +4440,10 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `record_stripe_event(payload jsonb, headers jsonb, body_sha256 text, body_bytes integer, rejection_reason stripe_rejection_reason, correlation_id text)` → `event_id, duplicate, event_status, outcome, payment_id` | service role only | Built (Phase 14 step 1, D153, D159; §19). 22004 without the SHA or size; 22023 on a bad SHA, a negative size or non-object headers; headers capped as Shopify's. Rejected → one row per (reason, body sha), no payload, no event id. Verified → 22023 unless `payload` has an `evt_` id, a type and a boolean livemode; dedupe on the `evt_` id (a repeat counts the delivery and returns the stored decision); a new one is stored as its projection and applied in the same transaction (§19's tables); an error rolls everything back. |
 | `record_stripe_read(payment_id uuid, object jsonb, correlation_id text)` → `event_id, event_status, outcome, payment_status` | service role only | Built (Phase 14 step 1, D159a; §19). 22004 on nulls; 22023 unless a `checkout.session` (`cs_` id), a `refund` (`re_`/`pyr_` id) or a `payment_intent` (`pi_` id; since the final review, R-086); P0002 for an unknown payment. Stores an `api_read` row, applies it like a webhook (or `read_mismatch` when the id is not the payment's: a PaymentIntent must be the one the payment already carries) and stamps `checked_at`. Not deduplicated. D273: a PaymentIntent of a paid, partly refunded or refunded payment records its Stripe fee from the expanded `latest_charge.balance_transaction` (`stripe_fee_recorded` / `_unchanged` / `_pending` / `_currency_mismatch`). |
 | `stripe_fees_due(max_rows integer, p_livemode boolean)` → `payment_id, payment_intent_id` | service role only | Built (D273). The fee sweep's list: paid-group payments in that mode with no fee, never-tried first, then the longest since their last attempt (then oldest paid), 1..20 (default 5), with a backoff after pending reads (5 min × 2^(n−1), ≤ 1 day, none after 20), the same backoff after failed reads (`private.stripe_fee_read_failures`, no limit) and none whose fee read needs attention. |
-| `shopify_fees_due(max_rows integer, p_sale_id uuid = null)` → `sale_id, shopify_order_id, test_order` | service role only | Built (D274). The Shopify fee sweep's list: online sales not voided with no fee row, never-tried first, 1..20 (default 5), with the pending (≤ 20 reads), attention (a day) and failure backoffs of `private.shopify_fee_reads`; `p_sale_id` lists that sale only, whatever its backoff ([§19, Shopify fees](#shopify-payments-fees-borne-by-cult-commons-d274)). |
+| `shopify_fees_due(max_rows integer, p_sale_id uuid = null)` → `sale_id, shopify_order_id, test_order` | service role only | Built (D274). The Shopify fee sweep's list: online sales not voided with no fee row, those within Shopify's 60 days first (so an old order refused for lack of `read_all_orders` never holds back recent ones), never-tried first and newest first within each, 1..20 (default 5), with the pending (≤ 20 reads), attention (a day) and failure backoffs of `private.shopify_fee_reads`; `p_sale_id` lists that sale only, whatever its backoff ([§19, Shopify fees](#shopify-payments-fees-borne-by-cult-commons-d274)). |
 | `record_shopify_fee_read(p_sale_id uuid, p_read jsonb, p_api_version text = null)` → text | service role only | Built (D274). Applies a server read of the sale's order (`private.apply_shopify_fee`) and returns its outcome (`shopify_fee_recorded`, `_test_order`, `_unchanged`, `_pending`, `_currency_mismatch`, `object_invalid`, `read_mismatch`, `sale_not_eligible`); counts pending and attention outcomes for the backoff. Safe to replay. |
 | `note_shopify_fee_read_failed(p_sale_id uuid, p_error text)` → void | service role only | Built (D274). Counts one fee read that failed without an answer in `private.shopify_fee_reads`; a retail or unknown sale, or one whose fee is recorded, changes nothing; a code outside `[a-z0-9_]{1,64}` is stored as `unknown`. |
+| `sale_shopify_fees(p_sale_ids uuid[])` → `sale_id, cult_commons_share, shopify_fees, shopify_fees_borne, cult_commons_after_fees, shopify_fee_pending, build_order_fees, bicii_yield_after_fees` | view_costs (no rows otherwise) | Built (D274). Per online sale of at most 200 ids: gross Cult Commons, the sale's share of its order's Shopify Payments fees (less GST), what Cult Commons bears of it (`least(share, gross)`), Cult Commons after it, whether the fee is unread, the build orders' shares and BICII after both; the same arithmetic as the sale's `shopify_fee` entry. Read by the Sales list and the sale's Yield card, which show the sale without the fee lines when the function is missing (an app deployed before its migration) ([§19, Shopify fees](#shopify-payments-fees-borne-by-cult-commons-d274)). |
 | `note_stripe_fee_read_failed(p_payment_id uuid, p_error text)` → void | service role only | Built (D273). Counts one fee read that failed without a stored read (a Stripe error, a database error, or a stored outcome the sweep cannot use) in `private.stripe_fee_read_failures` (payment_id, failures, last_failed_at, last_error; RLS on, no policy, no grant); an unknown payment or one whose fee is recorded changes nothing; a code outside `[a-z0-9_]{1,64}` is stored as `unknown`. |
 | `prepare_deposit_checkout(token text)` → `outcome, payment_id, work_order_id, quote_id, job_number, amount, amount_cents, currency, stripe_checkout_session_id, expires_at` | service role only | Built (Phase 14 step 2, D151, D158; §19). No locks. `quote_not_found` (P0002) for a malformed or unknown token; `deposit_not_due` unless answered with a `deposit_amount`; `paid`, `refunded` or `processing` (the newest such payment); `deposit_parts_cancelled` (state none); `deposit_job_closed`; `check` with the pending payment and its session; else `create` with a fresh `payment_id`, the amount and `amount_cents` computed here, `SGD` and `expires_at` = now (to the second) + 60 minutes as Unix seconds. Replaced in `20261014001400` with the same signature (D156h): after the deposit's own answers and refusals and before `check` and `create`, a balance payment on the job whose Checkout completed and Stripe is still confirming answers `job_payment_processing` (its id; no session or expiry: nothing to create, try again shortly; not `processing`, which is the deposit's own), then a pending balance payment on the job with a live session answers `replace` with its id and session, for the app to expire; nothing else changes. |
 | `record_deposit_checkout(p_payment_id uuid, p_quote_id uuid, session jsonb)` → `outcome, payment_id, stripe_checkout_session_id` | service role only | Built (Phase 14 step 2, D153, D158d; §19). 22004 on nulls; P0002 for an unknown quote; locks the job, then the quote. A known payment id: `existing` with the same session for the same quote (a deposit), else `checkout_session_conflict`. Then `deposit_not_due`; `paid`, `refunded` or `processing` (no row; the app expires the new session); `deposit_parts_cancelled`; `deposit_job_closed`; another pending deposit → `existing` with its id and session. `checkout_session_mismatch` unless Stripe's echo is a `checkout.session` with a `cs_` id, status open, `amount_total` = the deposit in cents, currency sgd, `bicii_payment_id`, `bicii_quote_id` and `client_reference_id` matching, a boolean `livemode` and an `expires_at` in the future and at most 61 minutes ahead (prepare asks 60); `checkout_session_conflict` when another payment has the session. Inserts the pending payment: `created`. No timeline entry. The input names carry `p_` because the result has a `payment_id` column. Replaced in `20261014001400` with the same signature (D156g): a pending balance payment on the job that is live or processing answers `existing` with its id and session, inserting nothing; nothing else changes. |
@@ -5714,8 +5715,9 @@ before the 30%.
 - `public.shopify_fees_due(max_rows, p_sale_id = null)` (service role):
   online sales not voided with no fee row (the restated history is the
   same list), with the order gid and whether the delivery was a test;
-  never-tried first, then the longest since the last attempt, then oldest;
-  1..20 (default 5); a pending read backs off 5 minutes × 2^(n−1) up to a
+  sales recognised within Shopify's 60 days (`read_orders`) before older
+  ones (`read_all_orders`), and within each never-tried first, then the
+  longest since the last attempt, then newest; 1..20 (default 5); a pending read backs off 5 minutes × 2^(n−1) up to a
   day and stops after 20, an attention outcome waits a day, a failed read
   backs off the same way without a limit. `p_sale_id`: that sale only,
   whatever its backoff (the read after `sale_recorded`).
@@ -5758,18 +5760,28 @@ before the 30%.
   entry).
 - `private.integration_exceptions` (integration_failed, admins, entity the
   sale): an online sale the sweep has tried and not read a day after the
-  sale (warning: "Check the Shopify app has the read_orders and
-  read_all_orders scopes"), or whose read needs attention or stopped after
+  sale (warning, worded by the last attempt: `shopify_fee_pending` "Shopify
+  has not reported the fee on this online sale yet… BICII keeps reading
+  it"; `shopify_auth_failed` "Shopify refused to show this sale's order…
+  Check the Shopify app has the read_orders and read_all_orders scopes";
+  `shopify_order_not_found` "Shopify no longer has this sale's order… Ask
+  engineering"; any other failure "BICII could not read this sale's order
+  from Shopify… BICII keeps trying"), or whose read needs attention or stopped after
   20 pending reads (danger). A sale never tried (Shopify off) is pending
   in the reports but not an exception.
 - Reads: the integration cron's step (`sweepShopifyFees`, 5 sales a run,
   none started after 20 seconds, beside the Shopify jobs and the Stripe
-  sweep; a refusal stops the run) and once, best effort, in the queue right
-  after `sale_recorded`, both Admin GraphQL `order(id) { transactions {
+  sweep; a refusal or a throttle stops the run, and a throttle is not
+  counted against the sale's backoff) and once, best effort, after the
+  webhook's own run of the job records the sale (not inside the cron's
+  claim loop, which the sweep covers), both Admin GraphQL `order(id) { transactions {
   kind status test gateway amountSet fees { amount taxAmount } } }`
   (`read_orders`; `read_all_orders` beyond 60 days), then
   `record_shopify_fee_read`; never inside the webhook or the order's
-  transaction (RUNBOOK "Shopify: fees").
+  transaction (RUNBOOK "Shopify: fees"). The read asks for at most 100
+  transactions and refuses an order with 100 (it may have more, and a fee
+  row is never corrected): `shopify_bad_response`, retried with the
+  backoff and shown as not read.
 
 Proved by `tests/db/shopify-fees.test.ts` (the fee fact and its evidence,
 refunds keeping the fee, pending and the backoff, zero rows for other
@@ -5777,8 +5789,13 @@ gateways and test orders, the attention outcomes and the exceptions, the
 guard and the cost gating, the invariant per sale on the reports, Today
 and the sale, the floor, refunded and voided sales, a consigned line's
 snapshot and liability unchanged, the build order split with a package
-bought alone, an unlinked build order, and one floor per job over Stripe
-and Shopify fees).
+bought alone, an unlinked build order, a mixed order (a frame line, two
+build orders and shipping: the shares and the sale's remainder add up to
+the order's fee exactly), a cancelled linked job (BICII bears its share),
+a reopen and a re-completion on a later day moving the job's entry, the
+job's entry on the completion, collection and check-in bases (and no
+sale entry there), the exception wording per last outcome, and one floor
+per job over Stripe and Shopify fees).
 
 ## 20. Adventures
 

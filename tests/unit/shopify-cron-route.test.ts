@@ -55,7 +55,7 @@ describe("handleCronRequest", () => {
     const runDue = vi.fn(async () => SUMMARY);
     const fees = { recorded: 1, pending: 0, failed: 0, permission: false };
     const sweepFees = vi.fn(async () => fees);
-    const shopify = { recorded: 2, pending: 1, failed: 0, permission: false };
+    const shopify = { recorded: 2, pending: 1, failed: 0, permission: false, throttled: false };
     const sweepShopifyFees = vi.fn(async () => shopify);
     const res = await handleCronRequest(req("Bearer secret-1"), {
       secret: "secret-1",

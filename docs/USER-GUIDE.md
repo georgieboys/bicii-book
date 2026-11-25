@@ -1495,7 +1495,9 @@ website's account pages go live when the owner switches them on,
   **Cult Commons after Shopify fees** and **BICII after Cult Commons and
   Shopify fees**; the Sales list adds "Shopify fees $… · Cult Commons
   after fees $…". When the order also bought a build package, that
-  package's share goes to its job instead (on completion). A refund does
+  package's share goes to its job instead (on completion; BICII bears it
+  while the build order is not linked to a job, or if the job is
+  cancelled). A refund does
   not give the fee back. Until Shopify reports it the card says "Not
   reported yet" and "Provisional…".
 - A Shopify customer becomes a BICII customer when an admin links them,

@@ -47,7 +47,13 @@ export function SaleShopifyFeeRows({
   );
 }
 
-/** The notes under the Yield card: provisional while unread, and the build orders' share. */
+/**
+ * The notes under the Yield card: provisional while unread, and the build
+ * orders' share. The share is reported for every build order on the sale,
+ * linked or not (D1, D2), so the note says both outcomes: it comes off a
+ * linked job's Cult Commons once that job is completed, and BICII bears it
+ * for an unlinked build order or a cancelled job.
+ */
 export function saleShopifyFeeNotes(fees: SaleShopifyFees, currency: string): string[] {
   const out: string[] = [];
   if (fees.pending) {
@@ -57,7 +63,7 @@ export function saleShopifyFeeNotes(fees: SaleShopifyFees, currency: string): st
   }
   if (!toDecimal(fees.buildOrderFees).isZero()) {
     out.push(
-      `${formatMoney(fees.buildOrderFees, currency)} of the order's Shopify fees come off the build's job when it is completed.`,
+      `${formatMoney(fees.buildOrderFees, currency)} of the order's Shopify fees are the build order's share: it comes off the Cult Commons of the job it is linked to, once that job is completed. BICII bears it while the build order is not linked to a job, or if the job is cancelled.`,
     );
   }
   return out;

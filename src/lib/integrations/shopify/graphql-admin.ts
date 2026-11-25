@@ -155,11 +155,19 @@ export const PUBLISH_MUTATION = /* GraphQL */ `
  * asked for. UNVERIFIED against a live store (R-135): when the fees appear
  * after orders/paid, and that amount excludes the GST in taxAmount.
  */
+/**
+ * The most transactions one fee read takes. An order with this many may
+ * have more: its fee row would be written short and could never be
+ * corrected (insert-only), so the read refuses it (shopify_bad_response,
+ * retried with a backoff and shown as not read).
+ */
+export const ORDER_TRANSACTIONS_LIMIT = 100;
+
 export const ORDER_FEES_QUERY = /* GraphQL */ `
   query BiciiOrderFees($id: ID!) {
     order(id: $id) {
       id
-      transactions(first: 50) {
+      transactions(first: ${ORDER_TRANSACTIONS_LIMIT}) {
         id
         kind
         status
@@ -546,6 +554,9 @@ export function createGraphqlShopifyAdmin({
       if (data.order === null) return { raw: null };
       if (!isObj(data.order) || !Array.isArray(data.order.transactions)) {
         throw badResponse("order returned no transactions");
+      }
+      if (data.order.transactions.length >= ORDER_TRANSACTIONS_LIMIT) {
+        throw badResponse(`order has ${ORDER_TRANSACTIONS_LIMIT} or more transactions`);
       }
       return { raw: data.order };
     },

@@ -454,12 +454,19 @@ as $$
         )
       ))
     )
-  order by greatest(r.last_read_at, r.last_failed_at) nulls first, sa.recognized_at, sa.id
+  -- Sales within Shopify's 60 days (read_orders) before older ones
+  -- (read_all_orders): the sweep stops at the first refusal, so an old
+  -- order refused for lack of read_all_orders must never hold back the
+  -- recent sales. Within each, never-tried first, then the longest since
+  -- the last attempt, newest first.
+  order by (sa.recognized_at < pg_catalog.now() - interval '60 days'),
+           greatest(r.last_read_at, r.last_failed_at) nulls first,
+           sa.recognized_at desc, sa.id
   limit greatest(1, least(coalesce(shopify_fees_due.max_rows, 5), 20));
 $$;
 
 comment on function public.shopify_fees_due(integer, uuid) is
-  'service_role (the integration cron, src/lib/integrations/shopify/fees.ts): up to max_rows (1..20, default 5) online sales that are not voided and have no Shopify fee row, with their order gid and whether their delivery was a test, never-tried first, then the longest since their last attempt (then oldest recognised); skipping a pending read within its backoff (5 min x 2^(n-1), at most a day; none after 20 pending reads), a needs-attention read within a day, and a failed read within the same backoff (no limit). p_sale_id lists that one sale only, whatever its backoff (D274).';
+  'service_role (the integration cron, src/lib/integrations/shopify/fees.ts): up to max_rows (1..20, default 5) online sales that are not voided and have no Shopify fee row, with their order gid and whether their delivery was a test: those recognised within Shopify''s 60 days (read_orders) before older ones (read_all_orders), and within each never-tried first, then the longest since their last attempt (then newest recognised); skipping a pending read within its backoff (5 min x 2^(n-1), at most a day; none after 20 pending reads), a needs-attention read within a day, and a failed read within the same backoff (no limit). p_sale_id lists that one sale only, whatever its backoff (D274).';
 
 -- ---------------------------------------------------------------------------
 -- The split (D1 of the brief), aggregated before any join. These three run
@@ -1857,8 +1864,9 @@ as $$
   union all
 
   -- D274: an online sale whose Shopify Payments fee the sweep has tried and
-  -- still not read a day after the sale (warning: the app may lack orders access, or Shopify has
-  -- not put the fee on yet), or whose read needs attention or stopped after
+  -- still not read a day after the sale (warning, worded by the last
+  -- attempt: Shopify has not put the fee on yet, the app lacks orders
+  -- access, the order is gone, or Shopify or the database failed), or whose read needs attention or stopped after
   -- 20 pending reads (danger): its Cult Commons is provisional. Admins only
   -- (integration_failed, D86).
   select 'integration_failed'::text,
@@ -1875,7 +1883,14 @@ as $$
               then 'Shopify sent fee data for this sale BICII could not read, so Cult Commons is provisional. Ask engineering.'
             when coalesce(r.pending_reads, 0) >= 20
               then 'Shopify has still not reported the fee on this sale, so Cult Commons is provisional. Ask engineering.'
-            else 'Shopify''s fee on this online sale has not been read yet, so its Cult Commons is provisional. Check the Shopify app has the read_orders and read_all_orders scopes.'
+            -- The warning names what the last attempt found.
+            when r.last_outcome = 'shopify_fee_pending'
+              then 'Shopify has not reported the fee on this online sale yet, so its Cult Commons is provisional. BICII keeps reading it.'
+            when r.last_outcome = 'shopify_auth_failed'
+              then 'Shopify refused to show this sale''s order, so its fee is not read and Cult Commons is provisional. Check the Shopify app has the read_orders and read_all_orders scopes.'
+            when r.last_outcome = 'shopify_order_not_found'
+              then 'Shopify no longer has this sale''s order, so its fee is not read and Cult Commons is provisional. Ask engineering.'
+            else 'BICII could not read this sale''s order from Shopify, so its fee is not read and Cult Commons is provisional. BICII keeps trying.'
           end)::text,
          (private.shop_today() - private.shop_day(sa.recognized_at))::integer,
          null::integer,

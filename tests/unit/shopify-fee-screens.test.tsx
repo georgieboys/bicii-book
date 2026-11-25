@@ -13,6 +13,7 @@ import {
   saleShopifyFeeLine,
   saleShopifyFeeNotes,
 } from "@/components/domain/sale-shopify-fees";
+import { ExceptionList } from "@/components/domain/today/exception-list";
 import { FinancialEntries } from "@/components/domain/today/financial-entries";
 import { TotalsSummary } from "@/components/domain/totals-summary";
 import type { Totals } from "@/lib/domain/lines";
@@ -63,6 +64,31 @@ describe("the copy helpers", () => {
     expect(
       exceptionCopy("integration_failed", { ...row, entityType: "integration_job" }).text,
     ).toBe("Fix it in the Shopify queue");
+  });
+
+  it("shows an unread sale fee's whole subject (what to do), never truncated", () => {
+    const subject =
+      "Shopify refused to show this sale's order, so its fee is not read and Cult Commons is provisional. Check the Shopify app has the read_orders and read_all_orders scopes.";
+    render(
+      <ExceptionList
+        rows={[
+          {
+            kind: "integration_failed",
+            severity: "warning",
+            entityType: "sale",
+            entityId: "c5000000-0000-4000-8000-000000000005",
+            entityLabel: "S-000005",
+            subjectLabel: subject,
+            days: 2,
+            quantity: null,
+            since: "2026-11-23T02:00:00Z",
+          },
+        ]}
+      />,
+    );
+    const line = screen.getByText(subject);
+    expect(line).not.toHaveClass("truncate");
+    expect(line).toHaveClass("break-words");
   });
 });
 
@@ -350,7 +376,7 @@ describe("the sale's Yield card and list line (D274)", () => {
     expect(saleShopifyFeeLine(f)).toBe("Shopify fee not reported yet");
     expect(saleShopifyFeeNotes({ ...f, buildOrderFees: "3.90" }, "SGD")).toEqual([
       "Provisional: Shopify has not reported the fee on this order yet, so Cult Commons may still go down.",
-      "$3.90 of the order's Shopify fees come off the build's job when it is completed.",
+      "$3.90 of the order's Shopify fees are the build order's share: it comes off the Cult Commons of the job it is linked to, once that job is completed. BICII bears it while the build order is not linked to a job, or if the job is cancelled.",
     ]);
   });
 });

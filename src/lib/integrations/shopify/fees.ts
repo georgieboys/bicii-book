@@ -21,7 +21,8 @@ import type { IntegrationDeps } from "./deps";
  * (public.shopify_fees_due). The queue reads once, best effort, right after
  * a sale is recorded. A refusal (no orders access: shopify_auth_failed)
  * stops the run and every fee stays pending; sales are never blocked by any
- * of this. Any other failure is counted with note_shopify_fee_read_failed,
+ * of this. A throttle stops the run too, without counting against the
+ * sale's backoff. Any other failure is counted with note_shopify_fee_read_failed,
  * so one sale that always fails never takes every run's slots.
  */
 
@@ -82,6 +83,12 @@ export type ShopifyFeeSweepSummary = {
   failed: number;
   /** The app lacks orders access: the run stopped at the first refusal. */
   permission: boolean;
+  /**
+   * Shopify asked BICII to slow down: the run stopped there, leaving the
+   * app's request budget to the product syncs, and the sale is not counted
+   * against its backoff (it is due again next run).
+   */
+  throttled: boolean;
 };
 
 const RECORDED = new Set([
@@ -105,6 +112,11 @@ async function readAndCount(
     });
     if (read.kind === "failed") {
       summary.failed += 1;
+      if (read.code === "shopify_throttled") {
+        summary.throttled = true;
+        deps.log.info({ op: "shopify_fee", saleId: row.sale_id }, "shopify throttled a fee read");
+        return;
+      }
       deps.log.warn(
         { op: "shopify_fee", saleId: row.sale_id, code: read.code },
         "could not read a shopify fee",
@@ -141,8 +153,9 @@ async function readAndCount(
 
 /**
  * The integration cron's step (D274): up to `max` online sales with no fee
- * row, never-tried first (the restated history is the same list), none
- * started after `deadlineMs`. Off (null) while Shopify is off.
+ * row, those within Shopify's 60 days first, never-tried first and newest
+ * first among them (the restated history is the same list), none started
+ * after `deadlineMs`. Off (null) while Shopify is off.
  */
 export async function sweepShopifyFees(
   deps: IntegrationDeps,
@@ -150,13 +163,23 @@ export async function sweepShopifyFees(
 ): Promise<ShopifyFeeSweepSummary | null> {
   if (!deps.admin) return null;
   const now = options.now ?? Date.now;
-  const summary: ShopifyFeeSweepSummary = { recorded: 0, pending: 0, failed: 0, permission: false };
+  const summary: ShopifyFeeSweepSummary = {
+    recorded: 0,
+    pending: 0,
+    failed: 0,
+    permission: false,
+    throttled: false,
+  };
   const { data, error } = await deps.supabase.rpc("shopify_fees_due", { max_rows: options.max });
   if (error) throw Object.assign(new Error("shopify_fees_due failed"), { code: error.code });
   for (const row of data ?? []) {
     if (now() >= options.deadlineMs) break;
     await readAndCount(deps, row, summary);
-    if (summary.permission) break;
+    // A refusal is the app's missing scope (shopify_fees_due lists sales
+    // within Shopify's 60 days first, so an old order refused for lack of
+    // read_all_orders is reached only when no recent sale is due); a
+    // throttle is the app's spent budget. Either way the rest would fail too.
+    if (summary.permission || summary.throttled) break;
   }
   if (summary.recorded + summary.pending + summary.failed > 0) {
     deps.log.info({ op: "shopify_fee", ...summary }, "shopify fees swept");
@@ -186,6 +209,7 @@ export async function readFeeAfterSale(deps: IntegrationDeps, saleId: string): P
       pending: 0,
       failed: 0,
       permission: false,
+      throttled: false,
     };
     await readAndCount(deps, row, summary);
   } catch (err) {

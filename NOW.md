@@ -12,9 +12,21 @@ sale and its build orders' jobs in Postgres; `shopify_fee` entries in
 gate now `entry_kind = 'line'` and `sale_count` lines only; the Shopify
 columns on the summary, Today, job totals and `work_order_yield`;
 `sale_shopify_fees` for the sale list and the sale's Yield card; an admin
-exception for a sale the sweep could not read. Verified locally:
-prettier, eslint, `tsc --noEmit`, `vitest run tests/unit`; the migration
-and `tests/db/shopify-fees.test.ts` run only in CI (see the PR / CI run).
+exception for a sale the sweep could not read. Verified: CI
+(workflow_dispatch) on `4182ff8`: check and test (unit + db) green, run
+45552534887; the earlier run 45551698262 failed and was fixed in `4182ff8`
+(owner-rights split views, generated types, lines-only export count).
+Review fixes (same branch): DB tests for a mixed order (frame, two build
+orders, shipping: shares + the sale's rest = the fee), a charge below the
+build orders' total, a cancelled linked job, reopen and re-completion on a
+later day, and the completion, collection and check-in bases; the cron's
+claim loop no longer reads fees (the sweep does); the sweep stops on a
+throttle and lists sales within 60 days first; an order with 100
+transactions is refused; the sale page, list and job totals tolerate the
+schema before this migration; the exception's words follow the last
+attempt and show in full; the build share note says when BICII bears it;
+`sale_shopify_fees` in DATA-MODEL §16. Verified locally: prettier, eslint,
+`tsc --noEmit`, `vitest run tests/unit`; CI on the fix commit: CI_RESULT.
 Owner action: add `read_orders` (if missing) and `read_all_orders` to the
 Shopify app, release the version and press **Update** in the store
 (RUNBOOK "Shopify: fees"). Next: open the PR, merge, watch `shopifyFees`

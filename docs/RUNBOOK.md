@@ -1087,12 +1087,21 @@ The fee is Shopify's fact, read with the app's token:
   then every read is refused. The Admin's exchanged token keeps the old
   scopes until it is renewed (at most 24 hours; a redeploy renews it at
   once).
+- **Deploy order.** The app tolerates the schema before
+  `20261125000100_shopify_fees.sql` (the default rule above): until
+  `migrate.yml` applies it, a sale shows its Cult Commons without the
+  Shopify fee lines and a job's totals without the Shopify columns; the
+  integration cron's fee sweep fails its own step only (`shopifyFees:
+  { error }`) and the Shopify jobs still run.
 - The integration cron reads up to 5 online sales with no fee a run,
-  never-tried first, starting none after 20 seconds (`shopifyFees`:
-  `recorded`, `pending`, `failed`, `permission`; null while Shopify is
-  off). The first runs after the deploy are the restated history (every
-  earlier online sale). The queue also reads a sale's fee once, right
-  after recording it.
+  sales of the last 60 days first, never-tried and newest first, starting
+  none after 20 seconds (`shopifyFees`: `recorded`, `pending`, `failed`,
+  `permission`, `throttled`; null while Shopify is off). The first runs
+  after the deploy are the restated history (every earlier online sale).
+  When the webhook's own run records a sale it also reads that sale's fee
+  once; the cron's queue run does not (its fee sweep does).
+- `throttled: true`: Shopify asked BICII to slow down; the sweep stopped
+  for this run and tries again next run (not counted against the sale).
 - `permission: true`: Shopify refused the read ("Shopify refused to show
   the order…"): the app version lacks orders access. Release and approve
   it as above; the sweep backs off on each refused sale (at most a day)
@@ -1102,9 +1111,15 @@ The fee is Shopify's fact, read with the app's token:
   sale and the job say "Provisional: Shopify has not reported the fee…".
 - `failed`: Shopify or the database failed for one sale (a refusal, an
   unknown order, a timeout), noted and backed off (no limit).
-- Exceptions (admins, **Shopify needs attention**, the sale): "Shopify's
-  fee on this online sale has not been read yet…" (warning, a day after a
-  sale the sweep tried), or a fee in another currency / data BICII could
+- Exceptions (admins, **Shopify needs attention**, the sale), a day after
+  a sale the sweep tried (warning), worded by the last attempt: "Shopify
+  has not reported the fee on this online sale yet… BICII keeps reading
+  it" (wait; nothing to change), "Shopify refused to show this sale's
+  order… Check the Shopify app has the read_orders and read_all_orders
+  scopes" (release and approve the app version as above), "Shopify no
+  longer has this sale's order… Ask engineering", or "BICII could not read
+  this sale's order from Shopify… BICII keeps trying" (Shopify or the
+  database failed; it retries with the backoff). Or a fee in another currency / data BICII could
   not read / still not reported after 20 reads (danger: ask engineering,
   R-135).
 - Not covered: card-terminal, dispute and adventure fees (R-134); a later

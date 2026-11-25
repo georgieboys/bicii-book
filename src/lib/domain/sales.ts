@@ -67,6 +67,9 @@ export type SaleShopifyFees = {
   pending: boolean;
 };
 
+/** PostgREST's "no such function" and Postgres' undefined_function. */
+const MISSING_FUNCTION = new Set(["PGRST202", "42883"]);
+
 /** Fee figures per online sale of `ids` (none for retail sales or without view_costs). */
 export async function saleShopifyFees(
   supabase: ServerSupabase,
@@ -74,8 +77,11 @@ export async function saleShopifyFees(
 ): Promise<Map<string, SaleShopifyFees>> {
   const out = new Map<string, SaleShopifyFees>();
   if (ids.length === 0) return out;
-  const rows =
-    unwrap(await supabase.rpc("sale_shopify_fees", { p_sale_ids: [...ids].slice(0, 200) })) ?? [];
+  const result = await supabase.rpc("sale_shopify_fees", { p_sale_ids: [...ids].slice(0, 200) });
+  // The app may run before its migration is applied (RUNBOOK §5): with no
+  // such function yet the sale shows its Cult Commons without the fee lines.
+  if (result.error && MISSING_FUNCTION.has(result.error.code ?? "")) return out;
+  const rows = unwrap(result) ?? [];
   for (const r of rows) {
     out.set(r.sale_id, {
       shopifyFees: toMoneyString(r.shopify_fees ?? 0),
@@ -251,7 +257,11 @@ const SALE_COLUMNS =
   "id, sale_number, source, status, recognized_at, created_at, currency, notes, created_by, shopify_customer_id, customer:customers(id, first_name, last_name, display_name, email, phone)";
 
 /** One sale with its lines (sale_lines_detail) and refunds; null if unknown. */
-export async function getSale(supabase: ServerSupabase, id: string): Promise<SaleDetail | null> {
+export async function getSale(
+  supabase: ServerSupabase,
+  id: string,
+  { viewCosts = false }: { viewCosts?: boolean } = {},
+): Promise<SaleDetail | null> {
   const header = unwrap(
     await supabase.from("sales").select(SALE_COLUMNS).eq("id", id).maybeSingle(),
   );
@@ -264,8 +274,8 @@ export async function getSale(supabase: ServerSupabase, id: string): Promise<Sal
       .eq("sale_id", id)
       .order("created_at", { ascending: true }),
     staffNames(supabase),
-    // D274: empty for a retail sale and without view_costs.
-    header.source === "online_shopify"
+    // D274: only for an online sale and a view_costs viewer.
+    viewCosts && header.source === "online_shopify"
       ? saleShopifyFees(supabase, [id])
       : Promise.resolve(new Map<string, SaleShopifyFees>()),
   ]);

@@ -69,7 +69,10 @@ export default async function SalePage({ params }: PageProps<"/sales/[id]">) {
   const money = canViewConsignmentMoney(staff);
   const canAdjust = hasPermission(staff, "adjust_stock");
   const manageConsignments = hasPermission(staff, "manage_consignments");
-  const [sale, locations] = await Promise.all([getSale(supabase, id), listLocations(supabase)]);
+  const [sale, locations] = await Promise.all([
+    getSale(supabase, id, { viewCosts: costs }),
+    listLocations(supabase),
+  ]);
   if (!sale) notFound();
   const c = sale.currency;
   const fmt = (v: string) => formatMoney(v, c);

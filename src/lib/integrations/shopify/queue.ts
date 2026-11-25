@@ -47,7 +47,17 @@ async function settledOutcome(deps: IntegrationDeps, jobId: string): Promise<Job
   return (await jobStatus(deps, jobId)) === "needs_attention" ? "needs_attention" : "failed";
 }
 
-export async function runJob(job: QueueJob, deps: IntegrationDeps): Promise<JobOutcome> {
+/**
+ * Run one claimed job. `readFee` (D274): after recording a sale, read its
+ * Shopify fee once, best effort. Off in runDueJobs: a live Shopify call
+ * there would hold the claim loop (claimUntil) and slow a backlog; the cron
+ * run's own fee sweep reads it instead.
+ */
+export async function runJob(
+  job: QueueJob,
+  deps: IntegrationDeps,
+  { readFee = true }: { readFee?: boolean } = {},
+): Promise<JobOutcome> {
   const started = Date.now();
   try {
     if (job.kind === "shopify_event") {
@@ -89,7 +99,7 @@ export async function runJob(job: QueueJob, deps: IntegrationDeps): Promise<JobO
       );
       // D274: best effort, after the sale's transaction committed; the cron
       // sweep reads it again if Shopify has not put the fee on yet.
-      if (row?.outcome === "sale_recorded" && row.sale_id) {
+      if (readFee && row?.outcome === "sale_recorded" && row.sale_id) {
         await readFeeAfterSale(deps, row.sale_id);
       }
       return outcome;
@@ -171,7 +181,7 @@ export async function runDueJobs(
     const job = (data ?? [])[0];
     if (!job) break;
     summary.claimed += 1;
-    const outcome = await runJob(job, deps);
+    const outcome = await runJob(job, deps, { readFee: false });
     if (outcome === "done") summary.done += 1;
     else if (outcome === "deferred") summary.deferred += 1;
     else if (outcome === "needs_attention") summary.needsAttention += 1;

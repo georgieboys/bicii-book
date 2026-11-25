@@ -638,9 +638,15 @@ const SENTENCE_SUBJECT_KINDS: ReadonlySet<string> = new Set([
   "stripe_attention",
 ]);
 
-/** Whether an exception's subject line is a sentence to show in full (wrapping) rather than truncate. */
-export function exceptionSubjectIsSentence(kind: string): boolean {
-  return SENTENCE_SUBJECT_KINDS.has(kind);
+/**
+ * Whether an exception's subject line is a sentence to show in full
+ * (wrapping) rather than truncate. D274: an integration_failed row about a
+ * sale (its Shopify fee not read) is one too: the subject says what to do.
+ */
+export function exceptionSubjectIsSentence(kind: string, entityType?: string | null): boolean {
+  return (
+    SENTENCE_SUBJECT_KINDS.has(kind) || (kind === "integration_failed" && entityType === "sale")
+  );
 }
 
 /**

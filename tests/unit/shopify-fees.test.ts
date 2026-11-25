@@ -13,8 +13,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const { SHOPIFY_MESSAGES, ShopifyError } = await import("@/lib/integrations/shopify/admin");
-const { createGraphqlShopifyAdmin, ORDER_FEES_QUERY } =
+const { createGraphqlShopifyAdmin, ORDER_FEES_QUERY, ORDER_TRANSACTIONS_LIMIT } =
   await import("@/lib/integrations/shopify/graphql-admin");
+const { runDueJobs, runJob } = await import("@/lib/integrations/shopify/queue");
 const { createFakeShopifyAdmin } = await import("@/lib/integrations/shopify/fake-admin");
 const { readFeeAfterSale, readShopifyFee, sweepShopifyFees } =
   await import("@/lib/integrations/shopify/fees");
@@ -85,6 +86,18 @@ describe("the live adapter's order fee read (D274)", () => {
     );
     expect(await admin.orderTransactionFees(ORDER)).toEqual({ raw: null });
     expect((await caught(admin.orderTransactionFees(ORDER))).code).toBe("shopify_bad_response");
+  });
+
+  it("refuses an order at the transaction limit: it may have more, and a fee row is never corrected", async () => {
+    const tx = (i: number) => ({ id: `gid://shopify/OrderTransaction/${i}`, kind: "SALE" });
+    const full = Array.from({ length: ORDER_TRANSACTIONS_LIMIT }, (_, i) => tx(i));
+    const { admin } = liveWith(
+      Response.json({ data: { order: { id: ORDER, transactions: full } } }),
+      Response.json({ data: { order: { id: ORDER, transactions: full.slice(1) } } }),
+    );
+    expect(ORDER_FEES_QUERY).toContain(`transactions(first: ${ORDER_TRANSACTIONS_LIMIT})`);
+    expect((await caught(admin.orderTransactionFees(ORDER))).code).toBe("shopify_bad_response");
+    expect((await admin.orderTransactionFees(ORDER)).raw).toMatchObject({ id: ORDER });
   });
 
   it("a 403 or ACCESS_DENIED says orders access is missing (C3); a 401 is still the token", async () => {
@@ -220,7 +233,13 @@ describe("the Shopify fee sweep (D274)", () => {
       { amount: "95.00", fees: [{ amount: "3.20" }] },
     ]);
     const summary = await sweepShopifyFees(deps, { max: 5, deadlineMs: Date.now() + 10_000 });
-    expect(summary).toEqual({ recorded: 2, pending: 1, failed: 1, permission: false });
+    expect(summary).toEqual({
+      recorded: 2,
+      pending: 1,
+      failed: 1,
+      permission: false,
+      throttled: false,
+    });
     expect(calls[0]).toEqual({ name: "shopify_fees_due", args: { max_rows: 5 } });
     const records = calls.filter((c) => c.name === "record_shopify_fee_read");
     expect(records.map((c) => c.args.p_sale_id)).toEqual(["sale-1", "sale-2", "sale-3", "sale-4"]);
@@ -255,7 +274,13 @@ describe("the Shopify fee sweep (D274)", () => {
       return failing(id);
     });
     const summary = await sweepShopifyFees(deps, { max: 5, deadlineMs: Date.now() + 10_000 });
-    expect(summary).toEqual({ recorded: 0, pending: 0, failed: 3, permission: true });
+    expect(summary).toEqual({
+      recorded: 0,
+      pending: 0,
+      failed: 3,
+      permission: true,
+      throttled: false,
+    });
     expect(
       calls.filter((c) => c.name === "note_shopify_fee_read_failed").map((c) => c.args),
     ).toEqual([
@@ -264,6 +289,24 @@ describe("the Shopify fee sweep (D274)", () => {
       { p_sale_id: "sale-3", p_error: "shopify_auth_failed" },
     ]);
     expect(calls.some((c) => c.args.p_sale_id === "sale-4")).toBe(false);
+  });
+
+  it("a throttle stops the run and is not noted against the sale's backoff", async () => {
+    const admin = createFakeShopifyAdmin();
+    const { deps, calls } = depsWith([row(1), row(2)], {}, admin);
+    admin.orderTransactionFees = vi.fn(async () => {
+      throw new ShopifyError("shopify_throttled", true, SHOPIFY_MESSAGES.throttled);
+    });
+    const summary = await sweepShopifyFees(deps, { max: 5, deadlineMs: Date.now() + 10_000 });
+    expect(summary).toEqual({
+      recorded: 0,
+      pending: 0,
+      failed: 1,
+      permission: false,
+      throttled: true,
+    });
+    expect(admin.orderTransactionFees).toHaveBeenCalledTimes(1);
+    expect(calls.some((c) => c.name === "note_shopify_fee_read_failed")).toBe(false);
   });
 
   it("starts no read past its deadline; a failing work list throws to the cron", async () => {
@@ -278,7 +321,13 @@ describe("the Shopify fee sweep (D274)", () => {
       }),
     } as never;
     const summary = await sweepShopifyFees(deps, { max: 5, deadlineMs: 2_000, now: () => clock });
-    expect(summary).toEqual({ recorded: 1, pending: 0, failed: 0, permission: false });
+    expect(summary).toEqual({
+      recorded: 1,
+      pending: 0,
+      failed: 0,
+      permission: false,
+      throttled: false,
+    });
     const broken = {
       ...deps,
       supabase: { rpc: async () => ({ data: null, error: { code: "42501" } }) } as never,
@@ -303,6 +352,42 @@ describe("the Shopify fee sweep (D274)", () => {
     };
     await expect(readFeeAfterSale(throwing, "sale-7")).resolves.toBeUndefined();
     await expect(readFeeAfterSale({ ...deps, admin: null }, "sale-7")).resolves.toBeUndefined();
+  });
+
+  it("the queue reads the fee after sale_recorded only outside the cron's claim loop", async () => {
+    const { deps, calls } = depsWith([row(7)], {});
+    const rpc = (
+      deps.supabase as unknown as {
+        rpc: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).rpc;
+    let claimed = 0;
+    deps.supabase = {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        if (name === "claim_integration_jobs") {
+          claimed += 1;
+          return {
+            data:
+              claimed === 1
+                ? [{ id: "j-1", kind: "shopify_event", integration_event_id: "e" }]
+                : [],
+            error: null,
+          };
+        }
+        if (name === "process_shopify_event") {
+          return {
+            data: [{ event_status: "processed", outcome: "sale_recorded", sale_id: "sale-7" }],
+            error: null,
+          };
+        }
+        return rpc(name, args);
+      },
+    } as never;
+    await runDueJobs({ limit: 5, claimUntil: Date.now() + 60_000 }, deps);
+    expect(calls.map((c) => c.name)).toEqual([]);
+    const job = { id: "j-2", kind: "shopify_event", integration_event_id: "e" } as never;
+    expect(await runJob(job, deps)).toBe("done");
+    expect(calls.map((c) => c.name)).toEqual(["shopify_fees_due", "record_shopify_fee_read"]);
   });
 
   it("readShopifyFee: Shopify off fails as shopify_not_configured without a database call", async () => {

@@ -107,6 +107,15 @@ export type Totals = {
     yieldAfterFees: string;
     /** Paid Stripe payments whose fee is not read yet: the after-fees figures are provisional. */
     stripeFeePendingCount: number;
+    /**
+     * D274: the job's build order share of its Shopify order's Payments
+     * fees (less GST), what Cult Commons bears of it after the Stripe fees,
+     * and whether it is not read yet. ccAfterFees and yieldAfterFees are
+     * net of both fees.
+     */
+    shopifyFees: string;
+    shopifyFeesBorne: string;
+    shopifyFeePendingCount: number;
   };
 };
 
@@ -300,6 +309,34 @@ async function loadParts(
   return result;
 }
 
+const TOTALS_STAFF_COLUMNS =
+  "currency, line_count, sale_total, cost_total, yield_total, cult_commons_share, bicii_yield_after_cc, cost_pending_count, stripe_fees, stripe_fees_borne, cult_commons_after_fees, bicii_yield_after_fees, stripe_fee_pending_count";
+/** D274's columns, read apart so the totals survive a schema without them. */
+const TOTALS_SHOPIFY_COLUMNS = "shopify_fees, shopify_fees_borne, shopify_fee_pending_count";
+
+type TotalsStaffRow = Pick<
+  Database["public"]["Views"]["work_order_totals_staff"]["Row"],
+  | "currency"
+  | "line_count"
+  | "sale_total"
+  | "cost_total"
+  | "yield_total"
+  | "cult_commons_share"
+  | "bicii_yield_after_cc"
+  | "cost_pending_count"
+  | "stripe_fees"
+  | "stripe_fees_borne"
+  | "cult_commons_after_fees"
+  | "bicii_yield_after_fees"
+  | "stripe_fee_pending_count"
+> &
+  Partial<
+    Pick<
+      Database["public"]["Views"]["work_order_totals_staff"]["Row"],
+      "shopify_fees" | "shopify_fees_borne" | "shopify_fee_pending_count"
+    >
+  >;
+
 /**
  * A job's running totals over its live lines (the database's views).
  * `currency` (the job's) is the fallback for a job with no lines; it may
@@ -314,15 +351,17 @@ export async function getTotals(
   }: { viewCosts: boolean; currency: string | PromiseLike<string> },
 ): Promise<Totals> {
   if (viewCosts) {
-    const row = unwrap(
-      await supabase
+    const read = (columns: string) =>
+      supabase
         .from("work_order_totals_staff")
-        .select(
-          "currency, line_count, sale_total, cost_total, yield_total, cult_commons_share, bicii_yield_after_cc, cost_pending_count, stripe_fees, stripe_fees_borne, cult_commons_after_fees, bicii_yield_after_fees, stripe_fee_pending_count",
-        )
+        .select(columns)
         .eq("work_order_id", workOrderId)
-        .maybeSingle(),
-    );
+        .maybeSingle<TotalsStaffRow>();
+    let result = await read(`${TOTALS_STAFF_COLUMNS}, ${TOTALS_SHOPIFY_COLUMNS}`);
+    // The app may run before its migration is applied (RUNBOOK §5): without
+    // the D274 columns yet (undefined_column), read the totals without them.
+    if (result.error?.code === "42703") result = await read(TOTALS_STAFF_COLUMNS);
+    const row = unwrap(result);
     return {
       currency: row?.currency ?? (await currencyInput),
       lineCount: row?.line_count ?? 0,
@@ -338,6 +377,9 @@ export async function getTotals(
         ccAfterFees: money(row?.cult_commons_after_fees ?? row?.cult_commons_share),
         yieldAfterFees: money(row?.bicii_yield_after_fees ?? row?.bicii_yield_after_cc),
         stripeFeePendingCount: row?.stripe_fee_pending_count ?? 0,
+        shopifyFees: money(row?.shopify_fees),
+        shopifyFeesBorne: money(row?.shopify_fees_borne),
+        shopifyFeePendingCount: row?.shopify_fee_pending_count ?? 0,
       },
     };
   }

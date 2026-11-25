@@ -90,6 +90,15 @@ export type SetAvailableQuantityInput = {
   reference: string;
 };
 
+/**
+ * D274: one order's transactions with their Shopify Payments fees, as the
+ * Admin GraphQL API returned the Order node (id, transactions[id, kind,
+ * status, gateway, test, amountSet.shopMoney, fees[amount, taxAmount]]).
+ * Passed to Postgres as is (record_shopify_fee_read): the database reads
+ * the decimal strings, splits and sums. null when Shopify has no such order.
+ */
+export type ShopifyOrderFeesRead = { raw: Record<string, unknown> | null };
+
 export interface ShopifyAdmin {
   readonly mode: "live" | "fake";
   readonly apiVersion: string;
@@ -128,6 +137,12 @@ export interface ShopifyAdmin {
    * publishing an already-published product is a no-op in Shopify.
    */
   publishToOnlineStore(productId: string): Promise<void>;
+  /**
+   * D274: the order's transactions and their fees (Order.transactions.fees;
+   * read_orders, and read_all_orders beyond 60 days). A refusal is
+   * shopify_auth_failed with the orders-access message.
+   */
+  orderTransactionFees(orderId: string): Promise<ShopifyOrderFeesRead>;
 }
 
 export type ShopifyErrorCode =
@@ -156,7 +171,10 @@ export const SHOPIFY_MESSAGES = {
   appNotInstalled:
     "The Shopify app is not installed on this store. Install it from the Shopify Dev Dashboard, then sync again.",
   accessDenied:
-    "Shopify refused the request. Check that the Shopify app has the products, inventory, locations and publications scopes.",
+    "Shopify refused the request. Check that the Shopify app has the products, inventory, locations, publications and orders scopes.",
+  /** D274: the fee read was refused: the app's released version lacks orders access. */
+  ordersAccessDenied:
+    "Shopify refused to show the order, so its fee cannot be read. Check that the Shopify app has the read_orders and read_all_orders scopes, release that version and press Update in the store.",
   onlineStoreMissing:
     "Shopify has no Online Store sales channel, so products cannot be shown on the storefront. Add the Online Store channel in Shopify, then sync again.",
   throttled: "Shopify asked BICII to slow down. The sync will try again shortly.",

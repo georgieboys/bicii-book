@@ -207,14 +207,16 @@ function DocumentLink({ line }: { line: ReportLine }) {
  * line: it reads as the deduction, with what Cult Commons bore and the
  * part BICII bears when the fees were more than the job's share.
  */
-const isFee = (l: ReportLine) => l.lineType === "stripe_fee";
+const isFee = (l: ReportLine) => l.lineType === "stripe_fee" || l.lineType === "shopify_fee";
 
+/** D274: an online sale's or a job's share of its order's Shopify Payments fees reads the same way. */
 function feeText(l: ReportLine): string {
-  const fee = formatSignedMoney(l.stripeFee ?? "0", l.currency);
+  const shopify = l.lineType === "shopify_fee";
+  const fee = formatSignedMoney((shopify ? l.shopifyFee : l.stripeFee) ?? "0", l.currency);
   const borne = l.cultCommons === null ? null : toDecimal(l.cultCommons).negated().toFixed(2);
   const bicii = l.afterCc === null ? null : toDecimal(l.afterCc).negated().toFixed(2);
   return [
-    `Stripe fees (less GST) ${fee}`,
+    `${shopify ? "Shopify fees" : "Stripe fees"} (less GST) ${fee}`,
     borne !== null ? `borne by Cult Commons ${formatSignedMoney(borne, l.currency)}` : null,
     bicii !== null && !toDecimal(bicii).isZero()
       ? `by BICII ${formatSignedMoney(bicii, l.currency)}`

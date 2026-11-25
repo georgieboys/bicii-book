@@ -321,8 +321,9 @@ describe.skipIf(!isolatedDatabase())("selling full builds online (D252-D256)", (
       await completeJob(tx, fresh.id);
       await ownerMode(tx);
       const { rows } = await tx.query<{ line_type: string; total: string }>(
+        // D274: lines only (the job's Shopify fee entry is pending beside them).
         `select line_type, sum(sale_total)::text as total from reporting.financial_lines
-          where document_id = $1 group by line_type order by line_type`,
+          where document_id = $1 and entry_kind = 'line' group by line_type order by line_type`,
         [fresh.id],
       );
       expect(rows).toEqual([
@@ -330,7 +331,8 @@ describe.skipIf(!isolatedDatabase())("selling full builds online (D252-D256)", (
         { line_type: "service", total: "180.00" },
       ]);
       const saleSide = await tx.query(
-        "select 1 from reporting.financial_lines where document_id = $1",
+        // D274: the sale's only entry is its (pending) Shopify fee entry, no line.
+        "select 1 from reporting.financial_lines where document_id = $1 and entry_kind = 'line'",
         [result.sale_id],
       );
       expect(saleSide.rowCount).toBe(0);

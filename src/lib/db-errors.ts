@@ -601,6 +601,8 @@ export const BUSINESS_ERRORS: Record<string, string> = {
   stripe_event_immutable: "A received Stripe event is kept as evidence and can't be changed.",
   // D273: a Stripe fee is Stripe's word, recorded once from a server read.
   stripe_fee_immutable: "A Stripe fee is recorded only from Stripe and can't be changed.",
+  // D274: a Shopify fee is Shopify's word, recorded once from a server read.
+  shopify_fee_immutable: "A Shopify fee is recorded only from Shopify and can't be changed.",
   // Indent deposits (Phase 14 step 2, D151, D152, D157, D158): the setting,
   // the quote's snapshot, starting Checkout and the ordering gate.
   deposit_percent_out_of_range: "Choose a deposit from 0 to 100%.",
@@ -1287,6 +1289,14 @@ export const CHECK_ERRORS: Record<string, string> = {
   stripe_payment_fees_charge_check: "Stripe sent a charge BICII could not read.",
   stripe_payment_fees_amounts_check: "A Stripe fee can't be negative or less than the tax on it.",
   stripe_payment_fees_currency_check: "Stripe fees are recorded in Singapore dollars only.",
+  // D274: Shopify fee facts (written only by record_shopify_fee_read's apply).
+  shopify_sale_fees_order_check: "Shopify sent an order BICII could not read.",
+  shopify_sale_fees_basis_check: "A Shopify fee needs a known basis.",
+  shopify_sale_fees_amounts_check: "A Shopify fee can't be negative.",
+  shopify_sale_fees_zero_check: "An order with no Shopify Payments charge has no Shopify fee.",
+  shopify_sale_fees_currency_check: "Shopify fees are recorded in Singapore dollars only.",
+  shopify_sale_fees_transactions_check: "Shopify sent transactions BICII could not read.",
+  shopify_sale_fees_api_version_check: "Shopify sent an API version BICII could not read.",
   payments_amount_received_check: "The amount received can't be negative.",
   payments_refunded_amount_check: "The amount refunded can't be negative.",
   payments_paid_shape: "A paid payment needs the time Stripe confirmed it.",

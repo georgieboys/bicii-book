@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { RecordSaleButton } from "@/components/domain/record-sale-sheet";
+import { saleShopifyFeeLine } from "@/components/domain/sale-shopify-fees";
 import { SearchField } from "@/components/domain/search-field";
 import { ShortId } from "@/components/domain/short-id";
 import { LinkSegments } from "@/components/domain/workshop-board";
@@ -48,7 +49,11 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   const day = readSaleDay(params.day);
   const costs = canViewSaleCosts(staff);
   const bounds = q ? { from: null, to: null } : day ? saleDayRange(day) : saleRange(range);
-  const { items, more } = await listSales(await createClient(), { ...bounds, q });
+  const { items, more } = await listSales(await createClient(), {
+    ...bounds,
+    q,
+    viewCosts: costs,
+  });
 
   return (
     <>
@@ -126,6 +131,12 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                       <span className="text-dense text-dust-700 tabular-nums">
                         Yield {formatMoney(s.yieldTotal)} · Cult Commons{" "}
                         {formatMoney(s.cultCommons)}
+                      </span>
+                    ) : null}
+                    {costs && s.shopifyFees ? (
+                      // D274: an online sale's Shopify fees and net Cult Commons.
+                      <span className="text-dense text-dust-700 tabular-nums">
+                        {saleShopifyFeeLine(s.shopifyFees)}
                       </span>
                     ) : null}
                   </span>

@@ -48,6 +48,54 @@ const nameOf = (names: ReadonlyMap<string, string>, id: string | null) =>
   id ? (names.get(id) ?? "A former colleague") : null;
 
 // ---------------------------------------------------------------------------
+// D274: an online sale's Shopify Payments fees (view_costs only)
+// ---------------------------------------------------------------------------
+
+/**
+ * An online sale's share of its order's Shopify Payments fees (less GST)
+ * and its Cult Commons net of them, from public.sale_shopify_fees (the same
+ * arithmetic as its reporting.financial_lines entry; view_costs only).
+ * `pending`: Shopify has not reported the fee yet (provisional).
+ * `buildOrderFees`: the share its build orders' jobs bear on completion.
+ */
+export type SaleShopifyFees = {
+  shopifyFees: Money;
+  shopifyFeesBorne: Money;
+  ccAfterFees: Money;
+  biciiAfterFees: Money;
+  buildOrderFees: Money;
+  pending: boolean;
+};
+
+/** PostgREST's "no such function" and Postgres' undefined_function. */
+const MISSING_FUNCTION = new Set(["PGRST202", "42883"]);
+
+/** Fee figures per online sale of `ids` (none for retail sales or without view_costs). */
+export async function saleShopifyFees(
+  supabase: ServerSupabase,
+  ids: readonly string[],
+): Promise<Map<string, SaleShopifyFees>> {
+  const out = new Map<string, SaleShopifyFees>();
+  if (ids.length === 0) return out;
+  const result = await supabase.rpc("sale_shopify_fees", { p_sale_ids: [...ids].slice(0, 200) });
+  // The app may run before its migration is applied (RUNBOOK §5): with no
+  // such function yet the sale shows its Cult Commons without the fee lines.
+  if (result.error && MISSING_FUNCTION.has(result.error.code ?? "")) return out;
+  const rows = unwrap(result) ?? [];
+  for (const r of rows) {
+    out.set(r.sale_id, {
+      shopifyFees: toMoneyString(r.shopify_fees ?? 0),
+      shopifyFeesBorne: toMoneyString(r.shopify_fees_borne ?? 0),
+      ccAfterFees: toMoneyString(r.cult_commons_after_fees ?? 0),
+      biciiAfterFees: toMoneyString(r.bicii_yield_after_fees ?? 0),
+      buildOrderFees: toMoneyString(r.build_order_fees ?? 0),
+      pending: r.shopify_fee_pending === true,
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // The Sales list
 // ---------------------------------------------------------------------------
 
@@ -67,6 +115,8 @@ export type SaleListItem = {
   costTotal: Money | null;
   yieldTotal: Money | null;
   cultCommons: Money | null;
+  /** D274: an online sale's Shopify fees and net Cult Commons (view_costs only); null otherwise. */
+  shopifyFees: SaleShopifyFees | null;
 };
 
 /**
@@ -80,7 +130,15 @@ export async function listSales(
     to,
     q,
     limit = 100,
-  }: { from: string | null; to: string | null; q: string; limit?: number },
+    viewCosts = false,
+  }: {
+    from: string | null;
+    to: string | null;
+    q: string;
+    limit?: number;
+    /** D274: also read the online sales' Shopify fees (view_costs). */
+    viewCosts?: boolean;
+  },
 ): Promise<{ items: SaleListItem[]; more: boolean }> {
   const rows =
     unwrap(
@@ -91,8 +149,15 @@ export async function listSales(
         max_rows: limit + 1,
       }),
     ) ?? [];
+  const shown = rows.slice(0, limit);
+  const fees = viewCosts
+    ? await saleShopifyFees(
+        supabase,
+        shown.filter((r) => r.source === "online_shopify").map((r) => r.id),
+      )
+    : new Map<string, SaleShopifyFees>();
   return {
-    items: rows.slice(0, limit).map((r) => ({
+    items: shown.map((r) => ({
       id: r.id,
       saleNumber: r.sale_number,
       status: r.status,
@@ -107,6 +172,7 @@ export async function listSales(
       costTotal: money(r.cost_total),
       yieldTotal: money(r.yield_total),
       cultCommons: money(r.cult_commons_share),
+      shopifyFees: fees.get(r.id) ?? null,
     })),
     more: rows.length > limit,
   };
@@ -183,18 +249,24 @@ export type SaleDetail = {
   refunds: SaleRefund[];
   total: Money;
   refundedTotal: Money;
+  /** D274: an online sale's Shopify fees and net Cult Commons (view_costs only); null otherwise. */
+  shopifyFees: SaleShopifyFees | null;
 };
 
 const SALE_COLUMNS =
   "id, sale_number, source, status, recognized_at, created_at, currency, notes, created_by, shopify_customer_id, customer:customers(id, first_name, last_name, display_name, email, phone)";
 
 /** One sale with its lines (sale_lines_detail) and refunds; null if unknown. */
-export async function getSale(supabase: ServerSupabase, id: string): Promise<SaleDetail | null> {
+export async function getSale(
+  supabase: ServerSupabase,
+  id: string,
+  { viewCosts = false }: { viewCosts?: boolean } = {},
+): Promise<SaleDetail | null> {
   const header = unwrap(
     await supabase.from("sales").select(SALE_COLUMNS).eq("id", id).maybeSingle(),
   );
   if (!header) return null;
-  const [linesResult, refundsResult, names] = await Promise.all([
+  const [linesResult, refundsResult, names, fees] = await Promise.all([
     supabase.rpc("sale_lines_detail", { sale_id: id }),
     supabase
       .from("sale_refunds")
@@ -202,6 +274,10 @@ export async function getSale(supabase: ServerSupabase, id: string): Promise<Sal
       .eq("sale_id", id)
       .order("created_at", { ascending: true }),
     staffNames(supabase),
+    // D274: only for an online sale and a view_costs viewer.
+    viewCosts && header.source === "online_shopify"
+      ? saleShopifyFees(supabase, [id])
+      : Promise.resolve(new Map<string, SaleShopifyFees>()),
   ]);
   const rows = unwrap(linesResult) ?? [];
   const unitIds = rows.map((r) => r.inventory_unit_id).filter((v): v is string => !!v);
@@ -307,6 +383,7 @@ export async function getSale(supabase: ServerSupabase, id: string): Promise<Sal
     refunds,
     total: toMoneyString(sumMoney(lines.map((l) => l.total))),
     refundedTotal: toMoneyString(sumMoney(refunds.map((r) => r.amount))),
+    shopifyFees: fees.get(id) ?? null,
   };
 }
 

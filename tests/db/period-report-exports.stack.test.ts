@@ -104,7 +104,11 @@ describe.skipIf(!reachable)("period report reads and exports", () => {
   it("exports the lines of the period and of one group, matching their counts", async () => {
     const summary = await getPeriodSummary(admin, FROM, TO, "sale");
     const all = await getAllLineItemsForExport(admin, { from: FROM, to: TO, basis: "sale" });
-    expect(all).toHaveLength(summary.lineCount);
+    // D273, D274: fee entries are listed with the lines but are not lines
+    // (the seed's online sale has a pending Shopify fee entry).
+    const isFee = (l: { lineType: string }) =>
+      l.lineType === "stripe_fee" || l.lineType === "shopify_fee";
+    expect(all.filter((l) => !isFee(l))).toHaveLength(summary.lineCount);
     const combined = await getAllLineItemsForExport(admin, {
       from: FROM,
       to: TO,

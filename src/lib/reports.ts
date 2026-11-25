@@ -104,6 +104,16 @@ export type TodayDashboard = {
       stripeFees: string;
       stripeFeesBorne: string;
       stripeFeePendingJobs: number;
+      /**
+       * D274: the day's sales' and completed jobs' shares of their orders'
+       * Shopify Payments fees (less GST), what Cult Commons bore of them
+       * (cultCommons is already net of it), and the sales and jobs whose
+       * fee Shopify has not reported yet (provisional).
+       */
+      shopifyFees: string;
+      shopifyFeesBorne: string;
+      shopifyFeePendingSales: number;
+      shopifyFeePendingJobs: number;
     };
   };
   stock: {
@@ -190,6 +200,10 @@ export function toTodayDashboard(row: TodayDashboardRow): TodayDashboard {
                     stripeFees: amount(row.stripe_fees ?? 0, currency)!,
                     stripeFeesBorne: amount(row.stripe_fees_borne ?? 0, currency)!,
                     stripeFeePendingJobs: int(row.stripe_fee_pending_jobs),
+                    shopifyFees: amount(row.shopify_fees ?? 0, currency)!,
+                    shopifyFeesBorne: amount(row.shopify_fees_borne ?? 0, currency)!,
+                    shopifyFeePendingSales: int(row.shopify_fee_pending_sales),
+                    shopifyFeePendingJobs: int(row.shopify_fee_pending_jobs),
                   }
                 : null,
           }
@@ -247,6 +261,54 @@ export function stripeFeePendingNote(jobs: number): string | null {
   return jobs === 1
     ? "Provisional: Stripe has not reported the fee on 1 job yet, so Cult Commons may still go down."
     : `Provisional: Stripe has not reported the fees on ${jobs} jobs yet, so Cult Commons may still go down.`;
+}
+
+/**
+ * D273, D274: what the fees took off Cult Commons, for a tile hint:
+ * "<base>, less S$x of Stripe fees and S$y of Shopify fees" (each part only
+ * when non-zero); the base alone when neither.
+ */
+export function feesLessHint(
+  base: string,
+  stripeBorne: string | null,
+  shopifyBorne: string | null,
+  currency: string,
+): string {
+  const parts = [
+    stripeBorne && !toDecimal(stripeBorne).isZero()
+      ? `${formatMoney(stripeBorne, currency)} of Stripe fees`
+      : null,
+    shopifyBorne && !toDecimal(shopifyBorne).isZero()
+      ? `${formatMoney(shopifyBorne, currency)} of Shopify fees`
+      : null,
+  ].filter(Boolean);
+  return parts.length ? `${base}, less ${parts.join(" and ")}` : base;
+}
+
+/** D273, D274: the BICII tile's label once fees came off. */
+export function afterFeesLabel(stripe: boolean, shopify: boolean): string {
+  if (stripe && shopify) return "BICII after Cult Commons and payment fees";
+  if (stripe) return "BICII after Cult Commons and Stripe fees";
+  if (shopify) return "BICII after Cult Commons and Shopify fees";
+  return "BICII after Cult Commons";
+}
+
+/**
+ * D274: the provisional note while Shopify has not reported the fee on some
+ * of the sales or jobs counted (Today and Reports); null when every fee is
+ * read.
+ */
+export function shopifyFeePendingNote(sales: number, jobs: number): string | null {
+  const s = Math.max(0, sales);
+  const j = Math.max(0, jobs);
+  if (s + j <= 0) return null;
+  const what = [
+    s > 0 ? (s === 1 ? "1 sale" : `${s} sales`) : null,
+    j > 0 ? (j === 1 ? "1 job" : `${j} jobs`) : null,
+  ]
+    .filter(Boolean)
+    .join(" and ");
+  return `Provisional: Shopify has not reported the ${s + j === 1 ? "fee" : "fees"} on ${what} yet, so Cult Commons may still go down.`;
 }
 
 /**
@@ -488,7 +550,7 @@ export function exceptionCopy(
     OperationalException,
     "severity" | "entityLabel" | "subjectLabel" | "days" | "quantity"
   > &
-    Partial<Pick<OperationalException, "issue" | "amount" | "currency">>,
+    Partial<Pick<OperationalException, "issue" | "amount" | "currency" | "entityType">>,
 ): { text: string; tone: StatusTone } {
   const tone = exceptionTone(row.severity);
   switch (kind) {
@@ -537,6 +599,14 @@ export function exceptionCopy(
         tone,
       };
     case "integration_failed":
+      // D274: an online sale's Shopify fee not read (the subject line says
+      // why); the sale page shows its provisional Cult Commons.
+      if (row.entityType === "sale") {
+        return {
+          text: "Shopify fee not read: Cult Commons provisional",
+          tone: exceptionTone(row.severity),
+        };
+      }
       // Phase 10 (D86, admins only): the human message is the row's subject
       // line; the fix happens in the Shopify queue.
       return { text: "Fix it in the Shopify queue", tone: "danger" };
@@ -568,9 +638,15 @@ const SENTENCE_SUBJECT_KINDS: ReadonlySet<string> = new Set([
   "stripe_attention",
 ]);
 
-/** Whether an exception's subject line is a sentence to show in full (wrapping) rather than truncate. */
-export function exceptionSubjectIsSentence(kind: string): boolean {
-  return SENTENCE_SUBJECT_KINDS.has(kind);
+/**
+ * Whether an exception's subject line is a sentence to show in full
+ * (wrapping) rather than truncate. D274: an integration_failed row about a
+ * sale (its Shopify fee not read) is one too: the subject says what to do.
+ */
+export function exceptionSubjectIsSentence(kind: string, entityType?: string | null): boolean {
+  return (
+    SENTENCE_SUBJECT_KINDS.has(kind) || (kind === "integration_failed" && entityType === "sale")
+  );
 }
 
 /**
@@ -660,9 +736,16 @@ export type FinancialEntry = {
    * stripeFee = the fees less GST); "line" for every sold line. Count lines
    * with entryKind "line".
    */
-  entryKind: "line" | "stripe_fee";
+  entryKind: "line" | "stripe_fee" | "shopify_fee";
   stripeFee: string | null;
   stripeFeePending: boolean;
+  /**
+   * D274: on a "shopify_fee" entry (an online sale's, or a completed job's
+   * build order share of its order's Shopify Payments fees; view_costs
+   * only) the share less GST, and whether Shopify has not reported it yet.
+   */
+  shopifyFee: string | null;
+  shopifyFeePending: boolean;
 };
 
 /** Entries grouped by their document (job), in the order they arrive. */
@@ -725,4 +808,12 @@ export type WorkOrderYield = {
   biciiAfterFees: string;
   /** Paid Stripe payments whose fee is not read yet (the after-fees figures are provisional). */
   stripeFeePendingCount: number;
+  /**
+   * D274: the job's build order share of its Shopify order's Payments fees
+   * (less GST), what Cult Commons bears of it after the Stripe fees, and
+   * whether it is not read yet. ccAfterFees and biciiAfterFees are net of both.
+   */
+  shopifyFees: string;
+  shopifyFeesBorne: string;
+  shopifyFeePendingCount: number;
 };

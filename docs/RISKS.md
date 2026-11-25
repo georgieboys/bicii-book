@@ -3773,9 +3773,9 @@ URLs, or customer data in this file.
   - Dispute (chargeback) fees are not read or recorded (no
     `charge.dispute.*` event is subscribed, R-089); a dispute's fee stays
     with BICII and Cult Commons is overstated by it.
-  - Shopify Payments fees on online sales and card-terminal fees on
-    counter payments are not Stripe fees BICII can read: those sales keep
-    their gross Cult Commons.
+  - Card-terminal fees on counter payments are not Stripe fees BICII can
+    read: those payments' jobs keep their gross Cult Commons. (Shopify
+    Payments fees are no longer out of scope: D274 deducts them, R-135.)
   - The backfill restates past days: every completed job paid through
     Stripe loses its fees from Cult Commons on its completion day once the
     sweep reads them (production held 3 Stripe payments on 2026-11-24, 1
@@ -3808,4 +3808,56 @@ URLs, or customer data in this file.
   Exceptions warning a day after payment; *Check with Stripe* reads a fee
   on demand.
 - Still open: whether dispute fees should come off Cult Commons once
-  disputes are recorded; whether Shopify Payments fees should.
+  disputes are recorded; card-terminal fees and adventures stay out.
+
+## R-135 — Shopify Payments fees: what is unverified or left out
+
+- Category: Shopify, reporting.
+- Status and owner: open, accepted; the owner (D274), the build agent.
+- Trigger and impact:
+  - **The GST reading is unverified.** BICII takes `TransactionFee.amount`
+    as the fee less GST and `taxAmount` as the GST on it (Shopify's
+    documentation does not say whether `amount` includes the tax). If
+    `amount` includes it, Cult Commons is understated by the GST. Both are
+    stored raw (`shopify_sale_fees.fee_ex_tax`, `fee_tax`), so a fix is a
+    view change. Next action: compare one real Singapore order's read with
+    the Shopify Payments transactions CSV and the monthly invoice (GST
+    column) before calling the figures final.
+  - **Timing.** Nobody documents when `fees` is filled after `orders/paid`;
+    a Shopify Payments charge with no fees yet is pending and read again
+    (5 minutes doubling, at most a day, 20 tries, then an admin exception).
+  - **The scopes and the app version.** The read needs `read_orders`
+    (documented, but whether the live app version has it is not checked,
+    R-047) and `read_all_orders` for orders older than 60 days. Until a
+    new version with both is released and approved (**Update** in the
+    store), every read is refused: the sweep stops, each sale stays
+    pending, and a day on, admins see "Shopify refused to show this sale's
+    order… Check the Shopify app has the read_orders and read_all_orders
+    scopes". Sales within 60 days are read first, so an old order refused
+    for lack of `read_all_orders` alone never holds back recent ones.
+    Sales are never blocked.
+  - **Orders with 100 or more transactions** are refused by the read (it
+    asks for 100 and a fee row is never corrected), so such a sale stays
+    pending and becomes an admin exception; none is expected at BICII's
+    volumes.
+  - **The live adapter has never run against a real store** (R-011,
+    R-047): the query and the shape are from Shopify's reference, tried
+    only against the fake.
+  - **History is restated.** Every online sale that is not voided is
+    pending until the sweep reads its order (5 a run); past days' Cult
+    Commons go down as fees are read. Whether production has online sales
+    was not checked.
+  - **A dismissed order recorded by hand** (G3) is a retail sale with no
+    Shopify order: its Shopify fee is never read, and BICII bears it.
+  - **An order changed after payment** (G6): a later charge or capture
+    has its own fee; the fee row is written once per sale and never re-read,
+    so a later fee is BICII's.
+  - **Rounding of the split.** A build order's share is truncated to the
+    cent, so the sale's remainder may carry a cent more.
+- Evidence and confidence: medium; from the build (`20261125000100`,
+  `tests/db/shopify-fees.test.ts`) and Shopify's 2026-10 reference for
+  `OrderTransaction.fees` and the access scopes; nothing tried against a
+  live store.
+- Workaround or containment: provisional notes on the sale, the job,
+  Today and Reports; the exception for admins; the raw fee and tax kept.
+- Still open: the GST reading; whether a later charge should be re-read.

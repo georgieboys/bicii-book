@@ -1,5 +1,37 @@
 # Current state
 
+Updated: 2026-11-25 SGT (D274 Shopify Payments fees borne by Cult Commons;
+branch `feat/shopify-fees-cc`, migration `20261125000100`, pushed, no PR
+yet). The owner asked to include Shopify Payments fees too; the D273
+answers apply. Built: `shopify_sale_fees` (insert-only, view_costs), the
+order read (`orderTransactionFees`, Admin GraphQL `Order.transactions.fees`,
+live and fake) through `record_shopify_fee_read` from the cron's new
+`shopifyFees` sweep and once after `sale_recorded`; the split between a
+sale and its build orders' jobs in Postgres; `shopify_fee` entries in
+`financial_lines` (one floor per job with the Stripe fees); every cost
+gate now `entry_kind = 'line'` and `sale_count` lines only; the Shopify
+columns on the summary, Today, job totals and `work_order_yield`;
+`sale_shopify_fees` for the sale list and the sale's Yield card; an admin
+exception for a sale the sweep could not read. Verified: CI
+(workflow_dispatch) on `4182ff8`: check and test (unit + db) green, run
+45552534887; the earlier run 45551698262 failed and was fixed in `4182ff8`
+(owner-rights split views, generated types, lines-only export count).
+Review fixes (same branch): DB tests for a mixed order (frame, two build
+orders, shipping: shares + the sale's rest = the fee), a charge below the
+build orders' total, a cancelled linked job, reopen and re-completion on a
+later day, and the completion, collection and check-in bases; the cron's
+claim loop no longer reads fees (the sweep does); the sweep stops on a
+throttle and lists sales within 60 days first; an order with 100
+transactions is refused; the sale page, list and job totals tolerate the
+schema before this migration; the exception's words follow the last
+attempt and show in full; the build share note says when BICII bears it;
+`sale_shopify_fees` in DATA-MODEL §16. Verified locally: prettier, eslint,
+`tsc --noEmit`, `vitest run tests/unit`; CI on `bfaed16`: check and test (unit + db) green, run 45555851300 (run 45555431938 on `7165c84` failed only on a cancelled job's yield printing 0 as "0"; the test now compares amounts).
+Owner action: add `read_orders` (if missing) and `read_all_orders` to the
+Shopify app, release the version and press **Update** in the store
+(RUNBOOK "Shopify: fees"). Next: open the PR, merge, watch `shopifyFees`
+on the cron; check one real order's GST against the invoice (R-135).
+Before that,
 Updated: 2026-11-24 SGT (D273 Stripe fees borne by Cult Commons; branch
 `feat/stripe-fees-cc`, migration `20261124000100`, pushed, no PR yet).
 The owner decided a completed job's Cult Commons is its gross share less

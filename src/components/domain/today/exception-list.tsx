@@ -90,7 +90,9 @@ export function ExceptionList({
                 )
               ) : null}
             </div>
-            {r.subjectLabel ? <SubjectLine kind={r.kind} text={r.subjectLabel} /> : null}
+            {r.subjectLabel ? (
+              <SubjectLine kind={r.kind} entityType={r.entityType} text={r.subjectLabel} />
+            ) : null}
             <p className="text-sm text-dust-700">{text}</p>
           </div>
         );
@@ -143,11 +145,19 @@ export function ExceptionList({
 
 /**
  * The row's subject: one truncated line (a name or a place), except for the
- * kinds whose subject is the actionable sentence (customer payments and
- * Stripe deliveries), which wrap so the whole sentence shows on a phone.
+ * kinds whose subject is the actionable sentence (customer payments,
+ * Stripe deliveries and a sale's unread Shopify fee), which wrap so the whole sentence shows on a phone.
  */
-function SubjectLine({ kind, text }: { kind: string; text: string }) {
-  return exceptionSubjectIsSentence(kind) ? (
+function SubjectLine({
+  kind,
+  entityType,
+  text,
+}: {
+  kind: string;
+  entityType: string | null;
+  text: string;
+}) {
+  return exceptionSubjectIsSentence(kind, entityType) ? (
     <p className="text-sm break-words">{text}</p>
   ) : (
     <p className="truncate text-sm">{text}</p>
@@ -189,7 +199,9 @@ function DetailedBody({
         ) : null}
         {title ? <span className="font-medium">{title}</span> : null}
       </div>
-      {row.subjectLabel ? <SubjectLine kind={row.kind} text={row.subjectLabel} /> : null}
+      {row.subjectLabel ? (
+        <SubjectLine kind={row.kind} entityType={row.entityType} text={row.subjectLabel} />
+      ) : null}
       <p className="text-sm text-dust-700">{text}</p>
       {detail ? <p className="text-sm text-dust-500">{detail}</p> : null}
       {row.since && age !== null ? (

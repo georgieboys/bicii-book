@@ -466,6 +466,11 @@ export const TODAY_DASHBOARD_COLUMNS = [
   "stripe_fees",
   "stripe_fees_borne",
   "stripe_fee_pending_jobs",
+  // D274: the day's Shopify fees (view_costs), appended
+  "shopify_fees",
+  "shopify_fees_borne",
+  "shopify_fee_pending_sales",
+  "shopify_fee_pending_jobs",
 ] as const;
 
 export const SNAPSHOT_COLUMNS = TODAY_DASHBOARD_COLUMNS.filter((c) => c.endsWith("_now"));
@@ -572,6 +577,9 @@ export const FINANCIAL_LINES_COLUMNS = [
   // D273, appended
   "stripe_fee",
   "stripe_fee_pending",
+  // D274, appended
+  "shopify_fee",
+  "shopify_fee_pending",
 ] as const;
 
 /** financial_lines columns that need view_costs (D30). */
@@ -585,6 +593,8 @@ export const FINANCIAL_LINES_COST_COLUMNS = [
   "is_loss",
   "stripe_fee",
   "stripe_fee_pending",
+  "shopify_fee",
+  "shopify_fee_pending",
 ] as const;
 
 export const WORK_ORDER_YIELD_COLUMNS = [
@@ -610,6 +620,10 @@ export const WORK_ORDER_YIELD_COLUMNS = [
   "cult_commons_after_fees",
   "bicii_yield_after_fees",
   "stripe_fee_pending_count",
+  // D274: the job's build order share of Shopify fees, appended
+  "shopify_fees",
+  "shopify_fees_borne",
+  "shopify_fee_pending_count",
 ] as const;
 
 /** A money value as a fixed-2 string (null stays null), for comparing numerics of any scale. */

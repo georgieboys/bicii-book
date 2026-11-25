@@ -326,3 +326,56 @@ day is still owed to its customer); recording a partial sale for the
 linked lines (D89 records an order whole or not at all); asking Shopify for
 its own count (Shopify's count is not the truth, D83).
 
+## Amendment 2026-11-25: Shopify Payments fees borne by Cult Commons (D274)
+
+The owner, after D273 ([ADR-025's amendment of 2026-11-24](ADR-025-stripe-payments.md#amendment-2026-11-24-stripe-fees-borne-by-cult-commons-d273)):
+"include Shopify Payments fees too". The D273 answers apply unchanged:
+Cult Commons bears the fees of the full order, floored at 0 per document
+with BICII absorbing the rest; a completed or standing document bears
+every fee, fees on refunded money included; a cancelled or never-completed
+document leaves the fee to BICII; history is restated; fees are taken
+without GST.
+
+Decision:
+
+1. **The fee is Shopify's fact, read, never estimated.** The Admin GraphQL
+   API (pinned 2026-10) puts each Shopify Payments fee on its order
+   transaction (`OrderTransaction.fees`: `TransactionFee.amount` and
+   `taxAmount`). A new read, `orderTransactionFees`, on the existing
+   transport and token asks for the order's transactions and nothing about
+   the customer. It needs `read_orders` (already in the documented scope
+   list) and, for orders older than 60 days, `read_all_orders`: a new
+   released app version the store approves with **Update** (RUNBOOK
+   "Shopify: the custom app and its webhooks"). A refusal says orders
+   access is missing.
+2. **One insert-only fact per online sale** (`public.shopify_sale_fees`,
+   view_costs only), written only by a service-role RPC
+   (`record_shopify_fee_read`) whose private apply sums Shopify's decimal
+   strings in Postgres, keeps the transactions' amounts and ids as
+   evidence, and writes a zero row for an order with no Shopify Payments
+   charge or a test order. `amount` is read as the fee less GST and
+   `taxAmount` as the GST on it; both are stored raw, so a different
+   reading is a view change, not a rewrite (R-135).
+3. **The split happens in Postgres, pro rata by amount.** A build order's
+   share is `trunc(fees × amount / charged, 2)`; the sale keeps the rest,
+   shipping included. The sale's share comes off its Cult Commons on its
+   recognition; a build order's share comes off its job's when the job
+   completes, under one floor with the job's Stripe fees (Stripe first).
+   Each is one `shopify_fee` entry in `reporting.financial_lines`, so every
+   report inherits it; the shipped `stripe_fee*` columns are not reused.
+4. **Never inside the webhook.** Fees may not be on the charge when
+   `orders/paid` arrives. The integration cron sweeps sales with no fee
+   (5 a run, with a backoff, the restated history first) and the queue
+   reads once, best effort, after `sale_recorded`. A sale read but still
+   without a fee a day later is an admin exception.
+
+Rejected: the payout ledger (`shopifyPaymentsAccount.balanceTransactions`,
+another scope, no GST split, and it is a settlement view, not the order's
+fee); charging the whole order fee to the sale (a build package's money
+pays a job, and a package bought alone has no sale lines); a fee column on
+`sales` (sales are immutable and readable by every staff member); reusing
+`integration_events` for the reads (its shape needs a signed delivery);
+reading `orders/paid`'s payload (no webhook carries fees). Not included:
+card-terminal fees, dispute fees and adventures (R-134); a later charge on
+an edited order (R-135). Built in `20261125000100_shopify_fees.sql`
+([DATA-MODEL §19](../DATA-MODEL.md#shopify-payments-fees-borne-by-cult-commons-d274)).

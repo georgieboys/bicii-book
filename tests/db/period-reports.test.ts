@@ -291,6 +291,11 @@ describe("Report RPCs answer with the documented columns (DATA-MODEL §16)", () 
         "stripe_fees",
         "stripe_fees_borne",
         "stripe_fee_pending_jobs",
+        // D274
+        "shopify_fees",
+        "shopify_fees_borne",
+        "shopify_fee_pending_sales",
+        "shopify_fee_pending_jobs",
       ]);
       expect(
         await cols("select * from public.report_period_series('2025-03-01', '2025-03-02')"),
@@ -357,6 +362,7 @@ describe("Report RPCs answer with the documented columns (DATA-MODEL §16)", () 
         "currency",
         "stripe_fee",
         "bicii_yield_after_cc",
+        "shopify_fee",
       ]);
       expect(
         await cols("select * from public.report_activity('2025-03-01', '2025-03-02')"),
@@ -724,15 +730,24 @@ describe.skipIf(!isolated)("period reports on the March 2025 scenario", () => {
       });
     });
 
-    it("financial_lines has entry_kind 'line' only and no NULL channel; no sale of source work_order is written", async () => {
+    it("financial_lines has lines and only pending Shopify fee entries (no fee is read) and no NULL channel; no sale of source work_order is written", async () => {
       await inTransaction(conn, async (tx) => {
         await scenario(tx);
         await ownerMode(tx);
+        // D274: the seed's online sale has no fee read (history restated), so
+        // its Shopify fee entry is pending and deducts nothing.
         expect(
-          (await q(tx, "select distinct entry_kind from reporting.financial_lines")).map(
-            (r) => r.entry_kind,
-          ),
+          (await q(tx, "select distinct entry_kind from reporting.financial_lines"))
+            .map((r) => r.entry_kind)
+            .filter((k) => k !== "shopify_fee"),
         ).toEqual(["line"]);
+        expect(
+          await scalar<number>(
+            tx,
+            `select count(*)::integer from reporting.financial_lines
+              where entry_kind <> 'line' and (cult_commons_share <> 0 or not shopify_fee_pending)`,
+          ),
+        ).toBe(0);
         expect(
           await scalar<number>(
             tx,
@@ -1497,6 +1512,11 @@ describe.skipIf(!isolated)("period reports on the March 2025 scenario", () => {
         "stripe_fees",
         "stripe_fees_borne",
         "stripe_fee_pending_jobs",
+        // D274
+        "shopify_fees",
+        "shopify_fees_borne",
+        "shopify_fee_pending_sales",
+        "shopify_fee_pending_jobs",
       ],
       series: [
         "cost_total",
@@ -1514,6 +1534,7 @@ describe.skipIf(!isolated)("period reports on the March 2025 scenario", () => {
         "cult_commons_share",
         "stripe_fee",
         "bicii_yield_after_cc",
+        "shopify_fee",
       ],
       stock: ["value_at_cost"],
     };

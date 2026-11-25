@@ -90,6 +90,10 @@ async function readSummary(
     stripeFees: moneyOrNull(r.stripe_fees, c),
     stripeFeesBorne: moneyOrNull(r.stripe_fees_borne, c),
     stripeFeePendingJobs: int(r.stripe_fee_pending_jobs),
+    shopifyFees: moneyOrNull(r.shopify_fees, c),
+    shopifyFeesBorne: moneyOrNull(r.shopify_fees_borne, c),
+    shopifyFeePendingSales: int(r.shopify_fee_pending_sales),
+    shopifyFeePendingJobs: int(r.shopify_fee_pending_jobs),
     refundsTotal: moneyOrNull(r.refunds_total, c),
     refundCount: intOrNull(r.refund_count),
     consignmentSales: intOrNull(r.consignment_sales),
@@ -294,6 +298,7 @@ function toLine(r: LineRpcRow): ReportLine {
     currency: c,
     stripeFee: moneyOrNull(r.stripe_fee, c),
     afterCc: moneyOrNull(r.bicii_yield_after_cc, c),
+    shopifyFee: moneyOrNull(r.shopify_fee, c),
   };
 }
 
@@ -417,6 +422,9 @@ export async function getStockValue(supabase: ServerSupabase): Promise<StockValu
 // Exports: every row, in pages, with a consistency check
 // ---------------------------------------------------------------------------
 
+/** The line types of fee entries (D273, D274): listed with the lines, never counted as lines. */
+const FEE_LINE_TYPES: ReadonlySet<string> = new Set(["stripe_fee", "shopify_fee"]);
+
 /** No export holds more rows than this (RISKS R-057). */
 export const EXPORT_MAX_ROWS = 50_000;
 /** report_breakdown's p_max_rows ceiling. */
@@ -522,7 +530,11 @@ export async function getAllLineItemsForExport(
       const last = page[page.length - 1];
       after = { at: last.basis_at!, id: last.source_line_id! };
     }
-    if (raw.length !== expected) return "mismatch";
+    // report_breakdown and the summary count lines only (entry_kind
+    // 'line'); a job's Stripe fee entry and a sale's or job's Shopify fee
+    // entry are listed too but are not lines (D273, D274).
+    const lines = raw.filter((r) => !FEE_LINE_TYPES.has(r.line_type ?? "")).length;
+    if (lines !== expected) return "mismatch";
     return raw.map(toLine);
   });
 }

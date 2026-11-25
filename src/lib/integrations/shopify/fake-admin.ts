@@ -24,11 +24,31 @@ import {
  * is idempotent, productSet by id replaces the one variant, a variant
  * price update touches only that variant, and inventorySetQuantities
  * enforces the compare quantity (D83) and replays an idempotency key
- * without applying it twice. Every call is recorded in `calls`.
+ * without applying it twice; D274: an order's transactions and fees are
+ * seeded per order (seedOrderTransactions). Every call is recorded in
+ * `calls`.
  */
 
 export type FakeCallKind =
-  "productSet" | "variantsBulkUpdate" | "inventorySetQuantities" | "primaryLocation" | "publish";
+  | "productSet"
+  | "variantsBulkUpdate"
+  | "inventorySetQuantities"
+  | "primaryLocation"
+  | "publish"
+  | "orderFees";
+
+/** D274: one transaction of a seeded order, in the GraphQL shape the live read returns. */
+export type FakeOrderTransaction = {
+  kind?: "SALE" | "CAPTURE" | "AUTHORIZATION" | "REFUND" | "VOID";
+  status?: "SUCCESS" | "PENDING" | "FAILURE" | "ERROR";
+  gateway?: string;
+  test?: boolean;
+  /** Decimal string in shop money (SGD unless `currency`). */
+  amount: string;
+  currency?: string;
+  /** Shopify Payments fees; [] = not on the charge yet (or another gateway). */
+  fees?: { amount: string; taxAmount?: string; currency?: string; type?: string }[];
+};
 
 export type FakeCall = {
   kind: FakeCallKind;
@@ -43,6 +63,7 @@ export type FakeCall = {
   status?: string;
   imageUrls?: string[];
   idempotencyKey?: string;
+  orderId?: string;
 };
 
 export type FakeProduct = {
@@ -82,6 +103,12 @@ export interface FakeShopifyAdmin extends ShopifyAdmin {
   seedProduct(ids: ShopifyIds, quantity: number, handle?: string | null): void;
   /** A shopper buys n of an item: Shopify's count drops before BICII hears of the order. */
   simulateCheckout(inventoryItemId: string, n: number): void;
+  /**
+   * D274: what Order.transactions returns for `orderId` (an Order gid):
+   * null = Shopify has no such order. An order never seeded reads as one
+   * with no transactions (no Shopify Payments: a zero fee row).
+   */
+  seedOrderTransactions(orderId: string, transactions: FakeOrderTransaction[] | null): void;
   /** The next call (optionally of one kind) throws this error. */
   failNext(error: ShopifyError, kind?: FakeCallKind): void;
   /** Forget everything. */
@@ -102,6 +129,8 @@ export function createFakeShopifyAdmin(): FakeShopifyAdmin {
   const variants = new Map<string, FakeVariant>();
   const quantities = new Map<string, number>();
   const appliedKeys = new Set<string>();
+  const orders = new Map<string, FakeOrderTransaction[] | null>();
+  let transactionSeq = 0;
   let pending: { error: ShopifyError; kind?: FakeCallKind } | null = null;
 
   function record(call: FakeCall): void {
@@ -302,6 +331,40 @@ export function createFakeShopifyAdmin(): FakeShopifyAdmin {
       product.published = true;
     },
 
+    async orderTransactionFees(orderId) {
+      record({ kind: "orderFees", orderId });
+      const seeded = orders.has(orderId) ? orders.get(orderId)! : [];
+      if (seeded === null) return { raw: null };
+      return {
+        raw: {
+          id: orderId,
+          transactions: seeded.map((t) => {
+            const currencyCode = t.currency ?? "SGD";
+            return {
+              id: `gid://shopify/OrderTransaction/${(transactionSeq += 1)}`,
+              kind: t.kind ?? "SALE",
+              status: t.status ?? "SUCCESS",
+              test: t.test ?? false,
+              gateway: t.gateway ?? "shopify_payments",
+              amountSet: { shopMoney: { amount: t.amount, currencyCode } },
+              fees: (t.fees ?? []).map((f) => ({
+                type: f.type ?? "processing",
+                amount: { amount: f.amount, currencyCode: f.currency ?? currencyCode },
+                taxAmount: {
+                  amount: f.taxAmount ?? "0.00",
+                  currencyCode: f.currency ?? currencyCode,
+                },
+              })),
+            };
+          }),
+        },
+      };
+    },
+
+    seedOrderTransactions(orderId, transactions) {
+      orders.set(orderId, transactions === null ? null : transactions.map((t) => ({ ...t })));
+    },
+
     seedExternalProduct({ productId, variants: list }) {
       products.set(productId, {
         productId,
@@ -363,6 +426,8 @@ export function createFakeShopifyAdmin(): FakeShopifyAdmin {
       variants.clear();
       quantities.clear();
       appliedKeys.clear();
+      orders.clear();
+      transactionSeq = 0;
       pending = null;
     },
   };

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { RecordRefundButton, RestockControl } from "@/components/domain/sale-controls";
+import { SaleShopifyFeeRows, saleShopifyFeeNotes } from "@/components/domain/sale-shopify-fees";
 import { ShortId } from "@/components/domain/short-id";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -68,7 +69,10 @@ export default async function SalePage({ params }: PageProps<"/sales/[id]">) {
   const money = canViewConsignmentMoney(staff);
   const canAdjust = hasPermission(staff, "adjust_stock");
   const manageConsignments = hasPermission(staff, "manage_consignments");
-  const [sale, locations] = await Promise.all([getSale(supabase, id), listLocations(supabase)]);
+  const [sale, locations] = await Promise.all([
+    getSale(supabase, id, { viewCosts: costs }),
+    listLocations(supabase),
+  ]);
   if (!sale) notFound();
   const c = sale.currency;
   const fmt = (v: string) => formatMoney(v, c);
@@ -249,22 +253,35 @@ export default async function SalePage({ params }: PageProps<"/sales/[id]">) {
               <dd className="text-right">{sumOf((l) => l.yieldTotal)}</dd>
               <dt>Cult Commons ({rateText ?? "each line's rate"} of positive yield)</dt>
               <dd className="text-right">{sumOf((l) => l.cultCommons)}</dd>
-              <dt className="border-t border-hairline pt-2 font-semibold">
-                BICII after Cult Commons
-              </dt>
-              <dd className="border-t border-hairline pt-2 text-right font-bold">
-                {fmt(
-                  sumMoney(
-                    sale.lines.map((l) =>
-                      toDecimal(l.yieldTotal ?? "0").minus(toDecimal(l.cultCommons ?? "0")),
-                    ),
-                  ).toFixed(2),
-                )}
-              </dd>
+              {sale.shopifyFees ? (
+                // D274: the order's Shopify Payments fees, from the database.
+                <SaleShopifyFeeRows fees={sale.shopifyFees} currency={c} />
+              ) : (
+                <>
+                  <dt className="border-t border-hairline pt-2 font-semibold">
+                    BICII after Cult Commons
+                  </dt>
+                  <dd className="border-t border-hairline pt-2 text-right font-bold">
+                    {fmt(
+                      sumMoney(
+                        sale.lines.map((l) =>
+                          toDecimal(l.yieldTotal ?? "0").minus(toDecimal(l.cultCommons ?? "0")),
+                        ),
+                      ).toFixed(2),
+                    )}
+                  </dd>
+                </>
+              )}
             </dl>
+            {(sale.shopifyFees ? saleShopifyFeeNotes(sale.shopifyFees, c) : []).map((note) => (
+              <p key={note} role="note" className="mt-2 text-sm font-medium text-waiting-deep">
+                {note}
+              </p>
+            ))}
             <p className="mt-2 text-sm text-dust-500">
-              Snapshotted when the sale was recorded. Refunds and restocks do not change these
-              figures yet.
+              {sale.shopifyFees
+                ? "Snapshotted when the sale was recorded, less the Shopify Payments fees on the order (borne by Cult Commons up to the sale's share). Refunds and restocks do not change these figures; Shopify keeps its fee on a refund."
+                : "Snapshotted when the sale was recorded. Refunds and restocks do not change these figures yet."}
             </p>
           </Card>
         ) : null}

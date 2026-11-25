@@ -71,10 +71,20 @@ export const DIMENSIONS: Readonly<Record<ReportDimension, { label: string }>> = 
  */
 export const PSEUDO_KEYS: Readonly<Record<ReportDimension, Readonly<Record<string, string>>>> = {
   job: {},
-  // D273: a completed job's Stripe fee entry groups as stripe_fees.
-  product: { none: "Services and labour", stripe_fees: "Stripe fees" },
-  category: { none: "Uncategorised", stripe_fees: "Stripe fees" },
-  service: { products: "Parts and products", manual: "Custom lines", stripe_fees: "Stripe fees" },
+  // D273: a completed job's Stripe fee entry groups as stripe_fees; D274: a
+  // sale's or job's Shopify fee entry as shopify_fees.
+  product: {
+    none: "Services and labour",
+    stripe_fees: "Stripe fees",
+    shopify_fees: "Shopify fees",
+  },
+  category: { none: "Uncategorised", stripe_fees: "Stripe fees", shopify_fees: "Shopify fees" },
+  service: {
+    products: "Parts and products",
+    manual: "Custom lines",
+    stripe_fees: "Stripe fees",
+    shopify_fees: "Shopify fees",
+  },
   mechanic: { unassigned: "Unassigned", not_workshop: "Not workshop" },
   ownership: {
     shop_owned: "Shop-owned stock",
@@ -82,6 +92,7 @@ export const PSEUDO_KEYS: Readonly<Record<ReportDimension, Readonly<Record<strin
     customer_owned: "Customer-owned",
     service: "Services and labour",
     stripe_fees: "Stripe fees",
+    shopify_fees: "Shopify fees",
   },
   channel: { workshop: "Workshop", retail: "Retail", online: "Online" },
 };
@@ -119,6 +130,10 @@ export const COST_GATED = {
     "stripe_fees",
     "stripe_fees_borne",
     "stripe_fee_pending_jobs",
+    "shopify_fees",
+    "shopify_fees_borne",
+    "shopify_fee_pending_sales",
+    "shopify_fee_pending_jobs",
   ],
   series: [
     "cost_total",
@@ -130,7 +145,14 @@ export const COST_GATED = {
     "settlements_paid_total",
   ],
   breakdown: ["cost_total", "yield_total", "cult_commons_share", "yield_after_cc"],
-  lines: ["cost_total", "yield_total", "cult_commons_share", "stripe_fee", "bicii_yield_after_cc"],
+  lines: [
+    "cost_total",
+    "yield_total",
+    "cult_commons_share",
+    "stripe_fee",
+    "bicii_yield_after_cc",
+    "shopify_fee",
+  ],
   stockValue: ["value_at_cost"],
 } as const satisfies {
   summary: readonly (keyof SummaryRow)[];
@@ -445,6 +467,16 @@ export type PeriodSummary = {
   stripeFeesBorne: string | null;
   /** Jobs whose Stripe fee is not read yet: Cult Commons is provisional. */
   stripeFeePendingJobs: number;
+  /**
+   * D274, view costs only: the online sales' and completed jobs' shares of
+   * their orders' Shopify Payments fees (less GST), and what Cult Commons
+   * bore of them (cultCommons is net of it).
+   */
+  shopifyFees: string | null;
+  shopifyFeesBorne: string | null;
+  /** Sales and jobs whose Shopify fee is not read yet: Cult Commons is provisional. */
+  shopifyFeePendingSales: number;
+  shopifyFeePendingJobs: number;
   /** Sale basis only (D102): refunds recorded in the range, beside gross, never netted. */
   refundsTotal: string | null;
   refundCount: number | null;
@@ -543,6 +575,8 @@ export type ReportLine = {
    * column sums to the summary's BICII after Cult Commons.
    */
   afterCc: string | null;
+  /** D274, view costs only: on a Shopify fee entry (lineType "shopify_fee") the share less GST; "0.00" otherwise. */
+  shopifyFee: string | null;
 };
 
 export type PeriodActivity = {

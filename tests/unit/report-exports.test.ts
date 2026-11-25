@@ -104,7 +104,14 @@ describe("the export kind table", () => {
     ]);
     // D273: the fee entry's fees and BICII's part of them travel with the lines.
     expect(headers("lines", true)).toEqual(
-      expect.arrayContaining(["cost", "yield", "cult_commons", "stripe_fee", "after_cc"]),
+      expect.arrayContaining([
+        "cost",
+        "yield",
+        "cult_commons",
+        "stripe_fee",
+        "after_cc",
+        "shopify_fee",
+      ]),
     );
     expect(headers("stock_value", false)).not.toContain("value_at_cost");
     expect(headers("stock_value", true)).toContain("value_at_cost");
@@ -130,6 +137,10 @@ describe("the export kind table", () => {
       stripeFees: null,
       stripeFeesBorne: null,
       stripeFeePendingJobs: 0,
+      shopifyFees: null,
+      shopifyFeesBorne: null,
+      shopifyFeePendingSales: 0,
+      shopifyFeePendingJobs: 0,
       refundsTotal: "0.00",
       refundCount: 0,
       consignmentSales: 0,

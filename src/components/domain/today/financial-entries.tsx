@@ -4,6 +4,34 @@ import { formatQuantity, formatMoney, toDecimal } from "@/lib/money";
 import { documentHref, formatSignedMoney, groupEntries, type FinancialEntry } from "@/lib/reports";
 
 /**
+ * D273, D274: a fee entry under its document: Stripe's fees on a completed
+ * job, or a sale's or job's share of its order's Shopify Payments fees.
+ */
+function FeeEntry({ entry: e }: { entry: FinancialEntry }) {
+  const shopify = e.entryKind === "shopify_fee";
+  const fee = (shopify ? e.shopifyFee : e.stripeFee) ?? "0";
+  const pending = shopify ? e.shopifyFeePending : e.stripeFeePending;
+  return (
+    <li className="flex flex-col gap-0.5 py-1.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0">
+          {shopify ? "Shopify fees (less GST)" : "Stripe fees (less GST)"}
+        </span>
+        <span className="shrink-0 font-semibold tabular-nums">
+          {pending && toDecimal(fee).isZero() ? "Not reported yet" : formatMoney(fee, e.currency)}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-dust-500 tabular-nums">
+        {e.cultCommons !== null ? (
+          <span>Borne by Cult Commons {formatSignedMoney(e.cultCommons, e.currency)}</span>
+        ) : null}
+        {pending ? <Badge tone="waiting">Fee not reported yet</Badge> : null}
+      </div>
+    </li>
+  );
+}
+
+/**
  * "What makes up these figures" (server): the day's recognised entries
  * (D32) grouped by job, each with its description, quantity and sale, and
  * its yield and Cult Commons when the database returned them (view_costs,
@@ -56,27 +84,8 @@ export function FinancialEntries({
                   className="flex flex-col divide-y divide-hairline text-dense"
                 >
                   {g.entries.map((e) =>
-                    e.entryKind === "stripe_fee" ? (
-                      <li key={e.entryKey} className="flex flex-col gap-0.5 py-1.5">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="min-w-0">Stripe fees (less GST)</span>
-                          <span className="shrink-0 font-semibold tabular-nums">
-                            {e.stripeFeePending && toDecimal(e.stripeFee ?? "0").isZero()
-                              ? "Not reported yet"
-                              : formatMoney(e.stripeFee ?? "0", e.currency)}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-dust-500 tabular-nums">
-                          {e.cultCommons !== null ? (
-                            <span>
-                              Borne by Cult Commons {formatSignedMoney(e.cultCommons, e.currency)}
-                            </span>
-                          ) : null}
-                          {e.stripeFeePending ? (
-                            <Badge tone="waiting">Fee not reported yet</Badge>
-                          ) : null}
-                        </div>
-                      </li>
+                    e.entryKind !== "line" ? (
+                      <FeeEntry key={e.entryKey} entry={e} />
                     ) : (
                       <li key={e.entryKey} className="flex flex-col gap-0.5 py-1.5">
                         <div className="flex items-baseline justify-between gap-3">

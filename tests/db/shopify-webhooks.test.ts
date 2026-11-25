@@ -1647,7 +1647,8 @@ describe.skipIf(!isolatedDatabase())("Recognition date (D80)", () => {
       expect(sale.recognized_at.toISOString()).toBe(processedAt);
       const entries = await readAsOwner(tx, async () => {
         const { rows } = await tx.query(
-          "select recognized_day::text as day, channel, source from reporting.financial_lines where document_id = $1",
+          // D274: lines only (the sale's Shopify fee entry is pending beside them).
+          "select recognized_day::text as day, channel, source from reporting.financial_lines where document_id = $1 and entry_kind = 'line'",
           [first.result.sale_id],
         );
         return rows;
@@ -3238,7 +3239,8 @@ describe("Seeded integration data is consistent", () => {
       ]);
       const entries = await readAsOwner(tx, async () => {
         const { rows } = await tx.query(
-          "select channel, recognized_day::text as day, sale_total::text from reporting.financial_lines where document_id = $1",
+          // D274: lines only (the sale's Shopify fee entry is pending beside them).
+          "select channel, recognized_day::text as day, sale_total::text from reporting.financial_lines where document_id = $1 and entry_kind = 'line'",
           [paid.sale_id],
         );
         return rows;

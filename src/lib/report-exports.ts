@@ -209,6 +209,9 @@ export const EXPORT_KINDS: {
       // period's BICII after Cult Commons.
       costMoney("stripe_fee", (r) => r.stripeFee),
       costMoney("after_cc", (r) => r.afterCc),
+      // D274: on a sale's or job's Shopify fee entry (type shopify_fee), its
+      // share of the order's Shopify Payments fees less GST.
+      costMoney("shopify_fee", (r) => r.shopifyFee),
       { header: "cost_pending", kind: "boolean", value: (r) => r.costPending },
       text("ownership", (r) => r.ownershipType),
       text("category", (r) => r.categoryName),

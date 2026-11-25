@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { bearerMatches, handleCronRequest, STRIPE_FEE_BUDGET_MS } =
+const { bearerMatches, handleCronRequest, SHOPIFY_FEE_BUDGET_MS, STRIPE_FEE_BUDGET_MS } =
   await import("@/lib/integrations/shopify/cron");
 const {
   MAX_JOB_MS,
@@ -55,16 +55,25 @@ describe("handleCronRequest", () => {
     const runDue = vi.fn(async () => SUMMARY);
     const fees = { recorded: 1, pending: 0, failed: 0, permission: false };
     const sweepFees = vi.fn(async () => fees);
+    const shopify = { recorded: 2, pending: 1, failed: 0, permission: false, throttled: false };
+    const sweepShopifyFees = vi.fn(async () => shopify);
     const res = await handleCronRequest(req("Bearer secret-1"), {
       secret: "secret-1",
       runDue,
       sweepFees,
+      sweepShopifyFees,
       log,
       now: () => 1_800_000_000_000,
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(await res.json()).toEqual({ ...SUMMARY, stripeFees: fees });
+    expect(await res.json()).toEqual({ ...SUMMARY, stripeFees: fees, shopifyFees: shopify });
+    // D274: the Shopify fee sweep runs beside them too, with its own 20 s.
+    expect(sweepShopifyFees).toHaveBeenCalledExactlyOnceWith(
+      1_800_000_000_000 + SHOPIFY_FEE_BUDGET_MS,
+      expect.any(String),
+    );
+    expect(SHOPIFY_FEE_BUDGET_MS).toBe(20_000);
     // D273: the fee sweep runs beside the jobs and starts nothing after 20 s.
     expect(sweepFees).toHaveBeenCalledExactlyOnceWith(
       1_800_000_000_000 + STRIPE_FEE_BUDGET_MS,
@@ -91,10 +100,40 @@ describe("handleCronRequest", () => {
         secret: "secret-1",
         runDue: async () => SUMMARY,
         sweepFees: sweepFees as never,
+        sweepShopifyFees: async () => null,
         log,
       });
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ ...SUMMARY, stripeFees: { error: "failed" } });
+      expect(await res.json()).toEqual({
+        ...SUMMARY,
+        stripeFees: { error: "failed" },
+        shopifyFees: null,
+      });
+    }
+  });
+
+  it("D274: a failing Shopify fee sweep leaves the jobs' and the Stripe sweep's summary", async () => {
+    for (const sweepShopifyFees of [
+      vi.fn(async () => {
+        throw Object.assign(new Error("x"), { code: "P0001" });
+      }),
+      vi.fn(() => {
+        throw new Error("no env");
+      }),
+    ]) {
+      const res = await handleCronRequest(req("Bearer secret-1"), {
+        secret: "secret-1",
+        runDue: async () => SUMMARY,
+        sweepFees: async () => null,
+        sweepShopifyFees: sweepShopifyFees as never,
+        log,
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        ...SUMMARY,
+        stripeFees: null,
+        shopifyFees: { error: "failed" },
+      });
     }
   });
 

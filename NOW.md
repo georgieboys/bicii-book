@@ -26,7 +26,7 @@ transactions is refused; the sale page, list and job totals tolerate the
 schema before this migration; the exception's words follow the last
 attempt and show in full; the build share note says when BICII bears it;
 `sale_shopify_fees` in DATA-MODEL §16. Verified locally: prettier, eslint,
-`tsc --noEmit`, `vitest run tests/unit`; CI on the fix commit: CI_RESULT.
+`tsc --noEmit`, `vitest run tests/unit`; CI on `bfaed16`: check and test (unit + db) green, run 45555851300 (run 45555431938 on `7165c84` failed only on a cancelled job's yield printing 0 as "0"; the test now compares amounts).
 Owner action: add `read_orders` (if missing) and `read_all_orders` to the
 Shopify app, release the version and press **Update** in the store
 (RUNBOOK "Shopify: fees"). Next: open the PR, merge, watch `shopifyFees`

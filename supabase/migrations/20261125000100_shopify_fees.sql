@@ -462,10 +462,14 @@ comment on function public.shopify_fees_due(integer, uuid) is
   'service_role (the integration cron, src/lib/integrations/shopify/fees.ts): up to max_rows (1..20, default 5) online sales that are not voided and have no Shopify fee row, with their order gid and whether their delivery was a test, never-tried first, then the longest since their last attempt (then oldest recognised); skipping a pending read within its backoff (5 min x 2^(n-1), at most a day; none after 20 pending reads), a needs-attention read within a day, and a failed read within the same backoff (no limit). p_sale_id lists that one sale only, whatever its backoff (D274).';
 
 -- ---------------------------------------------------------------------------
--- The split (D1 of the brief), aggregated before any join.
+-- The split (D1 of the brief), aggregated before any join. These three run
+-- as their owner (no security_invoker): public.work_order_totals_staff (a
+-- definer view an API role reads) joins them, and an invoker view inside it
+-- would check its tables as the caller. No API role may read them (revoked
+-- below), so they are reached only through that gated view and the definer
+-- report RPCs.
 -- ---------------------------------------------------------------------------
 create view reporting.build_order_shopify_fees
-with (security_invoker = true)
 as
   select b.id as build_order_id,
          b.sale_id,
@@ -489,7 +493,6 @@ comment on view reporting.build_order_shopify_fees is
 revoke all on table reporting.build_order_shopify_fees from public, anon, authenticated, service_role;
 
 create view reporting.sale_shopify_fees
-with (security_invoker = true)
 as
   select sa.id as sale_id,
          coalesce(f.fee_ex_tax, 0.00)::numeric as order_fees,
@@ -511,7 +514,6 @@ comment on view reporting.sale_shopify_fees is
 revoke all on table reporting.sale_shopify_fees from public, anon, authenticated, service_role;
 
 create view reporting.work_order_shopify_fees
-with (security_invoker = true)
 as
   select bf.work_order_id,
          bf.build_order_id,

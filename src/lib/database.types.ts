@@ -5988,7 +5988,7 @@ export type Database = {
           order_charged: number;
           sale_id: string;
           shopify_order_id: string;
-          transactions: Json;
+          transactions: NonNullable<Json>;
         };
         Insert: {
           api_version?: string | null;
@@ -6003,7 +6003,7 @@ export type Database = {
           order_charged: number;
           sale_id: string;
           shopify_order_id: string;
-          transactions: Json;
+          transactions: NonNullable<Json>;
         };
         Update: {
           api_version?: string | null;
@@ -6018,7 +6018,7 @@ export type Database = {
           order_charged?: number;
           sale_id?: string;
           shopify_order_id?: string;
-          transactions?: Json;
+          transactions?: NonNullable<Json>;
         };
         Relationships: [
           {
@@ -10274,16 +10274,16 @@ export type Database = {
           status: Database["public"]["Enums"]["customer_job_status"];
         }[];
       };
+      note_shopify_fee_read_failed: {
+        Args: { p_error: string; p_sale_id: string };
+        Returns: undefined;
+      };
       note_sign_in_attempt: {
         Args: { buckets: string[]; window_seconds: number };
         Returns: {
           bucket_key: string;
           hit_count: number;
         }[];
-      };
-      note_shopify_fee_read_failed: {
-        Args: { p_error: string; p_sale_id: string };
-        Returns: undefined;
       };
       note_stripe_fee_read_failed: {
         Args: { p_error: string; p_payment_id: string };
@@ -13858,6 +13858,31 @@ export type Database = {
         };
         Relationships: [];
       };
+      build_order_shopify_fees: {
+        Row: {
+          build_order_id: string | null;
+          pending: boolean | null;
+          sale_id: string | null;
+          shopify_fee: number | null;
+          work_order_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "build_orders_sale_id_fkey";
+            columns: ["sale_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_shopify_fees";
+            referencedColumns: ["sale_id"];
+          },
+          {
+            foreignKeyName: "build_orders_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_activity";
+            referencedColumns: ["work_order_id"];
+          },
+        ];
+      };
       consignment_item_position: {
         Row: {
           consignment_item_id: string | null;
@@ -14276,6 +14301,16 @@ export type Database = {
         };
         Relationships: [];
       };
+      sale_shopify_fees: {
+        Row: {
+          build_order_fees: number | null;
+          order_fees: number | null;
+          pending: boolean | null;
+          sale_id: string | null;
+          shopify_fees: number | null;
+        };
+        Relationships: [];
+      };
       shopify_sync_status: {
         Row: {
           last_error: string | null;
@@ -14427,6 +14462,23 @@ export type Database = {
           work_order_id: string | null;
         };
         Relationships: [];
+      };
+      work_order_shopify_fees: {
+        Row: {
+          build_order_id: string | null;
+          shopify_fee_pending_count: number | null;
+          shopify_fees: number | null;
+          work_order_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "build_orders_work_order_id_fkey";
+            columns: ["work_order_id"];
+            isOneToOne: true;
+            referencedRelation: "work_order_activity";
+            referencedColumns: ["work_order_id"];
+          },
+        ];
       };
       work_order_stripe_fees: {
         Row: {

@@ -291,6 +291,11 @@ describe("Report RPCs answer with the documented columns (DATA-MODEL §16)", () 
         "stripe_fees",
         "stripe_fees_borne",
         "stripe_fee_pending_jobs",
+        // D274
+        "shopify_fees",
+        "shopify_fees_borne",
+        "shopify_fee_pending_sales",
+        "shopify_fee_pending_jobs",
       ]);
       expect(
         await cols("select * from public.report_period_series('2025-03-01', '2025-03-02')"),
@@ -357,6 +362,7 @@ describe("Report RPCs answer with the documented columns (DATA-MODEL §16)", () 
         "currency",
         "stripe_fee",
         "bicii_yield_after_cc",
+        "shopify_fee",
       ]);
       expect(
         await cols("select * from public.report_activity('2025-03-01', '2025-03-02')"),
@@ -1497,6 +1503,11 @@ describe.skipIf(!isolated)("period reports on the March 2025 scenario", () => {
         "stripe_fees",
         "stripe_fees_borne",
         "stripe_fee_pending_jobs",
+        // D274
+        "shopify_fees",
+        "shopify_fees_borne",
+        "shopify_fee_pending_sales",
+        "shopify_fee_pending_jobs",
       ],
       series: [
         "cost_total",
@@ -1514,6 +1525,7 @@ describe.skipIf(!isolated)("period reports on the March 2025 scenario", () => {
         "cult_commons_share",
         "stripe_fee",
         "bicii_yield_after_cc",
+        "shopify_fee",
       ],
       stock: ["value_at_cost"],
     };

@@ -231,6 +231,9 @@ export async function getFinancialEntriesOn(
       ) ?? [];
     for (const r of rows) {
       const n = r as { [K in keyof typeof r]: (typeof r)[K] | null };
+      // D274: a kind this build does not know is never counted as a line.
+      const kind = entryKindOf(r.entry_kind);
+      if (!kind) continue;
       out.push({
         entryKey: r.entry_key,
         source: r.source,
@@ -250,13 +253,20 @@ export async function getFinancialEntriesOn(
         isLoss: n.is_loss,
         costPending: r.cost_pending === true,
         currency: r.currency,
-        entryKind: r.entry_kind === "stripe_fee" ? "stripe_fee" : "line",
+        entryKind: kind,
         stripeFee: moneyOrNull(n.stripe_fee, r.currency),
         stripeFeePending: n.stripe_fee_pending === true,
+        shopifyFee: moneyOrNull(n.shopify_fee, r.currency),
+        shopifyFeePending: n.shopify_fee_pending === true,
       });
     }
     if (rows.length < ENTRY_PAGE) return out;
   }
+}
+
+/** The entry kinds this build shows (D273, D274); null for any other. */
+export function entryKindOf(kind: string | null): FinancialEntry["entryKind"] | null {
+  return kind === "line" || kind === "stripe_fee" || kind === "shopify_fee" ? kind : null;
 }
 
 /**
@@ -296,5 +306,8 @@ export async function getWorkOrderYield(
     ccAfterFees: money(r.cult_commons_after_fees ?? r.cult_commons_share, r.currency),
     biciiAfterFees: money(r.bicii_yield_after_fees ?? r.bicii_yield_after_cc, r.currency),
     stripeFeePendingCount: r.stripe_fee_pending_count ?? 0,
+    shopifyFees: money(r.shopify_fees, r.currency),
+    shopifyFeesBorne: money(r.shopify_fees_borne, r.currency),
+    shopifyFeePendingCount: r.shopify_fee_pending_count ?? 0,
   };
 }

@@ -72,6 +72,10 @@ function row(patch: Partial<TodayDashboardRow> = {}): TodayDashboardRow {
     stripe_fees: 0,
     stripe_fees_borne: 0,
     stripe_fee_pending_jobs: 0,
+    shopify_fees: 0,
+    shopify_fees_borne: 0,
+    shopify_fee_pending_sales: 0,
+    shopify_fee_pending_jobs: 0,
     ...patch,
   };
 }
@@ -118,6 +122,10 @@ describe("toTodayDashboard", () => {
         stripeFees: "0.00",
         stripeFeesBorne: "0.00",
         stripeFeePendingJobs: 0,
+        shopifyFees: "0.00",
+        shopifyFeesBorne: "0.00",
+        shopifyFeePendingSales: 0,
+        shopifyFeePendingJobs: 0,
       },
     });
     expect(d.stock).toEqual({
@@ -527,6 +535,8 @@ describe("financial entries", () => {
     entryKind: "line",
     stripeFee: null,
     stripeFeePending: false,
+    shopifyFee: "0.00",
+    shopifyFeePending: false,
   });
 
   it("groups by job in arrival order and links workshop jobs", () => {

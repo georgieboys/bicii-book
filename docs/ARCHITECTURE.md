@@ -418,6 +418,18 @@ may not exist yet, and a webhook stays store-and-apply. The deduction is
 one `stripe_fee` entry per completed job in `reporting.financial_lines`,
 so every report inherits it ([DATA-MODEL §19](DATA-MODEL.md#stripe-fees-borne-by-cult-commons-d273)).
 
+D274 (Shopify Payments fees, `20261125000100_shopify_fees.sql`,
+`src/lib/integrations/shopify/fees.ts`): the same shape for online sales.
+The cron runs `sweepShopifyFees` beside the jobs and the Stripe sweep (5
+sales a run, none started after 20 s, `shopifyFees` in its answer) over
+`shopify_fees_due`, and the queue reads once after `sale_recorded`: Admin
+GraphQL `order(id) { transactions { … fees { amount taxAmount } } }`
+(`ShopifyAdmin.orderTransactionFees`, live and fake), then
+`record_shopify_fee_read`, whose private apply stores the fee in
+`shopify_sale_fees`. Postgres splits it between the sale and its build
+orders' jobs; each share is one `shopify_fee` entry in
+`reporting.financial_lines` ([DATA-MODEL §19](DATA-MODEL.md#shopify-payments-fees-borne-by-cult-commons-d274)).
+
 ## Component map
 
 | Responsibility | Location | Dependency | Failure consequence |

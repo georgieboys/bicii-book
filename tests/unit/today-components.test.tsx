@@ -239,6 +239,8 @@ describe("FinancialEntries (D273: a Stripe fee entry is a deduction, not a line)
     entryKind: "line",
     stripeFee: "0.00",
     stripeFeePending: false,
+    shopifyFee: "0.00",
+    shopifyFeePending: false,
   };
   const fee = (patch: Partial<FinancialEntry> = {}): FinancialEntry => ({
     ...base,

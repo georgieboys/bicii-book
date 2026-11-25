@@ -7,6 +7,7 @@ import {
   type ShopifyAdmin,
   type ShopifyGroupIds,
   type ShopifyIds,
+  type ShopifyOrderFeesRead,
 } from "./admin";
 import { staticAccessToken, type AccessTokenSource } from "./access-token";
 import { SHOPIFY_API_VERSION, SHOPIFY_TIMEOUT_MS } from "./config";
@@ -146,6 +147,46 @@ export const PUBLISH_MUTATION = /* GraphQL */ `
   }
 `;
 
+/**
+ * D274: an order's transactions with their Shopify Payments fees
+ * (OrderTransaction.fees: TransactionFee amount and taxAmount; read_orders,
+ * read_all_orders for orders older than 60 days). Fees are filled only on
+ * Shopify Payments transactions. receiptJson and customer fields are never
+ * asked for. UNVERIFIED against a live store (R-135): when the fees appear
+ * after orders/paid, and that amount excludes the GST in taxAmount.
+ */
+export const ORDER_FEES_QUERY = /* GraphQL */ `
+  query BiciiOrderFees($id: ID!) {
+    order(id: $id) {
+      id
+      transactions(first: 50) {
+        id
+        kind
+        status
+        test
+        gateway
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        fees {
+          type
+          amount {
+            amount
+            currencyCode
+          }
+          taxAmount {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+`;
+
 /** The Online Store sales channel's publication name. */
 export const ONLINE_STORE_PUBLICATION = "Online Store";
 
@@ -229,7 +270,15 @@ export function createGraphqlShopifyAdmin({
 
   let onlineStorePublicationId: string | null = null;
 
-  async function call(query: string, variables: Obj): Promise<Obj> {
+  /**
+   * One GraphQL call. `accessMessage` replaces the refusal text staff read
+   * (D274: the order read names orders access, C3).
+   */
+  async function call(
+    query: string,
+    variables: Obj,
+    accessMessage: string = SHOPIFY_MESSAGES.authFailed,
+  ): Promise<Obj> {
     let res = await post(query, variables);
     if (res.status === 401 && typeof accessToken !== "string") {
       // An exchanged token can be revoked before it expires: fetch a new one once.
@@ -240,7 +289,7 @@ export function createGraphqlShopifyAdmin({
       throw new ShopifyError(
         "shopify_auth_failed",
         false,
-        SHOPIFY_MESSAGES.authFailed,
+        res.status === 403 ? accessMessage : SHOPIFY_MESSAGES.authFailed,
         `HTTP ${res.status}`,
       );
     }
@@ -279,7 +328,14 @@ export function createGraphqlShopifyAdmin({
         throw new ShopifyError("shopify_throttled", true, SHOPIFY_MESSAGES.throttled, detail);
       }
       if (codes.includes("ACCESS_DENIED")) {
-        throw new ShopifyError("shopify_auth_failed", false, SHOPIFY_MESSAGES.accessDenied, detail);
+        throw new ShopifyError(
+          "shopify_auth_failed",
+          false,
+          accessMessage === SHOPIFY_MESSAGES.authFailed
+            ? SHOPIFY_MESSAGES.accessDenied
+            : accessMessage,
+          detail,
+        );
       }
       if (codes.includes("INTERNAL_SERVER_ERROR")) {
         throw new ShopifyError("shopify_unavailable", true, SHOPIFY_MESSAGES.unavailable, detail);
@@ -479,6 +535,19 @@ export function createGraphqlShopifyAdmin({
         onlineStorePublicationId = null;
         throw e;
       }
+    },
+
+    async orderTransactionFees(orderId): Promise<ShopifyOrderFeesRead> {
+      const data = await call(
+        ORDER_FEES_QUERY,
+        { id: orderId },
+        SHOPIFY_MESSAGES.ordersAccessDenied,
+      );
+      if (data.order === null) return { raw: null };
+      if (!isObj(data.order) || !Array.isArray(data.order.transactions)) {
+        throw badResponse("order returned no transactions");
+      }
+      return { raw: data.order };
     },
   };
 }

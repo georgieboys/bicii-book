@@ -167,6 +167,8 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.today_dashboard(date)",
   "public.work_order_activity_on(date)",
   "public.work_order_yield(uuid)",
+  // D274: a sale's Cult Commons net of its Shopify fees (view_costs, else no rows)
+  "public.sale_shopify_fees(uuid[])",
   // Appointments (Phase 2): active staff; schedule settings admin only.
   // The three public booking reads are callable by everyone (D37).
   "public.available_slots(date, uuid)",
@@ -603,6 +605,9 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.payment_refunds": ["SELECT"],
   "public.payments": ["SELECT"],
   "public.stripe_events": ["SELECT"],
+  // D274: Shopify Payments fees per online sale, view_costs only by RLS;
+  // written only inside record_shopify_fee_read's apply
+  "public.shopify_sale_fees": ["SELECT"],
   // D273: Stripe's fee per payment, view_costs only by RLS; written only
   // inside record_stripe_read's apply
   "public.stripe_payment_fees": ["SELECT"],
@@ -738,6 +743,10 @@ export const SERVICE_ROLE_FUNCTIONS: readonly string[] = [
   "public.stripe_fees_due(integer, boolean)",
   // and counts a fee read that failed at Stripe, so the sweep backs off on it
   "public.note_stripe_fee_read_failed(uuid, text)",
+  // D274: the Shopify fee sweep: its work list, its one write, and a failed read
+  "public.shopify_fees_due(integer, uuid)",
+  "public.record_shopify_fee_read(uuid, jsonb, text)",
+  "public.note_shopify_fee_read_failed(uuid, text)",
   // Audit fixes (D228, D230): file reading released, unused objects deleted
   "public.release_adventure_parse(uuid)",
   "public.adventure_evidence_objects_to_delete(integer)",

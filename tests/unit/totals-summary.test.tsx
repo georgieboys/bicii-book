@@ -20,6 +20,9 @@ const withCosts: Totals = {
     ccAfterFees: "12.00",
     yieldAfterFees: "13.00",
     stripeFeePendingCount: 0,
+    shopifyFees: "0.00",
+    shopifyFeesBorne: "0.00",
+    shopifyFeePendingCount: 0,
   },
 };
 
@@ -58,6 +61,9 @@ const report = (patch: Partial<WorkOrderYield> = {}): WorkOrderYield => ({
   ccAfterFees: "12.00",
   biciiAfterFees: "13.00",
   stripeFeePendingCount: 0,
+  shopifyFees: "0.00",
+  shopifyFeesBorne: "0.00",
+  shopifyFeePendingCount: 0,
   ...patch,
 });
 

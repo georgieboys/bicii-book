@@ -330,7 +330,8 @@ describe.skipIf(!isolatedDatabase())("selling full builds online (D252-D256)", (
         { line_type: "service", total: "180.00" },
       ]);
       const saleSide = await tx.query(
-        "select 1 from reporting.financial_lines where document_id = $1",
+        // D274: the sale's only entry is its (pending) Shopify fee entry, no line.
+        "select 1 from reporting.financial_lines where document_id = $1 and entry_kind = 'line'",
         [result.sale_id],
       );
       expect(saleSide.rowCount).toBe(0);

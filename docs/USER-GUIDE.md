@@ -288,6 +288,12 @@ managers.
     reported at all, Stripe fees reads "Not reported yet". A refund does
     not give the fee back. A paid card payment's fee is usually read as
     soon as the customer is back from Stripe.
+  - Shopify fees (D274, View costs): a build sold online shows its share
+    of the order's Shopify Payments fees the same way (**Shopify fees**,
+    **Shopify fees borne by Cult Commons**, then **Cult Commons after
+    Shopify fees**; "after fees" when the job has Stripe fees too). The
+    share is the build's part of the order by amount, and it comes off
+    Cult Commons when the job is completed, after the Stripe fees.
   - "No part in stock matches. Archived, inactive and customer-owned items
     are not offered." Consigned items are offered, marked "Consigned ·
     <consignor>" (see [Use a consigned item on a job](#use-a-consigned-item-on-a-job)).
@@ -1443,6 +1449,12 @@ website's account pages go live when the owner switches them on,
   read. Under **What makes up these figures** a job's fees show as
   "Stripe fees (less GST) $…" and "Borne by Cult Commons −$…", not as a
   line (the count counts lines only).
+- Shopify fees (D274, View costs): Cult Commons is also after the Shopify
+  Payments fees (less GST) of that day's online sales and completed build
+  jobs. The **Shopify fees** tile shows them; with both kinds the last
+  tile reads **BICII after Cult Commons and payment fees**. Until Shopify
+  reports a fee: "Provisional: Shopify has not reported the fee on 1 sale
+  yet, so Cult Commons may still go down."
 - Success looks like: tiles that link to the jobs behind them.
 - Money counts jobs completed and in-store sales recorded on the day.
   **Consignment sales** (sales and completed jobs with a consigned item)
@@ -1476,6 +1488,16 @@ website's account pages go live when the owner switches them on,
 - A refund made in Shopify marks the sale Partly refunded or Refunded, like
   an in-store refund: the stock and the item's status do not change; use
   **Restock…** on the sale if the item came back.
+- Shopify Payments fees (D274, View costs): BICII reads what Shopify kept
+  on the order and takes it off the sale's Cult Commons (less GST, never
+  below $0.00; BICII bears the rest). The sale's **Yield** card shows
+  **Shopify fees (less GST)**, **Shopify fees borne by Cult Commons**,
+  **Cult Commons after Shopify fees** and **BICII after Cult Commons and
+  Shopify fees**; the Sales list adds "Shopify fees $… · Cult Commons
+  after fees $…". When the order also bought a build package, that
+  package's share goes to its job instead (on completion). A refund does
+  not give the fee back. Until Shopify reports it the card says "Not
+  reported yet" and "Provisional…".
 - A Shopify customer becomes a BICII customer when an admin links them,
   or when the Shopify customer's email is the email a customer verified by
   signing in on bicii.sg (D263): the link is then made for you and audited as
@@ -1825,6 +1847,9 @@ trackers and handovers needs **Manage adventures**.
   borne by Cult Commons $…" (and "by BICII $…" when they were more than
   its share); the lines export carries them in `stripe_fee` and
   `after_cc`. Without View costs no Stripe fees row, group or note shows.
+  Shopify Payments fees (D274) work the same way: a **Shopify fees** tile,
+  a **Shopify fees** group in the Breakdown, "Shopify fees (less GST) $…"
+  on the lines list and `shopify_fee` in the lines export.
   Below: the period day by day (or week by week), the
   **Breakdown** by job or sale, product, category, service, mechanic,
   ownership or channel (tap a row for the job, the sale or its lines),

@@ -5974,6 +5974,62 @@ export type Database = {
           },
         ];
       };
+      shopify_sale_fees: {
+        Row: {
+          api_version: string | null;
+          basis: string;
+          currency: string;
+          fee: number | null;
+          fee_ex_tax: number;
+          fee_tax: number;
+          fetched_at: string;
+          gateways: string[];
+          id: string;
+          order_charged: number;
+          sale_id: string;
+          shopify_order_id: string;
+          transactions: Json;
+        };
+        Insert: {
+          api_version?: string | null;
+          basis: string;
+          currency: string;
+          fee?: never;
+          fee_ex_tax: number;
+          fee_tax: number;
+          fetched_at?: string;
+          gateways: string[];
+          id?: string;
+          order_charged: number;
+          sale_id: string;
+          shopify_order_id: string;
+          transactions: Json;
+        };
+        Update: {
+          api_version?: string | null;
+          basis?: string;
+          currency?: string;
+          fee?: never;
+          fee_ex_tax?: number;
+          fee_tax?: number;
+          fetched_at?: string;
+          gateways?: string[];
+          id?: string;
+          order_charged?: number;
+          sale_id?: string;
+          shopify_order_id?: string;
+          transactions?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "shopify_sale_fees_sale_id_fkey";
+            columns: ["sale_id"];
+            isOneToOne: true;
+            referencedRelation: "sales";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       shopify_settings: {
         Row: {
           accept_test_orders: boolean;
@@ -8155,6 +8211,9 @@ export type Database = {
           currency: string | null;
           line_count: number | null;
           sale_total: number | null;
+          shopify_fee_pending_count: number | null;
+          shopify_fees: number | null;
+          shopify_fees_borne: number | null;
           stripe_fee_pending_count: number | null;
           stripe_fees: number | null;
           stripe_fees_borne: number | null;
@@ -9611,6 +9670,8 @@ export type Database = {
           recognized_day: string;
           sale_total: number;
           service_id: string;
+          shopify_fee: number;
+          shopify_fee_pending: boolean;
           source: string;
           source_line_id: string;
           stripe_fee: number;
@@ -10219,6 +10280,10 @@ export type Database = {
           bucket_key: string;
           hit_count: number;
         }[];
+      };
+      note_shopify_fee_read_failed: {
+        Args: { p_error: string; p_sale_id: string };
+        Returns: undefined;
       };
       note_stripe_fee_read_failed: {
         Args: { p_error: string; p_payment_id: string };
@@ -10975,6 +11040,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      record_shopify_fee_read: {
+        Args: { p_api_version?: string; p_read: Json; p_sale_id: string };
+        Returns: string;
+      };
       record_shopify_webhook: {
         Args: {
           api_version: string;
@@ -11251,6 +11320,7 @@ export type Database = {
           ownership_type: string;
           quantity: number;
           sale_total: number;
+          shopify_fee: number;
           source: string;
           source_line_id: string;
           stripe_fee: number;
@@ -11374,6 +11444,10 @@ export type Database = {
           sale_count: number;
           sale_total: number;
           settlements_paid_total: number;
+          shopify_fee_pending_jobs: number;
+          shopify_fee_pending_sales: number;
+          shopify_fees: number;
+          shopify_fees_borne: number;
           stripe_fee_pending_jobs: number;
           stripe_fees: number;
           stripe_fees_borne: number;
@@ -11617,6 +11691,19 @@ export type Database = {
           unit_sold_sale_line_id: string;
           unit_status: Database["public"]["Enums"]["unit_status"];
           yield_total: number;
+        }[];
+      };
+      sale_shopify_fees: {
+        Args: { p_sale_ids: string[] };
+        Returns: {
+          bicii_yield_after_fees: number;
+          build_order_fees: number;
+          cult_commons_after_fees: number;
+          cult_commons_share: number;
+          sale_id: string;
+          shopify_fee_pending: boolean;
+          shopify_fees: number;
+          shopify_fees_borne: number;
         }[];
       };
       saleable_stock: {
@@ -12396,6 +12483,14 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      shopify_fees_due: {
+        Args: { max_rows: number; p_sale_id?: string };
+        Returns: {
+          sale_id: string;
+          shopify_order_id: string;
+          test_order: boolean;
+        }[];
+      };
       sign_my_adventure_waiver: {
         Args: {
           accepts_risk: boolean;
@@ -12687,6 +12782,10 @@ export type Database = {
           parts_returned_qty: number;
           ready_to_start_now: number;
           received_now: number;
+          shopify_fee_pending_jobs: number;
+          shopify_fee_pending_sales: number;
+          shopify_fees: number;
+          shopify_fees_borne: number;
           significant_stock_adjustments: number;
           stock_adjustments: number;
           stripe_fee_pending_jobs: number;
@@ -13202,6 +13301,9 @@ export type Database = {
           recognized_at: string;
           recognized_day: string;
           sale_total: number;
+          shopify_fee_pending_count: number;
+          shopify_fees: number;
+          shopify_fees_borne: number;
           status: Database["public"]["Enums"]["work_order_status"];
           stripe_fee_pending_count: number;
           stripe_fees: number;
@@ -13968,6 +14070,8 @@ export type Database = {
           recognized_day: string | null;
           sale_total: number | null;
           service_id: string | null;
+          shopify_fee: number | null;
+          shopify_fee_pending: boolean | null;
           source: string | null;
           source_line_id: string | null;
           stripe_fee: number | null;
@@ -14160,6 +14264,8 @@ export type Database = {
           recognized_day: string | null;
           sale_total: number | null;
           service_id: string | null;
+          shopify_fee: number | null;
+          shopify_fee_pending: boolean | null;
           source: string | null;
           source_line_id: string | null;
           stripe_fee: number | null;

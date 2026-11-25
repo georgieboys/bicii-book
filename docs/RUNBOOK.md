@@ -950,9 +950,12 @@ development store before connecting the shop.
    fixed token. Create the app in Shopify's **Dev Dashboard**, in the same
    organization as the store ("BICII Admin"), with the Admin API scopes
    `write_products`, `write_inventory`, `read_locations`, `read_orders`,
-   `write_publications` (write includes read; publications put a synced
-   product on the Online Store sales channel, ADR-020 amendment
-   2026-11-13) on its version, release that version, and install it on
+   `read_all_orders`, `write_publications` (write includes read;
+   publications put a synced product on the Online Store sales channel,
+   ADR-020 amendment 2026-11-13; `read_orders` and `read_all_orders` let
+   BICII read the Shopify Payments fee on an order, the second for orders
+   older than 60 days, D274, [Shopify: fees](#shopify-fees-d274)) on its
+   version, release that version, and install it on
    the store. A changed scope list needs a new released version, which the
    store then approves: open the app from the store admin (Apps → BICII
    Admin) and press **Update** on the permissions screen; until then the
@@ -1049,6 +1052,10 @@ wait until the next webhook, a staff Retry or Sync now, or the daily run
 To run the queue by hand: `curl -H "Authorization: Bearer $CRON_SECRET"
 https://<admin host>/api/cron/integrations`.
 
+The same run also reads Shopify Payments fees (`shopifyFees` in its JSON
+answer; [Shopify: fees](#shopify-fees-d274)) beside the jobs and the
+Stripe fee sweep.
+
 Reading the queue: `/shopify/queue` and `/shopify/events` show each job's
 status, attempts, next attempt and the human message, and the event
 inspector shows each delivery (admins only: payloads hold customer data,
@@ -1062,6 +1069,48 @@ default); then it needs attention with "The last runs did not finish"
 (code `integration_job_stalled`, its event failed). Check the function
 logs for the timeout or crash, fix it, then Retry (three more attempts)
 or Dismiss with a reason.
+
+### Shopify: fees (D274)
+
+Cult Commons bears the Shopify Payments fees (less GST) on an online
+order, never below 0 per sale or job: the order's fee is split by amount
+between its build orders' jobs (deducted when the job completes) and the
+sale (the rest, shipping included); BICII bears the rest, and the share of
+an unlinked build order or a cancelled job
+([DATA-MODEL §19](DATA-MODEL.md#shopify-payments-fees-borne-by-cult-commons-d274)).
+The fee is Shopify's fact, read with the app's token:
+
+- **Owner action before anything is read:** in the Dev Dashboard, add the
+  scopes `read_orders` (if the live version lacks it) and `read_all_orders`
+  to the BICII Admin app, **release a new version**, then in the store
+  admin open Apps → BICII Admin and press **Update** to approve it. Until
+  then every read is refused. The Admin's exchanged token keeps the old
+  scopes until it is renewed (at most 24 hours; a redeploy renews it at
+  once).
+- The integration cron reads up to 5 online sales with no fee a run,
+  never-tried first, starting none after 20 seconds (`shopifyFees`:
+  `recorded`, `pending`, `failed`, `permission`; null while Shopify is
+  off). The first runs after the deploy are the restated history (every
+  earlier online sale). The queue also reads a sale's fee once, right
+  after recording it.
+- `permission: true`: Shopify refused the read ("Shopify refused to show
+  the order…"): the app version lacks orders access. Release and approve
+  it as above; the sweep backs off on each refused sale (at most a day)
+  and then reads it.
+- `pending`: Shopify had not put the fee on the charge yet; the sweep reads
+  again (5 minutes doubling, at most a day, 20 tries). Reports, Today, the
+  sale and the job say "Provisional: Shopify has not reported the fee…".
+- `failed`: Shopify or the database failed for one sale (a refusal, an
+  unknown order, a timeout), noted and backed off (no limit).
+- Exceptions (admins, **Shopify needs attention**, the sale): "Shopify's
+  fee on this online sale has not been read yet…" (warning, a day after a
+  sale the sweep tried), or a fee in another currency / data BICII could
+  not read / still not reported after 20 reads (danger: ask engineering,
+  R-135).
+- Not covered: card-terminal, dispute and adventure fees (R-134); a later
+  charge on an edited order; a dismissed order recorded by hand (R-135).
+  Verify the GST reading against one real order and the monthly invoice
+  (R-135).
 
 ### Shopify: resolving problems
 
@@ -1398,8 +1447,8 @@ The fee is Stripe's fact, read by BICII with its own key:
   been read yet…" (warning, a day after payment) or "Stripe charged this
   payment's fee in another currency…" (danger; nothing is recorded: ask
   engineering, R-134).
-- Not covered: dispute fees, Shopify Payments fees, card-terminal fees on
-  counter payments, adventure payments (R-134).
+- Not covered: dispute fees, card-terminal fees on counter payments,
+  adventure payments (R-134). Shopify Payments fees: [Shopify: fees](#shopify-fees-d274) (D274).
 
 ### Stripe: rotating keys
 

@@ -3,6 +3,7 @@ import "server-only";
 import type { Database } from "@/lib/database.types";
 
 import type { IntegrationDeps } from "./deps";
+import { readFeeAfterSale } from "./fees";
 import { runProductSync } from "./sync";
 
 /**
@@ -86,6 +87,11 @@ export async function runJob(job: QueueJob, deps: IntegrationDeps): Promise<JobO
         },
         "shopify event processed",
       );
+      // D274: best effort, after the sale's transaction committed; the cron
+      // sweep reads it again if Shopify has not put the fee on yet.
+      if (row?.outcome === "sale_recorded" && row.sale_id) {
+        await readFeeAfterSale(deps, row.sale_id);
+      }
       return outcome;
     }
 

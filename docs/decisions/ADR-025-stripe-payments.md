@@ -502,6 +502,10 @@ included: dispute fees, Shopify Payments and terminal fees, adventures
 (R-134). Built in `20261124000100_stripe_fees.sql`
 ([DATA-MODEL §19](../DATA-MODEL.md#stripe-fees-borne-by-cult-commons-d273)).
 
+Extended 2026-11-25 by D274: Shopify Payments fees are borne the same way,
+per online sale and per job through its build order, under one floor per
+job with the Stripe fees ([ADR-020's amendment of 2026-11-25](ADR-020-shopify.md#amendment-2026-11-25-shopify-payments-fees-borne-by-cult-commons-d274)).
+
 ## Revisit trigger
 
 A request for staff other than admins to record counter payments, for

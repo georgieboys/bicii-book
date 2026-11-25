@@ -1,5 +1,25 @@
 # Current state
 
+Updated: 2026-11-25 SGT (D274 Shopify Payments fees borne by Cult Commons;
+branch `feat/shopify-fees-cc`, migration `20261125000100`, pushed, no PR
+yet). The owner asked to include Shopify Payments fees too; the D273
+answers apply. Built: `shopify_sale_fees` (insert-only, view_costs), the
+order read (`orderTransactionFees`, Admin GraphQL `Order.transactions.fees`,
+live and fake) through `record_shopify_fee_read` from the cron's new
+`shopifyFees` sweep and once after `sale_recorded`; the split between a
+sale and its build orders' jobs in Postgres; `shopify_fee` entries in
+`financial_lines` (one floor per job with the Stripe fees); every cost
+gate now `entry_kind = 'line'` and `sale_count` lines only; the Shopify
+columns on the summary, Today, job totals and `work_order_yield`;
+`sale_shopify_fees` for the sale list and the sale's Yield card; an admin
+exception for a sale the sweep could not read. Verified locally:
+prettier, eslint, `tsc --noEmit`, `vitest run tests/unit`; the migration
+and `tests/db/shopify-fees.test.ts` run only in CI (see the PR / CI run).
+Owner action: add `read_orders` (if missing) and `read_all_orders` to the
+Shopify app, release the version and press **Update** in the store
+(RUNBOOK "Shopify: fees"). Next: open the PR, merge, watch `shopifyFees`
+on the cron; check one real order's GST against the invoice (R-135).
+Before that,
 Updated: 2026-11-24 SGT (D273 Stripe fees borne by Cult Commons; branch
 `feat/stripe-fees-cc`, migration `20261124000100`, pushed, no PR yet).
 The owner decided a completed job's Cult Commons is its gross share less

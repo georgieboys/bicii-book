@@ -48,12 +48,15 @@ import {
   ACTIVITY_FLOWS,
   TILE_LINKS,
   lossNote,
+  afterFeesLabel,
+  feesLessHint,
   provisionalNote,
+  shopifyFeePendingNote,
   stripeFeePendingNote,
   weekStrip,
   type TodayDashboard,
 } from "@/lib/reports";
-import { formatMoney, toDecimal } from "@/lib/money";
+import { toDecimal } from "@/lib/money";
 import { canManagePurchasing } from "@/lib/purchasing";
 import { createClient, type ServerSupabase } from "@/lib/supabase/server";
 import { OVERDUE_AFTER_DAYS } from "@/lib/workshop";
@@ -519,6 +522,11 @@ function MoneySection({ dash, children }: { dash: TodayDashboard; children: Reac
   // D273: Cult Commons and BICII after it are net of the day's Stripe fees.
   const fees = costs && !toDecimal(costs.stripeFees).isZero() ? costs : null;
   const feePending = costs ? stripeFeePendingNote(costs.stripeFeePendingJobs) : null;
+  // D274: and net of the day's sales' and jobs' shares of Shopify fees.
+  const shopify = costs && !toDecimal(costs.shopifyFees).isZero() ? costs : null;
+  const shopifyPending = costs
+    ? shopifyFeePendingNote(costs.shopifyFeePendingSales, costs.shopifyFeePendingJobs)
+    : null;
   return (
     <TodaySection
       id="today-money"
@@ -535,8 +543,13 @@ function MoneySection({ dash, children }: { dash: TodayDashboard; children: Reac
             amount={costs.cultCommons}
             currency={c}
             hint={
-              fees
-                ? `Each line's share of its positive yield, less ${formatMoney(fees.stripeFeesBorne, c)} of Stripe fees`
+              fees || shopify
+                ? feesLessHint(
+                    "Each line's share of its positive yield",
+                    fees?.stripeFeesBorne ?? null,
+                    shopify?.shopifyFeesBorne ?? null,
+                    c,
+                  )
                 : "Each line's share of its positive yield, at the rate it was added with"
             }
           />
@@ -548,8 +561,16 @@ function MoneySection({ dash, children }: { dash: TodayDashboard; children: Reac
               hint="Less GST; borne by Cult Commons up to each job's share"
             />
           ) : null}
+          {shopify ? (
+            <MoneyTile
+              label="Shopify fees"
+              amount={shopify.shopifyFees}
+              currency={c}
+              hint="Less GST; borne by Cult Commons up to each sale's or job's share"
+            />
+          ) : null}
           <MoneyTile
-            label={fees ? "BICII after Cult Commons and Stripe fees" : "BICII after Cult Commons"}
+            label={afterFeesLabel(Boolean(fees), Boolean(shopify))}
             amount={costs.biciiAfterCc}
             currency={c}
           />
@@ -572,6 +593,11 @@ function MoneySection({ dash, children }: { dash: TodayDashboard; children: Reac
       {feePending ? (
         <p role="note" className="text-sm font-medium text-waiting-deep">
           {feePending}
+        </p>
+      ) : null}
+      {shopifyPending ? (
+        <p role="note" className="text-sm font-medium text-waiting-deep">
+          {shopifyPending}
         </p>
       ) : null}
       {dash.isToday ? null : (

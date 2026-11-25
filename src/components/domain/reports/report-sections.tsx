@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RowLink, RowList } from "@/components/ui/row-list";
 import { cn } from "@/lib/cn";
 import { formatShopDay, toShopLocal } from "@/lib/dates";
-import { formatMoney, formatQuantity, toDecimal } from "@/lib/money";
+import { formatQuantity, toDecimal } from "@/lib/money";
 import {
   DIMENSIONS,
   DIMENSION_VALUES,
@@ -27,7 +27,14 @@ import {
   type StockValueRow,
 } from "@/lib/period-reports";
 import { plural } from "@/lib/plural";
-import { formatSignedMoney, provisionalNote, stripeFeePendingNote } from "@/lib/reports";
+import {
+  afterFeesLabel,
+  feesLessHint,
+  formatSignedMoney,
+  provisionalNote,
+  shopifyFeePendingNote,
+  stripeFeePendingNote,
+} from "@/lib/reports";
 
 /**
  * The server-rendered parts of /reports and /reports/lines (Phase 9; SPEC
@@ -111,6 +118,14 @@ export function SummaryTiles({
     costs && summary.stripeFees !== null && !toDecimal(summary.stripeFees).isZero()
       ? summary.stripeFees
       : null;
+  // D274: the sales' and jobs' shares of their orders' Shopify fees.
+  const shopify =
+    costs && summary.shopifyFees !== null && !toDecimal(summary.shopifyFees).isZero()
+      ? summary.shopifyFees
+      : null;
+  const shopifyPending = costs
+    ? shopifyFeePendingNote(summary.shopifyFeePendingSales, summary.shopifyFeePendingJobs)
+    : null;
   return (
     <div className="flex flex-col gap-2">
       <div role="group" aria-label="Period figures" className={tileGrid}>
@@ -138,8 +153,13 @@ export function SummaryTiles({
               amount={summary.cultCommons!}
               currency={c}
               hint={
-                fees
-                  ? `30% of each line's positive yield, less ${formatMoney(summary.stripeFeesBorne ?? "0", c)} of Stripe fees`
+                fees || shopify
+                  ? feesLessHint(
+                      "30% of each line's positive yield",
+                      fees ? (summary.stripeFeesBorne ?? "0") : null,
+                      shopify ? (summary.shopifyFeesBorne ?? "0") : null,
+                      c,
+                    )
                   : "Sum of 30% of each line's positive yield"
               }
             />
@@ -151,8 +171,16 @@ export function SummaryTiles({
                 hint="Less GST; borne by Cult Commons up to each job's share"
               />
             ) : null}
+            {shopify ? (
+              <MoneyTile
+                label="Shopify fees"
+                amount={shopify}
+                currency={c}
+                hint="Less GST; borne by Cult Commons up to each sale's or job's share"
+              />
+            ) : null}
             <MoneyTile
-              label={fees ? "BICII after Cult Commons and Stripe fees" : "BICII after Cult Commons"}
+              label={afterFeesLabel(Boolean(fees), Boolean(shopify))}
               amount={summary.afterCc!}
               currency={c}
             />
@@ -172,6 +200,11 @@ export function SummaryTiles({
       {feePending ? (
         <p role="note" className="text-sm font-medium text-waiting-deep">
           {feePending}
+        </p>
+      ) : null}
+      {shopifyPending ? (
+        <p role="note" className="text-sm font-medium text-waiting-deep">
+          {shopifyPending}
         </p>
       ) : null}
     </div>

@@ -31,7 +31,8 @@ pay; the balance is the running sum of the changes (labour no longer
 taken off twice); several mechanics are topped up in staff-name order.
 `payout_summary` returns `top_up`; the reserve row carries the other
 service and the labour. Verified locally: prettier, eslint, `tsc
---noEmit`, `vitest run tests/unit`; CI: pending (see the PR).
+--noEmit`, `vitest run tests/unit`; CI run 46042732526 on `034c81f`
+green (check, test with `payouts.test.ts` 17 passed, build).
 Not verified: the page in a browser against data.
 Owner action after the merge deploys: open Payouts → Service pay and set
 Bobby's cap (S$3,000) from the first month to track; confirm the D276

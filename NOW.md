@@ -14,7 +14,8 @@ expiring the old cookies. R-136 records the CSRF reasoning (Server Actions'
 Origin check; read-only Route Handlers; no mutation while rendering), the
 separate session inside Shopify, and the Stripe, camera, Safari and App
 Bridge limits. Verified locally: prettier, eslint, `tsc --noEmit`, `vitest
-run tests/unit`; CI: see the branch's latest workflow_dispatch run. Not
+run tests/unit`; CI (workflow_dispatch) on `1e629e0`: check, test (unit +
+db) and build green, run 45963406561. Not
 verified: anything inside the live Shopify admin. Owner action after the
 merge deploys: in the Dev Dashboard set the App URL to the Admin's address
 with embedding on and release (RUNBOOK "Shopify: the custom app and its

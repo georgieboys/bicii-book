@@ -1436,6 +1436,10 @@ website's account pages go live when the owner switches them on,
   Appointments (arrivals, still expected, arrived), Stock (parts used, low
   stock, significant adjustments), Needs attention, Activity and the Last 7
   days. Use the day navigator for an earlier day and **Back to today**.
+- **To pay this month: $…** (admins, today only): last month's **Total to
+  transfer** from Payouts (service pay and Cult Commons, earlier months
+  included, and consignors). **Open Payouts** goes there. Hidden when
+  nothing is owed.
 - **Pay owners** (Manage consignments, today only): "Owed to
   consignors: $… on N items", then the consignors owed the most (up to
   five; **See all** opens Consignment), each with its amount and "N items
@@ -1903,6 +1907,58 @@ trackers and handovers needs **Manage adventures**.
 - If it fails: "You can't open this" without View financial reports.
   Covered by `tests/e2e/reports.spec.ts`.
 
+### Pay out at month end (admins)
+
+- Before you start: you need the admin role. Managers and mechanics don't
+  see **Payouts**. Set each mechanic's pay once, under **Service pay** at
+  the bottom of the page: the mechanic, the **Monthly cap** (S$3,000 for
+  Bobby) and the month it starts. A new cap applies from its month on;
+  earlier months keep theirs. Payouts counts what is owed from the first
+  month of service pay: earlier months count as settled outside the app
+  and never carry over, so start it at the first month you pay through
+  the app. Recording or reversing a payment for an older month doesn't
+  change that. Opening an earlier month says it counts as settled: its
+  figures show for reference, nothing in it is owed, and it isn't in
+  **Total to transfer** or the services reserve.
+- Steps: **More** → **Payouts**. It opens on last month. Use **Previous
+  month** and **Next month** to change it. **Total to transfer** is what
+  you still owe: service pay and Cult Commons, earlier months included,
+  plus what consignors are owed today. Then, for each:
+  - **Bobby (service pay)**: the service revenue on the jobs he led, the
+    amount after Cult Commons, the **Top-up from other service**, his pay
+    up to the cap, what you paid and what is outstanding. Other service is
+    service on jobs led by nobody on service pay: it pays the month's ad
+    hoc labour first, and what is left tops Bobby up to his cap. Press **Record payment**: the amount is filled in
+    with what is outstanding. Set **Paid on** and the **Reference**, then
+    press **Record payment of $x**.
+  - **Cult Commons**: the month's Cult Commons, the same figure as on
+    Reports, Stripe and Shopify fees already taken off. Record the
+    payment in the same way.
+  - **Consignors**: everyone owed for consigned items. A row opens the
+    consignor, where you record their payment as usual.
+  - **Services reserve**: the other service after Cult Commons, the
+    month's ad hoc labour, the **Change this month** (what is left after
+    labour and Bobby's pay, below zero when labour was more than the other
+    service) and the balance. **Pay ad hoc labour** pays someone from it: choose a
+    staff member or type a name, then the amount and date. It counts in
+    the month on screen (the sheet says which), whatever day you paid.
+- Success looks like: "Payment of $3,000.00 recorded for Bobby". The
+  payment appears under **Payments recorded**, and Outstanding shows
+  "Paid". A month you didn't finish paying shows on the next month as
+  "Still owed from earlier months", with a **Pay** link to the earliest
+  month still owed. **Record payment** fills in only the month on screen,
+  so pay an earlier month from its own page; **Total to transfer** counts
+  it until you do.
+- If it fails: you can pay more than is owed. The card then says "Over by
+  $x". Ad hoc labour recorded after you paid Bobby lowers that month's
+  pay, so his card can say "Over by $x" too. A reserve below zero says "Reserve overdrawn by $x". Neither is
+  refused. A wrong payment is corrected with **Reverse…** and a reason. It
+  stays in the list, struck through, and counts as owed again. The owed
+  figures follow the jobs and sales, so a reopened job or a back-dated
+  sale changes a past month, as it does on Reports. Payments stay as you
+  recorded them. This records what you paid. It is not payroll: no tax,
+  CPF or payslips.
+
 ### Check what needs attention (Exceptions)
 
 - Steps: **Reports** → **Exceptions** (or **See all** under Needs
@@ -2230,8 +2286,8 @@ shown as a badge on Settings → Your profile and on Settings → Staff:
 
 | Role | What it lets you do |
 |---|---|
-| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, who gets booking emails (D163), appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157), the two voids of a counter payment on a job (D161) and **Looks right** on the counter payments others recorded (D270), and **More → Shopify** (settings, the queue, events, linking variants and customers, D86) |
-| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify, or Settings → Customer payments. Since D272 a manager also reviews and voids counter payments |
+| Admin | Everything: every permission below, **Record refund** on a sale, ordering an indent part before its deposit is paid (D152), cancelling an indent item that was never fitted on a collected or cancelled job (D149), and the admin-only settings: shop hours, closures, booking capacity, who gets booking emails (D163), appointment types, the Cult Commons rate, staff and roles (inviting or changing admins and managers, changing anyone's role) (D91, D93), Settings → **Labels and printers** (the QR address, printers, label templates), Settings → **Customer payments** (Stripe and the deposit on indent quotes, D157), the two voids of a counter payment on a job (D161) and **Looks right** on the counter payments others recorded (D270), **More → Shopify** (settings, the queue, events, linking variants and customers, D86), and **More → Payouts** with its **Service pay** caps (what Bobby, Cult Commons and the services reserve are paid; D276, admins only as a build default the owner is to confirm) |
+| Manager | Every permission below except Manage staff, **Record refund** on a sale (D91, D94), ordering an indent part before its deposit is paid, with a reason (D152), and cancelling an indent item that was never fitted on a collected or cancelled job, with a reason (D149). Not the admin-only settings, Labels and printers, Shopify, Settings → Customer payments, or **More → Payouts** and its Service pay (D276; a manager such as Bobby doesn't see what he or Cult Commons is paid, a build default the owner is to confirm). A manager still sees consignor balances on Consignment. Since D272 a manager also reviews and voids counter payments |
 | Mechanic | The workshop: what everyone can do (next paragraph). Anything more only as extra access |
 
 Everyone signed in can use customers, bikes, photos, jobs and their lines,

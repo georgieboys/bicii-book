@@ -71,18 +71,18 @@ The repository follows
      reporting, D120–D139 public site, D140–D149 indent parts and quotes,
      D150–D159 Stripe payments, D160–D163 later (D160 indent follow-up,
      D161 counter payments, D162 reclassifying shop stock, D163 booking
-     emails), D164–D189 and D190–D209 adventures (D164–D239 taken), D240 reclassifying cancelled purchases, D241–D245 product groups, D246–D259 build packages, D260 frame grades, D261 build extras, D262 online stock holds, D263 account purchases, D264 one-off parts, D265 proposing consigned parts, D266 deposit counts consigned parts, D267 receive on use, D268 owed default, D269 add after complete, D270 staff counter payments, D271 discounts, D272 managers review and void counter payments, D273 Stripe fees borne by Cult Commons, D274 Shopify fees, D275 Shopify embedding, D276+ later.
+     emails), D164–D189 and D190–D209 adventures (D164–D239 taken), D240 reclassifying cancelled purchases, D241–D245 product groups, D246–D259 build packages, D260 frame grades, D261 build extras, D262 online stock holds, D263 account purchases, D264 one-off parts, D265 proposing consigned parts, D266 deposit counts consigned parts, D267 receive on use, D268 owed default, D269 add after complete, D270 staff counter payments, D271 discounts, D272 managers review and void counter payments, D273 Stripe fees borne by Cult Commons, D274 Shopify fees, D275 Shopify embedding, D276 payouts, D277+ later.
      Records: ADR-017 labels,
      ADR-018 purchasing, ADR-019 email sign-in, ADR-020 Shopify, ADR-021
      staff roles, ADR-022 reporting, ADR-023 public site, ADR-024 indent
-     parts and quotes, ADR-025 Stripe payments, ADR-026 adventures, ADR-027 product groups, ADR-028 build packages, ADR-029 frame grades. RISKS: R-028–R-029 labels
+     parts and quotes, ADR-025 Stripe payments, ADR-026 adventures, ADR-027 product groups, ADR-028 build packages, ADR-029 frame grades, ADR-030 payouts. RISKS: R-028–R-029 labels
      (its later entries R-075–R-077), R-030–R-034 purchasing, R-035–R-039
      email sign-in, R-040–R-049 Shopify, R-050–R-054 roles, R-055–R-064
      reporting, R-065–R-074 public site, R-078–R-084 indent parts and
      quotes, R-085–R-089 Stripe payments (its later entries R-090–R-094),
      R-095–R-097 later (R-095 reclassifying shop stock, R-096 booking
      emails, R-097 server environment failures), R-098–R-119 adventures, R-120 product groups,
-     R-121–R-129 build packages (R-098–R-105 taken), R-130 frame grades, R-131 account purchases, R-132 receive on use, R-133 keep-moving trade-offs, R-134 Stripe fees borne by Cult Commons, R-135 Shopify fees, R-136 Shopify embedding, R-137+ later.
+     R-121–R-129 build packages (R-098–R-105 taken), R-130 frame grades, R-131 account purchases, R-132 receive on use, R-133 keep-moving trade-offs, R-134 Stripe fees borne by Cult Commons, R-135 Shopify fees, R-136 Shopify embedding, R-137 payouts, R-138+ later.
 3. Record problems, shortcuts and uncertainty with evidence in
    `docs/RISKS.md`. There is one backlog: the PLAN phases, the RISKS next
    actions and NOW.md.

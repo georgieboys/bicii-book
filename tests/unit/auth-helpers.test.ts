@@ -126,7 +126,7 @@ describe("navigation", () => {
     expect(TABS.map((t) => t.label)).toEqual(["Today", "Jobs", "Scan", "Inventory", "More"]);
   });
 
-  it("lists the eleven More destinations, Adventures before Consignment, Sales and Shopify right after it", () => {
+  it("lists the twelve More destinations, Adventures before Consignment, Sales and Shopify right after it, Payouts after Reports", () => {
     expect(MORE_ITEMS.map((i) => i.label)).toEqual([
       "Customers",
       "Bikes",
@@ -138,16 +138,21 @@ describe("navigation", () => {
       "Purchasing",
       "Labels",
       "Reports",
+      "Payouts",
       "Settings",
     ]);
   });
 
-  it("lists the eleven destinations for admins and ten for others: Shopify is admin-only (D86)", () => {
-    expect(moreItemsFor(true)).toHaveLength(11);
+  it("lists the twelve destinations for admins and ten for others: Shopify (D86) and Payouts (D276) are admin-only", () => {
+    expect(moreItemsFor(true)).toHaveLength(12);
     const others = moreItemsFor(false).map((i) => i.label);
     expect(others).toHaveLength(10);
     expect(others).not.toContain("Shopify");
-    expect(MORE_ITEMS.filter((i) => i.adminOnly).map((i) => i.href)).toEqual(["/shopify"]);
+    expect(others).not.toContain("Payouts");
+    expect(MORE_ITEMS.filter((i) => i.adminOnly).map((i) => i.href)).toEqual([
+      "/shopify",
+      "/payouts",
+    ]);
     // The More tab still lights up on an admin-only section.
     expect(isMoreActive("/shopify/queue")).toBe(true);
   });

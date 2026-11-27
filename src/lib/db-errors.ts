@@ -421,6 +421,13 @@ export const BUSINESS_ERRORS: Record<string, string> = {
     "A settlement can't be changed or deleted. Reverse it with a reason instead.",
   settlement_reversal_conflict: "That reversal clashes with another one. Start again.",
   settlement_already_reversed: "That settlement has already been reversed.",
+  // Month-end payouts (D276)
+  payout_conflict: "That payment clashes with another one already recorded. Start again.",
+  payout_paid_in_future: "A payment can't be dated in the future.",
+  payout_month_required: "Choose the month this payment is for.",
+  payout_payee_required: "Choose who was paid.",
+  payout_payee_unexpected: "A Cult Commons payment has no payee to choose.",
+  payout_immutable: "A payment can't be changed or deleted. Reverse it with a reason instead.",
   // Labels (Phase 8: D9, D56-D59)
   label_entity_archived: "That record is archived. Unarchive it before printing labels.",
   label_unique_product_needs_unit:
@@ -1084,6 +1091,16 @@ export const CHECK_ERRORS: Record<string, string> = {
   settlement_lines_amount_applied_check: "Each allocation must be more than 0.",
   settlement_lines_override_reason_check: "Keep the override reason under 500 characters.",
   consignment_settlement_reversals_reason_check: "Give a reason, under 500 characters.",
+  service_pay_rules_monthly_cap_check: "The monthly cap can't be below 0.",
+  service_pay_rules_effective_from_check: "A pay rule starts on the first of a month.",
+  payouts_amount_check: "A payment must be more than 0.",
+  payouts_currency_check: "Use a three-letter currency code.",
+  payouts_period_month_check: "A payment is for a whole month.",
+  payouts_payee_check: "Choose who was paid.",
+  payouts_payee_name_check: "Keep the name under 200 characters.",
+  payouts_reference_check: "Keep the reference under 200 characters.",
+  payouts_notes_check: "Keep the notes under 2,000 characters.",
+  payout_reversals_reason_check: "Give a reason, under 500 characters.",
   inventory_units_consignment_item_ownership: "Only a consigned unit has a consignment record.",
   work_order_line_items_consignment_shape:
     "A consigned part needs both its consignment and what the consignor is owed.",

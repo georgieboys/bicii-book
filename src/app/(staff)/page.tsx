@@ -11,6 +11,7 @@ import { ExceptionList } from "@/components/domain/today/exception-list";
 import { FinancialEntries } from "@/components/domain/today/financial-entries";
 import { LowStockList } from "@/components/domain/today/low-stock-list";
 import { PayOwners } from "@/components/domain/today/pay-owners";
+import { ToPay } from "@/components/domain/today/to-pay";
 import { RefreshButton } from "@/components/domain/today/refresh-button";
 import { SectionLoader, SectionSkeleton } from "@/components/domain/today/section-loader";
 import { MoneyTile, StatTile, TileGrid, TodaySection } from "@/components/domain/today/stat-tile";
@@ -34,6 +35,7 @@ import { owedToConsignors } from "@/lib/consignment";
 import { todaySummary } from "@/lib/domain/appointments";
 import { listConsignors } from "@/lib/domain/consignment";
 import { listCounterPaymentsToReview } from "@/lib/domain/payments";
+import { getPayoutSummary } from "@/lib/domain/payouts";
 import { hasReorderSuggestions } from "@/lib/domain/purchasing";
 import {
   getDailySummaries,
@@ -57,6 +59,7 @@ import {
   type TodayDashboard,
 } from "@/lib/reports";
 import { toDecimal } from "@/lib/money";
+import { parseMonth } from "@/lib/payouts";
 import { canManagePurchasing } from "@/lib/purchasing";
 import { createClient, type ServerSupabase } from "@/lib/supabase/server";
 import { OVERDUE_AFTER_DAYS } from "@/lib/workshop";
@@ -408,6 +411,19 @@ async function TodayContent({
         <Suspense fallback={<SectionSkeleton rows={1} />}>
           <SectionLoader name="counter-review" load={() => listCounterPaymentsToReview(supabase)}>
             {(review) => <CounterReviewList rows={review.rows} total={review.total} />}
+          </SectionLoader>
+        </Suspense>
+      ) : null}
+
+      {/* D276: what the owner transfers at month end (admins only). */}
+      {isToday && staff.role === "admin" ? (
+        <Suspense fallback={null}>
+          <SectionLoader
+            name="to-pay"
+            // A failed read only hides the card (Payouts shows the error).
+            load={() => getPayoutSummary(supabase, parseMonth(null)).catch(() => null)}
+          >
+            {(p) => (p ? <ToPay month={p.month} total={p.total} currency={p.currency} /> : null)}
           </SectionLoader>
         </Suspense>
       ) : null}

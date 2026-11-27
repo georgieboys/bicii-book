@@ -1,5 +1,48 @@
 # Current state
 
+Updated: 2026-11-28 SGT (D276 month-end payouts; branch `feat/payouts`,
+migration `20261128000100`, pushed, PR open, not merged). The owner asked
+for "a simple system to tell me how much do i owe bobby for service,
+consigners for stuff. cult commons etc." Built: `service_pay_rules`,
+`payouts` and `payout_reversals` (admin-only RLS, append-only);
+`set_service_pay_rule`, `record_payout` (idempotent by id with a
+fingerprint), `reverse_payout`, `payout_summary` and `list_payouts`, all
+`private.require_admin()`; the **Payouts** page (`/payouts`, admins only,
+in More after Reports: total to transfer, each mechanic's service pay,
+Cult Commons as on Reports, consignors linking to their own Record
+payment, the services reserve with Pay ad hoc labour, payments recorded
+with Reverse…, and Service pay rules); "To pay this month" on Today for
+admins. PLAN D276 (build defaults marked), ADR-030, R-137, DATA-MODEL §19
+"Month-end payouts", §15, §16. Verified locally: prettier, eslint,
+`tsc --noEmit`, `vitest run tests/unit`; CI (workflow_dispatch) on
+`1aac010`: check, test (unit + db, `tests/db/payouts.test.ts` 10 passed)
+and build green, run 46038041455 (run 46037268082 on `d41aa79` failed
+only on the generated types' layout). Review fixes on `fbfafbf`:
+tracking starts at the first pay rule's month (payouts, reversed or not,
+never move it), `payout_summary.carry_from` links "Still owed from earlier
+months" to the earliest month still owed, ad hoc labour counts in the month
+on screen, and Roles and limits lists Payouts as admin-only; CI run
+46040479429 green (check, test with `payouts.test.ts` 11 passed, build).
+Owner's amendment (2026-11-28, same branch, the migration edited in
+place as it is unmerged): other service revenue pays ad hoc labour, then
+tops the mechanic up to the cap: pay = greatest(least(cap, own +
+greatest(other - labour, 0)), 0); reserve change = own + other - labour -
+pay; the balance is the running sum of the changes (labour no longer
+taken off twice); several mechanics are topped up in staff-name order.
+`payout_summary` returns `top_up`; the reserve row carries the other
+service and the labour. Verified locally: prettier, eslint, `tsc
+--noEmit`, `vitest run tests/unit`; CI run 46042732526 on `034c81f`
+green (check, test with `payouts.test.ts` 17 passed, build).
+Review fix: a month before tracking starts counts as settled (its
+mechanic and Cult Commons outstanding are 0 and out of the total, the
+reserve has no change or balance there; the `total` row's `carry_from`
+names the tracking month and the page says so); CI run 46044832000 on
+`bdaeca7` green (check, test, build).
+Not verified: the page in a browser against data.
+Owner action after the merge deploys: open Payouts → Service pay and set
+Bobby's cap (S$3,000) from the first month to track; confirm the D276
+build defaults. Next: review and merge the PR.
+Before that,
 Updated: 2026-11-27 SGT (D275 the Shopify admin may frame the Admin;
 branch `feat/shopify-embed`, no migration, pushed, no PR yet). Apps →
 BICII Admin in the store admin showed a blank page (`X-Frame-Options:

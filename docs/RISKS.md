@@ -3938,3 +3938,60 @@ URLs, or customer data in this file.
   scanner, Safari, anything that misbehaves in the frame).
 - Still open: a check inside the live store (sign-in, a Server Action,
   photo upload, realtime, the scanner) after the deploy.
+
+## R-137 — Month-end payouts: what is derived live and left out
+
+- Category: money, scope.
+- Status and owner: open, accepted; the owner (D276), the build agent.
+- Trigger and impact:
+  - **Live restatement after payment.** What is owed (service pay, Cult
+    Commons, the reserve) is derived from the Reports rows each time
+    Payouts is read, never stored. A job reopened, a sale back-dated or a
+    fee read late changes a month that was already paid, as it changes
+    Reports (D100–D105). The payments stay as recorded, so that month then
+    shows an outstanding amount or "Over by $x", and the next month
+    carries it ("Still owed from earlier months" or "Paid ahead by").
+  - **Labour recorded after paying restates pay.** Under the owner's
+    amendment (2026-11-28) the month's ad hoc labour comes out of the
+    other service revenue before it tops the mechanic up, so labour
+    recorded (or reversed) after the mechanic was paid lowers (or raises)
+    that month's pay. The card then shows "Over by $x" (overpaid), never
+    refused (`tests/db/payouts.test.ts` "labour recorded after the
+    mechanic was paid").
+  - **The reserve can go negative.** Ad hoc labour is never refused; a
+    month whose labour is more than its other service has a negative
+    change, so the balance can read "Reserve overdrawn by $x" (operator
+    first).
+  - **Several mechanics.** With more than one mechanic on pay (not
+    expected), the other revenue tops them up in staff-name order (build
+    default).
+  - **Lead-mechanic attribution.** A job's whole service revenue counts
+    for its lead mechanic (`work_order_assignments` role lead, as the
+    Mechanic breakdown on Reports); work by a second mechanic on the same
+    job is not split. A job with no lead counts as other service: it pays
+    labour, tops the mechanic up, and the rest goes to the reserve.
+  - **Tracking start.** Carry-over and the reserve balance count from the
+    first month of the earliest pay rule (build default); payouts never
+    move it, reversed or not (`tests/db/payouts.test.ts` "where tracking
+    starts"). A pay rule dated back to an earlier month deliberately
+    brings that month's Cult Commons and reserve in too; the Service pay
+    card states the start month. With no pay rule at all, the earliest
+    non-reversed payout's month stands in.
+  - **Carry-over is paid month by month.** Record payment fills in the
+    month on screen only; "Still owed from earlier months" links to the
+    earliest month still owed, and Total to transfer counts it until it is
+    paid there.
+  - **Admin-only visibility.** Managers, Bobby included, do not see
+    Payouts (build default, owner to confirm). A manager still sees the
+    consignor balances on Consignment as before.
+  - **Not payroll.** SPEC lists payroll as out of scope. D276 records what
+    is owed and paid at month end. It does not cover tax, CPF, payslips,
+    leave or employment terms, and the cap is the owner's rule, not a
+    salary.
+- Evidence: `tests/db/payouts.test.ts` (restatement follows the jobs; a
+  negative reserve; a job led by nobody as other service; labour after
+  paying; access).
+- Workaround or containment: a past month that changed shows an
+  outstanding or "Over by" amount on Payouts. Pay the difference or let
+  the carry-over absorb it.
+- Still open: the owner's confirmation of the build defaults (PLAN D276).

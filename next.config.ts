@@ -40,6 +40,27 @@ function supabaseSources(): { origin: string[]; connect: string[] } {
   }
 }
 
+/** The shape src/lib/env.ts accepts for SHOPIFY_SHOP_DOMAIN. */
+const SHOP_DOMAIN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
+
+/**
+ * Who may frame the Admin (D275): the Admin itself and the Shopify admin,
+ * so the store's Apps → BICII Admin shows it embedded. Shopify asks an
+ * embedded app to name `https://admin.shopify.com` and the one shop's own
+ * `https://<shop>.myshopify.com` (the legacy admin address) rather than a
+ * wildcard; the shop is read from SHOPIFY_SHOP_DOMAIN when the config
+ * loads (build time). Missing or malformed, only admin.shopify.com is
+ * named.
+ */
+function adminFrameAncestors(): string[] {
+  const shop = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
+  return [
+    "'self'",
+    "https://admin.shopify.com",
+    ...(shop && SHOP_DOMAIN.test(shop) ? [`https://${shop}`] : []),
+  ];
+}
+
 /**
  * The Content-Security-Policy, sent as Report-Only for now
  * (docs/OPERATIONS.md "Content Security Policy"): browsers log what it would
@@ -48,9 +69,11 @@ function supabaseSources(): { origin: string[]; connect: string[] } {
  * in src/proxy.ts); React needs 'unsafe-eval' in development only. Photos
  * are blob:/data: previews and Supabase Storage URLs. Stripe Checkout is a
  * top-level navigation and needs no source, except form-action for a form
- * posted before hydration that the server redirects there.
+ * posted before hydration that the server redirects there. Its
+ * frame-ancestors repeats the enforced one (`frameAncestorsPolicy`), so the
+ * report-only copy logs nothing the enforced header allows.
  */
-function contentSecurityPolicy(): string {
+function contentSecurityPolicy(frameAncestors: string[]): string {
   const supabase = supabaseSources();
   const dev = process.env.NODE_ENV === "development";
   const directives: string[][] = [
@@ -67,14 +90,25 @@ function contentSecurityPolicy(): string {
     ["object-src", "'none'"],
     ["base-uri", "'self'"],
     ["form-action", "'self'", "https://checkout.stripe.com"],
-    ["frame-ancestors", "'none'"],
+    ["frame-ancestors", ...frameAncestors],
   ];
   return directives.map((d) => d.join(" ")).join("; ");
 }
 
+/**
+ * The one directive that is enforced (D275): frame-ancestors, the
+ * clickjacking guard. X-Frame-Options cannot name an origin, so the Admin
+ * no longer sends it; every current browser obeys frame-ancestors instead.
+ * The rest of the policy stays Report-Only (audit A-25).
+ */
+function frameAncestorsPolicy(frameAncestors: string[]): string {
+  return ["frame-ancestors", ...frameAncestors].join(" ");
+}
+
+const NOT_FRAMEABLE = ["'none'"];
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // The camera is the only powerful feature the Admin uses (the scanner);
   // everything else is refused for the page and anything it embeds.
@@ -83,15 +117,27 @@ const securityHeaders = [
     value:
       "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), display-capture=()",
   },
+  // Enforced: only the Admin and the Shopify admin may frame it (D275).
+  { key: "Content-Security-Policy", value: frameAncestorsPolicy(adminFrameAncestors()) },
   // Not enforced yet: browsers report what it would block (audit A-25).
-  { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy() },
+  {
+    key: "Content-Security-Policy-Report-Only",
+    value: contentSecurityPolicy(adminFrameAncestors()),
+  },
 ];
 
-/** A page whose path carries a link token: no referrer, not indexed, never cached. */
+/**
+ * A page whose path carries a link token: no referrer, not indexed, never
+ * cached, and never framed, not even by Shopify (D275): a customer's page
+ * has no business inside anyone's admin.
+ */
 const customerPageHeaders = [
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "X-Robots-Tag", value: "noindex, nofollow" },
   { key: "Cache-Control", value: "private, no-store" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Content-Security-Policy", value: frameAncestorsPolicy(NOT_FRAMEABLE) },
+  { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy(NOT_FRAMEABLE) },
 ];
 
 const nextConfig: NextConfig = {
@@ -134,8 +180,9 @@ const nextConfig: NextConfig = {
       { source: "/(.*)", headers: securityHeaders },
       {
         // The customer's quote page (D143): the token is in the path, so no
-        // referrer leaves it, nothing caches it and search engines skip it.
-        // Later rules override the catch-all's Referrer-Policy.
+        // referrer leaves it, nothing caches it, search engines skip it and
+        // nobody frames it (D275). Later rules override the catch-all's
+        // Referrer-Policy and both Content-Security-Policy headers.
         source: "/quote/:token*",
         headers: customerPageHeaders,
       },

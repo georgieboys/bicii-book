@@ -982,8 +982,23 @@ development store before connecting the shop.
    case, with no `https://`, path or custom domain such as the
    storefront's own; a delivery naming any other shop is refused and kept
    as `shop_domain_mismatch` evidence). Any other value switches Shopify
-   off, and **More → Shopify** shows the refused value (R-097).
-4. In the Admin, an admin sets the online location and the storefront URL
+   off, and **More → Shopify** shows the refused value (R-097). It also
+   names the shop in the enforced `frame-ancestors` (D275), read when the
+   app builds: after changing it, redeploy.
+4. **Opening the Admin from Shopify (D275).** In the Dev Dashboard, on the
+   app's version: **App URL** `https://app.bicii.sg` (the Admin's
+   production address, no path), **Embed app in Shopify admin** on;
+   release the version. Apps → BICII Admin in the store admin then shows
+   the Admin inside the Shopify admin; staff sign in there once (that
+   session is separate from the one at the Admin's own address). If the
+   page stays blank: open the browser console; a "Refused to frame" error
+   naming `frame-ancestors` means the frame's parent is not
+   `admin.shopify.com` or the shop's own address (check
+   `SHOPIFY_SHOP_DOMAIN` and redeploy); a sign-in that does not stick
+   means the browser refuses the partitioned cookie (Safari is unverified,
+   R-136): open the Admin at its own address instead. The camera scanner
+   may not work inside the frame (R-136); type the code.
+5. In the Admin, an admin sets the online location and the storefront URL
    (**More → Shopify → Settings**, which calls `set_shopify_settings`; the
    Connection card there shows the webhook address to give Shopify, the
    pinned API version and whether the webhook secret is set). The storefront URL drives the public Buy-online

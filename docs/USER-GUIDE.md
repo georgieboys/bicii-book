@@ -71,6 +71,11 @@ If it fails:
 
 A link you opened before signing in takes you back there afterwards.
 
+From Shopify: in the store admin, open **Apps → BICII Admin** and the Admin
+shows inside Shopify. Sign in once there; it keeps its own sign-in, apart
+from the Admin opened at its own address. The camera scanner may not work
+inside Shopify: type the code, or open the Admin at its own address (D275).
+
 Your own details, your role (Admin, Manager or Mechanic), what it lets you
 do and **Sign out** are under Settings → Your profile: the card **Your role
 and access** lists every permission you have, marks any given to you on top

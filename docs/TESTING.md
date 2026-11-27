@@ -1375,9 +1375,19 @@ PostgREST `details` row or `hint`, for an Error and a plain object;
 query) and `customer-headers.test.ts` (every page's `Permissions-Policy`:
 the camera for the Admin only, microphone, geolocation, payment, USB and
 screen capture refused; no `X-Powered-By`); `csp-header.test.ts` checks
-every page's report-only Content-Security-Policy (`frame-ancestors
-'none'`, `object-src 'none'`, `base-uri 'self'`, the Supabase origin and
-websocket from `NEXT_PUBLIC_SUPABASE_URL`, none when it is missing). The audit's efficiency items
+every page's report-only Content-Security-Policy (`object-src 'none'`,
+`base-uri 'self'`, the Supabase origin and websocket from
+`NEXT_PUBLIC_SUPABASE_URL`, none when it is missing) and, since D275, the
+one enforced directive: staff pages `frame-ancestors 'self'
+https://admin.shopify.com https://<SHOPIFY_SHOP_DOMAIN>` (only
+admin.shopify.com when the domain is missing or malformed, never a
+wildcard) with no `X-Frame-Options`, the quote and payment pages
+`frame-ancestors 'none'` with `X-Frame-Options: DENY`;
+`proxy-session-cookies.test.ts` (D275; the Supabase client stubbed) checks
+that on Vercel a session under the library's old cookie name is carried to
+`bicii-auth-token` (Secure, SameSite=None, Partitioned) and the old cookies
+expired, also on the redirect to sign in, and that off Vercel no cookie is
+touched. The audit's efficiency items
 add `photo-urls.test.ts` (`listPhotos`: without `STORAGE_IMAGE_TRANSFORMS`
 the grid gets the original and nothing more is signed; with it a private
 photo's thumbnail is a 480 px signed rendition, one request per photo, a
@@ -1386,7 +1396,9 @@ rendition Storage cannot sign falls back to the original). The audit's
 database and security items add `quote-answer-action.test.ts` (a mapped
 business reason comes back as `code`, an unmapped P0001's database text
 never does) and `cookie-options.test.ts` (session cookies Secure on Vercel
-only), and extend `link-throttle.test.ts` (the client's bucket is counted
+only; since D275 also SameSite=None and Partitioned under `bicii-auth-token`
+there, the library's defaults elsewhere, and which old cookies are carried
+over or expired), and extend `link-throttle.test.ts` (the client's bucket is counted
 first and alone; a client past its limit adds no per-token row),
 `env.test.ts` (production ignores `SIGN_IN_LIMIT_MULTIPLIER`),
 `auth-helpers.test.ts` (`newRequestId` mints a fresh id each time),

@@ -1,5 +1,26 @@
 # Current state
 
+Updated: 2026-11-27 SGT (D275 the Shopify admin may frame the Admin;
+branch `feat/shopify-embed`, no migration, pushed, no PR yet). Apps →
+BICII Admin in the store admin showed a blank page (`X-Frame-Options:
+DENY`); the owner chose "Allow inside Shopify". Built: an enforced
+`Content-Security-Policy: frame-ancestors 'self' https://admin.shopify.com
+https://<SHOPIFY_SHOP_DOMAIN>` (the rest of the CSP stays Report-Only,
+A-25), no `X-Frame-Options`, the quote and payment pages framed by nobody;
+on Vercel the session cookies `SameSite=None; Secure; Partitioned` under
+`bicii-auth-token` in the server clients, the proxy and the browser client,
+with the proxy carrying an old `sb-…-auth-token` session to the new name and
+expiring the old cookies. R-136 records the CSRF reasoning (Server Actions'
+Origin check; read-only Route Handlers; no mutation while rendering), the
+separate session inside Shopify, and the Stripe, camera, Safari and App
+Bridge limits. Verified locally: prettier, eslint, `tsc --noEmit`, `vitest
+run tests/unit`; CI: see the branch's latest workflow_dispatch run. Not
+verified: anything inside the live Shopify admin. Owner action after the
+merge deploys: in the Dev Dashboard set the App URL to the Admin's address
+with embedding on and release (RUNBOOK "Shopify: the custom app and its
+webhooks", step 4), then open Apps → BICII Admin, sign in, and try a Server
+Action, a photo upload and the scanner (R-136). Next: open the PR, merge.
+Before that,
 Updated: 2026-11-25 SGT (D274 Shopify Payments fees borne by Cult Commons;
 branch `feat/shopify-fees-cc`, migration `20261125000100`, pushed, no PR
 yet). The owner asked to include Shopify Payments fees too; the D273

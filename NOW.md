@@ -1,5 +1,25 @@
 # Current state
 
+Updated: 2026-11-28 SGT (D276 month-end payouts; branch `feat/payouts`,
+migration `20261128000100`, pushed, PR open, not merged). The owner asked
+for "a simple system to tell me how much do i owe bobby for service,
+consigners for stuff. cult commons etc." Built: `service_pay_rules`,
+`payouts` and `payout_reversals` (admin-only RLS, append-only);
+`set_service_pay_rule`, `record_payout` (idempotent by id with a
+fingerprint), `reverse_payout`, `payout_summary` and `list_payouts`, all
+`private.require_admin()`; the **Payouts** page (`/payouts`, admins only,
+in More after Reports: total to transfer, each mechanic's service pay,
+Cult Commons as on Reports, consignors linking to their own Record
+payment, the services reserve with Pay ad hoc labour, payments recorded
+with Reverse…, and Service pay rules); "To pay this month" on Today for
+admins. PLAN D276 (build defaults marked), ADR-030, R-137, DATA-MODEL §19
+"Month-end payouts", §15, §16. Verified locally: prettier, eslint,
+`tsc --noEmit`, `vitest run tests/unit`; CI (workflow_dispatch) on the
+branch: see the PR. Not verified: the page in a browser against data.
+Owner action after the merge deploys: open Payouts → Service pay and set
+Bobby's cap (S$3,000) from the first month to track; confirm the D276
+build defaults. Next: review and merge the PR.
+Before that,
 Updated: 2026-11-27 SGT (D275 the Shopify admin may frame the Admin;
 branch `feat/shopify-embed`, no migration, pushed, no PR yet). Apps →
 BICII Admin in the store admin showed a blank page (`X-Frame-Options:

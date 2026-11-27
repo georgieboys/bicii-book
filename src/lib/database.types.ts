@@ -4378,6 +4378,105 @@ export type Database = {
           },
         ];
       };
+      payout_reversals: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          payout_id: string;
+          reason: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          payout_id: string;
+          reason: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          payout_id?: string;
+          reason?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payout_reversals_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payout_reversals_payout_id_fkey";
+            columns: ["payout_id"];
+            isOneToOne: true;
+            referencedRelation: "payouts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payouts: {
+        Row: {
+          amount: number;
+          created_at: string;
+          created_by: string | null;
+          currency: string;
+          id: string;
+          kind: Database["public"]["Enums"]["payout_kind"];
+          notes: string | null;
+          paid_at: string;
+          payee_name: string | null;
+          period_month: string;
+          reference: string | null;
+          request_fingerprint: string | null;
+          staff_id: string | null;
+        };
+        Insert: {
+          amount: number;
+          created_at?: string;
+          created_by?: string | null;
+          currency: string;
+          id: string;
+          kind: Database["public"]["Enums"]["payout_kind"];
+          notes?: string | null;
+          paid_at: string;
+          payee_name?: string | null;
+          period_month: string;
+          reference?: string | null;
+          request_fingerprint?: string | null;
+          staff_id?: string | null;
+        };
+        Update: {
+          amount?: number;
+          created_at?: string;
+          created_by?: string | null;
+          currency?: string;
+          id?: string;
+          kind?: Database["public"]["Enums"]["payout_kind"];
+          notes?: string | null;
+          paid_at?: string;
+          payee_name?: string | null;
+          period_month?: string;
+          reference?: string | null;
+          request_fingerprint?: string | null;
+          staff_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payouts_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payouts_staff_id_fkey";
+            columns: ["staff_id"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       print_jobs: {
         Row: {
           adapter: Database["public"]["Enums"]["printer_adapter"];
@@ -5690,6 +5789,48 @@ export type Database = {
           {
             foreignKeyName: "schedule_events_actor_staff_id_fkey";
             columns: ["actor_staff_id"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      service_pay_rules: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          effective_from: string;
+          id: string;
+          monthly_cap: number;
+          staff_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          effective_from: string;
+          id?: string;
+          monthly_cap: number;
+          staff_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          effective_from?: string;
+          id?: string;
+          monthly_cap?: number;
+          staff_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "service_pay_rules_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "staff";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "service_pay_rules_staff_id_fkey";
+            columns: ["staff_id"];
             isOneToOne: false;
             referencedRelation: "staff";
             referencedColumns: ["id"];
@@ -9919,6 +10060,26 @@ export type Database = {
           sold_items: number;
         }[];
       };
+      list_payouts: {
+        Args: { p_month: string };
+        Returns: {
+          amount: number;
+          created_at: string;
+          created_by_name: string;
+          currency: string;
+          id: string;
+          kind: Database["public"]["Enums"]["payout_kind"];
+          notes: string;
+          paid_at: string;
+          payee: string;
+          period_month: string;
+          reference: string;
+          reversal_reason: string;
+          reversed_at: string;
+          reversed_by_name: string;
+          staff_id: string;
+        }[];
+      };
       list_sales: {
         Args: { from_at?: string; max_rows?: number; q?: string; to_at?: string };
         Returns: {
@@ -10327,6 +10488,26 @@ export type Database = {
           po_number: string;
           purchase_order_id: string;
           request_id: string;
+        }[];
+      };
+      payout_summary: {
+        Args: { p_month: string };
+        Returns: {
+          balance: number;
+          carry_over: number;
+          consignor_id: string;
+          currency: string;
+          display_name: string;
+          item_count: number;
+          monthly_cap: number;
+          outstanding: number;
+          owed: number;
+          paid: number;
+          party: string;
+          period_month: string;
+          service_after_cc: number;
+          service_revenue: number;
+          staff_id: string;
         }[];
       };
       prepare_balance_checkout: {
@@ -10911,6 +11092,20 @@ export type Database = {
           payment_id: string;
           stripe_checkout_session_id: string;
         }[];
+      };
+      record_payout: {
+        Args: {
+          p_amount: unknown;
+          p_id: string;
+          p_kind: Database["public"]["Enums"]["payout_kind"];
+          p_notes?: string;
+          p_paid_at?: string;
+          p_payee_name?: string;
+          p_period_month?: string;
+          p_reference?: string;
+          p_staff_id?: string;
+        };
+        Returns: { payout_id: string; replayed: boolean }[];
       };
       record_product_group_push: {
         Args: {
@@ -11601,6 +11796,21 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      reverse_payout: {
+        Args: { p_payout_id: string; p_reason: string };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          payout_id: string;
+          reason: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "payout_reversals";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       reverse_settlement: {
         Args: { reason: string; reversal_id: string; settlement_id: string };
         Returns: {
@@ -12278,6 +12488,23 @@ export type Database = {
         };
       };
       set_service_archived: { Args: { archived: boolean; service_id: string }; Returns: string };
+      set_service_pay_rule: {
+        Args: { p_effective_from: string; p_monthly_cap: unknown; p_staff_id: string };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          effective_from: string;
+          id: string;
+          monthly_cap: number;
+          staff_id: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "service_pay_rules";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       set_shop_hours: {
         Args: { active?: boolean; intervals: Json; weekday: number };
         Returns: {
@@ -13489,6 +13716,7 @@ export type Database = {
         "proposed" | "quoted" | "approved" | "declined" | "ordered" | "fitted" | "cancelled";
       payment_kind: "deposit" | "balance";
       payment_status: "pending" | "paid" | "failed" | "expired" | "partially_refunded" | "refunded";
+      payout_kind: "mechanic_pay" | "cult_commons" | "reserve_labour";
       permission_key:
         | "view_costs"
         | "manage_inventory"
@@ -14826,6 +15054,7 @@ export const Constants = {
       ],
       payment_kind: ["deposit", "balance"],
       payment_status: ["pending", "paid", "failed", "expired", "partially_refunded", "refunded"],
+      payout_kind: ["mechanic_pay", "cult_commons", "reserve_labour"],
       permission_key: [
         "view_costs",
         "manage_inventory",

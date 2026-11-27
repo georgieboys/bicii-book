@@ -1436,6 +1436,10 @@ website's account pages go live when the owner switches them on,
   Appointments (arrivals, still expected, arrived), Stock (parts used, low
   stock, significant adjustments), Needs attention, Activity and the Last 7
   days. Use the day navigator for an earlier day and **Back to today**.
+- **To pay this month: $…** (admins, today only): last month's **Total to
+  transfer** from Payouts (service pay and Cult Commons, earlier months
+  included, and consignors). **Open Payouts** goes there. Hidden when
+  nothing is owed.
 - **Pay owners** (Manage consignments, today only): "Owed to
   consignors: $… on N items", then the consignors owed the most (up to
   five; **See all** opens Consignment), each with its amount and "N items
@@ -1902,6 +1906,44 @@ trackers and handovers needs **Manage adventures**.
   now.
 - If it fails: "You can't open this" without View financial reports.
   Covered by `tests/e2e/reports.spec.ts`.
+
+### Pay out at month end (admins)
+
+- Before you start: you need the admin role. Managers and mechanics don't
+  see **Payouts**. Set each mechanic's pay once, under **Service pay** at
+  the bottom of the page: the mechanic, the **Monthly cap** (S$3,000 for
+  Bobby) and the month it starts. A new cap applies from its month on;
+  earlier months keep theirs.
+- Steps: **More** → **Payouts**. It opens on last month. Use **Previous
+  month** and **Next month** to change it. **Total to transfer** is what
+  you still owe: service pay and Cult Commons, earlier months included,
+  plus what consignors are owed today. Then, for each:
+  - **Bobby (service pay)**: the service revenue on the jobs he led, the
+    amount after Cult Commons, his pay up to the cap, what you paid and
+    what is outstanding. Press **Record payment**: the amount is filled in
+    with what is outstanding. Set **Paid on** and the **Reference**, then
+    press **Record payment of $x**.
+  - **Cult Commons**: the month's Cult Commons, the same figure as on
+    Reports, Stripe and Shopify fees already taken off. Record the
+    payment in the same way.
+  - **Consignors**: everyone owed for consigned items. A row opens the
+    consignor, where you record their payment as usual.
+  - **Services reserve**: what the month added (service after Cult Commons
+    above the cap, and service on jobs with no mechanic on service pay)
+    and the balance. **Pay ad hoc labour** pays someone from it: choose a
+    staff member or type a name, then the amount and date.
+- Success looks like: "Payment of $3,000.00 recorded for Bobby". The
+  payment appears under **Payments recorded**, and Outstanding shows
+  "Paid". A month you didn't finish paying shows on the next month as
+  "Still owed from earlier months".
+- If it fails: you can pay more than is owed. The card then says "Over by
+  $x". A reserve below zero says "Reserve overdrawn by $x". Neither is
+  refused. A wrong payment is corrected with **Reverse…** and a reason. It
+  stays in the list, struck through, and counts as owed again. The owed
+  figures follow the jobs and sales, so a reopened job or a back-dated
+  sale changes a past month, as it does on Reports. Payments stay as you
+  recorded them. This records what you paid. It is not payroll: no tax,
+  CPF or payslips.
 
 ### Check what needs attention (Exceptions)
 

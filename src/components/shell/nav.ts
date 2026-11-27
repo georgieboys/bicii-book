@@ -92,6 +92,13 @@ export const MORE_ITEMS: readonly NavItem[] = [
   { href: "/labels", label: "Labels", icon: PrinterIcon, description: "QR labels and print jobs" },
   { href: "/reports", label: "Reports", icon: ChartIcon, description: "Daily and period reports" },
   {
+    href: "/payouts",
+    label: "Payouts",
+    icon: ReceiptIcon,
+    description: "What you owe at month end, and payments made",
+    adminOnly: true,
+  },
+  {
     href: "/settings",
     label: "Settings",
     icon: SettingsIcon,

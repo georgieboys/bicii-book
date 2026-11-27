@@ -458,6 +458,12 @@ export const AUTHENTICATED_FUNCTIONS: readonly string[] = [
   "public.my_adventure_outcome(uuid)",
   "public.public_adventure_finishers(text, integer)",
   "public.update_adventure_draft(uuid, integer, text, text, text, text, text, text, text, text, numeric, integer, text, integer, integer, adventure_checkpoint_order, text, text, text, text, text, text, boolean)",
+  // D276 month-end payouts: admin only (each function calls require_admin)
+  "public.set_service_pay_rule(uuid, money_amount, date)",
+  "public.record_payout(uuid, payout_kind, money_amount, date, uuid, text, timestamp with time zone, text, text)",
+  "public.reverse_payout(uuid, text)",
+  "public.payout_summary(date)",
+  "public.list_payouts(date)",
 ];
 
 /**
@@ -678,6 +684,11 @@ export const AUTHENTICATED_RELATIONS: Readonly<Record<string, readonly string[]>
   "public.adventure_waivers": ["SELECT"],
   "public.adventure_waiver_signatures": ["SELECT"],
   "public.tracker_late_fees": ["SELECT"],
+  // D276 month-end payouts: admins only by RLS (private.is_admin), no
+  // request fingerprint (column grant); written only by the payout RPCs
+  "public.payout_reversals": ["SELECT"],
+  "public.payouts": ["SELECT"],
+  "public.service_pay_rules": ["SELECT"],
 };
 
 /**

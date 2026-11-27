@@ -3938,3 +3938,39 @@ URLs, or customer data in this file.
   scanner, Safari, anything that misbehaves in the frame).
 - Still open: a check inside the live store (sign-in, a Server Action,
   photo upload, realtime, the scanner) after the deploy.
+
+## R-137 — Month-end payouts: what is derived live and left out
+
+- Category: money, scope.
+- Status and owner: open, accepted; the owner (D276), the build agent.
+- Trigger and impact:
+  - **Live restatement after payment.** What is owed (service pay, Cult
+    Commons, the reserve) is derived from the Reports rows each time
+    Payouts is read, never stored. A job reopened, a sale back-dated or a
+    fee read late changes a month that was already paid, as it changes
+    Reports (D100–D105). The payments stay as recorded, so that month then
+    shows an outstanding amount or "Over by $x", and the next month
+    carries it ("Still owed from earlier months" or "Paid ahead by").
+  - **The reserve can go negative.** Ad hoc labour is never refused, so
+    the balance can read "Reserve overdrawn by $x" (operator first).
+  - **Lead-mechanic attribution.** A job's whole service revenue counts
+    for its lead mechanic (`work_order_assignments` role lead, as the
+    Mechanic breakdown on Reports); work by a second mechanic on the same
+    job is not split. A job with no lead puts its service in the reserve.
+  - **Tracking start.** Carry-over and the reserve balance count from the
+    earliest month of any pay rule or payout (build default). A pay rule
+    dated back to an earlier month brings that month's Cult Commons in as
+    owed too.
+  - **Admin-only visibility.** Managers, Bobby included, do not see
+    Payouts (build default, owner to confirm). A manager still sees the
+    consignor balances on Consignment as before.
+  - **Not payroll.** SPEC lists payroll as out of scope. D276 records what
+    is owed and paid at month end. It does not cover tax, CPF, payslips,
+    leave or employment terms, and the cap is the owner's rule, not a
+    salary.
+- Evidence: `tests/db/payouts.test.ts` (restatement follows the jobs; a
+  negative reserve; a job led by nobody to the reserve; access).
+- Workaround or containment: a past month that changed shows an
+  outstanding or "Over by" amount on Payouts. Pay the difference or let
+  the carry-over absorb it.
+- Still open: the owner's confirmation of the build defaults (PLAN D276).

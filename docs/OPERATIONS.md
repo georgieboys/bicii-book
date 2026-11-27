@@ -438,9 +438,24 @@ images from the app, `blob:`, `data:` and the Supabase origin, connections
 to the app and to the Supabase origin and its websocket (both from
 `NEXT_PUBLIC_SUPABASE_URL`, so a changed project needs a rebuild), forms to
 the app and Stripe Checkout, no frames, no plugins, `base-uri 'self'`, and
-`frame-ancestors 'none'`. Report-only means a browser blocks nothing: it
-writes each would-be violation to the console. `/sw.js` keeps its own
-enforcing policy.
+the same `frame-ancestors` as the enforced header below. Report-only means a
+browser blocks nothing: it writes each would-be violation to the console.
+`/sw.js` keeps its own enforcing policy.
+
+One directive is enforced (D275): every page also sends
+`Content-Security-Policy: frame-ancestors 'self' https://admin.shopify.com
+https://<SHOPIFY_SHOP_DOMAIN>`, so the Shopify admin can show the Admin
+inside its frame (Apps → BICII Admin) and no other site can. The shop is
+read from `SHOPIFY_SHOP_DOMAIN` when the app builds: a changed shop domain
+needs a redeploy, and a missing or malformed one leaves only
+`admin.shopify.com`. `X-Frame-Options` is not sent (it cannot name an
+origin), except on the customer's quote and payment pages, which send
+`frame-ancestors 'none'` and `X-Frame-Options: DENY`. On Vercel the session
+cookies are `SameSite=None; Secure; Partitioned` under the name
+`bicii-auth-token`, so a session inside Shopify is separate from one at the
+Admin's own address ([R-136](RISKS.md#r-136--the-admin-inside-the-shopify-admin-what-framing-loosens)).
+Enforcing the rest of the policy adds directives to the enforced header; it
+never loosens `frame-ancestors`.
 
 - **Watching:** there is no report endpoint. Open the browser's developer
   console on a preview or production deploy and look for "Content Security
@@ -448,11 +463,13 @@ enforcing policy.
   something unusual: sign in, scan a QR label (camera), add and view photos
   (job, product, adventure review, build package), print a label or sheet,
   open a quote and a payment link and go to Stripe Checkout and back, and
-  the Shopify and reports screens. Note each blocked URL and directive.
+  the Shopify and reports screens, at the Admin's own address and inside
+  the Shopify admin. Note each blocked URL and directive.
 - **When to enforce:** after one deploy in which those flows show no
   report, or each report is fixed by adding the source in
-  `contentSecurityPolicy()`. Then rename the header key to
-  `Content-Security-Policy` in the same file, update
+  `contentSecurityPolicy()`. Then send the whole policy as the enforced
+  `Content-Security-Policy` in the same file, in place of the
+  frame-ancestors-only one (the catch-all and the customer pages), update
   `tests/unit/csp-header.test.ts`, and repeat the pass on the preview
   before merging. Dropping `'unsafe-inline'` from `script-src` needs a
   per-request nonce in `src/proxy.ts` and dynamic rendering (the Next.js

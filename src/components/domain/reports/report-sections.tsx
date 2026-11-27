@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import { MoneyTile, StatTile } from "@/components/domain/today/stat-tile";
 import { Badge } from "@/components/ui/badge";
-import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RowLink, RowList } from "@/components/ui/row-list";
 import { cn } from "@/lib/cn";
@@ -47,26 +46,7 @@ import {
 
 const isNegative = (amount: string | null) => amount !== null && toDecimal(amount).isNegative();
 
-/**
- * An "Export CSV" link (SPEC §22, ADR-001 A7). A plain <a>, never
- * next/link: Link prefetches what it shows, and a prefetch here would run
- * the export. target=_blank so the iOS standalone PWA opens the file in
- * Safari's viewer (with Share and Save to Files) instead of replacing the
- * app with it.
- */
-export function ExportLink({ href, name }: { href: string; name: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener"
-      aria-label={`Export CSV: ${name}`}
-      className={buttonClasses({ variant: "outline", size: "sm" })}
-    >
-      Export CSV
-    </a>
-  );
-}
+export { ExportLink } from "./export-link";
 
 /** A Reports section: an h2, a description and actions on the right. */
 export function ReportSection({

@@ -34,9 +34,10 @@ describe("customer page headers", () => {
     expect(headers.get("referrer-policy")).toBe("no-referrer");
     expect(headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(headers.get("cache-control")).toBe("private, no-store");
-    // The catch-all still applies.
+    // The catch-all still applies; framing is refused outright (D275).
     expect(headers.get("x-content-type-options")).toBe("nosniff");
     expect(headers.get("x-frame-options")).toBe("DENY");
+    expect(headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
   });
 
   it.each(["/", "/jobs/x", "/payments", "/reports/payments", "/jobs/pay/x"])(
@@ -46,6 +47,8 @@ describe("customer page headers", () => {
       expect(headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
       expect(headers.get("x-robots-tag")).toBeNull();
       expect(headers.get("cache-control")).toBeNull();
+      // Frameable by the Shopify admin (D275): no X-Frame-Options.
+      expect(headers.get("x-frame-options")).toBeNull();
     },
   );
 });

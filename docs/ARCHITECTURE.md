@@ -526,6 +526,20 @@ All records: [decisions/README.md](decisions/README.md).
   `src/lib/integrations/stripe/checkout.ts` and their rate-limit
   counters, and anon gains nothing more) ([ADR-003](decisions/ADR-003-customer-access.md),
   [DATA-MODEL §15](DATA-MODEL.md#15-row-level-security-matrix)).
+- Framing and the session cookie (D275,
+  [ADR-020 amendment 2026-11-27](decisions/ADR-020-shopify.md#amendment-2026-11-27-the-shopify-admin-may-frame-the-admin-d275)):
+  the Admin opens inside the Shopify admin (Apps → BICII Admin). The only
+  enforced CSP directive, `frame-ancestors` (`next.config.ts`), lets the
+  Admin itself, `https://admin.shopify.com` and the shop's own
+  myshopify.com address frame it; no `X-Frame-Options`; the quote and
+  payment pages are framed by nobody. On Vercel the Supabase session
+  cookies (`src/lib/supabase/cookie-options.ts`, used by the server
+  clients, `src/proxy.ts` and the browser client) are
+  `SameSite=None; Secure; Partitioned` under the name `bicii-auth-token`,
+  so the frame keeps its own session; the proxy carries a session from the
+  library's old cookie name and expires the old cookies. CSRF rests on
+  Next's Origin check for Server Actions and on Route Handlers that only
+  read ([R-136](RISKS.md#r-136--the-admin-inside-the-shopify-admin-what-framing-loosens)).
 - Storage: bucket `media-internal` is private (staff policies, plus a
   customer's read of their own customer-visible bike and job photos,
   D124, so the public site signs URLs with the customer's session);

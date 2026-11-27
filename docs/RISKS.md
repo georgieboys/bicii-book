@@ -3861,3 +3861,80 @@ URLs, or customer data in this file.
 - Workaround or containment: provisional notes on the sale, the job,
   Today and Reports; the exception for admins; the raw fee and tax kept.
 - Still open: the GST reading; whether a later charge should be re-read.
+
+## R-136 — The Admin inside the Shopify admin: what framing loosens
+
+- Category: security, Shopify.
+- Status and owner: open, accepted; the owner (D275), the build agent.
+- Trigger and impact:
+  - **Clickjacking surface.** Before D275 nobody could frame the Admin
+    (`X-Frame-Options: DENY`; the CSP's `frame-ancestors 'none'` was only
+    Report-Only, so XFO was the only guard). Now the enforced
+    `frame-ancestors` names the Admin, `https://admin.shopify.com` and the
+    shop's own `https://<SHOPIFY_SHOP_DOMAIN>`, so a page inside the
+    Shopify admin can frame it. Anyone who can run code there already has
+    Shopify admin access to the store (trusted). A malformed or missing
+    `SHOPIFY_SHOP_DOMAIN` at build time leaves `admin.shopify.com` only.
+    The domain is read when the app builds: a changed shop needs a
+    redeploy. Customer pages (`/quote/…`, `/pay/…`) stay unframeable.
+  - **SameSite=None removes the browser's implicit CSRF guard.** On Vercel
+    the session cookies are `SameSite=None; Secure; Partitioned`, so a
+    cross-site request to the Admin carries them. What still holds: Server
+    Actions are POSTs whose Origin Next compares with the Host (inside the
+    frame the document's origin is the Admin's, so its own actions pass;
+    another site's fail); the cookie-authenticated Route Handlers
+    (`/reports/export`, `/api/labels/[jobId]/pdf`) are read-only GETs whose
+    responses another origin cannot read; no page or layout calls a
+    mutating RPC while rendering (checked 2026-11-27 by searching
+    `src/app` for mutating calls). The webhooks, the cron and the
+    adventure checkout do not use the session cookie. A future
+    cookie-authenticated Route Handler that changes state must check
+    Origin itself.
+  - **Partitioned session.** A partitioned cookie is keyed by the top-level
+    site: the session inside Shopify and the one at the Admin's own address
+    are separate, so staff sign in once in each, and signing out in one
+    leaves the other. The cookie's name changed to `bicii-auth-token`
+    (a browser keeps a partitioned and an unpartitioned cookie of one name
+    side by side, and the server and the browser client would read
+    different ones). On Vercel `src/proxy.ts` carries a session found only
+    under the old `sb-<project>-auth-token` name to the new one and
+    expires the old cookies, so the deploy signs nobody out at the Admin's
+    own address (`tests/unit/proxy-session-cookies.test.ts`; not tried on
+    a deploy).
+  - **Browsers.** Chrome, Edge and Firefox accept a partitioned cookie in
+    a cross-site frame. Whether Safari keeps the session inside the frame
+    is not verified; if sign-in does not stick there, open the Admin at its
+    own address.
+  - **Stripe.** Stripe Checkout refuses to be framed. Only the customer's
+    quote and payment pages navigate to it, and they are never in the
+    frame; staff links to Stripe and to customer pages already open a new
+    tab (`target="_blank"`). Not tried inside the frame.
+  - **Camera scanner.** A cross-origin frame gets the camera only when the
+    parent's `<iframe>` delegates it (`allow="camera"`); Shopify's admin
+    frame is not BICII's to change, and the Admin's
+    `Permissions-Policy: camera=(self)` cannot grant it. The scanner may
+    not work embedded: type the code, or open the Admin at its own address.
+    When the frame blocks it, the scanner says so (`cameraMessage`,
+    `tests/unit/camera.test.ts`) instead of the Safari settings advice.
+  - **New tabs.** A new top-level tab is outside the Shopify partition, so
+    it does not carry the frame's session. Export CSV drops
+    `target="_blank"` when framed (`src/lib/framed.ts`): the export is an
+    attachment, so it downloads in place with the frame's session. A
+    label's **Open PDF** (`/api/labels/[jobId]/pdf`, served inline) still
+    opens a new tab, which asks for a sign-in once at the Admin's own
+    address. Not tried inside the frame.
+  - **App Bridge.** The Admin does not load Shopify App Bridge. Whether the
+    Shopify admin shows a custom app's page without it, or waits on it, is
+    not verified against the live store.
+  - **The rest of the CSP is still Report-Only** (audit A-25):
+    frame-ancestors is the only enforced directive.
+- Evidence and confidence: medium; from the build
+  (`tests/unit/csp-header.test.ts`, `tests/unit/customer-headers.test.ts`,
+  `tests/unit/cookie-options.test.ts`,
+  `tests/unit/proxy-session-cookies.test.ts`) and the installed `@supabase/ssr`
+  0.12.7 and `cookie` 1.x (which serialize `partitioned`); nothing tried
+  inside the live Shopify admin.
+- Workaround or containment: open the Admin at its own address (the
+  scanner, Safari, anything that misbehaves in the frame).
+- Still open: a check inside the live store (sign-in, a Server Action,
+  photo upload, realtime, the scanner) after the deploy.

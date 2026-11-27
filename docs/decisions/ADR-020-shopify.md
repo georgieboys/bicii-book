@@ -379,3 +379,50 @@ reading `orders/paid`'s payload (no webhook carries fees). Not included:
 card-terminal fees, dispute fees and adventures (R-134); a later charge on
 an edited order (R-135). Built in `20261125000100_shopify_fees.sql`
 ([DATA-MODEL §19](../DATA-MODEL.md#shopify-payments-fees-borne-by-cult-commons-d274)).
+
+## Amendment 2026-11-27: the Shopify admin may frame the Admin (D275)
+
+Opened from the store admin (Apps → BICII Admin), the Admin showed a blank
+page: it sent `X-Frame-Options: DENY`, and Shopify shows an app's App URL
+inside an iframe. Offered "open in a new tab" (no security change) or
+"allow inside Shopify", the owner chose **"Allow inside Shopify"**
+([PLAN §6 D275](../PLAN.md#6-open-decisions-for-the-owner)). Built as
+narrowly as it goes, with no migration:
+
+1. **Framing.** `next.config.ts` sends an enforced
+   `Content-Security-Policy: frame-ancestors 'self' https://admin.shopify.com
+https://<SHOPIFY_SHOP_DOMAIN>`, the shape Shopify asks of an embedded app
+   (the unified admin and the one shop's legacy admin address; no
+   wildcard), with the shop read from `SHOPIFY_SHOP_DOMAIN` at build time
+   and left out when missing or malformed. It is the only enforced
+   directive; the rest of the policy stays Report-Only (audit A-25).
+   `X-Frame-Options` is dropped because it cannot name an origin. The
+   customer's quote and payment pages keep `frame-ancestors 'none'` and
+   `X-Frame-Options: DENY`; sign-in is not excluded, since staff must sign
+   in inside the frame.
+2. **Session cookies.** Inside the frame the Admin is cross-site, and a
+   SameSite=Lax cookie is not sent. On Vercel the Supabase session cookies
+   are `SameSite=None; Secure; Partitioned` (CHIPS; `@supabase/ssr` 0.12.7
+   passes `partitioned` to `cookie` 1.x and to Next's cookie store), the
+   same in the server clients, the proxy and the browser client. Under
+   BICII's own name, `bicii-auth-token`, because a browser keeps a
+   partitioned and an unpartitioned cookie of one name side by side; the
+   proxy carries a session from the old `sb-<project>-auth-token` cookies
+   to the new name and expires the old ones, so nobody is signed out by
+   it. Locally and in CI (http) the library's defaults stay.
+3. **CSRF** no longer has SameSite's help. Server Actions keep Next's
+   Origin-against-Host check (the frame's own origin is the Admin's); the
+   cookie-authenticated Route Handlers are read-only GETs; nothing changes
+   state while a page renders (R-136).
+
+Rejected: a new tab only (the owner's choice); a wildcard
+`https://*.myshopify.com` (any shop could frame it); enforcing the whole
+CSP now (A-25's pass on a preview comes first); Shopify session tokens and
+App Bridge in place of cookies (a larger change, for an app that already
+has its own staff sign-in). Known limits (R-136): the session inside
+Shopify is separate from the one at the Admin's own address; Stripe
+Checkout refuses framing (only customer pages, never framed, go there);
+the camera scanner needs Shopify's iframe to delegate the camera (when
+blocked, the scanner says so); Export CSV downloads in place when framed,
+but a label's Open PDF opens a new tab, which needs a sign-in at the
+Admin's own address; Safari and App Bridge behaviour are unverified.

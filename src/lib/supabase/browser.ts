@@ -5,6 +5,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.types";
 import { getPublicEnv } from "@/lib/env";
 
+import { HTTPS_SESSION_COOKIE_OPTIONS } from "./cookie-options";
 import { progressFetch } from "./upload-progress";
 
 let client: ReturnType<typeof createBrowserClient<Database>> | undefined;
@@ -23,10 +24,12 @@ export function getBrowserClient() {
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       global: { fetch: progressFetch },
-      // Secure wherever the page itself is HTTPS (src/lib/supabase/cookie-options.ts).
+      // The server's options wherever the page itself is HTTPS: the same
+      // name and attributes, or the two would keep different sessions
+      // (src/lib/supabase/cookie-options.ts, D275).
       cookieOptions:
         typeof location !== "undefined" && location.protocol === "https:"
-          ? { secure: true }
+          ? HTTPS_SESSION_COOKIE_OPTIONS
           : undefined,
     },
   );

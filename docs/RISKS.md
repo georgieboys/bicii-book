@@ -3958,9 +3958,16 @@ URLs, or customer data in this file.
     Mechanic breakdown on Reports); work by a second mechanic on the same
     job is not split. A job with no lead puts its service in the reserve.
   - **Tracking start.** Carry-over and the reserve balance count from the
-    earliest month of any pay rule or payout (build default). A pay rule
-    dated back to an earlier month brings that month's Cult Commons in as
-    owed too.
+    first month of the earliest pay rule (build default); payouts never
+    move it, reversed or not (`tests/db/payouts.test.ts` "where tracking
+    starts"). A pay rule dated back to an earlier month deliberately
+    brings that month's Cult Commons and reserve in too; the Service pay
+    card states the start month. With no pay rule at all, the earliest
+    non-reversed payout's month stands in.
+  - **Carry-over is paid month by month.** Record payment fills in the
+    month on screen only; "Still owed from earlier months" links to the
+    earliest month still owed, and Total to transfer counts it until it is
+    paid there.
   - **Admin-only visibility.** Managers, Bobby included, do not see
     Payouts (build default, owner to confirm). A manager still sees the
     consignor balances on Consignment as before.

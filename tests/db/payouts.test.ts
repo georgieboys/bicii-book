@@ -54,6 +54,7 @@ type Row = {
   paid: string | null;
   outstanding: string | null;
   carry_over: string | null;
+  carry_from: string | null;
   balance: string | null;
   item_count: number | null;
 };
@@ -75,7 +76,8 @@ async function summary(tx: pg.Client, month: string): Promise<Row[]> {
   const { rows } = await tx.query<Row>(
     `select party, staff_id, consignor_id, display_name, to_char(period_month, 'YYYY-MM-DD') as period_month,
             service_revenue::text, service_after_cc::text, monthly_cap::text, owed::text, paid::text,
-            outstanding::text, carry_over::text, balance::text, item_count
+            outstanding::text, carry_over::text, to_char(carry_from, 'YYYY-MM-DD') as carry_from,
+            balance::text, item_count
        from public.payout_summary($1::date)`,
     [month],
   );
@@ -238,6 +240,7 @@ describe.skipIf(!isolatedDatabase())("D276: mechanic service pay and the reserve
         owed: "1000.00",
         outstanding: "1000.00",
         carry_over: "3000.00",
+        carry_from: JAN,
       });
       expect(partyRow(feb, "reserve")).toMatchObject({
         owed: "2500.00",
@@ -247,6 +250,7 @@ describe.skipIf(!isolatedDatabase())("D276: mechanic service pay and the reserve
       expect(partyRow(feb, "cult_commons")).toMatchObject({
         owed: "1500.00",
         carry_over: "1500.00",
+        carry_from: JAN,
       });
       // Repeating the rule in force for a month changes nothing.
       const again = await setRule(tx, STAFF.mechanic1, "1000.00", FEB);
@@ -478,8 +482,11 @@ describe.skipIf(!isolatedDatabase())("D276: recording and reversing payouts", ()
       });
       // February carries what January still owes.
       const feb = await summary(tx, FEB);
-      expect(mechanicRow(feb, STAFF.mechanic1)?.carry_over).toBe("500.00");
-      expect(partyRow(feb, "cult_commons").carry_over).toBe("0.00");
+      expect(mechanicRow(feb, STAFF.mechanic1)).toMatchObject({
+        carry_over: "500.00",
+        carry_from: JAN,
+      });
+      expect(partyRow(feb, "cult_commons")).toMatchObject({ carry_over: "0.00", carry_from: null });
 
       // The month's list: newest first, the reversal on its row.
       await actAs(tx, ADMIN);
@@ -626,6 +633,56 @@ describe.skipIf(!isolatedDatabase())("D276: recording and reversing payouts", ()
         await tx.query<{ payee: string }>("select payee from public.list_payouts($1::date)", [JAN])
       ).rows.map((r) => r.payee);
       expect(payees).toEqual(["Ah Seng"]);
+    });
+  });
+});
+
+describe.skipIf(!isolatedDatabase())("D276: where tracking starts", () => {
+  it("counts carry-over and the reserve from the first pay rule's month; payouts, reversed or not, never move it", async () => {
+    await inTransaction(conn, async (tx) => {
+      // January and February were settled outside the app.
+      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "1000.00"); // CC 300, 700 after CC
+      await jobOn(tx, "2023-02-10", STAFF.mechanic1, "1000.00");
+      await setRule(tx, STAFF.mechanic1, "3000.00", MAR);
+      await jobOn(tx, "2023-03-10", STAFF.mechanic1, "5000.00");
+      const before = await summary(tx, MAR);
+      expect(partyRow(before, "cult_commons")).toMatchObject({
+        owed: "1500.00",
+        carry_over: "0.00",
+        carry_from: null,
+      });
+      expect(partyRow(before, "reserve")).toMatchObject({
+        owed: "500.00",
+        carry_over: "0.00",
+        balance: "500.00",
+      });
+      expect(mechanicRow(before, STAFF.mechanic1)).toMatchObject({
+        carry_over: "0.00",
+        carry_from: null,
+      });
+
+      // A Cult Commons payment for January by mistake, then reversed; and a
+      // real one for February and ad hoc labour in January.
+      const wrong = await recordPayout(tx, { kind: "cult_commons", amount: "300.00", month: JAN });
+      await reversePayout(tx, wrong.payout_id, "Wrong month");
+      await recordPayout(tx, { kind: "cult_commons", amount: "300.00", month: FEB });
+      await recordPayout(tx, {
+        kind: "reserve_labour",
+        amount: "50.00",
+        payee: "Ah Seng",
+        month: JAN,
+      });
+      expect(await summary(tx, MAR)).toEqual(before);
+
+      // A month before tracking starts shows its own figures, no carry-over.
+      const feb = await summary(tx, FEB);
+      expect(partyRow(feb, "cult_commons")).toMatchObject({
+        owed: "300.00",
+        paid: "300.00",
+        outstanding: "0.00",
+        carry_over: "0.00",
+      });
+      expect(partyRow(feb, "reserve")).toMatchObject({ owed: "700.00", carry_over: "0.00" });
     });
   });
 });

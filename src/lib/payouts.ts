@@ -90,6 +90,8 @@ export type MechanicPayout = {
   paid: string;
   outstanding: string;
   carryOver: string;
+  /** The earliest earlier month still owed ("YYYY-MM"), or null. */
+  carryFrom: string | null;
 };
 
 export type CultCommonsPayout = {
@@ -97,6 +99,8 @@ export type CultCommonsPayout = {
   paid: string;
   outstanding: string;
   carryOver: string;
+  /** The earliest earlier month still owed ("YYYY-MM"), or null. */
+  carryFrom: string | null;
 };
 
 export type ReservePosition = {
@@ -175,6 +179,15 @@ export function carryOverWords(carry: string, currency: string): string | null {
   if (d.isZero()) return null;
   if (isNegative(carry)) return `Paid ahead by ${formatMoney(d.negated(), currency)}`;
   return `Still owed from earlier months: ${formatMoney(d, currency)}`;
+}
+
+/**
+ * Where "Still owed from earlier months" links: the earliest earlier month
+ * still owed, when there is a carry-over to pay; else null.
+ */
+export function carryOverMonth(carry: string, carryFrom: string | null): string | null {
+  if (!carryFrom || !toDecimal(carry).greaterThan(0)) return null;
+  return monthOf(carryFrom);
 }
 
 /**

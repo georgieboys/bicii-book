@@ -23,6 +23,7 @@ import { plural } from "@/lib/plural";
 import {
   EARLIEST_PAYOUT_MONTH,
   PAYOUT_KIND_LABELS,
+  carryOverMonth,
   carryOverWords,
   formatMonth,
   outstandingWords,
@@ -36,6 +37,37 @@ import { formatSignedMoney } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Payouts" };
+
+/**
+ * "Still owed from earlier months: $x", linking to the earliest month still
+ * owed so its own Record payment can pay it (the total counts it).
+ */
+function CarryOver({
+  carry,
+  carryFrom,
+  currency,
+}: {
+  carry: string;
+  carryFrom: string | null;
+  currency: string;
+}) {
+  const words = carryOverWords(carry, currency);
+  if (!words) return null;
+  const from = carryOverMonth(carry, carryFrom);
+  return (
+    <p className="mt-3 text-sm font-medium">
+      {words}
+      {from ? (
+        <>
+          {" "}
+          <Link href={`/payouts?month=${from}`} className="underline underline-offset-2">
+            Pay {formatMonth(from)}
+          </Link>
+        </>
+      ) : null}
+    </p>
+  );
+}
 
 const navLink =
   "inline-flex min-h-tap items-center rounded-full px-3 font-display text-xs font-bold tracking-wide uppercase";
@@ -69,6 +101,13 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
   const next = month < thisMonth() ? shiftMonth(month, 1) : null;
   const cc = summary.cultCommons;
   const reserve = summary.reserve;
+  // The month tracking starts: the earliest rule's (payout_summary's start).
+  const trackedFrom = rules
+    .reduce<string | null>(
+      (min, r) => (min === null || r.effectiveFrom < min ? r.effectiveFrom : min),
+      null,
+    )
+    ?.slice(0, 7);
 
   return (
     <>
@@ -100,7 +139,8 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
           </p>
           <p className="text-sm text-dust-700">
             Service pay and Cult Commons still to pay, including earlier months, and what consignors
-            are owed today.
+            are owed today. Record payment fills in this month&apos;s amount; pay an earlier month
+            from its own page (follow its link below).
           </p>
         </div>
       </Card>
@@ -113,7 +153,6 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
         </Card>
       ) : (
         summary.mechanics.map((mech) => {
-          const carry = carryOverWords(mech.carryOver, c);
           return (
             <Card
               key={mech.staffId}
@@ -148,7 +187,7 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
                   {outstandingWords(mech.outstanding, c)}
                 </dd>
               </dl>
-              {carry ? <p className="mt-3 text-sm font-medium">{carry}</p> : null}
+              <CarryOver carry={mech.carryOver} carryFrom={mech.carryFrom} currency={c} />
             </Card>
           );
         })
@@ -174,9 +213,7 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
           <dt className="font-semibold">Outstanding</dt>
           <dd className="text-right font-semibold">{outstandingWords(cc.outstanding, c)}</dd>
         </dl>
-        {carryOverWords(cc.carryOver, c) ? (
-          <p className="mt-3 text-sm font-medium">{carryOverWords(cc.carryOver, c)}</p>
-        ) : null}
+        <CarryOver carry={cc.carryOver} carryFrom={cc.carryFrom} currency={c} />
       </Card>
 
       <section aria-labelledby="payouts-consignors" className="flex flex-col gap-3">
@@ -293,6 +330,12 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
             the monthly cap. The rest goes to the services reserve. A new cap applies from its month
             on; earlier months keep theirs.
           </p>
+          {trackedFrom ? (
+            <p className="text-sm text-dust-700">
+              Payouts counts what is owed from {formatMonth(trackedFrom)}, the first month of
+              service pay. Earlier months count as settled and never carry over.
+            </p>
+          ) : null}
           {rules.length > 0 ? (
             <ul className="flex flex-col gap-1 text-sm tabular-nums">
               {rules.map((r) => (

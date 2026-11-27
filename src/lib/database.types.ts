@@ -10494,6 +10494,7 @@ export type Database = {
         Args: { p_month: string };
         Returns: {
           balance: number;
+          carry_from: string;
           carry_over: number;
           consignor_id: string;
           currency: string;

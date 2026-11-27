@@ -21,7 +21,7 @@ import { callAction } from "@/lib/call-action";
 import { paidAtFromDate } from "@/lib/consignment";
 import { shopToday } from "@/lib/dates";
 import { formatMoney, parseMoney } from "@/lib/money";
-import { monthStart, type PayoutKind } from "@/lib/payouts";
+import { formatMonth, monthStart, type PayoutKind } from "@/lib/payouts";
 import { newId } from "@/lib/uuid";
 
 import { ReasonConfirm } from "../reason-confirm";
@@ -81,7 +81,8 @@ export function RecordPayoutButton({
 /**
  * The payment (record_payout): amount, paid on (today by default, sent as
  * NULL then), reference and notes; for ad hoc labour, a staff member or the
- * name of whoever was paid. It may be more than is owed: the page then says
+ * name of whoever was paid. Every kind is recorded against the month on
+ * screen, so it shows there under Payments recorded. It may be more than is owed: the page then says
  * "Over by". The payout id is made when the sheet opens, so a retry
  * records once.
  */
@@ -126,7 +127,8 @@ function PayoutSheet({
       id,
       kind,
       amount,
-      month: labour ? null : monthStart(month),
+      // Ad hoc labour counts in the month on screen, whatever day it was paid.
+      month: monthStart(month),
       staffId: labour ? labourStaff || null : staffId,
       payeeName: labour && !labourStaff ? payeeName || null : null,
       paidAt: paidAtFromDate(paidDay, today),
@@ -155,7 +157,9 @@ function PayoutSheet({
       dismissible={!pending}
       title={labour ? "Pay ad hoc labour" : "Record payment"}
       description={
-        labour ? "Money paid from the services reserve." : `Money you transferred to ${payeeLabel}.`
+        labour
+          ? `Money paid from the services reserve. It counts in ${formatMonth(month)}.`
+          : `Money you transferred to ${payeeLabel} for ${formatMonth(month)}.`
       }
       footer={
         <>

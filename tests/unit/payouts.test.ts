@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  carryOverMonth,
   carryOverWords,
   formatMonth,
   outstandingWords,
@@ -49,6 +50,13 @@ describe("payout words (D276)", () => {
     expect(carryOverWords("0.00", "SGD")).toBeNull();
     expect(carryOverWords("250.00", "SGD")).toBe("Still owed from earlier months: $250.00");
     expect(carryOverWords("-20.00", "SGD")).toBe("Paid ahead by $20.00");
+  });
+
+  it("links a carry-over to the earliest month still owed, only while one is owed", () => {
+    expect(carryOverMonth("250.00", "2026-09-01")).toBe("2026-09");
+    expect(carryOverMonth("0.00", "2026-09-01")).toBeNull();
+    expect(carryOverMonth("-20.00", "2026-09-01")).toBeNull();
+    expect(carryOverMonth("250.00", null)).toBeNull();
   });
 
   it("prefills Record payment with the month's outstanding only when something is owed", () => {

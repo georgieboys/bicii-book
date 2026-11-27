@@ -46,9 +46,12 @@ nothing new is needed for them.
    every owed figure when it is read. `payouts` and `payout_reversals` are
    append-only, replay-safe by a client id with a request fingerprint, as
    consignment settlements are. A payout may exceed what is outstanding
-   (operator first). Unpaid months carry over. Tracking starts at the
-   earliest month of any pay rule or payout (build default), so the
-   months before the app was used never show as owed.
+   (operator first). Unpaid months carry over, and the page links the
+   carry-over to the earliest month still owed. Tracking starts at the
+   first month of the earliest pay rule (build default), so the months
+   before the app was used never show as owed or in the reserve. Payouts
+   never move it, so a payment recorded for an old month, or reversed,
+   cannot turn settled months into carry-over.
 6. **Pay rules** are append-only rows (staff, monthly cap, starting month).
    The rule in force for a month is the latest one starting on or before
    it, so a cap change never rewrites a past month. No row is seeded.
@@ -61,8 +64,10 @@ a later reopen or a back-dated sale, which Reports would show; R-137);
 paying the mechanic on every job he worked on, not just the jobs he led (the
 data has no split of a job's labour between mechanics); a second
 consignor payment path (two ways to record one payment); a configurable
-start month for tracking (more to set up; the first rule or payout marks
-it well enough until the owner asks otherwise).
+start month for tracking (more to set up; the first pay rule's month marks
+it well enough until the owner asks otherwise); starting at the earliest
+payout too (one payment for an old month, even reversed, would turn
+months settled outside the app into carry-over for every party).
 
 ## Consequences
 

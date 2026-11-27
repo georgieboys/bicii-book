@@ -65,12 +65,14 @@ export async function getPayoutSummary(
       paid: m(r.paid, c),
       outstanding: m(r.outstanding, c),
       carryOver: m(r.carry_over, c),
+      carryFrom: r.carry_from,
     })),
     cultCommons: {
       owed: m(cc?.owed, c),
       paid: m(cc?.paid, c),
       outstanding: m(cc?.outstanding, c),
       carryOver: m(cc?.carry_over, c),
+      carryFrom: cc?.carry_from ?? null,
     },
     reserve: {
       added: m(reserve?.owed, c),

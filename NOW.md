@@ -33,6 +33,11 @@ taken off twice); several mechanics are topped up in staff-name order.
 service and the labour. Verified locally: prettier, eslint, `tsc
 --noEmit`, `vitest run tests/unit`; CI run 46042732526 on `034c81f`
 green (check, test with `payouts.test.ts` 17 passed, build).
+Review fix: a month before tracking starts counts as settled (its
+mechanic and Cult Commons outstanding are 0 and out of the total, the
+reserve has no change or balance there; the `total` row's `carry_from`
+names the tracking month and the page says so); CI run 46044832000 on
+`bdaeca7` green (check, test, build).
 Not verified: the page in a browser against data.
 Owner action after the merge deploys: open Payouts → Service pay and set
 Bobby's cap (S$3,000) from the first month to track; confirm the D276

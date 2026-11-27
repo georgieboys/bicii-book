@@ -17,7 +17,13 @@ admins. PLAN D276 (build defaults marked), ADR-030, R-137, DATA-MODEL §19
 `tsc --noEmit`, `vitest run tests/unit`; CI (workflow_dispatch) on
 `1aac010`: check, test (unit + db, `tests/db/payouts.test.ts` 10 passed)
 and build green, run 46038041455 (run 46037268082 on `d41aa79` failed
-only on the generated types' layout). Not verified: the page in a browser against data.
+only on the generated types' layout). Review fixes on `fbfafbf`:
+tracking starts at the first pay rule's month (payouts, reversed or not,
+never move it), `payout_summary.carry_from` links "Still owed from earlier
+months" to the earliest month still owed, ad hoc labour counts in the month
+on screen, and Roles and limits lists Payouts as admin-only; CI run
+46040479429 green (check, test with `payouts.test.ts` 11 passed, build).
+Not verified: the page in a browser against data.
 Owner action after the merge deploys: open Payouts → Service pay and set
 Bobby's cap (S$3,000) from the first month to track; confirm the D276
 build defaults. Next: review and merge the PR.

@@ -997,7 +997,10 @@ development store before connecting the shop.
    `SHOPIFY_SHOP_DOMAIN` and redeploy); a sign-in that does not stick
    means the browser refuses the partitioned cookie (Safari is unverified,
    R-136): open the Admin at its own address instead. The camera scanner
-   may not work inside the frame (R-136); type the code.
+   may not work inside the frame (R-136); type the code. Export CSV
+   downloads inside the frame; a label's **Open PDF** opens a new tab,
+   which asks staff to sign in once at the Admin's own address (the frame's
+   session does not travel to a new tab).
 5. In the Admin, an admin sets the online location and the storefront URL
    (**More → Shopify → Settings**, which calls `set_shopify_settings`; the
    Connection card there shows the webhook address to give Shopify, the

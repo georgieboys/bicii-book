@@ -75,6 +75,8 @@ From Shopify: in the store admin, open **Apps → BICII Admin** and the Admin
 shows inside Shopify. Sign in once there; it keeps its own sign-in, apart
 from the Admin opened at its own address. The camera scanner may not work
 inside Shopify: type the code, or open the Admin at its own address (D275).
+Export CSV downloads in place inside Shopify. A label's **Open PDF** opens
+in a new tab, which asks you to sign in once at the Admin's own address.
 
 Your own details, your role (Admin, Manager or Mechanic), what it lets you
 do and **Sign out** are under Settings → Your profile: the card **Your role

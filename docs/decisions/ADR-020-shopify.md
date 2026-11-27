@@ -422,5 +422,7 @@ App Bridge in place of cookies (a larger change, for an app that already
 has its own staff sign-in). Known limits (R-136): the session inside
 Shopify is separate from the one at the Admin's own address; Stripe
 Checkout refuses framing (only customer pages, never framed, go there);
-the camera scanner needs Shopify's iframe to delegate the camera; Safari
-and App Bridge behaviour are unverified.
+the camera scanner needs Shopify's iframe to delegate the camera (when
+blocked, the scanner says so); Export CSV downloads in place when framed,
+but a label's Open PDF opens a new tab, which needs a sign-in at the
+Admin's own address; Safari and App Bridge behaviour are unverified.

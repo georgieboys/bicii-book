@@ -622,7 +622,9 @@ review, on `feat/staff-roles` in the second worktree, database
   `shortIdJump` opens an exact short ID in any case through /q, anything
   else goes to the results); the camera states (`camera.test.ts`:
   getUserMedia errors to denied / insecure / unsupported / failed, Phase
-  0's messages kept).
+  0's messages kept; since D275, inside a frame a denied camera says the
+  camera doesn't work inside Shopify, and `isFramed` tells a framed window
+  from a top-level one).
 
 - Phase 5 (M1.5) app: shop days for people (`dates.test.ts`: today
   flips at 16:00:00Z, `shopDayToDate` is noon Singapore time and reads back

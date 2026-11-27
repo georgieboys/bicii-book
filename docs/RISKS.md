@@ -3914,6 +3914,15 @@ URLs, or customer data in this file.
     frame is not BICII's to change, and the Admin's
     `Permissions-Policy: camera=(self)` cannot grant it. The scanner may
     not work embedded: type the code, or open the Admin at its own address.
+    When the frame blocks it, the scanner says so (`cameraMessage`,
+    `tests/unit/camera.test.ts`) instead of the Safari settings advice.
+  - **New tabs.** A new top-level tab is outside the Shopify partition, so
+    it does not carry the frame's session. Export CSV drops
+    `target="_blank"` when framed (`src/lib/framed.ts`): the export is an
+    attachment, so it downloads in place with the frame's session. A
+    label's **Open PDF** (`/api/labels/[jobId]/pdf`, served inline) still
+    opens a new tab, which asks for a sign-in once at the Admin's own
+    address. Not tried inside the frame.
   - **App Bridge.** The Admin does not load Shopify App Bridge. Whether the
     Shopify admin shows a custom app's page without it, or waits on it, is
     not verified against the live store.

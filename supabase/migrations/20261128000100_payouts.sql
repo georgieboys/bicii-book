@@ -18,14 +18,26 @@ set local statement_timeout = '120s';
 --          line_type service) recognised in m on jobs led by s
 --   cap(s, m) = the monthly_cap of s's latest service_pay_rules row with
 --          effective_from <= m (none: s has no pay rule in m)
---   pay(s, m)       = greatest(least(service after CC, cap), 0)  (no rule: 0)
---   to reserve(s,m) = service after CC - pay   (no rule or no lead: all of it)
+--   own(s, m)  = s's service after CC, for each s with a rule in m
+--   other(m)   = every other service line's after CC (jobs led by someone
+--          without a rule in m, or by nobody)
+--   labour(m)  = Σ non-reversed reserve_labour payouts for m
+--   pay(s, m)  = greatest(least(cap, own + top-up), 0), where the top-up is
+--          s's share of greatest(other - labour, 0): the other revenue's
+--          balance after ad hoc labour tops the mechanic up to the cap
+--          (owner, 2026-11-28). With more than one mechanic it tops them up
+--          in staff-name order (build default): top-up(s) =
+--          least(greatest(cap - own, 0), greatest(pool - Σ room before s, 0))
+--   reserve change (m) = Σ own + other - labour - Σ pay (may be < 0: the
+--          reserve covers labour beyond the other revenue)
 --   Cult Commons owed (m) = Σ cult_commons_share over private.report_rows
 --          for m on the sale basis: exactly what report_period_summary
 --          returns for the month (net of the D273/D274 fees).
 --   outstanding = owed - Σ non-reversed payouts against m (may be < 0:
---          "Over by"); carry-over = Σ outstanding of the tracked months
---          before m; reserve balance = Σ to reserve - Σ reserve payouts.
+--          "Over by"; labour recorded after paying restates pay, R-137);
+--          carry-over = Σ outstanding of the tracked months before m;
+--          reserve balance = Σ reserve change of the tracked months (labour
+--          is in the change, never taken away a second time).
 -- Tracking starts at the first month of the earliest service pay rule
 -- (build default, owner to confirm): earlier months were settled outside
 -- the app and never carry over, into owed or into the reserve. Payouts
@@ -445,6 +457,7 @@ returns table (
   currency text,
   service_revenue numeric,
   service_after_cc numeric,
+  top_up numeric,
   monthly_cap numeric,
   owed numeric,
   paid numeric,
@@ -516,13 +529,6 @@ begin
         cross join (select distinct pr.staff_id as sid from public.service_pay_rules pr) s
       ) k
     ),
-    pay as (
-      select s.m, s.sid, s.revenue, s.after_cc,
-             case when ru.cap is null then 0.00
-                  else greatest(least(s.after_cc, ru.cap), 0.00) end as pay
-      from svc s
-      left join rules_in_force ru on ru.m = s.m and ru.sid = s.sid
-    ),
     po as (
       select p.kind, p.period_month as m, p.staff_id as sid, p.amount::numeric as amount
       from public.payouts p
@@ -531,6 +537,57 @@ begin
         and p.currency::text = v_currency
         and not exists (select 1 from public.payout_reversals x where x.payout_id = p.id)
     ),
+    own as (
+      -- Each mechanic with a rule in force in the month, with their own
+      -- service after CC (0 when they led no service that month).
+      select ru.m, ru.sid, ru.cap,
+             coalesce(s.revenue, 0.00) as revenue, coalesce(s.after_cc, 0.00) as own
+      from rules_in_force ru
+      left join svc s on s.m = ru.m and s.sid = ru.sid
+      where ru.cap is not null
+    ),
+    months as (
+      -- other = every service line not counted as a mechanic's own;
+      -- labour = the month's ad hoc labour from the reserve.
+      select g::date as m,
+             coalesce((select sum(s.revenue) from svc s where s.m = g::date), 0.00)
+               - coalesce((select sum(o.revenue) from own o where o.m = g::date), 0.00) as other_revenue,
+             coalesce((select sum(s.after_cc) from svc s where s.m = g::date), 0.00)
+               - coalesce((select sum(o.own) from own o where o.m = g::date), 0.00) as other,
+             coalesce((select sum(o.own) from own o where o.m = g::date), 0.00) as own_total,
+             coalesce((select sum(po.amount) from po where po.kind = 'reserve_labour' and po.m = g::date), 0.00)
+               as labour
+      from pg_catalog.generate_series(v_start::timestamp, v_month::timestamp, interval '1 month') g
+    ),
+    alloc as (
+      -- room = how much top-up takes the mechanic to the cap; the pool
+      -- (other - labour, never below 0) fills it in staff-name order.
+      select o.m, o.sid, o.cap, o.revenue, o.own,
+             greatest(o.cap - o.own, 0.00) as room,
+             coalesce(sum(greatest(o.cap - o.own, 0.00)) over (
+               partition by o.m order by st.display_name, o.sid
+               rows between unbounded preceding and 1 preceding), 0.00) as room_before
+      from own o
+      join public.staff st on st.id = o.sid
+    ),
+    topped as (
+      select a.m, a.sid, a.cap, a.revenue, a.own,
+             least(a.room, greatest(greatest(mo.other - mo.labour, 0.00) - a.room_before, 0.00)) as top_up
+      from alloc a
+      join months mo on mo.m = a.m
+    ),
+    pay as (
+      select t.m, t.sid, t.revenue, t.own as after_cc, t.top_up,
+             greatest(least(t.cap, t.own + t.top_up), 0.00) as pay
+      from topped t
+    ),
+    change as (
+      -- The reserve's change: own + other - labour - pay (may be < 0).
+      select mo.m, mo.other_revenue, mo.other, mo.labour,
+             mo.own_total + mo.other - mo.labour
+               - coalesce((select sum(pa.pay) from pay pa where pa.m = mo.m), 0.00) as change
+      from months mo
+    ),
     mech as (
       select pr.staff_id as sid from public.service_pay_rules pr where pr.effective_from < v_next
       union
@@ -538,8 +595,9 @@ begin
     ),
     mech_rows as (
       select me.sid,
-             coalesce((select sum(pa.revenue) from pay pa where pa.sid = me.sid and pa.m = v_month), 0.00) as revenue,
-             coalesce((select sum(pa.after_cc) from pay pa where pa.sid = me.sid and pa.m = v_month), 0.00) as after_cc,
+             coalesce((select sum(s.revenue) from svc s where s.sid = me.sid and s.m = v_month), 0.00) as revenue,
+             coalesce((select sum(s.after_cc) from svc s where s.sid = me.sid and s.m = v_month), 0.00) as after_cc,
+             coalesce((select sum(pa.top_up) from pay pa where pa.sid = me.sid and pa.m = v_month), 0.00) as top_up,
              (select ru.cap from rules_in_force ru where ru.sid = me.sid and ru.m = v_month) as cap,
              coalesce((select sum(pa.pay) from pay pa where pa.sid = me.sid and pa.m = v_month), 0.00) as owed,
              coalesce((select sum(po.amount) from po
@@ -579,12 +637,10 @@ begin
               ) x) as carry_from
     ),
     res as (
-      select coalesce((select sum(pa.after_cc - pa.pay) from pay pa where pa.m = v_month), 0.00) as added,
-             coalesce((select sum(po.amount) from po where po.kind = 'reserve_labour' and po.m = v_month), 0.00)
-               as paid,
-             coalesce((select sum(pa.after_cc - pa.pay) from pay pa where pa.m < v_month), 0.00)
-               - coalesce((select sum(po.amount) from po where po.kind = 'reserve_labour' and po.m < v_month), 0.00)
-               as earlier
+      select c.other_revenue, c.other, c.labour, c.change as added,
+             coalesce((select sum(e.change) from change e where e.m < v_month), 0.00) as earlier
+      from change c
+      where c.m = v_month
     ),
     cons as (
       select l.consignor_id as cid, l.display_name as name, l.outstanding as outstanding,
@@ -600,35 +656,36 @@ begin
     out_rows as (
       select 1 as ord, 'mechanic'::text as party, mr.sid as staff_id, null::uuid as consignor_id,
              st.display_name::text as display_name, mr.revenue as service_revenue,
-             mr.after_cc as service_after_cc, mr.cap as monthly_cap, mr.owed as owed, mr.paid as paid,
+             mr.after_cc as service_after_cc, mr.top_up as top_up, mr.cap as monthly_cap,
+             mr.owed as owed, mr.paid as paid,
              (mr.owed - mr.paid) as outstanding, mr.carry as carry_over, mr.carry_from as carry_from,
              null::numeric as balance, null::integer as item_count
       from mech_rows mr
       join public.staff st on st.id = mr.sid
       union all
-      select 2, 'cult_commons', null, null, 'Cult Commons', null, null, null, c.owed, c.paid,
+      select 2, 'cult_commons', null, null, 'Cult Commons', null, null, null, null, c.owed, c.paid,
              c.owed - c.paid, c.carry, c.carry_from, null, null
       from cc c
       union all
-      select 3, 'reserve', null, null, 'Services reserve', null, null, null, rs.added, rs.paid, null,
-             rs.earlier, null, rs.earlier + rs.added - rs.paid, null
+      select 3, 'reserve', null, null, 'Services reserve', rs.other_revenue, rs.other, null, null,
+             rs.added, rs.labour, null, rs.earlier, null, rs.earlier + rs.added, null
       from res rs
       union all
-      select 4, 'consignors', null, null, 'Consignors', null, null, null,
+      select 4, 'consignors', null, null, 'Consignors', null, null, null, null,
              coalesce((select sum(cs.outstanding) from cons cs), 0.00), null,
              coalesce((select sum(cs.outstanding) from cons cs), 0.00), null, null, null,
              (select count(*) from cons)::integer
       union all
-      select 5, 'consignor', null, cs.cid, cs.name::text, null, null, null, cs.outstanding, null,
+      select 5, 'consignor', null, cs.cid, cs.name::text, null, null, null, null, cs.outstanding, null,
              cs.outstanding, null, null, null, cs.items::integer
       from cons cs
       union all
-      select 6, 'total', null, null, 'Total to transfer', null, null, null, t.amount, null, t.amount,
+      select 6, 'total', null, null, 'Total to transfer', null, null, null, null, t.amount, null, t.amount,
              null, null, null, null
       from total t
     )
     select o.party, o.staff_id, o.consignor_id, o.display_name, v_month, v_currency,
-           o.service_revenue, o.service_after_cc, o.monthly_cap, o.owed, o.paid, o.outstanding,
+           o.service_revenue, o.service_after_cc, o.top_up, o.monthly_cap, o.owed, o.paid, o.outstanding,
            o.carry_over, o.carry_from, o.balance, o.item_count
     from out_rows o
     order by o.ord, o.outstanding desc nulls last, o.display_name;
@@ -636,7 +693,7 @@ end;
 $$;
 
 comment on function public.payout_summary(date) is
-  'Admin (D276): for the month of p_month, one row per party: mechanic (each staff member with a service pay rule from before the next month, or paid: service_revenue and service_after_cc of the service lines on jobs they led, monthly_cap in force, owed = pay, paid, outstanding = owed - paid, carry_over = earlier months'' outstanding, carry_from = the earliest earlier month still owed), cult_commons (owed = report_period_summary''s cult_commons_share for the month, net of fees; paid, outstanding, carry_over, carry_from), reserve (owed = added this month, paid = reserve labour paid this month, carry_over = the balance before, balance = after), consignors (owed = outstanding = Σ positive consignor balances now, item_count = how many), consignor (one per consignor owed, from reporting.consignor_ledger) and total (owed = outstanding = Σ greatest(outstanding + carry_over, 0) for mechanics and Cult Commons, plus the consignors). Carry-over and the reserve count from the earliest pay rule''s month (payouts never move it). Derived live, never stored: a reopened job or a back-dated sale restates the month (R-137).';
+  'Admin (D276): for the month of p_month, one row per party: mechanic (each staff member with a service pay rule from before the next month, or paid: service_revenue and service_after_cc (own) of the service lines on jobs they led, top_up = their share of greatest(other service after CC - that month''s ad hoc labour, 0) in staff-name order, monthly_cap in force, owed = pay = greatest(least(cap, own + top_up), 0), paid, outstanding = owed - paid, carry_over = earlier months'' outstanding, carry_from = the earliest earlier month still owed), cult_commons (owed = report_period_summary''s cult_commons_share for the month, net of fees; paid, outstanding, carry_over, carry_from), reserve (service_revenue and service_after_cc = the other service, owed = the change this month = own + other - labour - pay, which may be < 0, paid = the ad hoc labour for the month, carry_over = the balance before, balance = after = Σ changes), consignors (owed = outstanding = Σ positive consignor balances now, item_count = how many), consignor (one per consignor owed, from reporting.consignor_ledger) and total (owed = outstanding = Σ greatest(outstanding + carry_over, 0) for mechanics and Cult Commons, plus the consignors). Carry-over and the reserve count from the earliest pay rule''s month (payouts never move it). Derived live, never stored: a reopened job, a back-dated sale or ad hoc labour recorded after paying restates the month (R-137).';
 
 -- ---------------------------------------------------------------------------
 -- list_payouts (admin): the payouts recorded for a month.

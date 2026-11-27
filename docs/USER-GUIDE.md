@@ -1923,8 +1923,10 @@ trackers and handovers needs **Manage adventures**.
   you still owe: service pay and Cult Commons, earlier months included,
   plus what consignors are owed today. Then, for each:
   - **Bobby (service pay)**: the service revenue on the jobs he led, the
-    amount after Cult Commons, his pay up to the cap, what you paid and
-    what is outstanding. Press **Record payment**: the amount is filled in
+    amount after Cult Commons, the **Top-up from other service**, his pay
+    up to the cap, what you paid and what is outstanding. Other service is
+    service on jobs led by nobody on service pay: it pays the month's ad
+    hoc labour first, and what is left tops Bobby up to his cap. Press **Record payment**: the amount is filled in
     with what is outstanding. Set **Paid on** and the **Reference**, then
     press **Record payment of $x**.
   - **Cult Commons**: the month's Cult Commons, the same figure as on
@@ -1932,9 +1934,10 @@ trackers and handovers needs **Manage adventures**.
     payment in the same way.
   - **Consignors**: everyone owed for consigned items. A row opens the
     consignor, where you record their payment as usual.
-  - **Services reserve**: what the month added (service after Cult Commons
-    above the cap, and service on jobs with no mechanic on service pay)
-    and the balance. **Pay ad hoc labour** pays someone from it: choose a
+  - **Services reserve**: the other service after Cult Commons, the
+    month's ad hoc labour, the **Change this month** (what is left after
+    labour and Bobby's pay, below zero when labour was more than the other
+    service) and the balance. **Pay ad hoc labour** pays someone from it: choose a
     staff member or type a name, then the amount and date. It counts in
     the month on screen (the sheet says which), whatever day you paid.
 - Success looks like: "Payment of $3,000.00 recorded for Bobby". The
@@ -1945,7 +1948,8 @@ trackers and handovers needs **Manage adventures**.
   so pay an earlier month from its own page; **Total to transfer** counts
   it until you do.
 - If it fails: you can pay more than is owed. The card then says "Over by
-  $x". A reserve below zero says "Reserve overdrawn by $x". Neither is
+  $x". Ad hoc labour recorded after you paid Bobby lowers that month's
+  pay, so his card can say "Over by $x" too. A reserve below zero says "Reserve overdrawn by $x". Neither is
   refused. A wrong payment is corrected with **Reverse…** and a reason. It
   stays in the list, struck through, and counts as owed again. The owed
   figures follow the jobs and sales, so a reopened job or a back-dated

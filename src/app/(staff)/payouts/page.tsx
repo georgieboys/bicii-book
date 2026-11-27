@@ -173,6 +173,8 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
                 <dd className="text-right">{formatMoney(mech.serviceRevenue, c)}</dd>
                 <dt className="text-dust-700">After Cult Commons</dt>
                 <dd className="text-right">{formatSignedMoney(mech.serviceAfterCc, c)}</dd>
+                <dt className="text-dust-700">Top-up from other service</dt>
+                <dd className="text-right">{formatMoney(mech.topUp, c)}</dd>
                 <dt className="text-dust-700">
                   Pay{" "}
                   {mech.monthlyCap
@@ -266,18 +268,21 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
         }
       >
         <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-sm tabular-nums">
+          <dt className="text-dust-700">Other service (after Cult Commons)</dt>
+          <dd className="text-right">{formatSignedMoney(reserve.otherAfterCc, c)}</dd>
+          <dt className="text-dust-700">Ad hoc labour</dt>
+          <dd className="text-right">{formatMoney(reserve.paid, c)}</dd>
+          <dt className="text-dust-700">Change this month</dt>
+          <dd className="text-right">{formatSignedMoney(reserve.added, c)}</dd>
           <dt className="text-dust-700">Before {label}</dt>
           <dd className="text-right">{formatSignedMoney(reserve.before, c)}</dd>
-          <dt className="text-dust-700">Added this month</dt>
-          <dd className="text-right">{formatSignedMoney(reserve.added, c)}</dd>
-          <dt className="text-dust-700">Ad hoc labour paid</dt>
-          <dd className="text-right">{formatMoney(reserve.paid, c)}</dd>
           <dt className="font-semibold">Balance</dt>
           <dd className="text-right font-semibold">{reserveWords(reserve.balance, c)}</dd>
         </dl>
         <p className="mt-3 text-sm text-dust-700">
-          Service after Cult Commons above a mechanic&apos;s cap, and service on jobs with no
-          mechanic on service pay.
+          Other service is service on jobs with no mechanic on service pay. It pays ad hoc labour
+          first, then tops a mechanic up to their cap; the rest, and service above a cap, stays
+          here. Labour beyond it comes out of the reserve.
         </p>
       </Card>
 
@@ -327,8 +332,10 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
         <div className="flex flex-col gap-5">
           <p className="text-sm text-dust-700">
             A mechanic is paid their service revenue after Cult Commons on the jobs they lead, up to
-            the monthly cap. The rest goes to the services reserve. A new cap applies from its month
-            on; earlier months keep theirs.
+            the monthly cap. Other service, after the month&apos;s ad hoc labour, tops them up to
+            the cap. The rest goes to the services reserve. Labour recorded after paying restates
+            the month and can show &quot;Over by&quot;. A new cap applies from its month on; earlier
+            months keep theirs.
           </p>
           {trackedFrom ? (
             <p className="text-sm text-dust-700">

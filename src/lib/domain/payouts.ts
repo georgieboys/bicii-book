@@ -60,6 +60,7 @@ export async function getPayoutSummary(
       name: r.display_name ?? "Mechanic",
       serviceRevenue: m(r.service_revenue, c),
       serviceAfterCc: m(r.service_after_cc, c),
+      topUp: m(r.top_up, c),
       monthlyCap: r.monthly_cap === null ? null : m(r.monthly_cap, c),
       owed: m(r.owed, c),
       paid: m(r.paid, c),
@@ -75,6 +76,8 @@ export async function getPayoutSummary(
       carryFrom: cc?.carry_from ?? null,
     },
     reserve: {
+      otherRevenue: m(reserve?.service_revenue, c),
+      otherAfterCc: m(reserve?.service_after_cc, c),
       added: m(reserve?.owed, c),
       paid: m(reserve?.paid, c),
       before: m(reserve?.carry_over, c),

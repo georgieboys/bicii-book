@@ -3951,12 +3951,25 @@ URLs, or customer data in this file.
     Reports (D100–D105). The payments stay as recorded, so that month then
     shows an outstanding amount or "Over by $x", and the next month
     carries it ("Still owed from earlier months" or "Paid ahead by").
-  - **The reserve can go negative.** Ad hoc labour is never refused, so
-    the balance can read "Reserve overdrawn by $x" (operator first).
+  - **Labour recorded after paying restates pay.** Under the owner's
+    amendment (2026-11-28) the month's ad hoc labour comes out of the
+    other service revenue before it tops the mechanic up, so labour
+    recorded (or reversed) after the mechanic was paid lowers (or raises)
+    that month's pay. The card then shows "Over by $x" (overpaid), never
+    refused (`tests/db/payouts.test.ts` "labour recorded after the
+    mechanic was paid").
+  - **The reserve can go negative.** Ad hoc labour is never refused; a
+    month whose labour is more than its other service has a negative
+    change, so the balance can read "Reserve overdrawn by $x" (operator
+    first).
+  - **Several mechanics.** With more than one mechanic on pay (not
+    expected), the other revenue tops them up in staff-name order (build
+    default).
   - **Lead-mechanic attribution.** A job's whole service revenue counts
     for its lead mechanic (`work_order_assignments` role lead, as the
     Mechanic breakdown on Reports); work by a second mechanic on the same
-    job is not split. A job with no lead puts its service in the reserve.
+    job is not split. A job with no lead counts as other service: it pays
+    labour, tops the mechanic up, and the rest goes to the reserve.
   - **Tracking start.** Carry-over and the reserve balance count from the
     first month of the earliest pay rule (build default); payouts never
     move it, reversed or not (`tests/db/payouts.test.ts` "where tracking
@@ -3976,7 +3989,8 @@ URLs, or customer data in this file.
     leave or employment terms, and the cap is the owner's rule, not a
     salary.
 - Evidence: `tests/db/payouts.test.ts` (restatement follows the jobs; a
-  negative reserve; a job led by nobody to the reserve; access).
+  negative reserve; a job led by nobody as other service; labour after
+  paying; access).
 - Workaround or containment: a past month that changed shows an
   outstanding or "Over by" amount on Payouts. Pay the difference or let
   the carry-over absorb it.

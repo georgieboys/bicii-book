@@ -22,20 +22,27 @@ Commons, so Cult Commons, yield and every existing figure stay as they
 are. Cult Commons is owed "The month's Cult Commons", net of the D273/D274
 fees, and unpaid months carry over.
 
+He then amended the pay rule (2026-11-28): "other service revenue is used to pay labour as needed. if there is balance then it can go to paying bobby to make up his 3k. But if he has already been paid then it goes into reserve."
+
 Consignors already have a ledger with settlements and reversals (D46, D47);
 nothing new is needed for them.
 
 ## Decision (D276)
 
-1. **Mechanic service pay.** Per shop month on the sale date basis, each
-   mechanic with a pay rule is owed least(service after CC, the monthly
-   cap). Service after CC is Σ (sale_total − cult_commons_share) of the
-   recognised service lines on the jobs they lead, from the line
-   snapshots. The rest goes to the services reserve.
-2. **Services reserve.** It also takes all of the service after CC on jobs
-   led by someone without a pay rule, or by nobody (build default). Ad hoc
-   labour is paid out of it, to a staff member or a named person. Its
-   balance may go below 0 and nothing is refused.
+1. **Mechanic service pay.** Per shop month on the sale date basis, for
+   each mechanic with a pay rule: own = Σ (sale_total − cult_commons_share)
+   of the recognised service lines on the jobs they lead, from the line
+   snapshots; other = the same over jobs led by someone without a pay
+   rule, or by nobody; labour = the month's non-reversed ad hoc labour
+   payouts. pay = greatest(least(cap, own + greatest(other − labour, 0)),
+   0) (the owner's amendment): other service pays labour first, then tops
+   the mechanic up to the cap. With more than one mechanic on pay, it tops
+   them up in staff-name order (build default).
+2. **Services reserve.** Its change for a month is own + other − labour −
+   pay, and its balance is the running sum of those changes, so labour is
+   counted once. Ad hoc labour goes to a staff member or a named person.
+   A month whose labour is more than its other revenue takes the rest from
+   the reserve; the balance may go below 0 and nothing is refused.
 3. **Cult Commons owed** is the month's `cult_commons_share` from the same
    rows Reports sums (`private.report_rows`), so it equals
    `report_period_summary` for the month, fees included. No second
@@ -75,12 +82,15 @@ months settled outside the app into carry-over for every party).
   month's owed figure, as it changes Reports. What was paid stays, so the
   month then shows an outstanding or "Over by" amount (R-137).
 - A job's whole service revenue counts for its lead mechanic (R-137).
+- Ad hoc labour recorded after the mechanic was paid lowers that month's
+  pay, so the card shows "Over by $x"; nothing is refused (R-137).
 - This records what is owed and paid. It is not payroll: no tax, CPF or
   payslips (SPEC lists payroll as out of scope; R-137).
 
 ## Revisit trigger
 
-The owner changes a build default (the reserve rule, the tracking start,
+The owner changes a build default (the staff-name order for several
+mechanics, the tracking start,
 the admin-only visibility, build-package labour counting), a second
 mechanic shares jobs, or payroll comes into scope.
 

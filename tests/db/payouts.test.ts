@@ -2,11 +2,15 @@
  * D276 month-end payouts (PLAN D276; ADR-030; DATA-MODEL §19 "Month-end payouts"; R-137).
  * The invariants, per shop month on the sale date basis:
  *
- *   service after CC (mechanic) = Σ (sale_total - cult_commons_share) of the
- *                                 recognised service lines on jobs they led
- *   pay        = least(service after CC, the cap in force that month)
- *   to reserve = service after CC - pay; every service line on a job led by
- *                someone without a rule, or by nobody, goes to the reserve
+ *   own    = Σ (sale_total - cult_commons_share) of the recognised service
+ *            lines on jobs the mechanic led
+ *   other  = the same over jobs led by someone without a rule, or by nobody
+ *   labour = the month's non-reversed ad hoc labour (reserve_labour)
+ *   pay    = greatest(least(cap, own + greatest(other - labour, 0)), 0)
+ *            (the owner's amendment, 2026-11-28; several mechanics are
+ *            topped up in staff-name order)
+ *   reserve change = own + other - labour - pay (may be < 0); the balance
+ *            is the running sum of the changes
  *   Cult Commons owed = report_period_summary's cult_commons_share (net of
  *                the D273/D274 fees)
  *   outstanding = owed - non-reversed payouts against the month
@@ -49,6 +53,7 @@ type Row = {
   period_month: string;
   service_revenue: string | null;
   service_after_cc: string | null;
+  top_up: string | null;
   monthly_cap: string | null;
   owed: string | null;
   paid: string | null;
@@ -62,6 +67,7 @@ type Row = {
 const MONEY_COLUMNS = [
   "service_revenue",
   "service_after_cc",
+  "top_up",
   "monthly_cap",
   "owed",
   "paid",
@@ -75,7 +81,7 @@ async function summary(tx: pg.Client, month: string): Promise<Row[]> {
   await actAs(tx, ADMIN);
   const { rows } = await tx.query<Row>(
     `select party, staff_id, consignor_id, display_name, to_char(period_month, 'YYYY-MM-DD') as period_month,
-            service_revenue::text, service_after_cc::text, monthly_cap::text, owed::text, paid::text,
+            service_revenue::text, service_after_cc::text, top_up::text, monthly_cap::text, owed::text, paid::text,
             outstanding::text, carry_over::text, to_char(carry_from, 'YYYY-MM-DD') as carry_from,
             balance::text, item_count
        from public.payout_summary($1::date)`,
@@ -183,6 +189,7 @@ describe.skipIf(!isolatedDatabase())("D276: mechanic service pay and the reserve
       expect(mechanicRow(rows, STAFF.mechanic1)).toMatchObject({
         service_revenue: "5000.00",
         service_after_cc: "3500.00",
+        top_up: "0.00",
         monthly_cap: "3000.00",
         owed: "3000.00",
         paid: "0.00",
@@ -276,18 +283,25 @@ describe.skipIf(!isolatedDatabase())("D276: mechanic service pay and the reserve
     });
   });
 
-  it("service on jobs led by someone without a rule, or by nobody, goes to the reserve", async () => {
+  it("service on jobs led by someone without a rule, or by nobody, tops the mechanic up to the cap; the rest goes to the reserve", async () => {
     await inTransaction(conn, async (tx) => {
       await setRule(tx, STAFF.mechanic1, "3000.00", JAN);
-      await jobOn(tx, "2023-01-11", STAFF.mechanic2, "1000.00");
+      await jobOn(tx, "2023-01-11", STAFF.mechanic2, "4000.00");
       await jobOn(tx, "2023-01-12", null, "1000.00");
       const rows = await summary(tx, JAN);
       expect(mechanicRow(rows, STAFF.mechanic2)).toBeNull();
       expect(mechanicRow(rows, STAFF.mechanic1)).toMatchObject({
         service_revenue: "0.00",
-        owed: "0.00",
+        service_after_cc: "0.00",
+        top_up: "3000.00",
+        owed: "3000.00",
       });
-      expect(partyRow(rows, "reserve")).toMatchObject({ owed: "1400.00", balance: "1400.00" });
+      expect(partyRow(rows, "reserve")).toMatchObject({
+        service_revenue: "5000.00",
+        service_after_cc: "3500.00",
+        owed: "500.00",
+        balance: "500.00",
+      });
     });
   });
 
@@ -305,6 +319,134 @@ describe.skipIf(!isolatedDatabase())("D276: mechanic service pay and the reserve
       expect(partyRow(rows, "reserve").owed).toBe("0.00");
       // 30% of 300 and 30% of the part's 200 yield.
       expect(partyRow(rows, "cult_commons").owed).toBe("150.00");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1b. The owner's amendment (2026-11-28): other service pays labour, then
+//     tops the mechanic up to the cap, then goes to the reserve
+// ---------------------------------------------------------------------------
+
+describe.skipIf(!isolatedDatabase())("D276 amendment: other service, labour and the top-up", () => {
+  /** January's mechanic1 and reserve rows. */
+  const jan = async (tx: pg.Client) => {
+    const rows = await summary(tx, JAN);
+    return { mech: mechanicRow(rows, STAFF.mechanic1), reserve: partyRow(rows, "reserve") };
+  };
+  const labour = (tx: pg.Client, amount: string) =>
+    recordPayout(tx, { kind: "reserve_labour", amount, payee: "Ah Seng", month: JAN });
+
+  it("own 5,000 (3,500 after CC), no other, no labour: pay 3,000, reserve +500", async () => {
+    await inTransaction(conn, async (tx) => {
+      await setRule(tx, STAFF.mechanic1, "3000.00", JAN);
+      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "5000.00");
+      const { mech, reserve } = await jan(tx);
+      expect(mech).toMatchObject({ service_after_cc: "3500.00", top_up: "0.00", owed: "3000.00" });
+      expect(reserve).toMatchObject({ service_after_cc: "0.00", paid: "0.00", owed: "500.00" });
+    });
+  });
+
+  it("own 1,400, other 700, labour 300: pay 1,400 + 400 = 1,800, reserve 0", async () => {
+    await inTransaction(conn, async (tx) => {
+      await setRule(tx, STAFF.mechanic1, "3000.00", JAN);
+      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "2000.00");
+      await jobOn(tx, "2023-01-11", null, "1000.00");
+      await labour(tx, "300.00");
+      const { mech, reserve } = await jan(tx);
+      expect(mech).toMatchObject({
+        service_after_cc: "1400.00",
+        top_up: "400.00",
+        owed: "1800.00",
+      });
+      expect(reserve).toMatchObject({
+        service_after_cc: "700.00",
+        paid: "300.00",
+        owed: "0.00",
+        balance: "0.00",
+      });
+    });
+  });
+
+  it("own 1,400, other 2,800, labour 200: pay 3,000, reserve 1,400 + 2,800 - 200 - 3,000 = 1,000", async () => {
+    await inTransaction(conn, async (tx) => {
+      await setRule(tx, STAFF.mechanic1, "3000.00", JAN);
+      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "2000.00");
+      await jobOn(tx, "2023-01-11", STAFF.mechanic2, "4000.00");
+      await labour(tx, "200.00");
+      const { mech, reserve } = await jan(tx);
+      expect(mech).toMatchObject({ top_up: "1600.00", owed: "3000.00" });
+      expect(reserve).toMatchObject({
+        service_after_cc: "2800.00",
+        paid: "200.00",
+        owed: "1000.00",
+        balance: "1000.00",
+      });
+    });
+  });
+
+  it("own 1,400, no other, labour 500: pay 1,400, reserve -500", async () => {
+    await inTransaction(conn, async (tx) => {
+      await setRule(tx, STAFF.mechanic1, "3000.00", JAN);
+      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "2000.00");
+      await labour(tx, "500.00");
+      const { mech, reserve } = await jan(tx);
+      expect(mech).toMatchObject({ top_up: "0.00", owed: "1400.00" });
+      expect(reserve).toMatchObject({ paid: "500.00", owed: "-500.00", balance: "-500.00" });
+    });
+  });
+
+  it("labour recorded after the mechanic was paid restates the month's pay: over by the difference", async () => {
+    await inTransaction(conn, async (tx) => {
+      await setRule(tx, STAFF.mechanic1, "3000.00", JAN);
+      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "2000.00");
+      await jobOn(tx, "2023-01-11", null, "1000.00");
+      expect((await jan(tx)).mech?.owed).toBe("2100.00");
+      await recordPayout(tx, {
+        kind: "mechanic_pay",
+        amount: "2100.00",
+        month: JAN,
+        staffId: STAFF.mechanic1,
+      });
+      // The labour is recorded and is not refused (operator first).
+      const l = await labour(tx, "700.00");
+      let { mech, reserve } = await jan(tx);
+      expect(mech).toMatchObject({
+        top_up: "0.00",
+        owed: "1400.00",
+        paid: "2100.00",
+        outstanding: "-700.00",
+      });
+      expect(reserve).toMatchObject({ owed: "0.00", balance: "0.00" });
+      // Reversing the labour restores it.
+      await reversePayout(tx, l.payout_id, "Not this month");
+      ({ mech, reserve } = await jan(tx));
+      expect(mech).toMatchObject({ owed: "2100.00", outstanding: "0.00" });
+      expect(reserve).toMatchObject({ paid: "0.00", owed: "0.00" });
+    });
+  });
+
+  it("with two mechanics, the other revenue tops them up in staff-name order", async () => {
+    await inTransaction(conn, async (tx) => {
+      // mechanic1 is Marcus Tan, mechanic2 Nur Aisyah (supabase/seed.sql).
+      await setRule(tx, STAFF.mechanic1, "3000.00", JAN);
+      await setRule(tx, STAFF.mechanic2, "3000.00", JAN);
+      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "2000.00"); // own 1,400
+      await jobOn(tx, "2023-01-11", STAFF.mechanic2, "2000.00"); // own 1,400
+      await jobOn(tx, "2023-01-12", null, "3000.00"); // other 2,100
+      const rows = await summary(tx, JAN);
+      expect(mechanicRow(rows, STAFF.mechanic1)).toMatchObject({
+        top_up: "1600.00",
+        owed: "3000.00",
+      });
+      expect(mechanicRow(rows, STAFF.mechanic2)).toMatchObject({
+        top_up: "500.00",
+        owed: "1900.00",
+      });
+      expect(partyRow(rows, "reserve")).toMatchObject({
+        service_after_cc: "2100.00",
+        owed: "0.00",
+      });
     });
   });
 });
@@ -586,8 +728,8 @@ describe.skipIf(!isolatedDatabase())("D276: recording and reversing payouts", ()
   it("the reserve balance runs across months, takes ad hoc labour and may go below zero", async () => {
     await inTransaction(conn, async (tx) => {
       await setRule(tx, STAFF.mechanic1, "3000.00", JAN);
-      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "5000.00"); // +500
-      await jobOn(tx, "2023-02-10", null, "1000.00"); // +700
+      await jobOn(tx, "2023-01-10", STAFF.mechanic1, "5000.00"); // own 3,500
+      await jobOn(tx, "2023-02-10", null, "1000.00"); // other 700
       // Ad hoc labour by someone who is not staff, paid in January.
       await recordPayout(tx, {
         kind: "reserve_labour",
@@ -603,17 +745,22 @@ describe.skipIf(!isolatedDatabase())("D276: recording and reversing payouts", ()
         month: FEB,
         paidAt: sgt("2023-02-20", "12:00"),
       });
+      // January: 3,500 + 0 - 200 - 3,000 = +300.
       expect(partyRow(await summary(tx, JAN), "reserve")).toMatchObject({
-        owed: "500.00",
+        owed: "300.00",
         paid: "200.00",
         carry_over: "0.00",
         balance: "300.00",
       });
-      expect(partyRow(await summary(tx, FEB), "reserve")).toMatchObject({
-        owed: "700.00",
+      // February: the other 700 less 100 of labour tops the mechanic up by 600.
+      const feb = await summary(tx, FEB);
+      expect(mechanicRow(feb, STAFF.mechanic1)).toMatchObject({ top_up: "600.00", owed: "600.00" });
+      expect(partyRow(feb, "reserve")).toMatchObject({
+        service_after_cc: "700.00",
+        owed: "0.00",
         paid: "100.00",
         carry_over: "300.00",
-        balance: "900.00",
+        balance: "300.00",
       });
       await recordPayout(tx, {
         kind: "reserve_labour",
@@ -623,10 +770,10 @@ describe.skipIf(!isolatedDatabase())("D276: recording and reversing payouts", ()
         paidAt: sgt("2023-03-02", "12:00"),
       });
       expect(partyRow(await summary(tx, MAR), "reserve")).toMatchObject({
-        owed: "0.00",
+        owed: "-1000.00",
         paid: "1000.00",
-        carry_over: "900.00",
-        balance: "-100.00",
+        carry_over: "300.00",
+        balance: "-700.00",
       });
       await actAs(tx, ADMIN);
       const payees = (

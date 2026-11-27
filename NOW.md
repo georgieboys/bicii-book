@@ -23,6 +23,15 @@ never move it), `payout_summary.carry_from` links "Still owed from earlier
 months" to the earliest month still owed, ad hoc labour counts in the month
 on screen, and Roles and limits lists Payouts as admin-only; CI run
 46040479429 green (check, test with `payouts.test.ts` 11 passed, build).
+Owner's amendment (2026-11-28, same branch, the migration edited in
+place as it is unmerged): other service revenue pays ad hoc labour, then
+tops the mechanic up to the cap: pay = greatest(least(cap, own +
+greatest(other - labour, 0)), 0); reserve change = own + other - labour -
+pay; the balance is the running sum of the changes (labour no longer
+taken off twice); several mechanics are topped up in staff-name order.
+`payout_summary` returns `top_up`; the reserve row carries the other
+service and the labour. Verified locally: prettier, eslint, `tsc
+--noEmit`, `vitest run tests/unit`; CI: pending (see the PR).
 Not verified: the page in a browser against data.
 Owner action after the merge deploys: open Payouts → Service pay and set
 Bobby's cap (S$3,000) from the first month to track; confirm the D276

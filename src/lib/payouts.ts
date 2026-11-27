@@ -83,7 +83,10 @@ export type MechanicPayout = {
   staffId: string;
   name: string;
   serviceRevenue: string;
+  /** Their own service after Cult Commons. */
   serviceAfterCc: string;
+  /** What the other service revenue, after ad hoc labour, adds to reach the cap. */
+  topUp: string;
   /** The cap in force this month; null when the rule starts later. */
   monthlyCap: string | null;
   owed: string;
@@ -104,7 +107,12 @@ export type CultCommonsPayout = {
 };
 
 export type ReservePosition = {
+  /** Service on jobs led by nobody on service pay: revenue, and after Cult Commons. */
+  otherRevenue: string;
+  otherAfterCc: string;
+  /** The month's change: own + other - labour - pay (may be below 0). */
   added: string;
+  /** The month's ad hoc labour. */
   paid: string;
   /** The balance before this month. */
   before: string;

@@ -10509,6 +10509,7 @@ export type Database = {
           service_after_cc: number;
           service_revenue: number;
           staff_id: string;
+          top_up: number;
         }[];
       };
       prepare_balance_checkout: {

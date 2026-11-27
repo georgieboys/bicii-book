@@ -4408,7 +4408,7 @@ and would print the hidden columns (costs; a customer's internal notes) to any c
 | `set_service_pay_rule(p_staff_id uuid, p_monthly_cap money_amount, p_effective_from date)` → `service_pay_rules` | A (D276) | Built (D276). 22004; unknown staff P0002; the date taken to its month; the rule already in force for that staff and month with the same cap is returned unchanged, otherwise a new row (append-only, so earlier months keep their cap); a cap below 0 `service_pay_rules_monthly_cap_check`. |
 | `record_payout(p_id uuid, p_kind payout_kind, p_amount money_amount, p_period_month date = null, p_staff_id uuid = null, p_payee_name text = null, p_paid_at timestamptz = null, p_reference text = null, p_notes text = null)` → `(payout_id, replayed)` | A (D276) | Built (D276). 22004; `payout_paid_in_future` (> 5 min ahead); mechanic_pay and cult_commons need the month (`payout_month_required`), reserve_labour takes the shop month of `paid_at` unless given (the page always sends the month on screen); mechanic_pay needs `p_staff_id`, reserve_labour a staff member or a name, not both (`payout_payee_required`); cult_commons takes neither (`payout_payee_unexpected`); unknown staff P0002. The fingerprint (kind, amount as money_amount text, month, staff, trimmed name, paid_at as given, trimmed reference and notes); insert `on conflict (id) do nothing`: a matching replay returns `replayed` true, else `payout_conflict`. Never refused for being more than is outstanding (operator first). |
 | `reverse_payout(p_payout_id uuid, p_reason text)` → `payout_reversals` | A (D276) | Built (D276). 22004; `reason_required` / `reason_too_long`; the payout FOR UPDATE (P0002); already reversed → that reversal (replay-safe). The payout stays; nothing counts it. |
-| `payout_summary(p_month date)` → `party, staff_id, consignor_id, display_name, period_month, currency, service_revenue, service_after_cc, monthly_cap, owed, paid, outstanding, carry_over, carry_from, balance, item_count` | A (D276) | Built (D276). One row per party for the month of `p_month`: `mechanic`, `cult_commons`, `reserve`, `consignors`, `consignor` (one per consignor owed) and `total`; definitions in §19 "Month-end payouts". Derived live, never stored. |
+| `payout_summary(p_month date)` → `party, staff_id, consignor_id, display_name, period_month, currency, service_revenue, service_after_cc, top_up, monthly_cap, owed, paid, outstanding, carry_over, carry_from, balance, item_count` | A (D276) | Built (D276). One row per party for the month of `p_month`: `mechanic`, `cult_commons`, `reserve`, `consignors`, `consignor` (one per consignor owed) and `total`; definitions in §19 "Month-end payouts". Derived live, never stored. |
 | `list_payouts(p_month date)` → `id, kind, period_month, staff_id, payee, amount, currency, paid_at, reference, notes, created_by_name, created_at, reversed_at, reversal_reason, reversed_by_name` | A (D276) | Built (D276). The payouts for the month (reserve labour: the month it was paid in), newest first, with the reversal if any. |
 | `list_consignors(q = null, include_archived = false, max_rows = 50)` → `id, display_name, customer_id, customer_label, email, phone, archived_at, active_items, sold_items, awaiting_settlement_items, returned_items, owed, paid, outstanding, last_sale_at, last_settlement_at` | S | Built (Phase 6 step 2; `sold_items` and the gate on `awaiting_settlement_items` from the review). From `reporting.consignor_ledger`; `q`: every word of name or email, or phone digits with or without +65; `include_archived` true lists archived consignors only; by name then id; clamp 1..200. `awaiting_settlement_items` (items with outstanding > 0), owed, paid, outstanding NULL without consignment money access (D48); `sold_items` (status sold) for everyone. |
 | `consignor_statement(target_consignor_id = null, target_item_id = null)` → `item_id, short_id, consignor_id, consignor_name, status, quantity, sold_qty, restocked_qty, job_held_qty, job_sold_qty, returned_qty, remaining_qty, received_at, sold_at, returned_at, return_reason, asking_price, last_sale_at, last_settlement_at, product_id, product_short_id, product_name, inventory_unit_id, unit_short_id, unit_status, bike_id, bike_short_id, agreed_amount_owed, liability, consignor_charges, shop_charges, owed, paid, outstanding` | S | Built (Phase 6 step 2). The arguments are `target_*` because PL/pgSQL refuses an argument named like a result column (the brief's `consignor_id` / `item_id`). Exactly one argument (22023); active first, then `last_sale_at` desc nulls last, then `received_at` desc. The last seven columns NULL without consignment money access (D48). |
@@ -5820,12 +5820,16 @@ Per shop month m (Asia/Singapore, the sale date basis, `private.report_rows`):
 |---|---|
 | service after CC (mechanic s) | Σ (`sale_total` − `cult_commons_share`) of recognised service lines (`source` work_order, `entry_kind` line, `line_type` service) in m on jobs whose lead mechanic is s; services have no direct cost today, so this is 70% of the service revenue (build-package labour lines are service lines and count) |
 | cap | `monthly_cap` of s's latest `service_pay_rules` row with `effective_from` ≤ m (ties: the newest row); none: s has no pay rule in m |
-| pay | `greatest(least(service after CC, cap), 0)`; no rule: 0 |
-| to reserve | service after CC − pay; a job led by someone without a rule, or by nobody, puts all of its service after CC here |
+| own | the service after CC of a mechanic with a rule in m (0 when they led no service) |
+| other | the service after CC of every other service line in m: jobs led by someone without a rule, or by nobody (the reserve row's `service_revenue` and `service_after_cc`) |
+| labour | Σ non-reversed `reserve_labour` payouts for m (the reserve row's `paid`) |
+| top-up (`top_up`) | the mechanic's share of `greatest(other − labour, 0)`: `least(greatest(cap − own, 0), greatest(pool − Σ room of the mechanics before them, 0))`, in staff-name order (build default; one mechanic: all of it up to the cap) |
+| pay | `greatest(least(cap, own + top-up), 0)`, which for one mechanic is `greatest(least(cap, own + greatest(other − labour, 0)), 0)` (the owner's amendment, 2026-11-28); no rule: 0 |
+| reserve change | Σ own + other − labour − Σ pay (the reserve row's `owed`; may be below 0) |
 | Cult Commons owed | Σ `cult_commons_share` of the month's rows, fee entries included: exactly `report_period_summary`'s `cult_commons_share` for the month (net of D273/D274 fees) |
 | outstanding | owed − Σ non-reversed payouts against m (below 0 is "Over by", never refused) |
 | carry-over | Σ outstanding of the tracked months before m |
-| reserve balance | Σ to reserve − Σ reserve labour payouts, months up to m (may go below 0: "Reserve overdrawn") |
+| reserve balance | Σ reserve change over the tracked months up to m; labour is in the change and is not taken off again (may go below 0: "Reserve overdrawn") |
 | total to transfer | Σ `greatest(outstanding + carry-over, 0)` over the mechanics and Cult Commons, plus Σ the consignors' positive outstanding today (`reporting.consignor_ledger`) |
 
 Tracking starts at the first month of the earliest pay rule (build
@@ -5859,7 +5863,9 @@ links "Still owed from earlier months" to it.
 
 Tests: `tests/db/payouts.test.ts` (the owner's example 5,000 → 3,500 →
 3,000 and 500; below the cap; a later cap leaving earlier months; other or
-no lead to the reserve; parts and custom lines never service; Cult
+no lead topping the mechanic up, the rest to the reserve; the owner's four
+amendment cases (labour, top-up, a negative change); labour after paying
+showing "Over by"; two mechanics topped up in staff-name order; parts and custom lines never service; Cult
 Commons equal to Reports with a Stripe fee; replay, fingerprint mismatch,
 over-payment and reversal; the reserve across months and below 0; no
 access for a manager, a mechanic, a customer or anon).

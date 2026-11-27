@@ -52,14 +52,25 @@ export const thisMonth = (now: Date = new Date()) => monthOf(shopToday(now));
 
 /**
  * The month the page shows: `?month=YYYY-MM` when it is valid and not in
- * the future, else last month (it is month-end when the owner pays).
+ * the future, else last month (it is month-end when the owner pays). When
+ * last month is before tracking starts (`trackedFrom`, the first pay rule's
+ * month, "YYYY-MM"), it would only say "settled", so the default is the
+ * tracking month instead (this month at the latest).
  */
-export function parseMonth(value: unknown, now: Date = new Date()): string {
+export function parseMonth(
+  value: unknown,
+  now: Date = new Date(),
+  trackedFrom: string | null = null,
+): string {
   const current = thisMonth(now);
   if (typeof value === "string" && MONTH.test(value)) {
     if (value >= EARLIEST_PAYOUT_MONTH && value <= current) return value;
   }
-  return shiftMonth(current, -1);
+  const last = shiftMonth(current, -1);
+  if (trackedFrom && MONTH.test(trackedFrom) && last < trackedFrom) {
+    return trackedFrom < current ? trackedFrom : current;
+  }
+  return last;
 }
 
 /** "YYYY-MM" → "YYYY-MM-01", what the RPCs take. */

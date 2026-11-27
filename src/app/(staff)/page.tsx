@@ -35,7 +35,7 @@ import { owedToConsignors } from "@/lib/consignment";
 import { todaySummary } from "@/lib/domain/appointments";
 import { listConsignors } from "@/lib/domain/consignment";
 import { listCounterPaymentsToReview } from "@/lib/domain/payments";
-import { getPayoutSummary } from "@/lib/domain/payouts";
+import { getPayoutSummary, getTrackingStart } from "@/lib/domain/payouts";
 import { hasReorderSuggestions } from "@/lib/domain/purchasing";
 import {
   getDailySummaries,
@@ -421,7 +421,11 @@ async function TodayContent({
           <SectionLoader
             name="to-pay"
             // A failed read only hides the card (Payouts shows the error).
-            load={() => getPayoutSummary(supabase, parseMonth(null)).catch(() => null)}
+            load={() =>
+              getTrackingStart(supabase)
+                .then((start) => getPayoutSummary(supabase, parseMonth(null, new Date(), start)))
+                .catch(() => null)
+            }
           >
             {(p) => (p ? <ToPay month={p.month} total={p.total} currency={p.currency} /> : null)}
           </SectionLoader>

@@ -145,6 +145,22 @@ export async function listServicePayRules(supabase: ServerSupabase): Promise<Ser
   }));
 }
 
+/**
+ * The month tracking starts, "YYYY-MM": the earliest pay rule's month (the
+ * start payout_summary uses), or null with no rule. Admins only (RLS).
+ */
+export async function getTrackingStart(supabase: ServerSupabase): Promise<string | null> {
+  const rows =
+    unwrap(
+      await supabase
+        .from("service_pay_rules")
+        .select("effective_from")
+        .order("effective_from", { ascending: true })
+        .limit(1),
+    ) ?? [];
+  return rows[0]?.effective_from ? rows[0].effective_from.slice(0, 7) : null;
+}
+
 /** Active staff, for the pickers (a mechanic's rule, ad hoc labour). */
 export async function listPayableStaff(
   supabase: ServerSupabase,

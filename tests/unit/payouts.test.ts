@@ -30,6 +30,21 @@ describe("payout months (D276)", () => {
     expect(parseMonth(undefined, new Date("2026-11-30T16:30:00Z"))).toBe("2026-11");
   });
 
+  it("opens on the tracking month when last month is before it", () => {
+    // Bobby's rule from November: on 28 Nov last month (October) is settled.
+    expect(parseMonth(undefined, NOW, "2026-11")).toBe("2026-11");
+    // A rule dated next month never opens a future month.
+    expect(parseMonth(undefined, NOW, "2026-12")).toBe("2026-11");
+    // Once the month turns, last month is tracked again.
+    expect(parseMonth(undefined, new Date("2026-12-02T02:00:00Z"), "2026-11")).toBe("2026-11");
+    expect(parseMonth(undefined, new Date("2027-01-02T02:00:00Z"), "2026-11")).toBe("2026-12");
+    // Tracking from long ago, or none: last month.
+    expect(parseMonth(undefined, NOW, "2026-03")).toBe("2026-10");
+    expect(parseMonth(undefined, NOW, null)).toBe("2026-10");
+    // An asked-for month always wins.
+    expect(parseMonth("2026-10", NOW, "2026-11")).toBe("2026-10");
+  });
+
   it("steps across years and names the month", () => {
     expect(shiftMonth("2026-01", -1)).toBe("2025-12");
     expect(shiftMonth("2026-12", 1)).toBe("2027-01");

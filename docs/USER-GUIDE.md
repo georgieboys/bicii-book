@@ -1436,8 +1436,9 @@ website's account pages go live when the owner switches them on,
   Appointments (arrivals, still expected, arrived), Stock (parts used, low
   stock, significant adjustments), Needs attention, Activity and the Last 7
   days. Use the day navigator for an earlier day and **Back to today**.
-- **To pay this month: $…** (admins, today only): last month's **Total to
-  transfer** from Payouts (service pay and Cult Commons, earlier months
+- **To pay this month: $…** (admins, today only): the **Total to
+  transfer** of the month Payouts opens on (last month, or the first
+  month counted while that is later) (service pay and Cult Commons, earlier months
   included, and consignors). **Open Payouts** goes there. Hidden when
   nothing is owed.
 - **Pay owners** (Manage consignments, today only): "Owed to
@@ -1920,7 +1921,9 @@ trackers and handovers needs **Manage adventures**.
   change that. Opening an earlier month says it counts as settled: its
   figures show for reference, nothing in it is owed, and it isn't in
   **Total to transfer** or the services reserve.
-- Steps: **More** → **Payouts**. It opens on last month. Use **Previous
+- Steps: **More** → **Payouts**. It opens on last month, or on the first
+  month Payouts counts (the first service pay month) while last month is
+  before it, so in the first month it opens on this month. Use **Previous
   month** and **Next month** to change it. **Total to transfer** is what
   you still owe: service pay and Cult Commons, earlier months included,
   plus what consignors are owed today. Then, for each:

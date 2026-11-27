@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/dates";
 import {
   getPayoutSummary,
+  getTrackingStart,
   listPayableStaff,
   listPayouts,
   listServicePayRules,
@@ -87,8 +88,12 @@ const navLink =
 export default async function PayoutsPage({ searchParams }: PageProps<"/payouts">) {
   await requireAdmin();
   const { month: asked } = await searchParams;
-  const month = parseMonth(Array.isArray(asked) ? asked[0] : asked);
   const supabase = await createClient();
+  const month = parseMonth(
+    Array.isArray(asked) ? asked[0] : asked,
+    new Date(),
+    await getTrackingStart(supabase),
+  );
   const [summary, payouts, rules, staff] = await Promise.all([
     getPayoutSummary(supabase, month),
     listPayouts(supabase, month),

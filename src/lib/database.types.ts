@@ -11105,7 +11105,10 @@ export type Database = {
           p_reference?: string;
           p_staff_id?: string;
         };
-        Returns: { payout_id: string; replayed: boolean }[];
+        Returns: {
+          payout_id: string;
+          replayed: boolean;
+        }[];
       };
       record_product_group_push: {
         Args: {

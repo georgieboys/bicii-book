@@ -56,7 +56,8 @@ nothing new is needed for them.
    (operator first). Unpaid months carry over, and the page links the
    carry-over to the earliest month still owed. Tracking starts at the
    first month of the earliest pay rule (build default), so the months
-   before the app was used never show as owed or in the reserve. Payouts
+   before the app was used never show as owed or in the reserve, viewed on
+   their own or as carry-over (such a month shows as settled). Payouts
    never move it, so a payment recorded for an old month, or reversed,
    cannot turn settled months into carry-over.
 6. **Pay rules** are append-only rows (staff, monthly cap, starting month).

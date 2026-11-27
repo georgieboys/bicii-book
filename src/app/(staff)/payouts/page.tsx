@@ -101,13 +101,9 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
   const next = month < thisMonth() ? shiftMonth(month, 1) : null;
   const cc = summary.cultCommons;
   const reserve = summary.reserve;
-  // The month tracking starts: the earliest rule's (payout_summary's start).
-  const trackedFrom = rules
-    .reduce<string | null>(
-      (min, r) => (min === null || r.effectiveFrom < min ? r.effectiveFrom : min),
-      null,
-    )
-    ?.slice(0, 7);
+  // The month tracking starts (payout_summary's start); earlier months are settled.
+  const trackedFrom = summary.trackedFrom;
+  const settled = trackedFrom !== null && month < trackedFrom;
 
   return (
     <>
@@ -132,6 +128,16 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
         ) : null}
       </nav>
 
+      {settled && trackedFrom ? (
+        <Card title={`${label} counts as settled`}>
+          <p className="text-sm text-dust-700">
+            Payouts counts what is owed from {formatMonth(trackedFrom)}. {label}&apos;s figures show
+            for reference; nothing in it is owed or carries over, and the services reserve starts in{" "}
+            {formatMonth(trackedFrom)}.
+          </p>
+        </Card>
+      ) : null}
+
       <Card title="Total to transfer" eyebrow={label}>
         <div className="flex flex-col gap-3">
           <p className="font-display text-4xl font-bold tabular-nums">
@@ -148,7 +154,9 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
       {summary.mechanics.length === 0 ? (
         <Card title="Service pay">
           <p className="text-sm text-dust-700">
-            No mechanic has service pay yet. Set a monthly cap under Service pay below.
+            {settled
+              ? `No service pay for ${label}: it is before Payouts starts counting.`
+              : "No mechanic has service pay yet. Set a monthly cap under Service pay below."}
           </p>
         </Card>
       ) : (
@@ -337,7 +345,7 @@ export default async function PayoutsPage({ searchParams }: PageProps<"/payouts"
             the month and can show &quot;Over by&quot;. A new cap applies from its month on; earlier
             months keep theirs.
           </p>
-          {trackedFrom ? (
+          {trackedFrom && rules.length > 0 ? (
             <p className="text-sm text-dust-700">
               Payouts counts what is owed from {formatMonth(trackedFrom)}, the first month of
               service pay. Earlier months count as settled and never carry over.

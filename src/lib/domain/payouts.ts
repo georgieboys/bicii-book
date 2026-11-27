@@ -94,6 +94,7 @@ export async function getPayoutSummary(
       })),
     },
     total: m(total?.owed, c),
+    trackedFrom: total?.carry_from ? total.carry_from.slice(0, 7) : null,
   };
 }
 

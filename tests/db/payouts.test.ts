@@ -821,7 +821,9 @@ describe.skipIf(!isolatedDatabase())("D276: where tracking starts", () => {
       });
       expect(await summary(tx, MAR)).toEqual(before);
 
-      // A month before tracking starts shows its own figures, no carry-over.
+      // A month before tracking starts is settled: its figures show for
+      // reference, but nothing in it is outstanding, the reserve has no
+      // change or balance yet, and Total to transfer leaves it out.
       const feb = await summary(tx, FEB);
       expect(partyRow(feb, "cult_commons")).toMatchObject({
         owed: "300.00",
@@ -829,7 +831,33 @@ describe.skipIf(!isolatedDatabase())("D276: where tracking starts", () => {
         outstanding: "0.00",
         carry_over: "0.00",
       });
-      expect(partyRow(feb, "reserve")).toMatchObject({ owed: "700.00", carry_over: "0.00" });
+      expect(partyRow(feb, "reserve")).toMatchObject({
+        service_after_cc: "700.00",
+        owed: "0.00",
+        carry_over: "0.00",
+        balance: "0.00",
+      });
+      // Only what consignors are owed today.
+      expect(partyRow(feb, "total")).toMatchObject({
+        owed: partyRow(feb, "consignors").owed,
+        carry_from: MAR,
+      });
+      const jan = await summary(tx, JAN);
+      expect(partyRow(jan, "cult_commons")).toMatchObject({
+        owed: "300.00",
+        paid: "0.00",
+        outstanding: "0.00",
+        carry_over: "0.00",
+      });
+      expect(partyRow(jan, "reserve")).toMatchObject({
+        service_after_cc: "700.00",
+        owed: "0.00",
+        paid: "50.00",
+        balance: "0.00",
+      });
+      expect(partyRow(jan, "total").owed).toBe(partyRow(jan, "consignors").owed);
+      // A tracked month names where tracking starts too.
+      expect(partyRow(before, "total")).toMatchObject({ carry_from: MAR });
     });
   });
 });

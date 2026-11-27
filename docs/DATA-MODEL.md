@@ -5835,9 +5835,14 @@ Per shop month m (Asia/Singapore, the sale date basis, `private.report_rows`):
 Tracking starts at the first month of the earliest pay rule (build
 default, owner to confirm): months before it were settled outside the app
 and never carry over, into owed or into the reserve, and payouts against
-them count in their own month only. Payouts never move the start, reversed
+them count in their own month only. Viewed on its own, such a month is
+settled: its service and Cult Commons figures show for reference, but the
+mechanic and Cult Commons `outstanding` are 0 and left out of the total,
+and the reserve's change and balance are 0 (the reserve starts at the
+tracking month). Payouts never move the start, reversed
 or not; only with no pay rule at all does the earliest non-reversed
-payout's month stand in. `carry_from` (mechanic and Cult Commons rows) is
+payout's month stand in. The `total` row's `carry_from` is the month
+tracking starts (the page names it). `carry_from` (mechanic and Cult Commons rows) is
 the earliest earlier tracked month whose owed − paid is above 0; the page
 links "Still owed from earlier months" to it.
 

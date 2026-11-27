@@ -1917,7 +1917,9 @@ trackers and handovers needs **Manage adventures**.
   month of service pay: earlier months count as settled outside the app
   and never carry over, so start it at the first month you pay through
   the app. Recording or reversing a payment for an older month doesn't
-  change that.
+  change that. Opening an earlier month says it counts as settled: its
+  figures show for reference, nothing in it is owed, and it isn't in
+  **Total to transfer** or the services reserve.
 - Steps: **More** → **Payouts**. It opens on last month. Use **Previous
   month** and **Next month** to change it. **Total to transfer** is what
   you still owe: service pay and Cult Commons, earlier months included,

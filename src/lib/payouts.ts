@@ -130,6 +130,11 @@ export type PayoutSummary = {
   consignors: { total: string; count: number; owed: ConsignorOwed[] };
   /** Mechanics and Cult Commons (with carry-over, never below 0) plus consignors. */
   total: string;
+  /**
+   * "YYYY-MM" tracking starts (the first pay rule's month). A month before
+   * it is settled: nothing in it is outstanding and the reserve starts after.
+   */
+  trackedFrom: string | null;
 };
 
 export type PayoutRecord = {
